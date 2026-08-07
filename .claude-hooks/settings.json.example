@@ -1,0 +1,32 @@
+{
+  "model": "claude-fable-5[1m]",
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark",
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/killboxincorporated/.claude/hooks/guard.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/killboxincorporated/.claude/hooks/integrity_gate.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

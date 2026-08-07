@@ -1,0 +1,25 @@
+[package]
+name = "aegis-uefi"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["Justin B. Thompson (Aefinity AI)"]
+repository = "https://github.com/Aefinity-AI/alice-aegis"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+# Every dependency here is used. Eight were declared and never referenced
+# (bytemuck, hashbrown, log, pic8259, x86_64, xmas-elf, uart_16550, pc-keyboard);
+# the x86_64 calls in main.rs are `core::arch::x86_64`, the std module, not the crate.
+aegis-core = { path = "../aegis-core" }
+uefi = { version = "0.38.0", features = ["alloc"] }   # boot services, protocols, console
+spin = "0.12.1"                                        # Mutex for the heap
+linked_list_allocator = "0.10.6"                       # the heap itself
+
+[features]
+qemu-test = []

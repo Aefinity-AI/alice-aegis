@@ -1,0 +1,141 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=2797632 embed=6291456 vocab=163954
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA
+TURBO_DIAG boot-pre: cur_ratio=5 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=1 prochot_log=1 hot=0 temp=Tj-63C bdprochot_en=1
+STAGE 7 bd-prochot: CLEARED (read-back confirms 0); prochot_was_asserted=1
+STAGE 7 pstate: legacy SpeedStep ratio=27 (~2700MHz)
+TURBO_DIAG boot-post: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-56C bdprochot_en=0
+==== GAUNTLET ====
+GAUNTLET CPU: Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz | base=0MHz max=0MHz bus=0MHz | simd=AVX2+FMA hwp=false turbo=true baremetal=true
+GAUNTLET SIMD_scalar: 1 tok, path=scalar, prefill 33 tok 571637622t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET SIMD_native: 1 tok, path=AVX2+FMA, prefill 33 tok 91251533t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PREFILL_pertoken: 2 tok, path=AVX2+FMA, prefill 27 tok 110881393t 0.000s, decode 1 tok 5853229 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PREFILL_batched: 2 tok, path=AVX2+FMA, prefill 27 tok 72290007t 0.000s, decode 1 tok 5848407 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PSTATE_run1: 1 tok, path=AVX2+FMA, prefill 33 tok 91068654t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PSTATE_run2_control: 1 tok, path=AVX2+FMA, prefill 33 tok 91060564t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+TURBO_DIAG pre: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-48C bdprochot_en=0
+GAUNTLET TURBO: legacy ratio=27 (~2700MHz)
+TURBO_DIAG post: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-54C bdprochot_en=0
+GAUNTLET PSTATE_run3_turbo: 1 tok, path=AVX2+FMA, prefill 33 tok 91064755t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET CTX_20: 1 tok, path=AVX2+FMA, prefill 33 tok 91055169t 0.977s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 1.000s, clock 113%
+GAUNTLET CTX_100: 1 tok, path=AVX2+FMA, prefill 33 tok 91063799t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET CTX_400: 1 tok, path=AVX2+FMA, prefill 33 tok 91071042t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PEAK_MEMORY: 13954899 bytes (13.30 MB) [Arena High-Water Mark]
+GAUNTLET DONE
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=2797632 embed=6291456 vocab=163954
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA
+TURBO_DIAG boot-pre: cur_ratio=5 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=1 prochot_log=1 hot=0 temp=Tj-60C bdprochot_en=1
+STAGE 7 bd-prochot: CLEARED (read-back confirms 0); prochot_was_asserted=1
+STAGE 7 pstate: legacy SpeedStep ratio=27 (~2700MHz)
+TURBO_DIAG boot-post: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-53C bdprochot_en=0
+==== GAUNTLET ====
+GAUNTLET CPU: Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz | base=0MHz max=0MHz bus=0MHz | simd=AVX2+FMA hwp=false turbo=true baremetal=true
+GAUNTLET SIMD_scalar: 1 tok, path=scalar, prefill 33 tok 571573094t 0.981s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 1.000s, clock 113%
+GAUNTLET SIMD_native: 1 tok, path=AVX2+FMA, prefill 33 tok 91049030t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PREFILL_pertoken: 2 tok, path=AVX2+FMA, prefill 27 tok 110921988t 0.000s, decode 1 tok 5850231 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PREFILL_batched: 2 tok, path=AVX2+FMA, prefill 27 tok 72142488t 0.000s, decode 1 tok 5852765 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PSTATE_run1: 1 tok, path=AVX2+FMA, prefill 33 tok 90868184t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PSTATE_run2_control: 1 tok, path=AVX2+FMA, prefill 33 tok 90862610t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+TURBO_DIAG pre: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-47C bdprochot_en=0
+GAUNTLET TURBO: legacy ratio=27 (~2700MHz)
+TURBO_DIAG post: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-51C bdprochot_en=0
+GAUNTLET PSTATE_run3_turbo: 1 tok, path=AVX2+FMA, prefill 33 tok 91043198t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET CTX_20: 1 tok, path=AVX2+FMA, prefill 33 tok 91059620t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET CTX_100: 1 tok, path=AVX2+FMA, prefill 33 tok 91069294t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET CTX_400: 1 tok, path=AVX2+FMA, prefill 33 tok 91076231t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 113%
+GAUNTLET PEAK_MEMORY: 13954899 bytes (13.30 MB) [Arena High-Water Mark]
+GAUNTLET DONE
+PROMPT: "hello alice"
+RESPONSE: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+  (85 tokens, 550730403 ticks, 6479181 ticks/token, wall 0.000s, 0.00 tok/s, clock 113% of nominal)
+PROMPT: "how are you today?"
+RESPONSE:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+  (257 tokens, 3254626445 ticks, 12663916 ticks/token, wall 1.000s, 257.00 tok/s, clock 113% of nominal)
+PROMPT: "continue"
+RESPONSE: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+  (214 tokens, 3028570970 ticks, 14152200 ticks/token, wall 1.000s, 214.00 tok/s, clock 113% of nominal)
+PROMPT: "continue"
+RESPONSE: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+  (214 tokens, 2951749616 ticks, 13793222 ticks/token, wall 2.000s, 107.00 tok/s, clock 113% of nominal)
+PROMPT: "continue"
+RESPONSE: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+  (214 tokens, 2951469867 ticks, 13791915 ticks/token, wall 1.000s, 214.00 tok/s, clock 113% of nominal)
+PROMPT: "/help"
+RESPONSE: ed.
+"It's okay, Lily," Ben said. "We can still play with the ball."
+They took turns to throw and catch it. They had fun. But then they saw a big dog running towards them. The dog was barking loud. It looked angry.
+Lily and Ben were scared of the dog. They did not like dogs. They wanted their mom or dad.
+But Mom and Dad hugged them and told them that the dog just wants some food. They gave them cookies and milk for dinner. They also bought more toys from the store.
+The moral value is: Do not judge someone by how they look. Be kind and respectful.
+  (136 tokens, 2019032989 ticks, 14845830 ticks/token, wall 1.000s, 136.00 tok/s, clock 113% of nominal)
+PROMPT: "help"
+RESPONSE:  it.
+"Wow, that's a cool car!" Ben says. "Can I try?"
+Lily shakes her head and smiles. She likes the doll more than Ben. They both want to play with the truck.
+They start to argue about who gets to play with the toy first. Lily wants to make Ben give up his ball. Ben is angry too. He pushes Lily away from him.
+Ben falls down and cries. He does not like being pushed by Lily. He thinks she was mean and rude. He runs to get help.
+But no one hears them. No one comes. The end.
+  (126 tokens, 1922336504 ticks, 15256638 ticks/token, wall 1.000s, 126.00 tok/s, clock 113% of nominal)
+PROMPT: "hey there"
+RESPONSE: .
+"Look, Ben!" Lily said. "I found a big rock! Let's play with it."
+Ben was curious and wanted to see the rock too. He climbed on the box of rocks and reached for the top shelf. But he did not know that there were many other things in the world: trees, flowers, birds, dogs, and people who lived near the tree. They had fun together.
+Suddenly, they heard a loud noise from outside. It sounded like someone is coming closer. They looked out the window and saw a man standing by the wall. He smiled at them and waved at them.
+Lily and Ben felt scared and sorry. They knew they should have listened to their mom or dad. They ran back inside and told her what happened. Their parents hugged them and kissed them good nights. They took them home and gave them cookies and milk. They also asked him if he needed help.
+The next day, his family came home and brought them some food and water. They ate and drank until they were full again. They thanked Lily and Ben for being brave and smart. They decided to never touch anything else ever before.
+  (237 tokens, 3338263280 ticks, 14085499 ticks/token, wall 1.000s, 237.00 tok/s, clock 113% of nominal)
+PROMPT: "// what is the correct answer to unikernal AI for edge inference at speed? "
+RESPONSE: 
+The little girl was so excited and she ran to the kitchen. She grabbed a spoon, put it in her mouth and started running around with excitement. 
+Suddenly, something strange happened - out of nowhere, there were two big eyes! The giant bear had been watching them from his window. He smiled at the little girl and said, "I'm here to help you!" 
+He then gave her a hug and told her that he would always be ready for anything else. With this new friend by being brave and trying to do what he wanted.
+  (113 tokens, 1788016199 ticks, 15823152 ticks/token, wall 1.000s, 113.00 tok/s, clock 113% of nominal)
+PROMPT: "/test"
+RESPONSE: .
+"No, I want to play with the ball!" Lily said. She ran after Ben and tried to grab the rope from him.
+Ben was angry. He did not like that Lily took his toy car without asking. He wanted to keep it for himself. He pushed Lily away and shouted at her.
+Lily felt sad and hurt. She liked the game. She wished she had shared her toys with Ben. She looked around and saw a big dog running towards them. The dog barked loudly and jumped on their cars. It knocked over the fence and made a loud noise.
+The other kids heard the noise and came out of their houses. They were shocked and scared too. They cried and hugged each other. They told Ben what happened and he started to cry again.
+Mom hears the noise and comes outside. She sees the broken window and the mess they have done. She is very upset and disappointed. She tells Ben and Lily to go inside and think about what they did. She says they should not fight over things anymore. She says they are both wrong and you need to learn to share and be kind.
+She takes them home and gives them some cookies and milk. She tells them they can still play together and have fun. But they do
+  (257 tokens, 3494115920 ticks, 13595781 ticks/token, wall 2.000s, 128.50 tok/s, clock 113% of nominal)

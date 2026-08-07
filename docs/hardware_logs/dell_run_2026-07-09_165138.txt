@@ -1,0 +1,13 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831576 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA
+PROMPT: "the capital of france is..."
+RESPONSE: the capital of france is paris
+  (6 tokens, 54142854551 cycles, 9023809091 cycles/token)
+BENCHMARK: 53 tokens, 225810661665 cycles, 4260578521 cycles/token

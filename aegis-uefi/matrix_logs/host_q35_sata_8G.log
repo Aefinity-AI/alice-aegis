@@ -1,0 +1,1 @@
+qemu-system-x86_64: cannot set up guest memory 'pc.ram': Cannot allocate memory

@@ -1,0 +1,80 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=2797632 embed=6291456 vocab=163954
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA
+==== GAUNTLET ====
+GAUNTLET CPU: Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz | base=0MHz max=0MHz bus=0MHz | simd=AVX2+FMA hwp=false turbo=true baremetal=true
+GAUNTLET SIMD_scalar: 1 tok, path=scalar, prefill 33 tok 2937784273t 1.965s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 2.000s, clock 22%
+GAUNTLET SIMD_native: 1 tok, path=AVX2+FMA, prefill 33 tok 455263336t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 22%
+GAUNTLET PREFILL_pertoken: 2 tok, path=AVX2+FMA, prefill 27 tok 545412140t 0.000s, decode 1 tok 27563502 ticks/tok 0.00 tok/s, total 0.000s, clock 22%
+GAUNTLET PREFILL_batched: 2 tok, path=AVX2+FMA, prefill 27 tok 361273122t 0.000s, decode 1 tok 27439104 ticks/tok 0.00 tok/s, total 0.000s, clock 22%
+GAUNTLET PSTATE_run1: 1 tok, path=AVX2+FMA, prefill 33 tok 454957079t 0.983s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 1.000s, clock 22%
+GAUNTLET PSTATE_run2_control: 1 tok, path=AVX2+FMA, prefill 33 tok 483038847t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 22%
+TURBO_DIAG pre: cur_ratio=5 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=1 prochot_log=1 hot=0 temp=Tj-72C bdprochot_en=1
+GAUNTLET TURBO: legacy ratio=27 (~2700MHz)
+TURBO_DIAG post: cur_ratio=5 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=1 prochot_log=1 hot=0 temp=Tj-73C bdprochot_en=1
+GAUNTLET PSTATE_run3_turbo: 1 tok, path=AVX2+FMA, prefill 33 tok 455137056t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 22%
+GAUNTLET CTX_20: 1 tok, path=AVX2+FMA, prefill 33 tok 454935553t 0.983s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 1.000s, clock 22%
+GAUNTLET CTX_100: 1 tok, path=AVX2+FMA, prefill 33 tok 454839985t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 22%
+GAUNTLET CTX_400: 1 tok, path=AVX2+FMA, prefill 33 tok 454994286t 0.000s, decode 0 tok 0 ticks/tok 0.00 tok/s, total 0.000s, clock 22%
+GAUNTLET PEAK_MEMORY: 13954899 bytes (13.30 MB) [Arena High-Water Mark]
+GAUNTLET DONE
+PROMPT: "hello alice"
+RESPONSE: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+  (85 tokens, 2547510609 ticks, 29970713 ticks/token, wall 1.000s, 85.00 tok/s, clock 22% of nominal)
+PROMPT: "how are you?"
+RESPONSE:  You are not nice. You have to share and be kind."
+Lily felt ashamed. She realized she was wrong. She said, "I'm sorry, mom. I won't do it again. Can we still play together?"
+Her dad smiled. He hugged her back. He said, "Of course you can. But first, let's go inside the house. We will make some cookies for dinner tonight," he suggested.
+They went inside with their moms. They had a good time playing in the garden. They forgot about Lily and Ben. They were happy.
+  (117 tokens, 6137341990 ticks, 52455914 ticks/token, wall 2.000s, 58.50 tok/s, clock 22% of nominal)
+PROMPT: "test"
+RESPONSE: . He was so happy and he thanked the bird for helping him.
+The moral of this story is that it's important to be kind, even when you're feeling down.
+  (36 tokens, 2894362961 ticks, 80398971 ticks/token, wall 1.000s, 36.00 tok/s, clock 22% of nominal)
+PROMPT: "why all the stories?"
+RESPONSE: 
+One day, a little girl named Lily came to the park. She saw the big tree and wanted to climb it too. But she was scared because there were so many things in the forest. So, she decided to be brave and try to climb the tree.
+Lily started to climb the tree with her friends. They all went up together. When they reached the top of the tree, they found a beautiful view from the ground. They played on the swings until the sun began to set. Then, they climbed down the tree and told their moms about their adventure.
+  (116 tokens, 6507937074 ticks, 56102905 ticks/token, wall 3.000s, 38.66 tok/s, clock 22% of nominal)
+PROMPT: "ranger"
+RESPONSE: .
+"Look, Ben!" Lily says. "I found a big box of toys! Let's play with them."
+They run to the box and open it. They see many things inside. There are balls, dolls, cars, books, puzzles, clothes, but no animals. They think they look fun.
+Lily picks up a doll that is pink and has long hair. She likes her new toy more than anything else. She puts it on the floor next to her other toys.
+Ben sees what Lily does. He wants to try too. He takes the car from Lily and tries to put it in his pocket. But he makes a face when he holds it tight. It hurts his fingers and feet.
+He feels sad and angry. He thinks Lily took his truck away. He cries and runs out of the room.
+Mom hears him cry and comes back. She sees the mess and the twins crying. She hugs them and tells them not to worry. She says they can fix the ball or get another one later. She gives them some tape and crayons.
+She helps them clean their hands and faces. She gives them each a kiss and a cookie as a treat. She says she loves them very much.
+Sara and Ben feel better
+  (257 tokens, 13685303263 ticks, 53250207 ticks/token, wall 6.000s, 42.83 tok/s, clock 22% of nominal)
+PROMPT: "run"
+RESPONSE: , and the little girl was so happy. She thanked her mom for helping her find it. From that day on, Lily always remembered to be careful when she played with new things.
+  (37 tokens, 2542353562 ticks, 68712258 ticks/token, wall 1.000s, 37.00 tok/s, clock 22% of nominal)
+PROMPT: "continue"
+RESPONSE: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+  (214 tokens, 11395706520 ticks, 53250965 ticks/token, wall 5.000s, 42.80 tok/s, clock 22% of nominal)
+PROMPT: "continue"
+RESPONSE: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+  (214 tokens, 11397348935 ticks, 53258639 ticks/token, wall 5.000s, 42.80 tok/s, clock 22% of nominal)

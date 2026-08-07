@@ -1,0 +1,14 @@
+{
+  "_comment": "Merge the PostToolUse array into ~/.claude/settings.json. The existing integrity_gate.sh entry STAYS — the two hooks ask different questions (does it print an uncomputed number / does it assert a killed number).",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "/home/killboxincorporated/.claude/hooks/integrity_gate.sh" },
+          { "type": "command", "command": "/home/killboxincorporated/program/loop/hooks/claim_gate.sh" }
+        ]
+      }
+    ]
+  }
+}

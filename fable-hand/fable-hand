@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+"""fable-hand — Fable 5's computer-use + browser utility (visible cursor).
+
+X layer (any container app, shown as ChromeOS windows):
+  fable-hand windows                        list visible X windows
+  fable-hand launch CMD [ARG...]           start an X app detached (prints pid)
+  fable-hand apps                           list installed .desktop apps
+  fable-hand shot OUT.png [--window NAME]   capture a window (or root)
+  fable-hand move X Y [--window NAME]       animate visible cursor + pointer
+  fable-hand click X Y [--window NAME] [--button N] [--double]
+  fable-hand type TEXT [--window NAME]
+  fable-hand key COMBO [COMBO...] [--window NAME]
+      xdotool chord syntax, passed through verbatim: ctrl+l, ctrl+shift+t,
+      Return, alt+F4; several combos run in sequence.
+
+Window management (SEL = window id, exact title, or UNIQUE title substring;
+ambiguity is an error listing the matches):
+  fable-hand win list                       id, desktop, geometry, title
+  fable-hand win focus SEL
+  fable-hand win close SEL
+  fable-hand win move SEL X Y
+  fable-hand win resize SEL WxH
+  fable-hand win minimize SEL
+  fable-hand win maximize SEL               (move+resize; no EWMH here)
+
+Clipboard:
+  fable-hand clip get
+  fable-hand clip set TEXT                  ('-' reads stdin)
+
+Own mode + audit journal (journal is ALWAYS on; own mode flags it + shows
+an unmistakable click-through on-screen strip):
+  fable-hand own start [--label TEXT]
+  fable-hand own status
+  fable-hand own stop                       prints session summary
+
+Script runner:
+  fable-hand run FILE.json                  JSON array of
+      {"verb": "click", "args": ["300","200","--window","xclock"],
+       "delay_ms": 500}
+      runs through the same code paths as the CLI, stops on first error
+      (failing index in the JSON error), journals every step.
+
+Browser layer (own Chromium via CDP, in-page animated cursor):
+  fable-hand browse URL                     open/ensure browser, navigate
+  fable-hand b-shot OUT.png [--full]
+  fable-hand b-click SELECTOR | --at X Y
+  fable-hand b-type TEXT [--selector S] [--submit]
+  fable-hand b-key COMBO                    e.g. Enter, ctrl+a
+  fable-hand b-scroll [--dy N] [--dx N]
+  fable-hand b-read [--selector S] [--max N]
+  fable-hand b-eval JS
+  fable-hand b-tabs
+  fable-hand stop-browser
+
+  fable-hand status                         what's alive, honest scope note
+
+All results print as JSON on stdout. Every action appends one line to
+~/.fable-hand/journal.jsonl: {ts, verb, args, result|error, owned}.
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from fablehand import browser, cdp, journal, xlayer  # noqa: E402
+
+
+class StepFailure(SystemExit):
+    """A run-script step failed; carries the structured error payload."""
+
+    def __init__(self, payload):
+        super().__init__(1)
+        self.payload = payload
+
+
+def emit(obj):
+    print(json.dumps(obj, indent=2))
+
+
+def build_parser():
+    p = argparse.ArgumentParser(prog="fable-hand", add_help=True)
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("status")
+    sub.add_parser("windows")
+    sub.add_parser("apps")
+
+    sp = sub.add_parser("launch")
+    sp.add_argument("argv", nargs=argparse.REMAINDER)
+
+    sp = sub.add_parser("shot")
+    sp.add_argument("out")
+    sp.add_argument("--window")
+
+    for name in ("move", "click"):
+        sp = sub.add_parser(name)
+        sp.add_argument("x", type=int)
+        sp.add_argument("y", type=int)
+        sp.add_argument("--window")
+        if name == "click":
+            sp.add_argument("--button", type=int, default=1)
+            sp.add_argument("--double", action="store_true")
+
+    sp = sub.add_parser("type")
+    sp.add_argument("text")
+    sp.add_argument("--window")
+
+    sp = sub.add_parser("key")
+    sp.add_argument("combos", nargs="+", metavar="COMBO",
+                    help="xdotool chord(s), e.g. ctrl+shift+t Return")
+    sp.add_argument("--window")
+
+    sp = sub.add_parser("win")
+    wsub = sp.add_subparsers(dest="win_cmd", required=True)
+    wsub.add_parser("list")
+    for name in ("focus", "close", "minimize", "maximize"):
+        w = wsub.add_parser(name)
+        w.add_argument("sel")
+    w = wsub.add_parser("move")
+    w.add_argument("sel")
+    w.add_argument("x", type=int)
+    w.add_argument("y", type=int)
+    w = wsub.add_parser("resize")
+    w.add_argument("sel")
+    w.add_argument("size", metavar="WxH")
+
+    sp = sub.add_parser("clip")
+    csub = sp.add_subparsers(dest="clip_cmd", required=True)
+    csub.add_parser("get")
+    c = csub.add_parser("set")
+    c.add_argument("text", help="text to place on the clipboard; '-' = stdin")
+
+    sp = sub.add_parser("own")
+    osub = sp.add_subparsers(dest="own_cmd", required=True)
+    o = osub.add_parser("start")
+    o.add_argument("--label")
+    osub.add_parser("stop")
+    osub.add_parser("status")
+
+    sp = sub.add_parser("run")
+    sp.add_argument("script", help="JSON file: [{verb, args, delay_ms?}, ...]")
+
+    sp = sub.add_parser("browse")
+    sp.add_argument("url")
+
+    sp = sub.add_parser("b-shot")
+    sp.add_argument("out")
+    sp.add_argument("--full", action="store_true")
+
+    sp = sub.add_parser("b-click")
+    sp.add_argument("selector", nargs="?")
+    sp.add_argument("--at", nargs=2, type=float, metavar=("X", "Y"))
+    sp.add_argument("--button", default="left")
+    sp.add_argument("--double", action="store_true")
+
+    sp = sub.add_parser("b-type")
+    sp.add_argument("text")
+    sp.add_argument("--selector")
+    sp.add_argument("--submit", action="store_true")
+
+    sp = sub.add_parser("b-key")
+    sp.add_argument("combo")
+
+    sp = sub.add_parser("b-scroll")
+    sp.add_argument("--dy", type=int, default=600)
+    sp.add_argument("--dx", type=int, default=0)
+
+    sp = sub.add_parser("b-read")
+    sp.add_argument("--selector")
+    sp.add_argument("--max", type=int, default=20000)
+
+    sp = sub.add_parser("b-eval")
+    sp.add_argument("js")
+
+    sub.add_parser("b-tabs")
+
+    sp = sub.add_parser("b-tab")
+    sp.add_argument("index", type=int)
+
+    sub.add_parser("stop-browser")
+    return p
+
+
+def _parse_size(s):
+    try:
+        w, h = s.lower().split("x", 1)
+        return int(w), int(h)
+    except ValueError:
+        raise SystemExit(f"bad size {s!r}: expected WxH, e.g. 800x600")
+
+
+def run_script(path, parser):
+    """Execute a JSON step list through the SAME execute() as the CLI."""
+    try:
+        with open(path) as f:
+            steps = json.load(f)
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"cannot read script {path}: {e}")
+    if not isinstance(steps, list):
+        raise SystemExit(f"script {path} must be a JSON array of steps")
+
+    results = []
+    for i, step in enumerate(steps):
+        verb = step.get("verb") if isinstance(step, dict) else None
+        args = step.get("args", []) if isinstance(step, dict) else []
+        fail = None
+        if not verb or not isinstance(args, list):
+            fail = "each step needs {'verb': str, 'args': [str, ...]}"
+        elif verb == "run":
+            fail = "nested 'run' is not supported"
+        if fail is None:
+            try:
+                ns = parser.parse_args([verb] + [str(a) for a in args])
+                res = execute(ns, parser)
+            except StepFailure as e:
+                fail = e.payload
+            except SystemExit as e:
+                fail = str(e.code) if not isinstance(e.code, int) \
+                    else f"exit {e.code}"
+            except (ConnectionError, OSError, cdp.CDPError) as e:
+                fail = f"{type(e).__name__}: {e}"
+        journal.append(verb or "?", {"argv": args},
+                       result=None if fail else res, error=fail,
+                       extra={"via": "run", "script": path, "step": i})
+        if fail is not None:
+            raise StepFailure({"error": fail, "failing_index": i,
+                               "verb": verb, "args": args, "script": path,
+                               "completed_steps": i})
+        results.append({"step": i, "verb": verb, "result": res})
+        delay = step.get("delay_ms")
+        if delay:
+            time.sleep(delay / 1000.0)
+    return {"script": path, "steps": len(steps), "results": results}
+
+
+def execute(a, parser):
+    """Dispatch one parsed action; returns the JSON-able result."""
+    if a.cmd == "status":
+        own = journal.own_status()
+        return {
+            "display": xlayer.DISPLAY,
+            "browser_cdp_alive": cdp.browser_alive(),
+            "cursor_overlay_alive": xlayer.overlay_alive(),
+            "x_windows": len(xlayer.windows()),
+            "own_mode": own.get("active", False),
+            "journal": journal.JOURNAL_PATH,
+            "scope": "container X apps + own Chromium (web); "
+                     "cannot inject into the ChromeOS host UI",
+        }
+    if a.cmd == "windows":
+        return xlayer.windows()
+    if a.cmd == "apps":
+        return xlayer.apps()
+    if a.cmd == "launch":
+        if not a.argv:
+            raise SystemExit("launch: need a command")
+        return xlayer.launch(a.argv)
+    if a.cmd == "shot":
+        return xlayer.shot(a.out, window=a.window)
+    if a.cmd == "move":
+        return xlayer.move(a.x, a.y, window=a.window)
+    if a.cmd == "click":
+        return xlayer.click(a.x, a.y, window=a.window,
+                            button=a.button, double=a.double)
+    if a.cmd == "type":
+        return xlayer.type_text(a.text, window=a.window)
+    if a.cmd == "key":
+        out = [xlayer.key(c, window=a.window) for c in a.combos]
+        return out[0] if len(out) == 1 else {"pressed": a.combos}
+    if a.cmd == "win":
+        if a.win_cmd == "list":
+            return xlayer.win_list()
+        if a.win_cmd == "focus":
+            return xlayer.win_focus(a.sel)
+        if a.win_cmd == "close":
+            return xlayer.win_close(a.sel)
+        if a.win_cmd == "move":
+            return xlayer.win_move(a.sel, a.x, a.y)
+        if a.win_cmd == "resize":
+            w, h = _parse_size(a.size)
+            return xlayer.win_resize(a.sel, w, h)
+        if a.win_cmd == "minimize":
+            return xlayer.win_minimize(a.sel)
+        if a.win_cmd == "maximize":
+            return xlayer.win_maximize(a.sel)
+    if a.cmd == "clip":
+        if a.clip_cmd == "get":
+            return xlayer.clip_get()
+        text = sys.stdin.read() if a.text == "-" else a.text
+        return xlayer.clip_set(text)
+    if a.cmd == "own":
+        if a.own_cmd == "start":
+            return journal.own_start(label=a.label)
+        if a.own_cmd == "stop":
+            return journal.own_stop()
+        return journal.own_status()
+    if a.cmd == "run":
+        return run_script(a.script, parser)
+    if a.cmd == "browse":
+        return browser.goto(a.url)
+    if a.cmd == "b-shot":
+        return browser.screenshot(a.out, full_page=a.full)
+    if a.cmd == "b-click":
+        if a.at:
+            return browser.click(x=a.at[0], y=a.at[1], button=a.button,
+                                 clicks=2 if a.double else 1)
+        if a.selector:
+            return browser.click(selector=a.selector, button=a.button,
+                                 clicks=2 if a.double else 1)
+        raise SystemExit("b-click: need SELECTOR or --at X Y")
+    if a.cmd == "b-type":
+        return browser.type_text(a.text, selector=a.selector, submit=a.submit)
+    if a.cmd == "b-key":
+        return browser.press_key(a.combo)
+    if a.cmd == "b-scroll":
+        return browser.scroll(dy=a.dy, dx=a.dx)
+    if a.cmd == "b-read":
+        return browser.read_page(selector=a.selector, max_chars=a.max)
+    if a.cmd == "b-eval":
+        return {"value": browser.eval_js(a.js)}
+    if a.cmd == "b-tabs":
+        return browser.tabs()
+    if a.cmd == "b-tab":
+        return browser.select_tab(a.index)
+    if a.cmd == "stop-browser":
+        return {"stopped": browser.stop_browser()}
+    raise SystemExit(f"unhandled verb {a.cmd!r}")
+
+
+def _journal_args(a):
+    return {k: v for k, v in vars(a).items() if k != "cmd" and v is not None}
+
+
+def main():
+    parser = build_parser()
+    a = parser.parse_args()
+    try:
+        res = execute(a, parser)
+    except StepFailure as e:
+        journal.append(a.cmd, _journal_args(a), error=e.payload)
+        raise
+    except SystemExit as e:
+        if e.code not in (0, None) and not isinstance(e.code, int):
+            journal.append(a.cmd, _journal_args(a), error=str(e.code))
+        raise
+    except (ConnectionError, OSError, cdp.CDPError) as e:
+        journal.append(a.cmd, _journal_args(a),
+                       error=f"{type(e).__name__}: {e}")
+        raise
+    journal.append(a.cmd, _journal_args(a), result=res)
+    emit(res)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except StepFailure as e:
+        emit(e.payload)
+        sys.exit(1)
+    except SystemExit as e:
+        # Our own raises carry a message; argparse exits carry a code.
+        if e.code not in (0, None) and not isinstance(e.code, int):
+            emit({"error": str(e.code)})
+            sys.exit(1)
+        raise
+    except (ConnectionError, OSError, cdp.CDPError) as e:
+        # Browser gone mid-session, socket refused, CDP timeout: clean error.
+        emit({"error": f"{type(e).__name__}: {e}",
+              "hint": "is the browser up? try 'fable-hand browse <url>' "
+                      "or 'fable-hand status'"})
+        sys.exit(1)

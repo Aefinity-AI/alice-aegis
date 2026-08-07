@@ -1,0 +1,63 @@
+[package]
+name = "aegis-core"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["Justin B. Thompson (Aefinity AI)"]
+repository = "https://github.com/Aefinity-AI/alice-aegis"
+
+[dependencies]
+# The ONLY runtime dependency of the inference engine.
+# serde + serde_json + serde_core + memchr (~27,700 lines) were removed in favour
+# of src/json.rs (~150 lines), which parses exactly the two things we read.
+libm = "0.2.16"
+
+[[bin]]
+name = "gemm_tile"
+path = "benches/gemm_tile.rs"
+
+[features]
+# int8 activations match the reference BitNet, and the weights were trained
+# against them (straight-through estimation). Measured: WikiText-2 perplexity
+# 12.801 -> 12.738 for ~2% decode cost. `--no-default-features` restores the
+# old f32 activation path.
+default = ["int8_act"]
+# Force the pre-2026-07-09 prefill path (one weight pass per token) so the
+# batched GEMM can be A/B'd in the same session, on the same thermal state.
+legacy_matmul = []
+# Multi-threaded row-parallel kernels. Requires std, so it is OFF for the
+# no_std UEFI unikernel, which stays single-threaded.
+parallel = []
+# Per-token absmax int8 activation quantization, applied as a quantize->
+# dequantize round trip on the f32 path. Kept as a named feature so the
+# quality effect stays A/B-able.
+int8_act = []
+# Diagnostic counters: record, per (token, layer), how many elements of the
+# down_proj input are exactly 0.0 at the moment the kernel consumes it
+# (ReLU^2 activation-sparsity probe). Counting only — no kernel change, no
+# effect on computed values. Allocates per token; OFF by default.
+act_stats = []
+
+[[bin]]
+name = "lut_mpgemm"
+path = "benches/lut_mpgemm.rs"
+
+[[bin]]
+name = "ctz_vs_simd"
+path = "benches/ctz_vs_simd.rs"
+
+[[bin]]
+name = "fused_vs_sequential"
+path = "benches/fused_vs_sequential.rs"
+
+[[bin]]
+name = "bitplane_vs_lut"
+path = "benches/bitplane_vs_lut.rs"
+
+[[bin]]
+name = "colskip_vs_incumbent"
+path = "benches/colskip_vs_incumbent.rs"
+
+[[bin]]
+name = "cis_vs_float"
+path = "benches/cis_vs_float.rs"

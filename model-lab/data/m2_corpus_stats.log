@@ -1,0 +1,84 @@
+tokenizers: falcon vocab 32768, llama vocab 128256
+[tulu3] 6 parquet files
+  data/train-00000-of-00006.parquet: 156558 rows
+  data/train-00001-of-00006.parquet: 156557 rows
+  data/train-00002-of-00006.parquet: 156557 rows
+  data/train-00003-of-00006.parquet: 156557 rows
+  data/train-00004-of-00006.parquet: 156557 rows
+  data/train-00005-of-00006.parquet: 156557 rows
+  => ai2-adapt-dev/coconot_converted: rows=10983 est_falcon=1.1M est_llama=1.0M
+  => ai2-adapt-dev/evol_codealpaca_heval_decontaminated: rows=107276 est_falcon=70.2M est_llama=57.4M
+  => ai2-adapt-dev/flan_v2_converted: rows=89982 est_falcon=39.0M est_llama=31.4M
+  => ai2-adapt-dev/no_robots_converted: rows=9500 est_falcon=3.5M est_llama=3.0M
+  => ai2-adapt-dev/numinamath_tir_math_decontaminated: rows=64312 est_falcon=51.7M est_llama=44.2M
+  => ai2-adapt-dev/oasst1_converted: rows=7131 est_falcon=3.1M est_llama=2.2M
+  => ai2-adapt-dev/personahub_code_v2_34999: rows=34999 est_falcon=15.6M est_llama=12.8M
+  => ai2-adapt-dev/personahub_ifdata_manual_seed_v3_29980: rows=29980 est_falcon=12.1M est_llama=10.4M
+  => ai2-adapt-dev/personahub_math_v5_regen_149960: rows=149960 est_falcon=225.6M est_llama=192.9M
+  => ai2-adapt-dev/tulu_hard_coded_repeated_10: rows=240 est_falcon=0.0M est_llama=0.0M
+  => ai2-adapt-dev/tulu_v3.9_aya_100k: rows=100000 est_falcon=82.9M est_llama=48.2M
+  => ai2-adapt-dev/tulu_v3.9_open_math_2_gsm8k_50k: rows=50000 est_falcon=13.1M est_llama=10.7M
+  => ai2-adapt-dev/tulu_v3.9_personahub_math_interm_algebra_20k: rows=20000 est_falcon=23.4M est_llama=19.8M
+  => ai2-adapt-dev/tulu_v3.9_sciriff_10k: rows=10000 est_falcon=14.0M est_llama=12.1M
+  => ai2-adapt-dev/tulu_v3.9_synthetic_finalresp_wildguardmixtrain_decontaminated_50k: rows=50000 est_falcon=10.3M est_llama=9.2M
+  => ai2-adapt-dev/tulu_v3.9_table_gpt_5k: rows=5000 est_falcon=4.7M est_llama=3.8M
+  => ai2-adapt-dev/tulu_v3.9_wildchat_100k: rows=100000 est_falcon=330.5M est_llama=233.2M
+  => ai2-adapt-dev/tulu_v3.9_wildjailbreak_decontaminated_50k: rows=50000 est_falcon=13.8M est_llama=12.4M
+  => allenai/tulu-3-sft-personas-math-grade: rows=49980 est_falcon=25.6M est_llama=21.8M
+[smoltalk] 41 parquet files
+  all/test-00000-of-00001.parquet: 54948 rows
+  all/train-00000-of-00009.parquet: 115991 rows
+  all/train-00001-of-00009.parquet: 115991 rows
+  all/train-00002-of-00009.parquet: 115991 rows
+  all/train-00003-of-00009.parquet: 115991 rows
+  all/train-00004-of-00009.parquet: 115991 rows
+  all/train-00005-of-00009.parquet: 115991 rows
+  all/train-00006-of-00009.parquet: 115991 rows
+  all/train-00007-of-00009.parquet: 115990 rows
+  all/train-00008-of-00009.parquet: 115990 rows
+  apigen-80k/test-00000-of-00001.parquet: 4377 rows
+  apigen-80k/train-00000-of-00001.parquet: 83144 rows
+  everyday-conversations/test-00000-of-00001.parquet: 119 rows
+  everyday-conversations/train-00000-of-00001.parquet: 2260 rows
+  explore-instruct-rewriting/test-00000-of-00001.parquet: 1600 rows
+  explore-instruct-rewriting/train-00000-of-00001.parquet: 30400 rows
+  longalign/test-00000-of-00001.parquet: 187 rows
+  longalign/train-00000-of-00001.parquet: 3547 rows
+  metamathqa-50k/test-00000-of-00001.parquet: 2500 rows
+  metamathqa-50k/train-00000-of-00001.parquet: 47500 rows
+  numina-cot-100k/test-00000-of-00001.parquet: 5587 rows
+  numina-cot-100k/train-00000-of-00001.parquet: 106147 rows
+  openhermes-100k/test-00000-of-00001.parquet: 5000 rows
+  openhermes-100k/train-00000-of-00001.parquet: 95000 rows
+  self-oss-instruct/test-00000-of-00001.parquet: 2534 rows
+  self-oss-instruct/train-00000-of-00001.parquet: 48127 rows
+  smol-constraints/test-00000-of-00001.parquet: 1812 rows
+  smol-constraints/train-00000-of-00001.parquet: 34424 rows
+  smol-magpie-ultra/test-00000-of-00001.parquet: 21555 rows
+  smol-magpie-ultra/train-00000-of-00006.parquet: 68257 rows
+  smol-magpie-ultra/train-00001-of-00006.parquet: 68256 rows
+  smol-magpie-ultra/train-00002-of-00006.parquet: 68256 rows
+  smol-magpie-ultra/train-00003-of-00006.parquet: 68256 rows
+  smol-magpie-ultra/train-00004-of-00006.parquet: 68256 rows
+  smol-magpie-ultra/train-00005-of-00006.parquet: 68256 rows
+  smol-rewrite/test-00000-of-00001.parquet: 2808 rows
+  smol-rewrite/train-00000-of-00001.parquet: 53342 rows
+  smol-summarize/test-00000-of-00001.parquet: 5072 rows
+  smol-summarize/train-00000-of-00001.parquet: 96356 rows
+  systemchats-30k/test-00000-of-00001.parquet: 1797 rows
+  systemchats-30k/train-00000-of-00001.parquet: 34133 rows
+  => all: rows=1098865 est_falcon=1034.0M est_llama=906.4M
+  => apigen-80k: rows=87521 est_falcon=54.5M est_llama=46.6M
+  => everyday-conversations: rows=2379 est_falcon=0.4M est_llama=0.4M
+  => explore-instruct-rewriting: rows=32000 est_falcon=2.6M est_llama=2.3M
+  => longalign: rows=3734 est_falcon=45.8M est_llama=38.3M
+  => metamathqa-50k: rows=50000 est_falcon=13.2M est_llama=11.1M
+  => numina-cot-100k: rows=111734 est_falcon=63.3M est_llama=56.0M
+  => openhermes-100k: rows=100000 est_falcon=42.9M est_llama=37.0M
+  => self-oss-instruct: rows=50661 est_falcon=18.0M est_llama=15.0M
+  => smol-constraints: rows=36236 est_falcon=7.7M est_llama=7.1M
+  => smol-magpie-ultra: rows=431092 est_falcon=667.2M est_llama=589.9M
+  => smol-rewrite: rows=56150 est_falcon=20.4M est_llama=18.2M
+  => smol-summarize: rows=101428 est_falcon=54.1M est_llama=46.8M
+  => systemchats-30k: rows=35930 est_falcon=21.6M est_llama=18.8M
+DONE 234s -> /home/killboxincorporated/model-lab/data/m2_corpus_stats.json

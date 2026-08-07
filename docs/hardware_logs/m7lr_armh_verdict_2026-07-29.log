@@ -1,0 +1,616 @@
+[2026-07-29T07:47:30Z] === arm H + verdict runner started ===
+[2026-07-29T07:47:30Z] pre-registration: /home/killboxincorporated/docs/hardware_logs/m7lr_PREREGISTRATION_2026-07-29.md (git 1ee1f5c)
+[2026-07-29T07:47:30Z] waiting for unit m7-lr-control (arm K) to finish...
+[2026-07-29T10:02:34Z] arm K unit is no longer active
+[2026-07-29T10:02:34Z] published checkpoints verified unmodified
+[2026-07-29T10:02:34Z] arm K final line: cool  3999/4000 | loss 1.3091 | lr 1.542e-11 | wd 0.000 | gnorm 2.08 | 8639.6s
+[2026-07-29T10:02:34Z] arm H: copied published twin -> /home/killboxincorporated/model-lab/tinybit/checkpoints/m7lr_hold.pt (original untouched)
+[2026-07-29T10:02:34Z] arm H: running 126071 total steps at the ORIGINAL recipe (cosine, wd 0.1)
+[train] model params: 6529920 (6.53M) | linear=fp | sched=cosine | B=8 T=512 threads=4
+[train] resumed from step 122071
+step 122080/126071 | loss 1.5157 | lr 1.02e-04 | wd 0.100 | gnorm 2.21 | 18.2s
+step 122090/126071 | loss 1.4945 | lr 1.02e-04 | wd 0.100 | gnorm 2.14 | 36.0s
+step 122100/126071 | loss 1.5355 | lr 1.02e-04 | wd 0.100 | gnorm 2.18 | 54.9s
+step 122110/126071 | loss 1.4392 | lr 1.02e-04 | wd 0.100 | gnorm 2.10 | 75.0s
+step 122120/126071 | loss 1.5386 | lr 1.02e-04 | wd 0.100 | gnorm 2.17 | 95.1s
+step 122130/126071 | loss 1.4619 | lr 1.02e-04 | wd 0.100 | gnorm 2.26 | 114.4s
+step 122140/126071 | loss 1.4129 | lr 1.02e-04 | wd 0.100 | gnorm 2.50 | 133.6s
+step 122150/126071 | loss 1.4427 | lr 1.02e-04 | wd 0.100 | gnorm 2.21 | 151.8s
+step 122160/126071 | loss 1.4773 | lr 1.02e-04 | wd 0.100 | gnorm 2.01 | 170.7s
+step 122170/126071 | loss 1.5581 | lr 1.02e-04 | wd 0.100 | gnorm 2.24 | 189.0s
+step 122180/126071 | loss 1.5290 | lr 1.02e-04 | wd 0.100 | gnorm 2.12 | 207.8s
+step 122190/126071 | loss 1.5252 | lr 1.02e-04 | wd 0.100 | gnorm 2.22 | 226.6s
+step 122200/126071 | loss 1.3849 | lr 1.02e-04 | wd 0.100 | gnorm 2.17 | 245.6s
+step 122210/126071 | loss 1.4828 | lr 1.02e-04 | wd 0.100 | gnorm 2.30 | 263.9s
+step 122220/126071 | loss 1.3989 | lr 1.02e-04 | wd 0.100 | gnorm 2.16 | 282.4s
+step 122230/126071 | loss 1.5410 | lr 1.02e-04 | wd 0.100 | gnorm 2.12 | 302.2s
+step 122240/126071 | loss 1.3676 | lr 1.02e-04 | wd 0.100 | gnorm 2.22 | 322.3s
+  [val] step 122250 | val_ppl 5.530 (prev 5.513)
+step 122250/126071 | loss 1.3879 | lr 1.02e-04 | wd 0.100 | gnorm 2.11 | 342.5s
+step 122260/126071 | loss 1.4935 | lr 1.02e-04 | wd 0.100 | gnorm 2.27 | 362.4s
+step 122270/126071 | loss 1.4109 | lr 1.02e-04 | wd 0.100 | gnorm 2.19 | 382.4s
+step 122280/126071 | loss 1.3746 | lr 1.02e-04 | wd 0.100 | gnorm 2.02 | 402.4s
+step 122290/126071 | loss 1.4760 | lr 1.02e-04 | wd 0.100 | gnorm 2.14 | 421.4s
+step 122300/126071 | loss 1.4657 | lr 1.02e-04 | wd 0.100 | gnorm 2.07 | 441.4s
+step 122310/126071 | loss 1.3671 | lr 1.02e-04 | wd 0.100 | gnorm 2.11 | 461.4s
+step 122320/126071 | loss 1.4523 | lr 1.02e-04 | wd 0.100 | gnorm 2.18 | 481.1s
+step 122330/126071 | loss 1.3415 | lr 1.02e-04 | wd 0.100 | gnorm 2.11 | 499.8s
+step 122340/126071 | loss 1.4097 | lr 1.02e-04 | wd 0.100 | gnorm 2.06 | 518.6s
+step 122350/126071 | loss 1.3737 | lr 1.02e-04 | wd 0.100 | gnorm 2.30 | 537.4s
+step 122360/126071 | loss 1.4262 | lr 1.02e-04 | wd 0.100 | gnorm 2.05 | 556.6s
+step 122370/126071 | loss 1.7210 | lr 1.02e-04 | wd 0.100 | gnorm 2.30 | 575.6s
+step 122380/126071 | loss 1.3602 | lr 1.02e-04 | wd 0.100 | gnorm 2.09 | 594.6s
+step 122390/126071 | loss 1.4206 | lr 1.02e-04 | wd 0.100 | gnorm 2.16 | 613.5s
+step 122400/126071 | loss 1.3349 | lr 1.02e-04 | wd 0.100 | gnorm 1.99 | 632.6s
+step 122410/126071 | loss 1.4415 | lr 1.02e-04 | wd 0.100 | gnorm 2.20 | 651.4s
+step 122420/126071 | loss 1.5421 | lr 1.02e-04 | wd 0.100 | gnorm 2.36 | 669.6s
+step 122430/126071 | loss 1.5696 | lr 1.02e-04 | wd 0.100 | gnorm 2.29 | 688.6s
+step 122440/126071 | loss 1.5053 | lr 1.02e-04 | wd 0.100 | gnorm 2.30 | 707.4s
+step 122450/126071 | loss 1.2706 | lr 1.02e-04 | wd 0.100 | gnorm 1.90 | 726.2s
+step 122460/126071 | loss 1.2918 | lr 1.02e-04 | wd 0.100 | gnorm 1.97 | 745.3s
+step 122470/126071 | loss 1.5648 | lr 1.02e-04 | wd 0.100 | gnorm 2.13 | 764.6s
+step 122480/126071 | loss 1.5313 | lr 1.02e-04 | wd 0.100 | gnorm 2.17 | 783.8s
+step 122490/126071 | loss 1.5545 | lr 1.02e-04 | wd 0.100 | gnorm 2.21 | 802.8s
+  [val] step 122500 | val_ppl 5.501 (prev 5.530)
+step 122500/126071 | loss 1.3697 | lr 1.02e-04 | wd 0.100 | gnorm 2.11 | 822.3s
+step 122510/126071 | loss 1.4790 | lr 1.02e-04 | wd 0.100 | gnorm 2.22 | 841.4s
+step 122520/126071 | loss 1.5207 | lr 1.02e-04 | wd 0.100 | gnorm 2.08 | 860.3s
+step 122530/126071 | loss 1.5581 | lr 1.02e-04 | wd 0.100 | gnorm 2.30 | 879.7s
+step 122540/126071 | loss 1.5105 | lr 1.02e-04 | wd 0.100 | gnorm 2.21 | 898.8s
+step 122550/126071 | loss 1.4214 | lr 1.02e-04 | wd 0.100 | gnorm 2.22 | 918.1s
+step 122560/126071 | loss 1.4831 | lr 1.02e-04 | wd 0.100 | gnorm 2.09 | 937.8s
+step 122570/126071 | loss 1.4069 | lr 1.02e-04 | wd 0.100 | gnorm 2.09 | 957.5s
+step 122580/126071 | loss 1.4972 | lr 1.02e-04 | wd 0.100 | gnorm 2.34 | 977.0s
+step 122590/126071 | loss 1.3694 | lr 1.02e-04 | wd 0.100 | gnorm 2.08 | 995.9s
+step 122600/126071 | loss 1.5741 | lr 1.02e-04 | wd 0.100 | gnorm 2.30 | 1014.6s
+step 122610/126071 | loss 1.3928 | lr 1.02e-04 | wd 0.100 | gnorm 2.03 | 1034.1s
+step 122620/126071 | loss 1.6879 | lr 1.02e-04 | wd 0.100 | gnorm 2.32 | 1053.1s
+step 122630/126071 | loss 1.5024 | lr 1.02e-04 | wd 0.100 | gnorm 2.25 | 1071.5s
+step 122640/126071 | loss 1.5028 | lr 1.02e-04 | wd 0.100 | gnorm 2.14 | 1089.6s
+step 122650/126071 | loss 1.3590 | lr 1.02e-04 | wd 0.100 | gnorm 2.14 | 1108.1s
+step 122660/126071 | loss 1.4740 | lr 1.02e-04 | wd 0.100 | gnorm 2.12 | 1126.9s
+step 122670/126071 | loss 1.3938 | lr 1.02e-04 | wd 0.100 | gnorm 2.21 | 1145.8s
+step 122680/126071 | loss 1.4430 | lr 1.02e-04 | wd 0.100 | gnorm 2.13 | 1164.4s
+step 122690/126071 | loss 1.3087 | lr 1.02e-04 | wd 0.100 | gnorm 2.11 | 1183.8s
+step 122700/126071 | loss 1.5784 | lr 1.02e-04 | wd 0.100 | gnorm 2.37 | 1202.2s
+step 122710/126071 | loss 1.4187 | lr 1.02e-04 | wd 0.100 | gnorm 2.10 | 1220.7s
+step 122720/126071 | loss 1.3064 | lr 1.02e-04 | wd 0.100 | gnorm 2.05 | 1239.1s
+step 122730/126071 | loss 1.3497 | lr 1.02e-04 | wd 0.100 | gnorm 2.06 | 1257.7s
+step 122740/126071 | loss 1.4413 | lr 1.02e-04 | wd 0.100 | gnorm 2.06 | 1277.4s
+  [val] step 122750 | val_ppl 5.523 (prev 5.501)
+step 122750/126071 | loss 1.5048 | lr 1.02e-04 | wd 0.100 | gnorm 2.09 | 1296.2s
+step 122760/126071 | loss 1.3886 | lr 1.02e-04 | wd 0.100 | gnorm 1.98 | 1315.4s
+step 122770/126071 | loss 1.4688 | lr 1.02e-04 | wd 0.100 | gnorm 2.20 | 1334.2s
+step 122780/126071 | loss 1.3648 | lr 1.02e-04 | wd 0.100 | gnorm 2.00 | 1352.5s
+step 122790/126071 | loss 1.6027 | lr 1.02e-04 | wd 0.100 | gnorm 2.46 | 1370.8s
+step 122800/126071 | loss 1.5250 | lr 1.02e-04 | wd 0.100 | gnorm 2.21 | 1389.4s
+step 122810/126071 | loss 1.4646 | lr 1.02e-04 | wd 0.100 | gnorm 2.18 | 1407.9s
+step 122820/126071 | loss 1.4789 | lr 1.02e-04 | wd 0.100 | gnorm 2.24 | 1427.1s
+step 122830/126071 | loss 1.4407 | lr 1.02e-04 | wd 0.100 | gnorm 2.18 | 1445.5s
+step 122840/126071 | loss 1.4620 | lr 1.02e-04 | wd 0.100 | gnorm 2.31 | 1464.4s
+step 122850/126071 | loss 1.4752 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 1483.1s
+step 122860/126071 | loss 1.4933 | lr 1.01e-04 | wd 0.100 | gnorm 2.07 | 1502.6s
+step 122870/126071 | loss 1.5380 | lr 1.01e-04 | wd 0.100 | gnorm 2.08 | 1521.3s
+step 122880/126071 | loss 1.3737 | lr 1.01e-04 | wd 0.100 | gnorm 2.11 | 1540.4s
+step 122890/126071 | loss 1.3592 | lr 1.01e-04 | wd 0.100 | gnorm 2.10 | 1558.5s
+step 122900/126071 | loss 1.5118 | lr 1.01e-04 | wd 0.100 | gnorm 2.09 | 1576.8s
+step 122910/126071 | loss 1.4833 | lr 1.01e-04 | wd 0.100 | gnorm 2.27 | 1594.9s
+step 122920/126071 | loss 1.6106 | lr 1.01e-04 | wd 0.100 | gnorm 2.22 | 1613.3s
+step 122930/126071 | loss 1.4930 | lr 1.01e-04 | wd 0.100 | gnorm 2.25 | 1632.0s
+step 122940/126071 | loss 1.4047 | lr 1.01e-04 | wd 0.100 | gnorm 2.13 | 1650.7s
+step 122950/126071 | loss 1.4401 | lr 1.01e-04 | wd 0.100 | gnorm 2.16 | 1668.8s
+step 122960/126071 | loss 1.4117 | lr 1.01e-04 | wd 0.100 | gnorm 2.06 | 1687.5s
+step 122970/126071 | loss 1.4465 | lr 1.01e-04 | wd 0.100 | gnorm 2.17 | 1706.1s
+step 122980/126071 | loss 1.5240 | lr 1.01e-04 | wd 0.100 | gnorm 2.35 | 1724.6s
+step 122990/126071 | loss 1.3450 | lr 1.01e-04 | wd 0.100 | gnorm 2.08 | 1743.5s
+  [val] step 123000 | val_ppl 5.464 (prev 5.523)
+step 123000/126071 | loss 1.3623 | lr 1.01e-04 | wd 0.100 | gnorm 2.11 | 1762.8s
+step 123010/126071 | loss 1.4790 | lr 1.01e-04 | wd 0.100 | gnorm 2.41 | 1781.7s
+step 123020/126071 | loss 1.3924 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 1800.8s
+step 123030/126071 | loss 1.3598 | lr 1.01e-04 | wd 0.100 | gnorm 1.97 | 1819.6s
+step 123040/126071 | loss 1.3512 | lr 1.01e-04 | wd 0.100 | gnorm 2.32 | 1838.2s
+step 123050/126071 | loss 1.4853 | lr 1.01e-04 | wd 0.100 | gnorm 2.06 | 1856.6s
+step 123060/126071 | loss 1.4355 | lr 1.01e-04 | wd 0.100 | gnorm 2.13 | 1875.3s
+step 123070/126071 | loss 1.4984 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 1894.1s
+step 123080/126071 | loss 1.6484 | lr 1.01e-04 | wd 0.100 | gnorm 2.27 | 1913.2s
+step 123090/126071 | loss 1.5515 | lr 1.01e-04 | wd 0.100 | gnorm 2.30 | 1931.8s
+step 123100/126071 | loss 1.4303 | lr 1.01e-04 | wd 0.100 | gnorm 2.11 | 1950.2s
+step 123110/126071 | loss 1.5281 | lr 1.01e-04 | wd 0.100 | gnorm 2.32 | 1968.7s
+step 123120/126071 | loss 1.3693 | lr 1.01e-04 | wd 0.100 | gnorm 2.10 | 1986.9s
+step 123130/126071 | loss 1.5918 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 2006.0s
+step 123140/126071 | loss 1.4196 | lr 1.01e-04 | wd 0.100 | gnorm 2.14 | 2024.6s
+step 123150/126071 | loss 1.5079 | lr 1.01e-04 | wd 0.100 | gnorm 2.15 | 2042.7s
+step 123160/126071 | loss 1.5063 | lr 1.01e-04 | wd 0.100 | gnorm 2.08 | 2061.3s
+step 123170/126071 | loss 1.4391 | lr 1.01e-04 | wd 0.100 | gnorm 2.11 | 2080.1s
+step 123180/126071 | loss 1.5226 | lr 1.01e-04 | wd 0.100 | gnorm 2.19 | 2099.0s
+step 123190/126071 | loss 1.5790 | lr 1.01e-04 | wd 0.100 | gnorm 2.41 | 2118.4s
+step 123200/126071 | loss 1.4429 | lr 1.01e-04 | wd 0.100 | gnorm 2.14 | 2137.2s
+step 123210/126071 | loss 1.4048 | lr 1.01e-04 | wd 0.100 | gnorm 2.12 | 2156.0s
+step 123220/126071 | loss 1.3306 | lr 1.01e-04 | wd 0.100 | gnorm 2.05 | 2174.8s
+step 123230/126071 | loss 1.4195 | lr 1.01e-04 | wd 0.100 | gnorm 2.13 | 2193.5s
+step 123240/126071 | loss 1.4090 | lr 1.01e-04 | wd 0.100 | gnorm 2.25 | 2212.2s
+  [val] step 123250 | val_ppl 5.539 (prev 5.464)
+step 123250/126071 | loss 1.5752 | lr 1.01e-04 | wd 0.100 | gnorm 2.17 | 2231.0s
+step 123260/126071 | loss 1.4474 | lr 1.01e-04 | wd 0.100 | gnorm 2.11 | 2250.5s
+step 123270/126071 | loss 1.3999 | lr 1.01e-04 | wd 0.100 | gnorm 2.29 | 2269.6s
+step 123280/126071 | loss 1.2757 | lr 1.01e-04 | wd 0.100 | gnorm 2.00 | 2288.8s
+step 123290/126071 | loss 1.4206 | lr 1.01e-04 | wd 0.100 | gnorm 2.22 | 2307.2s
+step 123300/126071 | loss 1.5964 | lr 1.01e-04 | wd 0.100 | gnorm 2.22 | 2325.0s
+step 123310/126071 | loss 1.3899 | lr 1.01e-04 | wd 0.100 | gnorm 2.28 | 2343.2s
+step 123320/126071 | loss 1.5626 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 2361.3s
+step 123330/126071 | loss 1.5100 | lr 1.01e-04 | wd 0.100 | gnorm 2.31 | 2380.5s
+step 123340/126071 | loss 1.6237 | lr 1.01e-04 | wd 0.100 | gnorm 2.25 | 2399.5s
+step 123350/126071 | loss 1.6194 | lr 1.01e-04 | wd 0.100 | gnorm 2.28 | 2418.4s
+step 123360/126071 | loss 1.4016 | lr 1.01e-04 | wd 0.100 | gnorm 2.05 | 2437.7s
+step 123370/126071 | loss 1.3486 | lr 1.01e-04 | wd 0.100 | gnorm 2.07 | 2456.4s
+step 123380/126071 | loss 1.5099 | lr 1.01e-04 | wd 0.100 | gnorm 2.23 | 2475.0s
+step 123390/126071 | loss 1.4426 | lr 1.01e-04 | wd 0.100 | gnorm 2.07 | 2493.5s
+step 123400/126071 | loss 1.4636 | lr 1.01e-04 | wd 0.100 | gnorm 2.16 | 2512.5s
+step 123410/126071 | loss 1.5334 | lr 1.01e-04 | wd 0.100 | gnorm 2.18 | 2531.8s
+step 123420/126071 | loss 1.3132 | lr 1.01e-04 | wd 0.100 | gnorm 2.01 | 2551.0s
+step 123430/126071 | loss 1.3632 | lr 1.01e-04 | wd 0.100 | gnorm 2.06 | 2571.0s
+step 123440/126071 | loss 1.5207 | lr 1.01e-04 | wd 0.100 | gnorm 2.33 | 2590.3s
+step 123450/126071 | loss 1.3304 | lr 1.01e-04 | wd 0.100 | gnorm 2.18 | 2608.5s
+step 123460/126071 | loss 1.5209 | lr 1.01e-04 | wd 0.100 | gnorm 2.28 | 2627.0s
+step 123470/126071 | loss 1.3951 | lr 1.01e-04 | wd 0.100 | gnorm 2.07 | 2645.1s
+step 123480/126071 | loss 1.5391 | lr 1.01e-04 | wd 0.100 | gnorm 2.24 | 2663.6s
+step 123490/126071 | loss 1.2916 | lr 1.01e-04 | wd 0.100 | gnorm 1.97 | 2682.0s
+  [val] step 123500 | val_ppl 5.476 (prev 5.539)
+step 123500/126071 | loss 1.4034 | lr 1.01e-04 | wd 0.100 | gnorm 2.19 | 2701.1s
+step 123510/126071 | loss 1.5760 | lr 1.01e-04 | wd 0.100 | gnorm 2.26 | 2719.7s
+step 123520/126071 | loss 1.4876 | lr 1.01e-04 | wd 0.100 | gnorm 2.18 | 2739.1s
+step 123530/126071 | loss 1.3398 | lr 1.01e-04 | wd 0.100 | gnorm 2.07 | 2758.1s
+step 123540/126071 | loss 1.4653 | lr 1.01e-04 | wd 0.100 | gnorm 2.09 | 2776.6s
+step 123550/126071 | loss 1.5682 | lr 1.01e-04 | wd 0.100 | gnorm 2.17 | 2795.3s
+step 123560/126071 | loss 1.5646 | lr 1.01e-04 | wd 0.100 | gnorm 2.13 | 2814.2s
+step 123570/126071 | loss 1.4792 | lr 1.01e-04 | wd 0.100 | gnorm 2.26 | 2833.1s
+step 123580/126071 | loss 1.4186 | lr 1.01e-04 | wd 0.100 | gnorm 2.13 | 2852.0s
+step 123590/126071 | loss 1.3838 | lr 1.01e-04 | wd 0.100 | gnorm 2.06 | 2870.8s
+step 123600/126071 | loss 1.4354 | lr 1.01e-04 | wd 0.100 | gnorm 3.22 | 2889.3s
+step 123610/126071 | loss 1.5373 | lr 1.01e-04 | wd 0.100 | gnorm 2.37 | 2909.1s
+step 123620/126071 | loss 1.4733 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 2927.6s
+step 123630/126071 | loss 1.3911 | lr 1.01e-04 | wd 0.100 | gnorm 2.11 | 2946.2s
+step 123640/126071 | loss 1.4485 | lr 1.01e-04 | wd 0.100 | gnorm 2.05 | 2964.9s
+step 123650/126071 | loss 1.4277 | lr 1.01e-04 | wd 0.100 | gnorm 2.06 | 2984.5s
+step 123660/126071 | loss 1.4863 | lr 1.01e-04 | wd 0.100 | gnorm 2.13 | 3003.9s
+step 123670/126071 | loss 1.4746 | lr 1.01e-04 | wd 0.100 | gnorm 2.07 | 3031.7s
+step 123680/126071 | loss 1.4937 | lr 1.01e-04 | wd 0.100 | gnorm 2.14 | 3058.9s
+step 123690/126071 | loss 1.3230 | lr 1.01e-04 | wd 0.100 | gnorm 2.16 | 3086.0s
+step 123700/126071 | loss 1.5997 | lr 1.01e-04 | wd 0.100 | gnorm 2.44 | 3107.7s
+step 123710/126071 | loss 1.4974 | lr 1.01e-04 | wd 0.100 | gnorm 2.44 | 3127.2s
+step 123720/126071 | loss 1.5001 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 3145.9s
+step 123730/126071 | loss 1.5809 | lr 1.01e-04 | wd 0.100 | gnorm 2.13 | 3165.1s
+step 123740/126071 | loss 1.4572 | lr 1.01e-04 | wd 0.100 | gnorm 2.16 | 3183.8s
+  [val] step 123750 | val_ppl 5.577 (prev 5.476)
+step 123750/126071 | loss 1.5212 | lr 1.01e-04 | wd 0.100 | gnorm 2.24 | 3203.1s
+step 123760/126071 | loss 1.3944 | lr 1.01e-04 | wd 0.100 | gnorm 2.04 | 3221.8s
+step 123770/126071 | loss 1.4323 | lr 1.01e-04 | wd 0.100 | gnorm 2.20 | 3240.7s
+step 123780/126071 | loss 1.6068 | lr 1.01e-04 | wd 0.100 | gnorm 2.37 | 3259.9s
+step 123790/126071 | loss 1.3669 | lr 1.01e-04 | wd 0.100 | gnorm 2.06 | 3279.8s
+step 123800/126071 | loss 1.4170 | lr 1.01e-04 | wd 0.100 | gnorm 2.26 | 3298.9s
+step 123810/126071 | loss 1.5734 | lr 1.01e-04 | wd 0.100 | gnorm 2.16 | 3317.8s
+step 123820/126071 | loss 1.5215 | lr 1.01e-04 | wd 0.100 | gnorm 2.18 | 3341.4s
+step 123830/126071 | loss 1.4570 | lr 1.01e-04 | wd 0.100 | gnorm 2.31 | 3365.8s
+step 123840/126071 | loss 1.5609 | lr 1.01e-04 | wd 0.100 | gnorm 2.17 | 3390.9s
+step 123850/126071 | loss 1.4577 | lr 1.01e-04 | wd 0.100 | gnorm 2.17 | 3416.7s
+step 123860/126071 | loss 1.4898 | lr 1.01e-04 | wd 0.100 | gnorm 2.32 | 3443.3s
+step 123870/126071 | loss 1.5463 | lr 1.01e-04 | wd 0.100 | gnorm 2.17 | 3466.7s
+step 123880/126071 | loss 1.4410 | lr 1.01e-04 | wd 0.100 | gnorm 1.95 | 3491.5s
+step 123890/126071 | loss 1.3550 | lr 1.01e-04 | wd 0.100 | gnorm 2.14 | 3517.1s
+step 123900/126071 | loss 1.4233 | lr 1.01e-04 | wd 0.100 | gnorm 2.28 | 3544.5s
+step 123910/126071 | loss 1.3390 | lr 1.01e-04 | wd 0.100 | gnorm 2.09 | 3573.0s
+step 123920/126071 | loss 1.4858 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 3602.8s
+step 123930/126071 | loss 1.3782 | lr 1.01e-04 | wd 0.100 | gnorm 2.11 | 3632.0s
+step 123940/126071 | loss 1.5118 | lr 1.01e-04 | wd 0.100 | gnorm 2.26 | 3660.6s
+step 123950/126071 | loss 1.4862 | lr 1.01e-04 | wd 0.100 | gnorm 2.15 | 3688.5s
+step 123960/126071 | loss 1.4691 | lr 1.01e-04 | wd 0.100 | gnorm 2.06 | 3716.1s
+step 123970/126071 | loss 1.4604 | lr 1.01e-04 | wd 0.100 | gnorm 2.16 | 3744.9s
+step 123980/126071 | loss 1.4174 | lr 1.01e-04 | wd 0.100 | gnorm 2.17 | 3773.2s
+step 123990/126071 | loss 1.4709 | lr 1.01e-04 | wd 0.100 | gnorm 2.12 | 3802.6s
+  [val] step 124000 | val_ppl 5.456 (prev 5.577)
+step 124000/126071 | loss 1.3161 | lr 1.01e-04 | wd 0.100 | gnorm 2.00 | 3830.2s
+step 124010/126071 | loss 1.3697 | lr 1.01e-04 | wd 0.100 | gnorm 2.28 | 3859.3s
+step 124020/126071 | loss 1.4051 | lr 1.01e-04 | wd 0.100 | gnorm 2.20 | 3886.8s
+step 124030/126071 | loss 1.4431 | lr 1.01e-04 | wd 0.100 | gnorm 2.13 | 3914.8s
+step 124040/126071 | loss 1.4741 | lr 1.01e-04 | wd 0.100 | gnorm 2.26 | 3942.3s
+step 124050/126071 | loss 1.4644 | lr 1.01e-04 | wd 0.100 | gnorm 2.19 | 3970.2s
+step 124060/126071 | loss 1.5202 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 3997.6s
+step 124070/126071 | loss 1.6498 | lr 1.01e-04 | wd 0.100 | gnorm 2.21 | 4025.6s
+step 124080/126071 | loss 1.5025 | lr 1.01e-04 | wd 0.100 | gnorm 2.25 | 4052.1s
+step 124090/126071 | loss 1.4192 | lr 1.01e-04 | wd 0.100 | gnorm 2.06 | 4077.4s
+step 124100/126071 | loss 1.3634 | lr 1.01e-04 | wd 0.100 | gnorm 2.18 | 4103.8s
+step 124110/126071 | loss 1.5220 | lr 1.01e-04 | wd 0.100 | gnorm 2.19 | 4129.9s
+step 124120/126071 | loss 1.4200 | lr 1.01e-04 | wd 0.100 | gnorm 2.14 | 4155.8s
+step 124130/126071 | loss 1.4908 | lr 1.01e-04 | wd 0.100 | gnorm 2.16 | 4181.9s
+step 124140/126071 | loss 1.4066 | lr 1.01e-04 | wd 0.100 | gnorm 2.11 | 4208.7s
+step 124150/126071 | loss 1.3225 | lr 1.01e-04 | wd 0.100 | gnorm 2.02 | 4236.2s
+step 124160/126071 | loss 1.4693 | lr 1.01e-04 | wd 0.100 | gnorm 2.28 | 4262.5s
+step 124170/126071 | loss 1.3801 | lr 1.01e-04 | wd 0.100 | gnorm 2.14 | 4289.7s
+step 124180/126071 | loss 1.3930 | lr 1.01e-04 | wd 0.100 | gnorm 2.12 | 4316.6s
+step 124190/126071 | loss 1.3810 | lr 1.01e-04 | wd 0.100 | gnorm 2.09 | 4344.9s
+step 124200/126071 | loss 1.5448 | lr 1.01e-04 | wd 0.100 | gnorm 2.28 | 4372.6s
+step 124210/126071 | loss 1.4494 | lr 1.00e-04 | wd 0.100 | gnorm 2.23 | 4400.5s
+step 124220/126071 | loss 1.5587 | lr 1.00e-04 | wd 0.100 | gnorm 2.16 | 4428.2s
+step 124230/126071 | loss 1.3563 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 4454.7s
+step 124240/126071 | loss 1.3325 | lr 1.00e-04 | wd 0.100 | gnorm 2.03 | 4479.3s
+  [val] step 124250 | val_ppl 5.621 (prev 5.456)
+step 124250/126071 | loss 1.5536 | lr 1.00e-04 | wd 0.100 | gnorm 2.49 | 4505.1s
+step 124260/126071 | loss 1.5226 | lr 1.00e-04 | wd 0.100 | gnorm 2.38 | 4529.3s
+step 124270/126071 | loss 1.5602 | lr 1.00e-04 | wd 0.100 | gnorm 2.17 | 4553.7s
+step 124280/126071 | loss 1.5010 | lr 1.00e-04 | wd 0.100 | gnorm 2.27 | 4577.5s
+step 124290/126071 | loss 1.2128 | lr 1.00e-04 | wd 0.100 | gnorm 2.03 | 4601.4s
+step 124300/126071 | loss 1.3847 | lr 1.00e-04 | wd 0.100 | gnorm 2.07 | 4624.2s
+step 124310/126071 | loss 1.5824 | lr 1.00e-04 | wd 0.100 | gnorm 2.22 | 4649.0s
+step 124320/126071 | loss 1.6609 | lr 1.00e-04 | wd 0.100 | gnorm 2.31 | 4671.9s
+step 124330/126071 | loss 1.4567 | lr 1.00e-04 | wd 0.100 | gnorm 2.26 | 4695.4s
+step 124340/126071 | loss 1.5962 | lr 1.00e-04 | wd 0.100 | gnorm 2.31 | 4717.9s
+step 124350/126071 | loss 1.6573 | lr 1.00e-04 | wd 0.100 | gnorm 2.57 | 4742.2s
+step 124360/126071 | loss 1.4511 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 4767.3s
+step 124370/126071 | loss 1.5435 | lr 1.00e-04 | wd 0.100 | gnorm 2.33 | 4791.9s
+step 124380/126071 | loss 1.6299 | lr 1.00e-04 | wd 0.100 | gnorm 2.25 | 4815.9s
+step 124390/126071 | loss 1.4653 | lr 1.00e-04 | wd 0.100 | gnorm 2.25 | 4839.3s
+step 124400/126071 | loss 1.3655 | lr 1.00e-04 | wd 0.100 | gnorm 2.18 | 4863.6s
+step 124410/126071 | loss 1.4829 | lr 1.00e-04 | wd 0.100 | gnorm 2.26 | 4887.3s
+step 124420/126071 | loss 1.5104 | lr 1.00e-04 | wd 0.100 | gnorm 2.12 | 4912.0s
+step 124430/126071 | loss 1.5791 | lr 1.00e-04 | wd 0.100 | gnorm 2.20 | 4941.1s
+step 124440/126071 | loss 1.4988 | lr 1.00e-04 | wd 0.100 | gnorm 2.18 | 4969.3s
+step 124450/126071 | loss 1.3075 | lr 1.00e-04 | wd 0.100 | gnorm 2.04 | 4993.5s
+step 124460/126071 | loss 1.4674 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 5016.1s
+step 124470/126071 | loss 1.5775 | lr 1.00e-04 | wd 0.100 | gnorm 2.46 | 5038.7s
+step 124480/126071 | loss 1.3640 | lr 1.00e-04 | wd 0.100 | gnorm 2.14 | 5060.9s
+step 124490/126071 | loss 1.5302 | lr 1.00e-04 | wd 0.100 | gnorm 2.28 | 5083.8s
+  [val] step 124500 | val_ppl 5.486 (prev 5.621)
+step 124500/126071 | loss 1.3404 | lr 1.00e-04 | wd 0.100 | gnorm 2.08 | 5107.1s
+step 124510/126071 | loss 1.4573 | lr 1.00e-04 | wd 0.100 | gnorm 2.04 | 5130.5s
+step 124520/126071 | loss 1.4443 | lr 1.00e-04 | wd 0.100 | gnorm 2.17 | 5152.4s
+step 124530/126071 | loss 1.5049 | lr 1.00e-04 | wd 0.100 | gnorm 2.15 | 5175.1s
+step 124540/126071 | loss 1.3061 | lr 1.00e-04 | wd 0.100 | gnorm 2.05 | 5197.6s
+step 124550/126071 | loss 1.5156 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 5220.3s
+step 124560/126071 | loss 1.3426 | lr 1.00e-04 | wd 0.100 | gnorm 2.14 | 5242.7s
+step 124570/126071 | loss 1.6138 | lr 1.00e-04 | wd 0.100 | gnorm 2.36 | 5265.5s
+step 124580/126071 | loss 1.4932 | lr 1.00e-04 | wd 0.100 | gnorm 2.40 | 5289.0s
+step 124590/126071 | loss 1.5150 | lr 1.00e-04 | wd 0.100 | gnorm 2.32 | 5312.3s
+step 124600/126071 | loss 1.4509 | lr 1.00e-04 | wd 0.100 | gnorm 2.48 | 5335.4s
+step 124610/126071 | loss 1.3388 | lr 1.00e-04 | wd 0.100 | gnorm 2.12 | 5358.3s
+step 124620/126071 | loss 1.4444 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 5379.9s
+step 124630/126071 | loss 1.4604 | lr 1.00e-04 | wd 0.100 | gnorm 2.17 | 5402.4s
+step 124640/126071 | loss 1.4925 | lr 1.00e-04 | wd 0.100 | gnorm 2.26 | 5424.4s
+step 124650/126071 | loss 1.4751 | lr 1.00e-04 | wd 0.100 | gnorm 2.10 | 5447.3s
+step 124660/126071 | loss 1.4118 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 5469.6s
+step 124670/126071 | loss 1.6012 | lr 1.00e-04 | wd 0.100 | gnorm 2.34 | 5493.4s
+step 124680/126071 | loss 1.6231 | lr 1.00e-04 | wd 0.100 | gnorm 2.53 | 5515.9s
+step 124690/126071 | loss 1.2646 | lr 1.00e-04 | wd 0.100 | gnorm 2.01 | 5537.9s
+step 124700/126071 | loss 1.4680 | lr 1.00e-04 | wd 0.100 | gnorm 2.17 | 5561.3s
+step 124710/126071 | loss 1.3931 | lr 1.00e-04 | wd 0.100 | gnorm 2.07 | 5585.6s
+step 124720/126071 | loss 1.5157 | lr 1.00e-04 | wd 0.100 | gnorm 2.15 | 5613.1s
+step 124730/126071 | loss 1.3321 | lr 1.00e-04 | wd 0.100 | gnorm 2.01 | 5641.9s
+step 124740/126071 | loss 1.4678 | lr 1.00e-04 | wd 0.100 | gnorm 2.13 | 5670.2s
+  [val] step 124750 | val_ppl 5.388 (prev 5.486)
+step 124750/126071 | loss 1.4404 | lr 1.00e-04 | wd 0.100 | gnorm 2.15 | 5697.8s
+step 124760/126071 | loss 1.4363 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 5725.2s
+step 124770/126071 | loss 1.5256 | lr 1.00e-04 | wd 0.100 | gnorm 2.28 | 5751.7s
+step 124780/126071 | loss 1.3890 | lr 1.00e-04 | wd 0.100 | gnorm 2.14 | 5780.2s
+step 124790/126071 | loss 1.4272 | lr 1.00e-04 | wd 0.100 | gnorm 2.16 | 5808.5s
+step 124800/126071 | loss 1.5156 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 5836.1s
+step 124810/126071 | loss 1.6157 | lr 1.00e-04 | wd 0.100 | gnorm 2.31 | 5863.7s
+step 124820/126071 | loss 1.3534 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 5892.2s
+step 124830/126071 | loss 1.3853 | lr 1.00e-04 | wd 0.100 | gnorm 2.14 | 5919.1s
+step 124840/126071 | loss 1.3727 | lr 1.00e-04 | wd 0.100 | gnorm 2.12 | 5945.4s
+step 124850/126071 | loss 1.4337 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 5972.6s
+step 124860/126071 | loss 1.4572 | lr 1.00e-04 | wd 0.100 | gnorm 2.22 | 5999.8s
+step 124870/126071 | loss 1.5896 | lr 1.00e-04 | wd 0.100 | gnorm 2.28 | 6021.9s
+step 124880/126071 | loss 1.4344 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 6041.6s
+step 124890/126071 | loss 1.4227 | lr 1.00e-04 | wd 0.100 | gnorm 2.07 | 6060.9s
+step 124900/126071 | loss 1.4986 | lr 1.00e-04 | wd 0.100 | gnorm 2.07 | 6080.4s
+step 124910/126071 | loss 1.4456 | lr 1.00e-04 | wd 0.100 | gnorm 2.22 | 6099.9s
+step 124920/126071 | loss 1.4119 | lr 1.00e-04 | wd 0.100 | gnorm 2.23 | 6120.0s
+step 124930/126071 | loss 1.2880 | lr 1.00e-04 | wd 0.100 | gnorm 2.05 | 6140.0s
+step 124940/126071 | loss 1.4050 | lr 1.00e-04 | wd 0.100 | gnorm 2.06 | 6159.4s
+step 124950/126071 | loss 1.4461 | lr 1.00e-04 | wd 0.100 | gnorm 2.29 | 6179.0s
+step 124960/126071 | loss 1.4944 | lr 1.00e-04 | wd 0.100 | gnorm 2.18 | 6199.1s
+step 124970/126071 | loss 1.5855 | lr 1.00e-04 | wd 0.100 | gnorm 2.13 | 6218.5s
+step 124980/126071 | loss 1.4087 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 6237.7s
+step 124990/126071 | loss 1.5235 | lr 1.00e-04 | wd 0.100 | gnorm 2.32 | 6256.7s
+  [val] step 125000 | val_ppl 5.382 (prev 5.388)
+step 125000/126071 | loss 1.3984 | lr 1.00e-04 | wd 0.100 | gnorm 2.13 | 6276.2s
+step 125010/126071 | loss 1.4120 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 6296.2s
+step 125020/126071 | loss 1.4820 | lr 1.00e-04 | wd 0.100 | gnorm 2.14 | 6315.2s
+step 125030/126071 | loss 1.4490 | lr 1.00e-04 | wd 0.100 | gnorm 2.12 | 6334.3s
+step 125040/126071 | loss 1.3547 | lr 1.00e-04 | wd 0.100 | gnorm 2.33 | 6353.4s
+step 125050/126071 | loss 1.6412 | lr 1.00e-04 | wd 0.100 | gnorm 2.20 | 6371.8s
+step 125060/126071 | loss 1.5449 | lr 1.00e-04 | wd 0.100 | gnorm 2.22 | 6390.2s
+step 125070/126071 | loss 1.3489 | lr 1.00e-04 | wd 0.100 | gnorm 2.24 | 6409.3s
+step 125080/126071 | loss 1.4781 | lr 1.00e-04 | wd 0.100 | gnorm 2.26 | 6429.3s
+step 125090/126071 | loss 1.4434 | lr 1.00e-04 | wd 0.100 | gnorm 2.03 | 6448.3s
+step 125100/126071 | loss 1.5980 | lr 1.00e-04 | wd 0.100 | gnorm 2.38 | 6466.9s
+step 125110/126071 | loss 1.4404 | lr 1.00e-04 | wd 0.100 | gnorm 2.14 | 6485.2s
+step 125120/126071 | loss 1.4778 | lr 1.00e-04 | wd 0.100 | gnorm 2.22 | 6503.5s
+step 125130/126071 | loss 1.3964 | lr 1.00e-04 | wd 0.100 | gnorm 2.12 | 6522.5s
+step 125140/126071 | loss 1.4074 | lr 1.00e-04 | wd 0.100 | gnorm 2.10 | 6541.5s
+step 125150/126071 | loss 1.3562 | lr 1.00e-04 | wd 0.100 | gnorm 2.10 | 6559.9s
+step 125160/126071 | loss 1.4602 | lr 1.00e-04 | wd 0.100 | gnorm 2.27 | 6578.8s
+step 125170/126071 | loss 1.4344 | lr 1.00e-04 | wd 0.100 | gnorm 2.26 | 6597.8s
+step 125180/126071 | loss 1.7320 | lr 1.00e-04 | wd 0.100 | gnorm 2.37 | 6616.5s
+step 125190/126071 | loss 1.4979 | lr 1.00e-04 | wd 0.100 | gnorm 2.18 | 6635.8s
+step 125200/126071 | loss 1.6972 | lr 1.00e-04 | wd 0.100 | gnorm 2.42 | 6655.4s
+step 125210/126071 | loss 1.4030 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 6674.6s
+step 125220/126071 | loss 1.4617 | lr 1.00e-04 | wd 0.100 | gnorm 2.22 | 6693.7s
+step 125230/126071 | loss 1.5732 | lr 1.00e-04 | wd 0.100 | gnorm 2.28 | 6713.6s
+step 125240/126071 | loss 1.4109 | lr 1.00e-04 | wd 0.100 | gnorm 2.16 | 6732.7s
+  [val] step 125250 | val_ppl 5.363 (prev 5.382)
+step 125250/126071 | loss 1.3662 | lr 1.00e-04 | wd 0.100 | gnorm 2.10 | 6751.7s
+step 125260/126071 | loss 1.6540 | lr 1.00e-04 | wd 0.100 | gnorm 2.46 | 6771.0s
+step 125270/126071 | loss 1.3909 | lr 1.00e-04 | wd 0.100 | gnorm 2.25 | 6790.8s
+step 125280/126071 | loss 1.6543 | lr 1.00e-04 | wd 0.100 | gnorm 2.35 | 6809.9s
+step 125290/126071 | loss 1.4820 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 6828.6s
+step 125300/126071 | loss 1.2704 | lr 1.00e-04 | wd 0.100 | gnorm 2.07 | 6847.3s
+step 125310/126071 | loss 1.4178 | lr 1.00e-04 | wd 0.100 | gnorm 2.06 | 6866.3s
+step 125320/126071 | loss 1.3478 | lr 1.00e-04 | wd 0.100 | gnorm 2.18 | 6885.8s
+step 125330/126071 | loss 1.6224 | lr 1.00e-04 | wd 0.100 | gnorm 3.03 | 6904.5s
+step 125340/126071 | loss 1.4210 | lr 1.00e-04 | wd 0.100 | gnorm 2.26 | 6923.6s
+step 125350/126071 | loss 1.3947 | lr 1.00e-04 | wd 0.100 | gnorm 2.18 | 6942.1s
+step 125360/126071 | loss 1.6224 | lr 1.00e-04 | wd 0.100 | gnorm 2.29 | 6963.4s
+step 125370/126071 | loss 1.3773 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 6984.2s
+step 125380/126071 | loss 1.4315 | lr 1.00e-04 | wd 0.100 | gnorm 2.16 | 7003.1s
+step 125390/126071 | loss 1.5694 | lr 1.00e-04 | wd 0.100 | gnorm 2.42 | 7022.4s
+step 125400/126071 | loss 1.3995 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 7041.0s
+step 125410/126071 | loss 1.4108 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 7059.8s
+step 125420/126071 | loss 1.7022 | lr 1.00e-04 | wd 0.100 | gnorm 2.33 | 7079.1s
+step 125430/126071 | loss 1.3729 | lr 1.00e-04 | wd 0.100 | gnorm 2.20 | 7098.3s
+step 125440/126071 | loss 1.3868 | lr 1.00e-04 | wd 0.100 | gnorm 2.15 | 7117.3s
+step 125450/126071 | loss 1.4914 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 7138.9s
+step 125460/126071 | loss 1.3916 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 7157.1s
+step 125470/126071 | loss 1.3729 | lr 1.00e-04 | wd 0.100 | gnorm 2.17 | 7176.3s
+step 125480/126071 | loss 1.5394 | lr 1.00e-04 | wd 0.100 | gnorm 2.25 | 7196.3s
+step 125490/126071 | loss 1.3483 | lr 1.00e-04 | wd 0.100 | gnorm 2.22 | 7216.4s
+  [val] step 125500 | val_ppl 5.438 (prev 5.363)
+step 125500/126071 | loss 1.6726 | lr 1.00e-04 | wd 0.100 | gnorm 2.59 | 7236.3s
+step 125510/126071 | loss 1.4141 | lr 1.00e-04 | wd 0.100 | gnorm 2.30 | 7256.4s
+step 125520/126071 | loss 1.3723 | lr 1.00e-04 | wd 0.100 | gnorm 2.22 | 7276.3s
+step 125530/126071 | loss 1.4481 | lr 1.00e-04 | wd 0.100 | gnorm 2.20 | 7295.4s
+step 125540/126071 | loss 1.4183 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 7315.4s
+step 125550/126071 | loss 1.3651 | lr 1.00e-04 | wd 0.100 | gnorm 2.16 | 7334.4s
+step 125560/126071 | loss 1.5570 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 7353.3s
+step 125570/126071 | loss 1.6241 | lr 1.00e-04 | wd 0.100 | gnorm 2.28 | 7372.6s
+step 125580/126071 | loss 1.5374 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 7391.6s
+step 125590/126071 | loss 1.4723 | lr 1.00e-04 | wd 0.100 | gnorm 2.28 | 7411.3s
+step 125600/126071 | loss 1.4805 | lr 1.00e-04 | wd 0.100 | gnorm 2.24 | 7430.1s
+step 125610/126071 | loss 1.4368 | lr 1.00e-04 | wd 0.100 | gnorm 2.23 | 7448.9s
+step 125620/126071 | loss 1.6186 | lr 1.00e-04 | wd 0.100 | gnorm 2.40 | 7468.0s
+step 125630/126071 | loss 1.5436 | lr 1.00e-04 | wd 0.100 | gnorm 2.29 | 7487.6s
+step 125640/126071 | loss 1.5817 | lr 1.00e-04 | wd 0.100 | gnorm 2.28 | 7506.1s
+step 125650/126071 | loss 1.3554 | lr 1.00e-04 | wd 0.100 | gnorm 2.31 | 7524.6s
+step 125660/126071 | loss 1.4292 | lr 1.00e-04 | wd 0.100 | gnorm 2.17 | 7543.7s
+step 125670/126071 | loss 1.4058 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 7562.8s
+step 125680/126071 | loss 1.4125 | lr 1.00e-04 | wd 0.100 | gnorm 2.20 | 7581.8s
+step 125690/126071 | loss 1.4613 | lr 1.00e-04 | wd 0.100 | gnorm 2.11 | 7601.6s
+step 125700/126071 | loss 1.5047 | lr 1.00e-04 | wd 0.100 | gnorm 2.56 | 7620.3s
+step 125710/126071 | loss 1.5107 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 7638.9s
+step 125720/126071 | loss 1.4948 | lr 1.00e-04 | wd 0.100 | gnorm 2.26 | 7658.0s
+step 125730/126071 | loss 1.5558 | lr 1.00e-04 | wd 0.100 | gnorm 2.29 | 7676.9s
+step 125740/126071 | loss 1.4202 | lr 1.00e-04 | wd 0.100 | gnorm 2.14 | 7695.8s
+  [val] step 125750 | val_ppl 5.676 (prev 5.438)  [TRIPWIRE] val PPL rose 2 consecutive checks
+step 125750/126071 | loss 1.3724 | lr 1.00e-04 | wd 0.100 | gnorm 2.12 | 7714.6s
+step 125760/126071 | loss 1.4511 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 7733.0s
+step 125770/126071 | loss 1.4115 | lr 1.00e-04 | wd 0.100 | gnorm 2.16 | 7751.1s
+step 125780/126071 | loss 1.4932 | lr 1.00e-04 | wd 0.100 | gnorm 2.15 | 7770.0s
+step 125790/126071 | loss 1.3327 | lr 1.00e-04 | wd 0.100 | gnorm 2.12 | 7789.0s
+step 125800/126071 | loss 1.2944 | lr 1.00e-04 | wd 0.100 | gnorm 2.13 | 7807.9s
+step 125810/126071 | loss 1.5214 | lr 1.00e-04 | wd 0.100 | gnorm 2.25 | 7826.0s
+step 125820/126071 | loss 1.4549 | lr 1.00e-04 | wd 0.100 | gnorm 2.15 | 7844.4s
+step 125830/126071 | loss 1.3793 | lr 1.00e-04 | wd 0.100 | gnorm 2.16 | 7864.0s
+step 125840/126071 | loss 1.5649 | lr 1.00e-04 | wd 0.100 | gnorm 2.32 | 7883.1s
+step 125850/126071 | loss 1.6019 | lr 1.00e-04 | wd 0.100 | gnorm 2.29 | 7902.3s
+step 125860/126071 | loss 1.4236 | lr 1.00e-04 | wd 0.100 | gnorm 2.12 | 7921.4s
+step 125870/126071 | loss 1.5473 | lr 1.00e-04 | wd 0.100 | gnorm 2.43 | 7941.0s
+step 125880/126071 | loss 1.5565 | lr 1.00e-04 | wd 0.100 | gnorm 2.27 | 7960.6s
+step 125890/126071 | loss 1.4067 | lr 1.00e-04 | wd 0.100 | gnorm 2.06 | 7979.9s
+step 125900/126071 | loss 1.4990 | lr 1.00e-04 | wd 0.100 | gnorm 2.26 | 7997.9s
+step 125910/126071 | loss 1.6851 | lr 1.00e-04 | wd 0.100 | gnorm 2.31 | 8016.4s
+step 125920/126071 | loss 1.4048 | lr 1.00e-04 | wd 0.100 | gnorm 2.10 | 8034.9s
+step 125930/126071 | loss 1.5816 | lr 1.00e-04 | wd 0.100 | gnorm 2.29 | 8053.2s
+step 125940/126071 | loss 1.3671 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 8072.1s
+step 125950/126071 | loss 1.6886 | lr 1.00e-04 | wd 0.100 | gnorm 2.55 | 8091.0s
+step 125960/126071 | loss 1.3878 | lr 1.00e-04 | wd 0.100 | gnorm 2.10 | 8109.2s
+step 125970/126071 | loss 1.5583 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 8127.3s
+step 125980/126071 | loss 1.3711 | lr 1.00e-04 | wd 0.100 | gnorm 2.16 | 8145.9s
+step 125990/126071 | loss 1.5113 | lr 1.00e-04 | wd 0.100 | gnorm 2.25 | 8164.3s
+  [val] step 126000 | val_ppl 5.785 (prev 5.676)  [TRIPWIRE] val PPL rose 2 consecutive checks
+step 126000/126071 | loss 1.6131 | lr 1.00e-04 | wd 0.100 | gnorm 2.36 | 8183.3s
+step 126010/126071 | loss 1.4833 | lr 1.00e-04 | wd 0.100 | gnorm 2.15 | 8201.9s
+step 126020/126071 | loss 1.4672 | lr 1.00e-04 | wd 0.100 | gnorm 2.14 | 8220.5s
+step 126030/126071 | loss 1.4498 | lr 1.00e-04 | wd 0.100 | gnorm 2.18 | 8239.0s
+step 126040/126071 | loss 1.5292 | lr 1.00e-04 | wd 0.100 | gnorm 2.29 | 8258.8s
+step 126050/126071 | loss 1.6502 | lr 1.00e-04 | wd 0.100 | gnorm 2.69 | 8278.2s
+step 126060/126071 | loss 1.4859 | lr 1.00e-04 | wd 0.100 | gnorm 2.19 | 8297.4s
+step 126070/126071 | loss 1.3519 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 8316.8s
+[train] done
+[2026-07-29T12:21:19Z] arm H final line: step 126070/126071 | loss 1.3519 | lr 1.00e-04 | wd 0.100 | gnorm 2.21 | 8316.8s
+[2026-07-29T12:21:19Z] === PAIRED EVAL — 512 disjoint windows, locked protocol ===
+[2026-07-29T12:21:19Z] --- contrast set 1: baseline twin_hold (H)  ->  d_cool = H - K ---
+==========================================================================
+M7 PAIRED MULTI-WINDOW EVAL
+==========================================================================
+  val file        : /home/killboxincorporated/model-lab/tinybit/valid_8k.bin
+  file tokens     : 5,414,891
+  windows         : 512 disjoint, stride 10,574
+  scored tokens   : 262,144  (513x the original 511-token probe)
+  threads         : 4
+
+  [twin]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 122071
+     corpus PPL (token-weighted) : 4.4505
+     per-window PPL mean/median  : 4.6645 / 4.2659
+     per-window PPL min/max      : 2.5666 / 35.9056
+     eval wall                   : 39.0s
+
+  [twin_hold]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 126071
+     corpus PPL (token-weighted) : 4.4341
+     per-window PPL mean/median  : 4.6460 / 4.2533
+     per-window PPL min/max      : 2.5673 / 35.4260
+     eval wall                   : 38.8s
+
+  [twin_cooled]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 126071
+     corpus PPL (token-weighted) : 4.2624
+     per-window PPL mean/median  : 4.4599 / 4.1088
+     per-window PPL min/max      : 2.5387 / 33.2903
+     eval wall                   : 38.0s
+
+  [ternary]
+     14,171,392 params | linear=bitlinear | L7 h384 i1024 heads6 | step 122071
+     corpus PPL (token-weighted) : 4.1357
+     per-window PPL mean/median  : 4.3204 / 3.9863
+     per-window PPL min/max      : 2.3865 / 31.9770
+     eval wall                   : 98.4s
+
+==========================================================================
+PAIRED COMPARISONS (baseline = twin_hold)
+==========================================================================
+  twin_cooled vs twin_hold
+     corpus PPL       : 4.2624 vs 4.4341  => +3.87% (better)
+     paired mean ΔNLL : +0.039480 nats/token
+     bootstrap 95% CI : +0.037635 .. +0.041389  (10,000 resamples)
+     sign-flip p      : 5.00e-05  (Holm-adjusted 1.50e-04)
+     windows won      : 495/512
+     significance gate: PASSES at Holm p<=0.05
+
+  ternary vs twin_hold
+     corpus PPL       : 4.1357 vs 4.4341  => +6.73% (better)
+     paired mean ΔNLL : +0.069667 nats/token
+     bootstrap 95% CI : +0.066634 .. +0.072733  (10,000 resamples)
+     sign-flip p      : 5.00e-05  (Holm-adjusted 1.50e-04)
+     windows won      : 503/512
+     significance gate: PASSES at Holm p<=0.05
+
+  twin vs twin_hold
+     corpus PPL       : 4.4505 vs 4.4341  => -0.37% (WORSE)
+     paired mean ΔNLL : -0.003684 nats/token
+     bootstrap 95% CI : -0.006294 .. -0.001080  (10,000 resamples)
+     sign-flip p      : 5.10e-03  (Holm-adjusted 5.10e-03)
+     windows won      : 224/512
+     significance gate: PASSES at Holm p<=0.05
+
+  wrote /home/killboxincorporated/docs/hardware_logs/m7lr_verdict_twin_hold_2026-07-29.json
+[2026-07-29T12:24:58Z] --- contrast set 2: baseline twin (A)  ->  d_gap = A - T, d_tokens = A - H ---
+==========================================================================
+M7 PAIRED MULTI-WINDOW EVAL
+==========================================================================
+  val file        : /home/killboxincorporated/model-lab/tinybit/valid_8k.bin
+  file tokens     : 5,414,891
+  windows         : 512 disjoint, stride 10,574
+  scored tokens   : 262,144  (513x the original 511-token probe)
+  threads         : 4
+
+  [twin]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 122071
+     corpus PPL (token-weighted) : 4.4505
+     per-window PPL mean/median  : 4.6645 / 4.2659
+     per-window PPL min/max      : 2.5666 / 35.9056
+     eval wall                   : 42.9s
+
+  [twin_hold]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 126071
+     corpus PPL (token-weighted) : 4.4341
+     per-window PPL mean/median  : 4.6460 / 4.2533
+     per-window PPL min/max      : 2.5673 / 35.4260
+     eval wall                   : 41.6s
+
+  [twin_cooled]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 126071
+     corpus PPL (token-weighted) : 4.2624
+     per-window PPL mean/median  : 4.4599 / 4.1088
+     per-window PPL min/max      : 2.5387 / 33.2903
+     eval wall                   : 41.1s
+
+  [ternary]
+     14,171,392 params | linear=bitlinear | L7 h384 i1024 heads6 | step 122071
+     corpus PPL (token-weighted) : 4.1357
+     per-window PPL mean/median  : 4.3204 / 3.9863
+     per-window PPL min/max      : 2.3865 / 31.9770
+     eval wall                   : 104.0s
+
+==========================================================================
+PAIRED COMPARISONS (baseline = twin)
+==========================================================================
+  ternary vs twin
+     corpus PPL       : 4.1357 vs 4.4505  => +7.07% (better)
+     paired mean ΔNLL : +0.073351 nats/token
+     bootstrap 95% CI : +0.070252 .. +0.076525  (10,000 resamples)
+     sign-flip p      : 5.00e-05  (Holm-adjusted 1.50e-04)
+     windows won      : 500/512
+     significance gate: PASSES at Holm p<=0.05
+
+  twin_hold vs twin
+     corpus PPL       : 4.4341 vs 4.4505  => +0.37% (better)
+     paired mean ΔNLL : +0.003684 nats/token
+     bootstrap 95% CI : +0.001080 .. +0.006294  (10,000 resamples)
+     sign-flip p      : 5.10e-03  (Holm-adjusted 5.10e-03)
+     windows won      : 288/512
+     significance gate: PASSES at Holm p<=0.05
+
+  twin_cooled vs twin
+     corpus PPL       : 4.2624 vs 4.4505  => +4.22% (better)
+     paired mean ΔNLL : +0.043165 nats/token
+     bootstrap 95% CI : +0.041101 .. +0.045237  (10,000 resamples)
+     sign-flip p      : 5.00e-05  (Holm-adjusted 1.50e-04)
+     windows won      : 504/512
+     significance gate: PASSES at Holm p<=0.05
+
+  wrote /home/killboxincorporated/docs/hardware_logs/m7lr_verdict_twin_2026-07-29.json
+[2026-07-29T12:28:51Z] --- contrast set 3: baseline twin_cooled (K)  ->  d_resid = K - T ---
+==========================================================================
+M7 PAIRED MULTI-WINDOW EVAL
+==========================================================================
+  val file        : /home/killboxincorporated/model-lab/tinybit/valid_8k.bin
+  file tokens     : 5,414,891
+  windows         : 512 disjoint, stride 10,574
+  scored tokens   : 262,144  (513x the original 511-token probe)
+  threads         : 4
+
+  [twin]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 122071
+     corpus PPL (token-weighted) : 4.4505
+     per-window PPL mean/median  : 4.6645 / 4.2659
+     per-window PPL min/max      : 2.5666 / 35.9056
+     eval wall                   : 49.7s
+
+  [twin_hold]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 126071
+     corpus PPL (token-weighted) : 4.4341
+     per-window PPL mean/median  : 4.6460 / 4.2533
+     per-window PPL min/max      : 2.5673 / 35.4260
+     eval wall                   : 42.1s
+
+  [twin_cooled]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 126071
+     corpus PPL (token-weighted) : 4.2624
+     per-window PPL mean/median  : 4.4599 / 4.1088
+     per-window PPL min/max      : 2.5387 / 33.2903
+     eval wall                   : 40.3s
+
+  [ternary]
+     14,171,392 params | linear=bitlinear | L7 h384 i1024 heads6 | step 122071
+     corpus PPL (token-weighted) : 4.1357
+     per-window PPL mean/median  : 4.3204 / 3.9863
+     per-window PPL min/max      : 2.3865 / 31.9770
+     eval wall                   : 102.7s
+
+==========================================================================
+PAIRED COMPARISONS (baseline = twin_cooled)
+==========================================================================
+  ternary vs twin_cooled
+     corpus PPL       : 4.1357 vs 4.2624  => +2.97% (better)
+     paired mean ΔNLL : +0.030187 nats/token
+     bootstrap 95% CI : +0.027539 .. +0.032900  (10,000 resamples)
+     sign-flip p      : 5.00e-05  (Holm-adjusted 5.00e-05)
+     windows won      : 427/512
+     significance gate: PASSES at Holm p<=0.05
+
+  wrote /home/killboxincorporated/docs/hardware_logs/m7lr_verdict_twin_cooled_2026-07-29.json
+[2026-07-29T12:32:48Z] === RUN COMPLETE ===
+[2026-07-29T12:32:48Z] Read the bands in /home/killboxincorporated/docs/hardware_logs/m7lr_PREREGISTRATION_2026-07-29.md before interpreting.
+[2026-07-29T12:32:48Z] REMINDER: d_cool is a LOWER BOUND (arm K anneals 3.3% of training; the
+[2026-07-29T12:32:48Z] ternary annealed 25%). No outcome licenses 'at equal budget' — the ternary
+[2026-07-29T12:32:48Z] arm has 2.17x the parameters.

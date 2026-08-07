@@ -1,0 +1,52 @@
+======================================================================
+tinybit round-trip gate | 2026-07-17 21:36:33
+torch 2.13.0+cpu | threads 2 | tol 3%
+======================================================================
+config: hidden=256 inter=640 layers=4 heads=4 kv=2 vocab=4096 ctx=512
+params: 3.81M
+  [heldout] 1907 chars -> 480 tokens (ctx=512)
+
+[1] training 250 steps (B=8 T=512 lr=0.003)
+[1] training done in 573.0s
+
+[2a] torch QAT teacher-forced PPL (480 tokens, 479 preds): 77.5159
+
+[2b] export -> /home/killboxincorporated/model-lab/tinybit/gate_work/export
+  exported model.safetensors + config.json + tokenizer.json
+
+[2c] repack -> /home/killboxincorporated/model-lab/tinybit/gate_work/artifacts
+  $ nice -n 10 /home/killboxincorporated/ranger-venv/bin/python3 /home/killboxincorporated/aegis-forge/repack_ternary.py /home/killboxincorporated/model-lab/tinybit/gate_work/export /home/killboxincorporated/model-lab/tinybit/gate_work/artifacts --max-seq 512
+    | VOCAB.BIN: 4096 tokens, 3839 merges
+    | EMBED.BIN: 2097152 bytes (4096 x 256 BF16)
+    | layer 0: repacked
+    | layer 1: repacked
+    | layer 2: repacked
+    | layer 3: repacked
+    | MODEL.SAF: 73 tensors, 707900 bytes
+    | Repack complete. Next gates: loader asserts (cargo test), reference parity (tests/reference_parity.rs), then G4a PPL agreement.
+
+[2d] engine eval (aegis-eval, --sample)
+  $ nice -n 10 /home/killboxincorporated/aegis-eval/target/release/aegis-eval /home/killboxincorporated/model-lab/tinybit/gate_work/artifacts/MODEL.SAF /home/killboxincorporated/model-lab/tinybit/gate_work/artifacts/EMBED.BIN /home/killboxincorporated/model-lab/tinybit/gate_work/artifacts/VOCAB.BIN /home/killboxincorporated/model-lab/tinybit/gate_work/heldout.txt 512 --sample
+    | ==================================================
+    |  A.L.I.C.E. Perplexity Evaluator (measured)
+    | ==================================================
+    | Engine online. SIMD level: AVX2+FMA
+    | Dataset: /home/killboxincorporated/model-lab/tinybit/gate_work/heldout.txt | sample: 1907 chars -> 480 tokens
+    | --------------------------------------------------
+    | Perplexity (teacher-forced, 480 tokens): 77.673
+    | Eval wall time: 0.6s (776.91 tok/s)
+    | --------------------------------------------------
+    | NOTE: vocab 4096 tokens (full source vocab; cross-tokenizer PPLs are not comparable).
+    | Report this number only alongside that caveat.
+
+======================================================================
+[3] VERDICT
+  token count   : torch=480  engine=480  (engine PPL line reports 480)
+  torch  PPL    : 77.5159
+  engine PPL    : 77.6730
+  relative diff : 0.20%   (tolerance 3%)
+  peak RSS      : 1.88 GB
+  wall clock    : 574.4s
+
+  >>> GATE PASS <<<
+======================================================================

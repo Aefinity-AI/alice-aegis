@@ -1,0 +1,39 @@
+A.L.I.C.E. / Aegis
+Copyright 2026 Justin B. Thompson / Aefinity AI
+
+This product includes software developed by Justin B. Thompson (Aefinity AI),
+licensed under the Apache License, Version 2.0. See LICENSE.
+
+Portions of this work were produced with AI assistance; every commit records
+this in its trailer. AI-assisted authorship is the author's own work product
+and creates no third-party copyright interest.
+
+
+SCOPE OF THE APACHE-2.0 GRANT
+-----------------------------
+
+The LICENSE covers the original work in this repository, including:
+
+  aegis-core     ternary inference kernels, attention, tokenizer, sampler
+  aegis-uefi     the no_std UEFI unikernel and firmware bring-up
+  aegis-linux    the userspace host binary
+  aegis-eval     the perplexity / evaluation harness
+  aegis-forge    model preparation, vocabulary pruning, quantization tooling
+  xtask          development automation
+  fable-hand     the computer-use tooling
+  model-lab      the tinybit trainer, its from-scratch-trained weights, and tooling
+  scripts/, program/, docs/  documentation, protocols, and hardware logs
+
+It does NOT cover third-party material redistributed in this tree. That
+material retains its own licenses and its own copyright holders. In
+particular, the Apache-2.0 grant above does not extend to:
+
+  - Microsoft's BitNet b1.58-2B-4T model files, sidecars, and artifacts
+    derived from them (MIT, Copyright (c) Microsoft Corporation)
+  - The Meta Llama 3 tokenizer vocabulary carried through those files
+  - HuggingFace Transformers' modeling_bitnet.py (Apache-2.0)
+  - ARIS's evidence_check.py (MIT, Copyright (c) 2026 wanshuiyin)
+  - AI2 ARC and WikiText-2 evaluation data (CC BY-SA)
+
+A complete, file-by-file accounting is in THIRD_PARTY_NOTICES.md. Read it
+before redistributing this repository or any binary built from it.

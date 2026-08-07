@@ -1,0 +1,143 @@
+SKEPTIC REVIEW RAW DATA — "retired-instruction count as bit-exact measure of inference work"
+Date: 2026-07-29
+Reviewer lens: novelty
+Box: dev Chromebook, Intel i5-10210U (Comet Lake) under crosvm, HYPERVISOR flag set.
+     /proc/cpuinfo flags include: arch_perfmon, pdcm, hypervisor.
+     /proc/sys/kernel/perf_event_paranoid = 2
+     /sys/bus/event_source/devices/ = breakpoint cpu msr power software tracepoint uprobe
+     -> a vPMU IS exposed to this guest. The claim "the dev box cannot participate
+        (MSR EACCES)" is true for /dev/cpu/*/msr and IRRELEVANT: perf_event_open
+        needs no MSR access.
+`perf` userspace binary: NOT INSTALLED. All measurements below use perf_event_open(2)
+     directly. Source retained:
+       scratchpad/icount.c       (in-process, synthetic loop)
+       scratchpad/icount_exec.c  (fork+exec, enable_on_exec=1, inherit=1, whole child)
+     Both use attr.exclude_kernel=1, attr.exclude_hv=1 (i.e. "instructions:u").
+
+====================================================================
+FINDING 0 — FREEZE_WHILE_SMM IS ALREADY A ONE-LINE SYSFS TOGGLE ON THIS MACHINE
+  $ ls /sys/devices/cpu/
+    caps  events  format  freeze_on_smi  perf_event_mux_interval_ms  power
+    rdpmc  subsystem  type  uevent
+  $ cat /sys/devices/cpu/freeze_on_smi
+    1
+  MEASURED. The knob exists and is ALREADY ENABLED by default on Comet Lake.
+  It writes IA32_DEBUGCTL[14]. Mainline since Kan Liang's 2017 series
+  ("perf/x86: add sysfs entry to freeze counter on SMI"), whose stated rationale is
+  verbatim: "in some cases, SMI cycles should not be counted -- for example, to
+  calculate the cost of SMI itself."
+  `perf stat --smi-cost` (man perf-stat) already implements the candidate's
+  "corollary claim": it sets freeze_on_smi, then reports SMI cost as
+  (aperf - unhalted_core_cycles)/aperf using msr/aperf/ and msr/smi/.
+  -> The "strictly better instrument than MSR_SMI_COUNT, which counts events but
+     not cost" is a flag that shipped nine years ago and is on by default here.
+
+====================================================================
+ARM A — SYNTHETIC, IN-PROCESS, n=20, taskset -c 2, load avg 6.62
+  workload: 2,000,000-iteration f64 accumulate loop, -O2
+  instructions:u
+    18000043 18000062 18000064 18000044 18000042 18000043 18000042 18000046
+    18000057 18000042 18000043 18000042 18000042 18000046 18000049 18000043
+    18000042 18000045 18000042 18000042
+    mean 18,000,046.1  sd 6.63  min 18,000,042  max 18,000,064
+    spread 22 counts  CV 0.000037%
+  branch_instructions:u, SAME 20 reps
+    2000013 2000032 2000034 2000014 2000012 2000013 2000012 2000016
+    2000027 2000012 2000013 2000012 2000012 2000016 2000019 2000013
+    2000012 2000015 2000012 2000012
+  DERIVED: (instructions - branches) = 16,000,030 in ALL 20 reps, exactly.
+    Both counters are inflated by the SAME per-rep integer. That integer is 0 for
+    the 11 reps that report the floor value. The floor IS the exact architectural
+    count; the excess is the documented iret/interrupt overcount
+    (Weaver/Terpstra/Moore, ISPASS 2013; Weaver's per-uarch table lists Core2,
+    Atom, Nehalem, SandyBridge, AMD as "count is high by number of hardware
+    interrupts").
+  => min-of-N recovers the BIT-EXACT integer under a hosted OS, for free.
+
+====================================================================
+ARM B — THE REAL WORKLOAD, FULL PROCESS LAUNCH, n=12, taskset -c 2, load avg 7.35
+  binary: /home/killboxincorporated/aegis-linux/target/release/aegis-linux
+          (built 2026-07-16 22:58, UNMODIFIED — no new code in the engine)
+  model:  model-lab/tinybit/m7_final_gate_work/artifacts/{MODEL.SAF,EMBED.BIN,VOCAB.BIN}
+  args:   16 max_new_tokens, prompt "Once upon a time"
+  Counter armed at exec, inherit=1, so the count INCLUDES ld.so, ASLR-dependent
+  paths, the mmap of EMBED.BIN, page-cache state, and every syscall return.
+  instructions:u
+    319739993 319739881 319738357 319740512 319738354 319738247
+    319738059 319740502 319738443 319740312 319743426 319738633
+    mean 319,739,559.9  sd 1,488.3  min 319,738,059  max 319,743,426
+    spread 5,367 counts on 3.197e8  =  1.679e-05 relative  =  0.0017% range
+    CV 0.000465%
+  => Every mechanism the candidate names as making the hosted arm "a distribution,
+     not a constant" IS PRESENT AND ACTIVE HERE, and their total contribution is
+     5,367 counts in 320 million. exclude_kernel=1 removes the kernel-side work by
+     CPL filtering — the mechanism UEFI does not have, because UEFI is all CPL 0.
+
+====================================================================
+DERIVED — THE COMPARISON THAT KILLS "WHY ONLY HERE"
+  bare-metal PREFILL TICK CV, best pairing the program has ever quoted:  0.0780%
+    (docs/hardware_logs/m7_baremetal_prompts_postfix_2026-07-29.log, n=7, boot1;
+     see skeptic_variance_budget_kill_2026-07-29.log for what that number is)
+  hosted instructions:u CV, real engine, real weights, load 7.35, crosvm: 0.000465%
+  ratio: 168x  IN FAVOUR OF THE HOSTED ARM.
+  Published third-party figure for instruction-count noise in cloud CI: 1e-06%
+    (Cachegrind/CodSpeed; ~1e6x better than the ~1% they measure for elapsed time).
+
+====================================================================
+ARCHITECTURAL OBJECTION — BARE METAL IS STRICTLY WORSE AT THIS
+  IA32_FIXED_CTR_CTRL (0x38D) gates each fixed counter with EN_OS (CPL 0) and
+  EN_USR (CPL > 0). The UEFI application runs entirely at CPL 0. Therefore:
+    - EN_USR counts nothing.
+    - EN_OS counts the workload AND the firmware's timer ISR body, with no way to
+      separate them.
+  And the firmware timer interrupt IS live: aegis-uefi never calls
+  ExitBootServices and never raises TPL (grep-verified, zero matches; confirmed
+  independently in skeptic_variance_budget_kill_2026-07-29.log), and it calls
+  uefi::boot::stall at main.rs:79,158,245,398,406,414,675,766,824,881.
+  A ~91.0 Mtick prefill at ratio 25 is ~41 ms of wall time. A UEFI firmware timer
+  at the usual 100 Hz fires 4 or 5 times in that window depending on PHASE, not on
+  the workload. Per Weaver's table the count is high by the number of hardware
+  interrupts — and on bare metal it is additionally high by the whole ISR body.
+  PREDICTION, PRE-REGISTERED: the candidate's own Stage-1 kill criterion
+  ("if the five counts are not identical, the claim is DEAD") FAILS on the Dell,
+  for a reason that has nothing to do with the workload's determinism.
+
+====================================================================
+CHEAPER KILL THAN THE SCOUT'S STAGE 0 — PURE CPUID, NO MSR, NO IDT
+  FREEZE_WHILE_SMM may be set ONLY if IA32_PERF_CAPABILITIES(0x345).bit12 == 1,
+  and 0x345 exists only if CPUID.01H:ECX[15] (PDCM) == 1. Setting the bit on a
+  PerfMon V1 part can #GP — mainline carries a patch titled exactly
+  "perf/x86/intel: Don't enable freeze-on-smi for PerfMon V1".
+  The scout's Stage 0 reads CPUID.0AH but NOT PDCM and NOT 0x345[12]. Adding
+  CPUID.01H:ECX[15] to the same banner is ~1 line and kills the entire SMM-tax arm
+  on any machine that lacks PDCM — before the 150-line IDT is written.
+  (Recorded for completeness: this box HAS pdcm. The Dell 06_3D and the HP Stream
+  06_7A are unverified.)
+
+====================================================================
+PRIOR ART THE SCOUT DID NOT FIND
+  [PAPER]  V.M. Weaver, D. Terpstra, S. Moore, "Non-Determinism and Overcount on
+           Modern Hardware Performance Counter Implementations", IEEE ISPASS 2013.
+           Eleven x86_64 implementations, self-written asm validation, asks exactly
+           "are retired-instruction counts deterministic?" Answer: no, and here is
+           the per-uarch overcount and the iret mechanism.
+           https://web.eece.maine.edu/~vweaver/projects/deterministic/
+  [PAPER]  V.M. Weaver, S. McKee, "Can Hardware Performance Counters be Trusted?",
+           IISWC 2008 — the candidate's own target venue.
+  [REPO]   rr (Mozilla). Rejected INST_RETIRED for replay precisely because it is
+           not exact, and uses retired conditional branches instead.
+           https://arxiv.org/pdf/1705.05937
+  [VENDOR] Linux /sys/devices/cpu/freeze_on_smi + `perf stat --smi-cost`, mainline
+           since 2017. Present and =1 on this box.
+  [PRODUCT]Cachegrind/Callgrind, iai-callgrind, rustc-perf, CodSpeed: instruction
+           count AS the noise-free benchmarking metric, explicitly to escape
+           wall-clock noise in virtualized CI. Commercially shipped.
+  [PAPER]  B. Delgado, K. Karavanic, "Performance Implications of System Management
+           Mode", IISWC 2013 — SMM perturbation characterisation, target venue.
+  [PAPER]  Puschner et al., single-path / WCET-oriented programming: "the WCET of
+           the single path [is] obtained by executing the code and logging the
+           duration" — a fixed instruction stream on bare metal as a measurement
+           methodology, since ~2003.
+  [TEXT]   Iron law: Time = Instructions x CPI x cycle time. Decomposing a speedup
+           into instruction-count ratio and IPC ratio is the DEFAULT methodology at
+           IISWC/CGO/PACT, not a contribution to it.

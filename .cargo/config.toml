@@ -1,0 +1,13 @@
+# Cargo aliases for A.L.I.C.E. / Aegis.
+#
+# Required for `cargo xtask ...` to resolve, both locally and in CI.
+#
+# CAVEAT, stated because it is a real footgun: this repository's root is the
+# user's home directory, which is also $CARGO_HOME. A project-level
+# .cargo/config.toml and $CARGO_HOME/config.toml are therefore the same file here.
+# The alias uses a path relative to the current directory, so `cargo xtask` works
+# from the repo root and fails with a plain "manifest path not found" anywhere
+# else. In CI the checkout is a normal directory and this is scoped to the repo,
+# which is the intended behaviour.
+[alias]
+xtask = ["run", "--quiet", "--manifest-path", "xtask/Cargo.toml", "--"]

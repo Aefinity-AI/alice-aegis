@@ -1,0 +1,33 @@
+=== LUT-mpGEMM (T-MAC pshufb) vs current f32 LUT+FMA — instrument capture ===
+date_utc          : 2026-07-30T05:29:38Z
+machine           : dev box, crosvm guest (Chromebook)
+cpu               : Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
+cores_online      : 8
+loadavg           : 0.58 0.42 0.29
+binary            : aegis-core/target/release/lut_mpgemm (release, default features)
+git_head          : a249b2c (hybrid-engine)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1120 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          75210110        120000000     3.3697     1.596x
+    1          75336496        120000000     3.3640     1.593x
+    2          75604928        120000000     3.3521     1.587x
+    3          75896616        120000000     3.3392     1.581x
+    4          75467948        120000000     3.3582     1.590x
+  
+    mean 3.3567 GHz | min 3.3392 | max 3.3697 | spread 0.908%
+    EFFECTIVE / NOMINAL = 1.589  <-- the factor that rescales every derived figure
+
+--- BENCH RUN 1 ---
+LUT mpGEMM throughput probe (2560x6912 ternary)
+
+repack (one-time, at model load): 19.4 ms for this tensor
+  layout memory: 8 MB (vs 4 MB packed) -- 4 bits/weight
+
+scalar reference :    11.2 ms (1.59 GMAC/s)
+LUT pshufb kernel:     1.5 ms (11.75 GMAC/s)  [best of 5]
+  + table build  :   0.095 ms once per activation vector (6.3% of kernel)
+  effective      : 11.05 GMAC/s including table build

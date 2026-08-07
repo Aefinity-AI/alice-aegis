@@ -1,0 +1,46 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831576 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA
+==== GAUNTLET ====
+GAUNTLET CPU: Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz | base=0MHz max=0MHz bus=0MHz | simd=AVX2+FMA hwp=false turbo=false baremetal=false
+GAUNTLET SIMD_scalar: 31 tok, path=scalar, 6581086737 ticks/tok, wall 97.000s, 0.31 tok/s, clock ?
+GAUNTLET SIMD_native: 31 tok, path=AVX2+FMA, 832697212 ticks/tok, wall 12.000s, 2.58 tok/s, clock ?
+GAUNTLET PREFILL_pertoken: 2 tok, path=AVX2+FMA, 10946573075 ticks/tok, wall 11.000s, 0.18 tok/s, clock ?
+GAUNTLET PREFILL_batched: 2 tok, path=AVX2+FMA, 6309038265 ticks/tok, wall 5.000s, 0.40 tok/s, clock ?
+GAUNTLET PSTATE_run1: 31 tok, path=AVX2+FMA, 1121756711 ticks/tok, wall 16.000s, 1.93 tok/s, clock ?
+GAUNTLET PSTATE_run2_control: 31 tok, path=AVX2+FMA, 940859121 ticks/tok, wall 14.000s, 2.21 tok/s, clock ?
+GAUNTLET TURBO FAILED: not a bare-metal Intel CPU (hypervisor or non-Intel)
+GAUNTLET PSTATE_run3_turbo: 31 tok, path=AVX2+FMA, 869191134 ticks/tok, wall 13.000s, 2.38 tok/s, clock ?
+GAUNTLET CTX_20: 21 tok, path=AVX2+FMA, 1151946506 ticks/tok, wall 11.000s, 1.90 tok/s, clock ?
+GAUNTLET CTX_100: 101 tok, path=AVX2+FMA, 874533233 ticks/tok, wall 42.000s, 2.40 tok/s, clock ?
+GAUNTLET CTX_400: 401 tok, path=AVX2+FMA, 770583111 ticks/tok, wall 146.000s, 2.74 tok/s, clock ?
+GAUNTLET DONE
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831576 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA
+==== GAUNTLET ====
+GAUNTLET CPU: Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz | base=0MHz max=0MHz bus=0MHz | simd=AVX2+FMA hwp=false turbo=false baremetal=false
+GAUNTLET SIMD_scalar: 31 tok, path=scalar, prefill 27 tok 87845765418t 41.351s, decode 30 tok 3712977092 ticks/tok 0.57 tok/s, total 94.000s, clock ?
+GAUNTLET SIMD_native: 31 tok, path=AVX2+FMA, prefill 27 tok 6920752634t 3.434s, decode 30 tok 637829748 ticks/tok 3.15 tok/s, total 13.000s, clock ?
+GAUNTLET PREFILL_pertoken: 2 tok, path=AVX2+FMA, prefill 38 tok 20867277194t 9.687s, decode 1 tok 634996040 ticks/tok 3.39 tok/s, total 10.000s, clock ?
+GAUNTLET PREFILL_batched: 2 tok, path=AVX2+FMA, prefill 38 tok 8704015712t 3.712s, decode 1 tok 631889476 ticks/tok 3.71 tok/s, total 4.000s, clock ?
+GAUNTLET PSTATE_run1: 31 tok, path=AVX2+FMA, prefill 27 tok 6620083518t 3.118s, decode 30 tok 626901558 ticks/tok 3.38 tok/s, total 12.000s, clock ?
+GAUNTLET PSTATE_run2_control: 31 tok, path=AVX2+FMA, prefill 27 tok 6633884260t 3.359s, decode 30 tok 633145499 ticks/tok 3.11 tok/s, total 13.000s, clock ?
+GAUNTLET TURBO FAILED: not a bare-metal Intel CPU (hypervisor or non-Intel)
+GAUNTLET PSTATE_run3_turbo: 31 tok, path=AVX2+FMA, prefill 27 tok 6258545114t 2.965s, decode 30 tok 634367361 ticks/tok 3.32 tok/s, total 12.000s, clock ?
+GAUNTLET CTX_20: 21 tok, path=AVX2+FMA, prefill 27 tok 6273504464t 2.973s, decode 20 tok 633756984 ticks/tok 3.32 tok/s, total 9.000s, clock ?
+GAUNTLET CTX_100: 101 tok, path=AVX2+FMA, prefill 27 tok 6650058628t 3.156s, decode 100 tok 691368542 ticks/tok 3.04 tok/s, total 36.000s, clock ?
+GAUNTLET CTX_400: 401 tok, path=AVX2+FMA, prefill 27 tok 6251307678t 2.948s, decode 400 tok 662675006 ticks/tok 3.19 tok/s, total 128.000s, clock ?
+GAUNTLET DONE

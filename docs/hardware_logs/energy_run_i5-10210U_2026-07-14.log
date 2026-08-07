@@ -1,0 +1,16 @@
+Battery node: /sys/class/power_supply/battery
+[1/3] Idle baseline (300s — do not touch the machine)...
+      idle: 4.500 W  (coulomb cross-check: n/a W)
+[2/3] Generation run (2048 tokens)...
+      load: 17.457 W over 725s  (coulomb cross-check: 17.51 W)
+ERROR: could not read generated token count from /tmp/energy_run.log
+
+--- POST-HOC ANALYSIS (single-thread f32 build; token count recovered) ---
+Engine panicked at the 2048-token context limit (inference.rs:332 off-by-one,
+filed for fix) after generating 2048 - 21 prompt = 2027 tokens over the 725s
+sampled window. Derived figures from the raw values logged above:
+  decode rate:        2027 tok / 725 s = 2.80 tok/s
+  incremental power:  17.457 - 4.500 = 12.96 W
+  ENERGY/TOKEN (incremental): 4.63 J   (total system: 6.24 J)
+Config: aegis-linux release build WITHOUT parallel/int8_act features.
+See energy_run_i5-10210U_multicore_2026-07-14.log for the production config.

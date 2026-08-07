@@ -1,0 +1,11 @@
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: test.txt | sample: 7325 chars -> 1899 tokens
+--------------------------------------------------
+Perplexity (teacher-forced, 1899 tokens): 10.348
+Eval wall time: 818.0s (2.32 tok/s)
+--------------------------------------------------
+NOTE: pruned-vocab model (50,256 of 128,256 tokens; ASCII-oriented).
+Report this number only alongside that caveat.

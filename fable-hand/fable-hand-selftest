@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""fable-hand v2 regression gate: exercises every v2 verb for real.
+
+Live test against the running X session: launches xclock, drives the win
+verbs, round-trips the clipboard, runs a multi-step script (plus failure and
+nested-run cases), and takes own mode through start -> owned actions -> stop
+with journal and on-screen-indicator verification (screenshot pixel check).
+
+Exit 0 = all checks passed. Any failure exits nonzero and names the check.
+Evidence (screenshots, journal excerpt, summary) is kept per run under
+~/.fable-hand/selftest/<timestamp>/.
+"""
+
+import json
+import os
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+CLI = os.path.join(HERE, "fable-hand")
+STATE_DIR = os.path.expanduser("~/.fable-hand")
+JOURNAL = os.path.join(STATE_DIR, "journal.jsonl")
+EVIDENCE = os.path.join(STATE_DIR, "selftest",
+                        time.strftime("%Y-%m-%d_%H%M%S"))
+DISPLAY = os.environ.get("DISPLAY", ":0")
+CORAL = (0xD9, 0x77, 0x57)
+
+checks = []
+own_actions = 0
+own_active = False
+
+
+def check(name, cond, evidence=""):
+    checks.append({"name": name, "pass": bool(cond), "evidence": str(evidence)})
+    mark = "PASS" if cond else "FAIL"
+    print(f"[{mark}] {name}" + (f" — {evidence}" if evidence else ""))
+    return bool(cond)
+
+
+def cli(*args, expect_ok=True):
+    """Invoke the real CLI. Tracks owned-action count for the own-mode check."""
+    global own_actions
+    res = subprocess.run([CLI, *args], capture_output=True, text=True,
+                        env=dict(os.environ, DISPLAY=DISPLAY))
+    if own_active and args[0] != "own":
+        own_actions += 1
+    try:
+        out = json.loads(res.stdout) if res.stdout.strip() else None
+    except ValueError:
+        out = {"unparseable": res.stdout}
+    if expect_ok and res.returncode != 0:
+        check(f"cli {' '.join(args[:3])}", False,
+              f"exit {res.returncode}: {res.stdout.strip()[:200]}")
+    return res.returncode, out
+
+
+def coral_fraction(png_path, box=None):
+    from PIL import Image
+    im = Image.open(png_path).convert("RGB")
+    if box:
+        im = im.crop(box)
+    w, h = im.size
+    if w == 0 or h == 0:
+        return 0.0
+    px = im.load()
+    xs = range(0, w, max(1, w // 300))
+    n = hit = 0
+    for x in xs:
+        for y in range(h):
+            n += 1
+            r, g, b = px[x, y]
+            if (abs(r - CORAL[0]) < 30 and abs(g - CORAL[1]) < 30
+                    and abs(b - CORAL[2]) < 30):
+                hit += 1
+    return hit / n
+
+
+def xclock_windows():
+    _, wins = cli("win", "list")
+    return [w for w in (wins or []) if w.get("name") == "xclock"]
+
+
+def wait_for(pred, timeout=10.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if pred():
+            return True
+        time.sleep(0.4)
+    return pred()
+
+
+def main():
+    global own_active, own_actions
+    os.makedirs(EVIDENCE, exist_ok=True)
+    print(f"fable-hand v2 selftest — evidence in {EVIDENCE}")
+
+    # Preflight: a clean, repeatable slate.
+    cli("own", "stop", expect_ok=False)          # ignore "not active"
+    for w in xclock_windows():
+        cli("win", "close", w["id"], expect_ok=False)
+    wait_for(lambda: not xclock_windows(), 5)
+
+    # 1. status
+    rc, st = cli("status")
+    check("status", rc == 0 and st.get("journal") == JOURNAL, st.get("display"))
+
+    # 2. apps
+    rc, apps = cli("apps")
+    names = [a.get("name", "") for a in (apps or [])]
+    check("apps lists .desktop entries", rc == 0 and len(names) >= 2,
+          f"{len(names)} entries incl {names[:2]}")
+
+    # 3. clipboard round-trips
+    payload = f"fable-selftest-{os.getpid()}-{int(time.time())}"
+    rc1, _ = cli("clip", "set", payload)
+    rc2, got = cli("clip", "get")
+    check("clip set/get round-trip",
+          rc1 == 0 and rc2 == 0 and got.get("text") == payload, payload)
+    p2 = payload + "-stdin"
+    res = subprocess.run([CLI, "clip", "set", "-"], input=p2,
+                         capture_output=True, text=True)
+    rc3, got2 = cli("clip", "get")
+    check("clip set - (stdin) round-trip",
+          res.returncode == 0 and got2.get("text") == p2)
+
+    # 4. launch + window appears
+    rc, launched = cli("launch", "xclock", "-digital")
+    pid = (launched or {}).get("pid")
+    appeared = wait_for(lambda: len(xclock_windows()) == 1, 10)
+    check("launch xclock (detached, pid)", rc == 0 and pid and appeared,
+          f"pid {pid}")
+    if not appeared:
+        finish()
+    wid = xclock_windows()[0]["id"]
+
+    # 5. win list fields
+    w0 = xclock_windows()[0]
+    check("win list has id/desktop/geometry/title",
+          all(k in w0 for k in ("id", "desktop", "x", "y", "w", "h", "name")),
+          json.dumps(w0))
+
+    # 6. win focus
+    rc, out = cli("win", "focus", "xclock")
+    check("win focus by title substring", rc == 0 and out.get("focused") == wid)
+
+    # 7. win resize — size must be honored exactly (measured: it is)
+    rc, out = cli("win", "resize", "xclock", "500x160")
+    geo = (out or {}).get("geometry", {})
+    check("win resize 500x160 honored",
+          rc == 0 and geo.get("w") == 500 and geo.get("h") == 160,
+          json.dumps(geo))
+
+    # 8. win move — request succeeds; sommelier's host WM owns placement,
+    #    so assert the honest contract: actual geometry is reported back.
+    rc, out = cli("win", "move", "xclock", "200", "150")
+    check("win move reports actual geometry",
+          rc == 0 and out.get("requested") == [200, 150]
+          and "geometry" in out, json.dumps(out.get("geometry")))
+
+    # 9. win maximize (move+resize to display)
+    geo_out = subprocess.run(["xdotool", "getdisplaygeometry"],
+                             capture_output=True, text=True,
+                             env=dict(os.environ, DISPLAY=DISPLAY))
+    sw = int(geo_out.stdout.split()[0])
+    rc, out = cli("win", "maximize", "xclock")
+    geo = (out or {}).get("geometry", {})
+    check("win maximize spans display width",
+          rc == 0 and geo.get("w", 0) >= sw - 10, f"w={geo.get('w')} of {sw}")
+
+    # 10. win minimize + re-focus
+    rc, _ = cli("win", "minimize", "xclock")
+    rc2, _ = cli("win", "focus", "xclock")
+    check("win minimize + refocus", rc == 0 and rc2 == 0)
+
+    # 11. key chords pass through (xdotool chord syntax)
+    rc1, k1 = cli("key", "ctrl+shift+t", "--window", "xclock")
+    rc2, k2 = cli("key", "shift+a", "Return", "--window", "xclock")
+    check("key chords (single + sequence)",
+          rc1 == 0 and k1.get("pressed") == "ctrl+shift+t"
+          and rc2 == 0 and k2.get("pressed") == ["shift+a", "Return"])
+
+    # 12. window capture
+    shot_path = os.path.join(EVIDENCE, "xclock.png")
+    rc, out = cli("shot", shot_path, "--window", "xclock")
+    check("shot --window xclock", rc == 0 and os.path.getsize(shot_path) > 0,
+          f"{out.get('bytes')} bytes")
+
+    # 13. selector errors
+    rc, out = cli("win", "focus", "zzz-no-such-window", expect_ok=False)
+    check("win verb: unknown selector -> JSON error, exit 1",
+          rc == 1 and "error" in (out or {}), (out or {}).get("error"))
+
+    # 14. run script (same code paths, 5 steps)
+    script = os.path.join(EVIDENCE, "runtest.json")
+    with open(script, "w") as f:
+        json.dump([
+            {"verb": "move", "args": ["800", "400"], "delay_ms": 150},
+            {"verb": "clip", "args": ["set", "run-payload"]},
+            {"verb": "clip", "args": ["get"]},
+            {"verb": "win", "args": ["list"]},
+            {"verb": "shot", "args": [os.path.join(EVIDENCE, "run_shot.png"),
+                                      "--window", "xclock"]},
+        ], f)
+    rc, out = cli("run", script)
+    check("run: 5-step script", rc == 0 and out.get("steps") == 5
+          and len(out.get("results", [])) == 5)
+    step2 = out.get("results", [{}] * 3)[2].get("result", {})
+    check("run: steps share real state (clip set -> get)",
+          step2.get("text") == "run-payload")
+
+    # 15. run failure: failing index surfaced, execution stops
+    fail_script = os.path.join(EVIDENCE, "failtest.json")
+    with open(fail_script, "w") as f:
+        json.dump([
+            {"verb": "move", "args": ["500", "500"]},
+            {"verb": "win", "args": ["focus", "zzz-no-such-window"]},
+            {"verb": "clip", "args": ["get"]},
+        ], f)
+    rc, out = cli("run", fail_script, expect_ok=False)
+    check("run: stops at first error with failing_index",
+          rc == 1 and out.get("failing_index") == 1
+          and out.get("completed_steps") == 1, json.dumps(out)[:160])
+
+    # 16. run rejects nested run
+    nest = os.path.join(EVIDENCE, "nest.json")
+    with open(nest, "w") as f:
+        json.dump([{"verb": "run", "args": [script]}], f)
+    rc, out = cli("run", nest, expect_ok=False)
+    check("run: nested run rejected", rc == 1
+          and "nested" in json.dumps(out or {}))
+
+    # 17. journal: every line parses; un-owned actions flagged owned:false
+    lines = open(JOURNAL).read().splitlines()
+    parsed = []
+    bad = 0
+    for ln in lines:
+        try:
+            parsed.append(json.loads(ln))
+        except ValueError:
+            bad += 1
+    check("journal: every line parses as JSON",
+          bad == 0 and len(parsed) > 0, f"{len(parsed)} entries, {bad} bad")
+    check("journal: pre-own actions flagged owned:false",
+          parsed and parsed[-1].get("owned") is False)
+    n_before = len(lines)
+
+    # 18. OWN MODE — screenshot region before, start, verify, act, stop
+    # Root captures are BLACK under rootless sommelier (no composited root
+    # content — measured 2026-08-01: scrot root = 100% #000). The corner-
+    # region before/after therefore uses window captures: BEFORE, no window
+    # exists over the strip region at all; AFTER, capturing that region's
+    # window must show the coral badge. Root scrots are still saved as
+    # evidence of the environment limitation.
+    before_png = os.path.join(EVIDENCE, "own_before_root.png")
+    subprocess.run(["scrot", "--overwrite", before_png],
+                   env=dict(os.environ, DISPLAY=DISPLAY), capture_output=True)
+    find_ind = lambda: subprocess.run(  # noqa: E731
+        ["xdotool", "search", "--name", "^fable-own$"],
+        capture_output=True, text=True,
+        env=dict(os.environ, DISPLAY=DISPLAY)).stdout.strip()
+    check("own: BEFORE — no window occupies the strip region", not find_ind())
+
+    rc, out = cli("own", "start", "--label", "selftest")
+    own_active = True
+    own_actions = 0
+    check("own start: indicator visible", rc == 0
+          and out.get("indicator_visible") is True, f"pid {out.get('indicator_pid')}")
+
+    ind_id = find_ind()
+    ind_png = os.path.join(EVIDENCE, "own_indicator.png")
+    subprocess.run(["import", "-window", ind_id, ind_png],
+                   env=dict(os.environ, DISPLAY=DISPLAY), capture_output=True)
+    frac = coral_fraction(ind_png)
+    check("own: AFTER — strip region screenshot is the coral badge",
+          frac > 0.5, f"coral fraction {frac:.3f} ({ind_png})")
+    after_png = os.path.join(EVIDENCE, "own_after_root.png")
+    subprocess.run(["scrot", "--overwrite", after_png],
+                   env=dict(os.environ, DISPLAY=DISPLAY), capture_output=True)
+
+    # click-through: input shape must be EMPTY (never intercepts)
+    shape_ok = False
+    try:
+        from Xlib import display as xdisplay
+        from Xlib.ext import shape as xshape
+        d = xdisplay.Display()
+        win = d.create_resource_object("window", int(ind_id))
+        tree = win.query_tree()
+        tgt = tree.parent if tree.parent and tree.parent.id != tree.root.id \
+            else win
+        shape_ok = len(tgt.shape_get_rectangles(xshape.SK.Input).rectangles) == 0
+    except Exception as e:
+        print(f"  (shape read-back unavailable: {e})")
+        shape_ok = None
+    if shape_ok is not None:
+        check("own: indicator input shape empty (click-through)", shape_ok)
+
+    # owned actions
+    cli("move", "700", "500")
+    cli("clip", "set", "owned-payload")
+    cli("win", "list")
+    rc, status = cli("own", "status")
+    check("own status: active with action count", rc == 0
+          and status.get("active") is True
+          and status.get("n_actions") == own_actions,
+          f"n_actions {status.get('n_actions')} == {own_actions}")
+
+    rc, summary = cli("own", "stop")
+    own_active = False
+    check("own stop: summary matches actions performed",
+          rc == 0 and summary.get("n_actions") == own_actions
+          and summary.get("duration_s", -1) >= 0
+          and summary.get("journal") == JOURNAL,
+          f"{summary.get('n_actions')} actions in {summary.get('duration_s')}s")
+    gone = wait_for(lambda: not find_ind(), 6)
+    check("own stop: indicator window removed", gone)
+
+    # journal grew, owned entries flagged
+    new = [json.loads(ln) for ln in
+           open(JOURNAL).read().splitlines()[n_before:]]
+    owned_entries = [e for e in new if e.get("owned") and e.get("verb") != "own"]
+    check("journal: owned entries flagged and counted",
+          len(owned_entries) == own_actions,
+          f"{len(owned_entries)} owned entries")
+    with open(os.path.join(EVIDENCE, "journal_excerpt.jsonl"), "w") as f:
+        f.write("\n".join(json.dumps(e) for e in new))
+
+    # 19. teardown
+    for w in xclock_windows():
+        cli("win", "close", w["id"])
+    gone = wait_for(lambda: not xclock_windows(), 6)
+    check("win close: xclock gone", gone)
+
+    finish()
+
+
+def finish():
+    n_fail = sum(1 for c in checks if not c["pass"])
+    summary = {"passed": len(checks) - n_fail, "failed": n_fail,
+               "checks": checks, "evidence": EVIDENCE}
+    with open(os.path.join(EVIDENCE, "summary.json"), "w") as f:
+        json.dump(summary, f, indent=2)
+    print(f"\n{summary['passed']}/{len(checks)} checks passed; "
+          f"evidence: {EVIDENCE}")
+    sys.exit(1 if n_fail or not checks else 0)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)

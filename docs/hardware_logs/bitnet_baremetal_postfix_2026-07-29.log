@@ -1,0 +1,33 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831576 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA
+TURBO_DIAG boot-pre: cur_ratio=5 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=1 prochot_log=1 hot=0 temp=Tj-60C bdprochot_en=1
+STAGE 7 bd-prochot: CLEARED (read-back confirms 0); prochot_was_asserted=1
+STAGE 7 pstate: legacy SpeedStep ratio=27 (~2700MHz)
+TURBO_DIAG boot-post: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-53C bdprochot_en=0
+==== GAUNTLET ====
+GAUNTLET CPU: Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz | base=0MHz max=0MHz bus=0MHz | simd=AVX2+FMA hwp=false turbo=true baremetal=true
+GAUNTLET SIMD_scalar: 31 tok, path=scalar, prefill 27 tok 82366471155t 37.519s, decode 30 tok 3460401536 ticks/tok 0.63 tok/s, total 85.000s, clock 113%
+GAUNTLET SIMD_native: 31 tok, path=AVX2+FMA, prefill 27 tok 9228625754t 4.457s, decode 30 tok 726238201 ticks/tok 2.85 tok/s, total 15.000s, clock 113%
+GAUNTLET PREFILL_pertoken: 2 tok, path=AVX2+FMA, prefill 38 tok 25497300992t 11.653s, decode 1 tok 719180210 ticks/tok 3.04 tok/s, total 12.000s, clock 113%
+GAUNTLET PREFILL_batched: 2 tok, path=AVX2+FMA, prefill 38 tok 12672291945t 5.660s, decode 1 tok 719192201 ticks/tok 3.11 tok/s, total 6.000s, clock 113%
+GAUNTLET PSTATE_run1: 31 tok, path=AVX2+FMA, prefill 27 tok 9227846180t 4.159s, decode 30 tok 726279726 ticks/tok 3.05 tok/s, total 14.000s, clock 113%
+GAUNTLET PSTATE_run2_control: 31 tok, path=AVX2+FMA, prefill 27 tok 9227464737t 4.159s, decode 30 tok 726283784 ticks/tok 3.05 tok/s, total 14.000s, clock 113%
+TURBO_DIAG pre: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-48C bdprochot_en=0
+GAUNTLET TURBO: legacy ratio=27 (~2700MHz)
+TURBO_DIAG post: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-53C bdprochot_en=0
+GAUNTLET PSTATE_run3_turbo: 31 tok, path=AVX2+FMA, prefill 27 tok 9227540681t 4.162s, decode 30 tok 725512174 ticks/tok 3.05 tok/s, total 14.000s, clock 113%
+GAUNTLET CTX_20: 21 tok, path=AVX2+FMA, prefill 27 tok 9227682382t 4.270s, decode 20 tok 725174856 ticks/tok 2.97 tok/s, total 11.000s, clock 113%
+GAUNTLET CTX_100: 101 tok, path=AVX2+FMA, prefill 27 tok 9205957595t 4.253s, decode 100 tok 730059305 ticks/tok 2.96 tok/s, total 38.000s, clock 113%
+GAUNTLET CTX_400: 401 tok, path=AVX2+FMA, prefill 27 tok 9227697758t 4.205s, decode 400 tok 750361887 ticks/tok 2.92 tok/s, total 141.000s, clock 113%
+GAUNTLET PEAK_MEMORY: 571911933 bytes (545.41 MB) [Arena High-Water Mark]
+GAUNTLET DONE
+PROMPT: "hi alice"
+RESPONSE: i am a virtual assistant that can help you with various tasks and provide information on different topics. how may i assist you today?
+  (26 tokens, 23536909276 ticks, 905265741 ticks/token, wall 11.000s, 2.36 tok/s, clock 113% of nominal)

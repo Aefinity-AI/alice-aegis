@@ -1,0 +1,56 @@
+=== M1: Falcon-E-3B-Instruct bring-up (2026-07-18T02:32:15Z) ===
+artifacts: falcon-e-3b-artifacts (MODEL.SAF 864351226 B, repacked from tiiuae/Falcon-E-3B-Instruct main U8-packed, --source-packing hf1bitllm --max-seq 2048)
+box: contended (aegis-ppl-rerun running niced). PPL deterministic; tok/s figures contended.
+
+--- 1. coherence: aegis-linux, chatml template from config ---
+PROMPT: What is the capital of France?
+[PERFORMANCE] Average Cycles/Token: 844692619
+
+
+Final Full Response: The capital of France is Paris. It's the largest city in Europe and serves as both a political, cultural, economic, scientific, industrial, educational, artistic, religious, social, transportation, media center, financial hub, sports venue
+Generated 49 tokens
+Wall time 22.600 s (2.17 tok/s incl. prefill)
+Prefill 17 tokens in 7166312282 cycles (421547781 cycles/token)
+Decode 48 tokens in 19.198 s (2.50 tok/s decode-only)
+
+PROMPT: Why is the sky blue?
+
+Final Full Response: The sky appears blue due to a phenomenon called **Rayleigh scattering**. Here's how it works:
+
+1. **Sunlight and the Atmosphere**: Sunlight is made up of all colors, but when sunlight enters
+Generated 49 tokens
+Wall time 22.796 s (2.15 tok/s incl. prefill)
+Prefill 16 tokens in 6816195638 cycles (426012227 cycles/token)
+Decode 48 tokens in 19.546 s (2.46 tok/s decode-only)
+
+--- 2. 3B PPL on t2d_sample (1B G4a same-text: engine 4.837 / reference 4.831 @1896 tok) ---
+Engine online. SIMD level: AVX2+FMA
+Dataset: falcon-e-artifacts/t2d_sample.txt | sample: 5440 chars -> 1896 tokens
+--------------------------------------------------
+Perplexity (teacher-forced, 1896 tokens): 4.393
+Eval wall time: 1152.8s (1.64 tok/s)
+--------------------------------------------------
+NOTE: vocab 32768 tokens (full source vocab; cross-tokenizer PPLs are not comparable).
+Report this number only alongside that caveat.
+
+--- 3. 3B PPL on WikiText-2 sample (test.txt) ---
+Engine online. SIMD level: AVX2+FMA
+Dataset: test.txt | sample: 5442 chars -> 1898 tokens
+--------------------------------------------------
+Perplexity (teacher-forced, 1898 tokens): 4.386
+Eval wall time: 883.1s (2.15 tok/s)
+--------------------------------------------------
+NOTE: vocab 32768 tokens (full source vocab; cross-tokenizer PPLs are not comparable).
+Report this number only alongside that caveat.
+
+--- 4. 1B PPL on WikiText-2 sample (comparison baseline, same binary/mode) ---
+Engine online. SIMD level: AVX2+FMA
+Dataset: test.txt | sample: 5442 chars -> 1898 tokens
+--------------------------------------------------
+Perplexity (teacher-forced, 1898 tokens): 4.829
+Eval wall time: 510.8s (3.72 tok/s)
+--------------------------------------------------
+NOTE: vocab 32768 tokens (full source vocab; cross-tokenizer PPLs are not comparable).
+Report this number only alongside that caveat.
+
+=== battery complete (2026-07-18T03:15:39Z) ===

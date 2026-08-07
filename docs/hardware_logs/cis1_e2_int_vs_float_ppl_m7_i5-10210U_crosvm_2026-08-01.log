@@ -1,0 +1,45 @@
+CIS-1 E2 — integer vs float teacher-forced perplexity, M7, pinned heldout sample
+Date: 2026-08-01
+Machine: dev Chromebook, Intel i5-10210U (Comet Lake), Linux under crosvm — SHARED/CONTENDED box.
+NOTE: wall-time lines below are incidental output on a contended dev box and are NOT results
+(program Rule A discipline). The results of this run are the two perplexities, their relative
+delta, and the integer argmax digest — quality numbers, not timing.
+Binary: aegis-eval (release), worktree of branch hybrid-engine; aegis-core default features (int8_act on).
+Artifacts:
+e503eebf18958b0c9080a4cba19da732c9cef1d19c8ab38ee8a92add6ac4eac3  /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/artifacts/MODEL.SAF
+be27597d93fa6b173d9ca41f2f45e0329d45529785e0a47a158ba365c6bf9fe7  /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/artifacts/EMBED.BIN
+5a1d79caf517084a73de5e5379d2995e61f23afaada91822da12ecb4ad7fcd8a  /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/artifacts/VOCAB.BIN
+f1b373f19952edcd503c813e1f5ecd3d4d80bcb63b327b7cdd9e2181caa478c9  /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/heldout.txt
+Command (run twice, determinism exhibit): aegis-eval MODEL.SAF EMBED.BIN VOCAB.BIN heldout.txt 512 --cis
+=================== RUN 1 ===================
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/heldout.txt | sample: 471 tokens
+--------------------------------------------------
+CIS-1 E2 — integer vs float, teacher-forced
+float   PPL (470 scored tokens): 5.639491   [1.4s]
+integer PPL (470 scored tokens): 5.657126   [4.9s]
+relative delta: +0.3127%  (kill line: +5.0%)
+E2 VERDICT: PASS (within the +5% line)
+integer argmax digest (FNV-1a 64): 0x42E820C2A8A59CD6
+--------------------------------------------------
+NOTE: vocab 8192 tokens (full source vocab; cross-tokenizer PPLs are not comparable).
+Report this number only alongside that caveat.
+=================== RUN 2 ===================
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/heldout.txt | sample: 471 tokens
+--------------------------------------------------
+CIS-1 E2 — integer vs float, teacher-forced
+float   PPL (470 scored tokens): 5.639491   [1.4s]
+integer PPL (470 scored tokens): 5.657126   [4.9s]
+relative delta: +0.3127%  (kill line: +5.0%)
+E2 VERDICT: PASS (within the +5% line)
+integer argmax digest (FNV-1a 64): 0x42E820C2A8A59CD6
+--------------------------------------------------
+NOTE: vocab 8192 tokens (full source vocab; cross-tokenizer PPLs are not comparable).
+Report this number only alongside that caveat.

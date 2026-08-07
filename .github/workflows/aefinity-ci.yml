@@ -1,0 +1,107 @@
+name: aefinity-ci
+
+# Two gates. The host job proves the code is well-formed and the unikernel links
+# for firmware. The boot job proves it actually reaches its success signal under
+# OVMF.
+#
+# CLAUDE.md Rule A: the boot job runs under accel=tcg — pure emulation. It is a
+# CORRECTNESS gate only. No timing figure from CI may ever be recorded or quoted.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# NOTE: no global RUSTFLAGS=-D warnings — four crates carry documented lint
+# debt (scripts/devloop_clippy_baseline.tsv); the clippy ratchet step enforces
+# "no NEW debt" instead. A blanket -D warnings would fail the aegis-uefi build
+# itself, not just the lint step.
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  host:
+    name: host — fmt, clippy, build (uefi), test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup component add rustfmt clippy
+          rustup target add x86_64-unknown-uefi
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      # This repo has NO root Cargo.toml by design (aegis-uefi is no_std/UEFI
+      # and must not share feature unification with the std crates), so every
+      # cargo verb iterates the crates — root `cargo fmt --all` can never work.
+      - name: cargo fmt (per crate)
+        run: bash scripts/devloop.sh fmt
+
+      - name: cargo clippy ratchet (fails only on NEW debt vs baseline)
+        run: bash scripts/devloop.sh clippy
+
+      - name: build unikernel for x86_64-unknown-uefi
+        run: cargo build --release --target x86_64-unknown-uefi --manifest-path aegis-uefi/Cargo.toml
+
+      - name: cargo test (per crate)
+        run: bash scripts/devloop.sh test
+
+  boot:
+    name: boot — unikernel under OVMF (correctness only)
+    runs-on: ubuntu-24.04
+    needs: host
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add x86_64-unknown-uefi
+
+      - name: Install QEMU and OVMF
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 ovmf
+
+      - name: Verify OVMF firmware images are present
+        run: |
+          for f in /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_VARS_4M.fd; do
+            if [ ! -f "$f" ]; then
+              echo "::error::missing $f — the ovmf package layout changed"
+              ls -la /usr/share/OVMF/ || true
+              exit 1
+            fi
+          done
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: cargo xtask boot-test --ci
+        run: cargo xtask boot-test --ci
+
+      - name: Upload boot log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootlog
+          path: |
+            target/esp/**/BOOTLOG.TXT
+            target/esp/**/*.TXT
+          if-no-files-found: ignore

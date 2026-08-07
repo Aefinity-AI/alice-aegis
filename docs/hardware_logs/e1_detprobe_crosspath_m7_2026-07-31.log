@@ -1,0 +1,49 @@
+== E1 detprobe session capture ==
+2026-08-01T04:12:24Z
+penguin
+Linux penguin 6.6.141-09471-g5c224965e126 #1 SMP PREEMPT_DYNAMIC Mon, 20 Jul 2026 02:29:31 -0700 x86_64 GNU/Linux
+model name	: Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
+virt: kvm
+-- artifact identity --
+297315890a7fa2aa8efcf068240fa2d9  /home/killboxincorporated/model-lab/tinybit/m7_final_gate_work/artifacts/EMBED.BIN
+53235f594ca3df50785cda6538d17075  /home/killboxincorporated/model-lab/tinybit/m7_final_gate_work/artifacts/MODEL.SAF
+03301400fff883d86b37520cbe135533  /home/killboxincorporated/model-lab/tinybit/m7_final_gate_work/artifacts/VOCAB.BIN
+28e75ed7d44e4d9c2d25e33b9250df83  /home/killboxincorporated/aegis-linux/target/release/examples/detprobe
+-- verbatim detprobe output --
+warning: field `top_p` is never read
+ --> /home/killboxincorporated/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/killboxincorporated/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 0.64s
+     Running `target/release/examples/detprobe /home/killboxincorporated/model-lab/tinybit/m7_final_gate_work/artifacts/MODEL.SAF /home/killboxincorporated/model-lab/tinybit/m7_final_gate_work/artifacts/EMBED.BIN /home/killboxincorporated/model-lab/tinybit/m7_final_gate_work/artifacts/VOCAB.BIN`
+==== E1 detprobe: scalar vs AVX2 greedy-identity, fresh engine per run ====
+vector path = AVX2+FMA, forced path = scalar
+P1: AVX2+FMA run1 85 tok fnv=1de86a46ea3d0d00 | run2 fnv=1de86a46ea3d0d00 -> within-path IDENTICAL
+P1: scalar run1 74 tok fnv=c12d58ebeecf62a6 | run2 fnv=c12d58ebeecf62a6 -> within-path IDENTICAL
+P1: cross-path FIRST DIVERGENCE at token 67: AVX2+FMA=" he" vs scalar=" they"
+P1: AVX2+FMA text: , and the little girl was so excited to see him. She ran up to him and said, \"Hi! I\'m Lily.\"\nThe boy smiled and asked, \"What\'s your name?\" The voice replied, \"My name is Jack!\" \nLily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+P1: scalar text: , and the little girl was so excited to see him. She ran up to him and said, \"Hi! I\'m Lily.\"\nThe boy smiled and asked, \"What\'s your name?\" The voice replied, \"My name is Jack!\" \nLily laughed and hugged Jack tightly. Then she gave him a big hug and they both went on their way.
+P2: AVX2+FMA run1 129 tok fnv=eafdfffee0a3af91 | run2 fnv=eafdfffee0a3af91 -> within-path IDENTICAL
+P2: scalar run1 129 tok fnv=eafdfffee0a3af91 | run2 fnv=eafdfffee0a3af91 -> within-path IDENTICAL
+P2: cross-path AVX2+FMA vs scalar: IDENTICAL (129 tokens)
+P3: AVX2+FMA run1 129 tok fnv=4bbaafe43fb3779b | run2 fnv=4bbaafe43fb3779b -> within-path IDENTICAL
+P3: scalar run1 129 tok fnv=16acab2677e023fd | run2 fnv=16acab2677e023fd -> within-path IDENTICAL
+P3: cross-path FIRST DIVERGENCE at token 77: AVX2+FMA=" puzzles" vs scalar=" clothes"
+P3: AVX2+FMA text: .\n\"What is it?\" Lily asks, pointing at the box.\nBen shakes his head and says, \"I don\'t know. Maybe a toy or candy.\"\nLily laughs and says, \"Let\'s open it!\" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears,\" Ben says, holding up a doll with a pink dress and long hair.\nThey play with their new things for a while, until they hear a voice from behind them. It is
+P3: scalar text: .\n\"What is it?\" Lily asks, pointing at the box.\nBen shakes his head and says, \"I don\'t know. Maybe a toy or candy.\"\nLily laughs and says, \"Let\'s open it!\" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, clothes, and more. They look like animals,\" Ben says, holding up a doll with long hair and a pink dress.\nThey play with their new things for a while, but then they hear a voice from behind them. It is their mom, who
+P4: AVX2+FMA run1 1 tok fnv=d1f6dac641a569aa | run2 fnv=d1f6dac641a569aa -> within-path IDENTICAL
+P4: scalar run1 1 tok fnv=d1f6dac641a569aa | run2 fnv=d1f6dac641a569aa -> within-path IDENTICAL
+P4: cross-path AVX2+FMA vs scalar: IDENTICAL (1 tokens)
+==== E1 verdict ====
+within-path determinism: PASS (all 16 runs)
+cross-path: 2 of 4 prompts diverged over 333 compared tokens
+reading: f32 accumulation order flips real tokens — float inference cannot be a cross-implementation witness; integer canonical semantics is REQUIRED

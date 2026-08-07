@@ -1,0 +1,63 @@
+=== CTZ dual-bitmap vs AVX2 LUT kernels — instrument capture ===
+date_utc          : 2026-07-30T04:55:41Z
+machine           : dev box, crosvm guest (Chromebook)
+cpu               : Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
+cores_online      : 8
+loadavg           : 0.36 0.26 0.14
+binary            : aegis-core/target/release/ctz_vs_simd (release, default features)
+git_head          : a249b2c (hybrid-engine)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1118 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          81240152        120000000       3.1193     1.477x
+    1          76549156        120000000       3.3105     1.568x
+    2          80834160        120000000       3.1350     1.485x
+    3          75577134        120000000       3.3531     1.588x
+    4          75323686        120000000       3.3644     1.593x
+  
+    mean 3.2565 GHz | min 3.1193 | max 3.3644 | spread 7.855%
+    EFFECTIVE / NOMINAL = 1.542  <-- the factor that rescales every derived figure
+
+--- BENCH RUN 1 ---
+CTZ dual-bitmap vs AVX2 LUT+FMA  (2560x6912 ternary matvec)
+
+--- real BitNet weights (42.21% zeros, full-model scan)
+  CTZ dual-bitmap :   12.19 ms  ( 1.45 GMAC/s)
+  AVX2 LUT matvec :    1.85 ms  ( 9.57 GMAC/s)  = 6.59x CTZ
+  AVX2 batched GEMM:   1.04 ms  (17.04 GMAC/s)  = 11.74x CTZ  (per token, batch 8)
+  outputs agree: true
+  CTZ did 10M add/sub ops, SIMD did 18M FMA lanes
+
+--- Infinity OS target (61.8% zeros)
+  CTZ dual-bitmap :    8.73 ms  ( 2.03 GMAC/s)
+  AVX2 LUT matvec :    1.85 ms  ( 9.57 GMAC/s)  = 4.73x CTZ
+  AVX2 batched GEMM:   1.05 ms  (16.89 GMAC/s)  = 8.33x CTZ  (per token, batch 8)
+  outputs agree: true
+  CTZ did 7M add/sub ops, SIMD did 18M FMA lanes
+
+--- extreme sparsity (90% zeros)
+  CTZ dual-bitmap :    5.52 ms  ( 3.21 GMAC/s)
+  AVX2 LUT matvec :    1.83 ms  ( 9.68 GMAC/s)  = 3.02x CTZ
+  AVX2 batched GEMM:   1.01 ms  (17.59 GMAC/s)  = 5.49x CTZ  (per token, batch 8)
+  outputs agree: true
+  CTZ did 2M add/sub ops, SIMD did 18M FMA lanes
+
+--- 99% zeros
+  CTZ dual-bitmap :    2.02 ms  ( 8.76 GMAC/s)
+  AVX2 LUT matvec :    1.83 ms  ( 9.65 GMAC/s)  = 1.10x CTZ
+  AVX2 batched GEMM:   1.01 ms  (17.44 GMAC/s)  = 1.99x CTZ  (per token, batch 8)
+  outputs agree: true
+  CTZ did 0M add/sub ops, SIMD did 18M FMA lanes
+
+--- ALL ZEROS - pure loop floor
+  CTZ dual-bitmap :    0.35 ms  (49.93 GMAC/s)
+  AVX2 LUT matvec :    1.83 ms  ( 9.70 GMAC/s)  = 0.19x CTZ
+  AVX2 batched GEMM:   0.99 ms  (17.92 GMAC/s)  = 0.36x CTZ  (per token, batch 8)
+  outputs agree: true
+  CTZ did 0M add/sub ops, SIMD did 18M FMA lanes
+
+Memory: both layouts are 2 bits/weight (CTZ: 1 bit in each of two
+bitmaps; current: one 2-bit code). No footprint advantage either way.

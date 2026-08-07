@@ -1,0 +1,22 @@
+# Self-rooting: this repo has no root Cargo.toml, and adding one would mean
+# modifying existing files. An empty [workspace] table makes xtask its own
+# workspace root so it never gets adopted by, or conflicts with, a sibling crate.
+[workspace]
+
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Justin B. Thompson (Aefinity AI)"]
+repository = "https://github.com/Aefinity-AI/alice-aegis"
+publish = false
+description = "Dev automation for A.L.I.C.E. / Aegis. No dependencies — runs offline."
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
+
+# Deliberately zero dependencies. Argument parsing is hand-rolled so that
+# `cargo xtask` works on an air-gapped machine with a cold registry.
+[dependencies]

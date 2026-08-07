@@ -1,0 +1,22 @@
+CIS_SELFTEST — crosvm dev host run — 2026-08-01
+Machine: dev Chromebook i5-10210U (Comet Lake) under crosvm (penguin container).
+Binary: aegis-linux/target/x86_64-unknown-linux-musl/release/examples/cis_selftest (the exact initramfs binary)
+Purpose: bank the dev-host leg of the cross-implementation digest claim (integer semantics — machine-independent by design).
+
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+exit=0

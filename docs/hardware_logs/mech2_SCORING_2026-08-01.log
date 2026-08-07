@@ -1,0 +1,6 @@
+MECH v2 scoring output — produced by scripts/score_mech2.py (checked-in derivation) — 2026-08-01
+MECH v2 scoring (derivation; inputs: docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt + docs/hardware_logs/mech2colskip_L_dell_BOOTLOG_2026-08-01.txt; TSC 2.1975 GHz)
+  "hello alice": U median 386.4 tok/s (median 5,687,838 ticks/token, spread 9.59%) vs L median 372.560 tok/s decode-only -> U advantage +3.7% throughput / +3.6% prereg-form
+  "how are you today?": U median 342.4 tok/s (median 6,417,598 ticks/token, spread 4.70%) vs L median 310.090 tok/s decode-only -> U advantage +10.4% throughput / +9.4% prereg-form
+  "continue": U median 352.7 tok/s (median 6,231,294 ticks/token, spread 5.78%) vs L median 334.705 tok/s decode-only -> U advantage +5.4% throughput / +5.1% prereg-form
+  verdict: U wins 3/3 per-prompt medians

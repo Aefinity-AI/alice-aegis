@@ -1,0 +1,139 @@
+# Build artifacts
+target/
+*.rlib
+decode
+decode_test
+
+# Model weights & generated binary artifacts (regenerable via aegis-forge/regen_vocab_embed.py)
+*.bin
+*.safetensors
+*.gguf
+models/
+
+# Disk images & VM artifacts
+*.img
+*.iso
+*.qcow2
+qemu_vdisk/
+qemu_mnt/
+qemu.pid
+qemu_output.log
+mnt_usb/
+test_usb_dir/
+aegis-uefi-usb-payload/
+aegis-uefi/esp/
+aegis-uefi/fat.img
+aegis-uefi/OVMF*.fd
+
+# Environments & caches
+venv/
+hf-venv/
+.cache/
+.cargo/
+.rustup/
+.config/
+.local/
+.claude/
+.claude.json
+.gemini/
+
+# Home-directory noise
+.bash_history
+.bash_logout
+.bashrc
+.profile
+.Xauthority
+.sommelierrc
+.sudo_as_admin_successful
+.wget-hsts
+
+# Text dumps (source-code dumps, logs-as-txt)
+*.txt
+!aegis-linux/test_result_success.txt
+# Raw boot/gauntlet logs are measurement provenance — always tracked
+!docs/hardware_logs/*.txt
+# CC BY-SA 4.0 attribution for the ARC-Easy data we redistribute — the licence
+# notice must ship with the data, so it must not be swallowed by *.txt above
+!model-lab/data/evals/arc_easy/NOTE.txt
+
+# Old backups (full copies preserved on the 1TB drive)
+*_ALICE_1_0_BACKUP/
+
+# QUARANTINED — contain credentials or fabricated-report tooling.
+# See PRE_REVIEW_SCRUB_LIST.md. Never commit these.
+generate_darpa_report.py
+update_docs.py
+update_alice_docs.py
+Antigravity Agent Master Manual (1).md
+Antigravity Agent Master Manual V5 (Patentable IP).md
+
+# Vendored third-party clone (hermit-os/loader) — not our code, has its own .git
+antigravity-aegis/rusty-loader-src/
+
+# Backup copies of regenerable binary artifacts
+*.bak
+*.no_merges.bak
+*.pre_specials.bak
+
+# QUARANTINED — contain fabricated/unmeasured performance figures.
+# Superseded by docs/TECHNICAL_REPORT.md. See PRE_REVIEW_SCRUB_LIST.md.
+Aegis Unikernel Master Directive.md
+Aegis Intelligent Transmuter Design.md
+
+# Hooks and settings live in ~/.claude (outside the repo); copies kept in .claude-hooks/
+.claude/settings.json.bak
+.opsec_quarantine/
+
+# --- audit 2026-07-14: never commit these ---
+*.bundle
+*.tar.gz
+*.zip
+__pycache__/
+ventoy-1.0.99/
+Gemma 4/
+gemma 4/
+PRE_REVIEW_SCRUB_LIST.md
+OPERATION_EDGE_WARRIOR*.md
+AMY_GUARDIAN_DIRECTIVE.md
+CLAUDEsifting.md
+FRAGO_*.md
+NOTEBOOK_CLAIMS_LEDGER.md
+alice-doctrine-capability-matrix.md
+alice-notebook-corpus-deduped.tar.gz
+models/
+.opsec_quarantine/
+__pycache__/
+
+# Session-local / regenerable / separate-repo material (2026-07-16)
+.gitconfig
+ternaryportfolio.patch
+ranger/
+falcon-e-artifacts/
+aegis-transmuter/__pycache__/
+
+# ── Secrets — NEVER commit (added 2026-07-29 during evidence commit) ──
+.gnupg/
+.kaggle/
+.cache/
+
+# ── Bulk artifacts + corpora: mirrored to external drives, not git (2026-07-29) ──
+# Rationale: 9.7GB of model-lab is checkpoints and training corpora that are
+# regenerable (prepare_data.py reproduces *.bin bit-identically from source) or
+# too large for git. The trainer, configs, tokenizer, logs and eval items ARE tracked.
+falcon-e-3b-artifacts/
+model-lab/checkpoints/
+model-lab/tinybit/checkpoints/
+model-lab/tinybit/*.bin
+model-lab/tinybit/gate_work/
+model-lab/tinybit/m7_final_gate_work/export/
+model-lab/data/TinyStories/
+model-lab/data/smoltalk/
+model-lab/data/tulu-3-sft-mixture/
+**/__pycache__/
+.fable-hand/
+model-lab/tinybit/lrsweep_scratch/
+model-lab/tinybit/probes/
+model-lab/tinybit/m7_retarget_gate_work/
+
+# Contains home address + phone inside ASCII85+Flate streams; keep local only
+docs/Aefinity_AI_ALICE_response_DARPA-SN-26-97.pdf

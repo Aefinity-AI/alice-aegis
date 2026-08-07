@@ -1,0 +1,7 @@
+[1] fp model: 0 BitLinear, 14 bias-free nn.Linear; fwd/bwd OK, loss=6.1883
+[2] default config: 14 BitLinear modules (backward compatible)
+[3] export refused fp checkpoint as designed: [export] REFUSED: this checkpoint was trained with linear='fp' (full-precision n...
+[3b] nothing written on refusal
+[4] bad linear value rejected: linear='int4' must be 'bitlinear' or 'fp'
+[5] roundtrip_gate + train imports OK
+ALL UNIT CHECKS PASS

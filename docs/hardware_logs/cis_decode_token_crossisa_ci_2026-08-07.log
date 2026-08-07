@@ -1,0 +1,561 @@
+x86_64 — same pins, same binary sources	Set up job	﻿2026-08-07T03:11:38.8222017Z Current runner version: '2.336.0'
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8256280Z ##[group]Runner Image Provisioner
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8257539Z Hosted Compute Agent
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8258450Z Version: 20260707.563
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8259562Z Commit: 02667638d2b423fbc733a8e32a88b44996a3ba6e
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8260669Z Build Date: 2026-07-07T19:33:50Z
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8261714Z Worker ID: {fc2e5bae-7387-4fe9-9e8c-dbd65849f570}
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8262967Z Azure Region: eastus
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8263835Z ##[endgroup]
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8266119Z ##[group]Operating System
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8267097Z Ubuntu
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8267866Z 24.04.4
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8268699Z LTS
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8269469Z ##[endgroup]
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8270328Z ##[group]Runner Image
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8271335Z Image: ubuntu-24.04
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8272198Z Version: 20260720.247.2
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8273949Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260720.247/images/ubuntu/Ubuntu2404-Readme.md
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8277094Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260720.247
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8279476Z ##[endgroup]
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8281310Z ##[group]GITHUB_TOKEN Permissions
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8284339Z Contents: read
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8285515Z Metadata: read
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8286496Z Packages: read
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8287359Z ##[endgroup]
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8290479Z Secret source: Actions
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8292418Z Prepare workflow directory
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8820628Z Prepare all required actions
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:38.8888864Z Getting action download info
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:39.0754515Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:39.3009387Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+x86_64 — same pins, same binary sources	Set up job	2026-08-07T03:11:39.5427088Z Complete job name: x86_64 — same pins, same binary sources
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	﻿2026-08-07T03:11:39.6151815Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6160695Z ##[group]Run actions/checkout@v4
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6161472Z with:
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6161927Z   repository: Aefinity-AI/alice-aegis
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6166310Z   token: ***
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6166752Z   ssh-strict: true
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6167193Z   ssh-user: git
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6167641Z   persist-credentials: true
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6168132Z   clean: true
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6168581Z   sparse-checkout-cone-mode: true
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6169112Z   fetch-depth: 1
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6169545Z   fetch-tags: false
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6169982Z   show-progress: true
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6170427Z   lfs: false
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6170837Z   submodules: false
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6171330Z   set-safe-directory: true
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6171844Z   allow-unsafe-pr-checkout: false
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6172628Z env:
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6173037Z   CARGO_TERM_COLOR: always
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.6173517Z ##[endgroup]
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7175094Z Syncing repository: Aefinity-AI/alice-aegis
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7177881Z ##[group]Getting Git version info
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7179021Z Working directory is '/home/runner/work/alice-aegis/alice-aegis'
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7180593Z [command]/usr/bin/git version
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7220847Z git version 2.54.0
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7277383Z ##[endgroup]
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7287908Z Temporarily overriding HOME='/home/runner/work/_temp/4fb6afe2-278a-4c5b-98a6-dce9bb80bd3e' before making global git config changes
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7290096Z Adding repository directory to the temporary git global config as a safe directory
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7292850Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/alice-aegis/alice-aegis
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7341094Z Deleting the contents of '/home/runner/work/alice-aegis/alice-aegis'
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7346666Z ##[group]Initializing the repository
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7350299Z [command]/usr/bin/git init /home/runner/work/alice-aegis/alice-aegis
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7428553Z hint: Using 'master' as the name for the initial branch. This default branch name
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7430360Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7432147Z hint: to use in all of your new repositories, which will suppress this warning,
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7433555Z hint: call:
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7434381Z hint:
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7435511Z hint: 	git config --global init.defaultBranch <name>
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7436849Z hint:
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7437895Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7439519Z hint: 'development'. The just-created branch can be renamed via this command:
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7440854Z hint:
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7442655Z hint: 	git branch -m <name>
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7443583Z hint:
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7444731Z hint: Disable this message with "git config set advice.defaultBranchName false"
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7446753Z Initialized empty Git repository in /home/runner/work/alice-aegis/alice-aegis/.git/
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7450084Z [command]/usr/bin/git remote add origin https://github.com/Aefinity-AI/alice-aegis
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7483695Z ##[endgroup]
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7484884Z ##[group]Disabling automatic garbage collection
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7488664Z [command]/usr/bin/git config --local gc.auto 0
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7522078Z ##[endgroup]
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7523148Z ##[group]Setting up auth
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7528082Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7564954Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7926216Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.7989143Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.8268559Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.8310002Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.8576972Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.8617494Z ##[endgroup]
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.8618621Z ##[group]Fetching the repository
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:39.8632149Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +2d2455570907b15305db4e08f891f87d7c224fda:refs/remotes/origin/main
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.6602784Z From https://github.com/Aefinity-AI/alice-aegis
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.6604785Z  * [new ref]         2d2455570907b15305db4e08f891f87d7c224fda -> origin/main
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.6636097Z ##[endgroup]
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.6637160Z ##[group]Determining the checkout info
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.6646695Z ##[endgroup]
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.6647842Z [command]/usr/bin/git sparse-checkout disable
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.6703192Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.6740723Z ##[group]Checking out the ref
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.6758027Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.9040600Z Switched to a new branch 'main'
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.9042611Z branch 'main' set up to track 'origin/main'.
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.9057719Z ##[endgroup]
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.9107287Z [command]/usr/bin/git log -1 --format=%H
+x86_64 — same pins, same binary sources	Run actions/checkout@v4	2026-08-07T03:11:40.9135150Z 2d2455570907b15305db4e08f891f87d7c224fda
+x86_64 — same pins, same binary sources	Install Rust toolchain	﻿2026-08-07T03:11:40.9388434Z ##[group]Run rustup toolchain install stable --profile minimal
+x86_64 — same pins, same binary sources	Install Rust toolchain	2026-08-07T03:11:40.9390515Z [36;1mrustup toolchain install stable --profile minimal[0m
+x86_64 — same pins, same binary sources	Install Rust toolchain	2026-08-07T03:11:40.9444180Z shell: /usr/bin/bash -e {0}
+x86_64 — same pins, same binary sources	Install Rust toolchain	2026-08-07T03:11:40.9445636Z env:
+x86_64 — same pins, same binary sources	Install Rust toolchain	2026-08-07T03:11:40.9446624Z   CARGO_TERM_COLOR: always
+x86_64 — same pins, same binary sources	Install Rust toolchain	2026-08-07T03:11:40.9447773Z ##[endgroup]
+x86_64 — same pins, same binary sources	Install Rust toolchain	2026-08-07T03:11:42.6704797Z info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+x86_64 — same pins, same binary sources	Install Rust toolchain	2026-08-07T03:11:42.9180883Z 
+x86_64 — same pins, same binary sources	Install Rust toolchain	2026-08-07T03:11:42.9269255Z   stable-x86_64-unknown-linux-gnu unchanged - rustc 1.97.1 (8bab26f4f 2026-07-14)
+x86_64 — same pins, same binary sources	Install Rust toolchain	2026-08-07T03:11:42.9269923Z 
+x86_64 — same pins, same binary sources	Cache cargo	﻿2026-08-07T03:11:43.0535037Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0537399Z ##[group]Run actions/cache@v4
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0537717Z with:
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0537976Z   path: ~/.cargo/registry
+x86_64 — same pins, same binary sources	Cache cargo	~/.cargo/git
+x86_64 — same pins, same binary sources	Cache cargo	
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0538493Z   key: Linux-x86-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0539030Z   restore-keys: Linux-x86-cargo-
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0539344Z   enableCrossOsArchive: false
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0539637Z   fail-on-cache-miss: false
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0539936Z   lookup-only: false
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0540195Z   save-always: false
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0540445Z env:
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0540705Z   CARGO_TERM_COLOR: always
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.0540971Z ##[endgroup]
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.1615134Z (node:2269) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.1616639Z (Use `node --trace-deprecation ...` to show where the warning was created)
+x86_64 — same pins, same binary sources	Cache cargo	2026-08-07T03:11:43.2158390Z Cache not found for input keys: Linux-x86-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468, Linux-x86-cargo-
+x86_64 — same pins, same binary sources	Build both drivers	﻿2026-08-07T03:11:43.2332358Z ##[group]Run cargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:43.2333064Z [36;1mcargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:43.2333656Z [36;1mcargo build --release --example cis_decode  --manifest-path aegis-linux/Cargo.toml[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:43.2382384Z shell: /usr/bin/bash -e {0}
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:43.2382653Z env:
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:43.2382859Z   CARGO_TERM_COLOR: always
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:43.2383111Z ##[endgroup]
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:44.7652996Z [1m[92m    Updating[0m crates.io index
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:44.9255918Z [1m[92m Downloading[0m crates ...
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:44.9869097Z [1m[92m  Downloaded[0m libm v0.2.16
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:45.0665204Z [1m[92m   Compiling[0m libm v0.2.16
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.0431222Z [1m[92m   Compiling[0m aegis-core v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-core)
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6340032Z [1m[33mwarning[0m[1m: field `top_p` is never read[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6341657Z  [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/sampler.rs:3:5
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6342735Z   [1m[94m|[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6343532Z [1m[94m1[0m [1m[94m|[0m pub struct Sampler {
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6344544Z   [1m[94m|[0m            [1m[94m-------[0m [1m[94mfield in this struct[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6350087Z [1m[94m2[0m [1m[94m|[0m     temperature: f32,
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6351085Z [1m[94m3[0m [1m[94m|[0m     top_p: f32,
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6375026Z   [1m[94m|[0m     [1m[33m^^^^^[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6376195Z   [1m[94m|[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6406769Z   [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:52.6407482Z 
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.2948078Z [1m[33mwarning[0m: `aegis-core` (lib) generated 1 warning
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.2948832Z [1m[92m   Compiling[0m aegis-linux v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-linux)
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6492069Z [1m[92m    Finished[0m `release` profile [optimized] target(s) in 10.86s
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6798627Z [1m[33mwarning[0m[1m: field `top_p` is never read[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6799523Z  [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/sampler.rs:3:5
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6800172Z   [1m[94m|[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6800594Z [1m[94m1[0m [1m[94m|[0m pub struct Sampler {
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6801250Z   [1m[94m|[0m            [1m[94m-------[0m [1m[94mfield in this struct[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6801915Z [1m[94m2[0m [1m[94m|[0m     temperature: f32,
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6816598Z [1m[94m3[0m [1m[94m|[0m     top_p: f32,
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6817183Z   [1m[94m|[0m     [1m[33m^^^^^[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6817680Z   [1m[94m|[0m
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6818382Z   [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6818858Z 
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6819558Z [1m[33mwarning[0m: `aegis-core` (lib) generated 1 warning
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.6820366Z [1m[92m   Compiling[0m aegis-linux v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-linux)
+x86_64 — same pins, same binary sources	Build both drivers	2026-08-07T03:11:54.9619269Z [1m[92m    Finished[0m `release` profile [optimized] target(s) in 0.29s
+x86_64 — same pins, same binary sources	Pin both digests on x86	﻿2026-08-07T03:11:54.9676043Z ##[group]Run set -euo pipefail
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9676393Z [36;1mset -euo pipefail[0m
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9676993Z [36;1m./aegis-linux/target/release/examples/cis_selftest | grep '^CIS_SELFTEST ' | tee /dev/stderr | grep -q 'digest=76985613c965f643 ALL_PASS=true' \[0m
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9677675Z [36;1m  || { echo '::error::x86 selftest digest drifted'; exit 1; }[0m
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9678058Z [36;1mM=model-lab/tinybit/m7_final_gate_work/artifacts[0m
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9678866Z [36;1m./aegis-linux/target/release/examples/cis_decode "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" 64 "Once upon a time" | grep '^CIS_DECODE ' | tee /dev/stderr | grep -q 'digest=67e8c0a96abc04e1' \[0m
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9679697Z [36;1m  || { echo '::error::x86 token-level digest drifted'; exit 1; }[0m
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9680170Z [36;1mecho "both pins hold on x86_64: any ARM mismatch is the ISA, not the tree."[0m
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9727525Z shell: /usr/bin/bash -e {0}
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9727794Z env:
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9728048Z   CARGO_TERM_COLOR: always
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9728284Z ##[endgroup]
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:54.9810113Z CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:56.0112582Z CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint
+x86_64 — same pins, same binary sources	Pin both digests on x86	2026-08-07T03:11:56.0113380Z both pins hold on x86_64: any ARM mismatch is the ISA, not the tree.
+x86_64 — same pins, same binary sources	Post Cache cargo	﻿2026-08-07T03:11:56.1479608Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+x86_64 — same pins, same binary sources	Post Cache cargo	2026-08-07T03:11:56.1480841Z Post job cleanup.
+x86_64 — same pins, same binary sources	Post Cache cargo	2026-08-07T03:11:56.2546062Z (node:2440) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+x86_64 — same pins, same binary sources	Post Cache cargo	2026-08-07T03:11:56.2546994Z (Use `node --trace-deprecation ...` to show where the warning was created)
+x86_64 — same pins, same binary sources	Post Cache cargo	2026-08-07T03:11:56.2703804Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/alice-aegis/alice-aegis --files-from manifest.txt --use-compress-program zstdmt
+x86_64 — same pins, same binary sources	Post Cache cargo	2026-08-07T03:11:56.3878739Z (node:2440) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+x86_64 — same pins, same binary sources	Post Cache cargo	2026-08-07T03:11:56.4750569Z Sent 341811 of 341811 (100.0%), 3.4 MBs/sec
+x86_64 — same pins, same binary sources	Post Cache cargo	2026-08-07T03:11:56.5439283Z Cache saved with key: Linux-x86-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	﻿2026-08-07T03:11:56.5569210Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.5570412Z Post job cleanup.
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6399899Z [command]/usr/bin/git version
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6443861Z git version 2.54.0
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6484450Z Temporarily overriding HOME='/home/runner/work/_temp/52f3749e-3c07-4dd4-abd1-15131dbb3bf4' before making global git config changes
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6485716Z Adding repository directory to the temporary git global config as a safe directory
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6490434Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/alice-aegis/alice-aegis
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6532315Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6586671Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6831531Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6862474Z http.https://github.com/.extraheader
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6874437Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.6910899Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.7203770Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+x86_64 — same pins, same binary sources	Post Run actions/checkout@v4	2026-08-07T03:11:56.7251671Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+x86_64 — same pins, same binary sources	Complete job	﻿2026-08-07T03:11:56.7685824Z Cleaning up orphan processes
+x86_64 — same pins, same binary sources	Complete job	2026-08-07T03:11:56.7998207Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Set up job	﻿2026-08-07T03:11:42.0357853Z Current runner version: '2.336.0'
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0389140Z ##[group]Runner Image Provisioner
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0390120Z Hosted Compute Agent
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0390672Z Version: 20260729.566
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0391430Z Commit: cf7153fe6e25b664e8693c24944bf2b00355d109
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0392172Z Build Date: 2026-07-29T19:17:02Z
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0392833Z Worker ID: {73967f98-64fb-44ec-a48f-2a473bbfbaae}
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0393602Z Azure Region: westus2
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0394175Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0396290Z ##[group]Operating System
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0396968Z Ubuntu
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0397448Z 24.04.4
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0398007Z LTS
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0398874Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0399417Z ##[group]Runner Image
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0400163Z Image: ubuntu-24.04-arm
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0400729Z Version: 20260804.84.1
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0402316Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24-arm64/20260804.84/images/ubuntu/Ubuntu2404-Arm64-Readme.md
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0404104Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24-arm64%2F20260804.84
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0405131Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0406331Z ##[group]GITHUB_TOKEN Permissions
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0409674Z Contents: read
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0410310Z Metadata: read
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0410946Z Packages: read
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0411672Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0415214Z Secret source: Actions
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0416608Z Prepare workflow directory
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0867671Z Prepare all required actions
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.0920081Z Getting action download info
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.4901400Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.6461504Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T03:11:42.9530851Z Complete job name: aarch64 — CIS-1 selftest digest
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	﻿2026-08-07T03:11:43.0397743Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0408993Z ##[group]Run actions/checkout@v4
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0410607Z with:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0411344Z   repository: Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0415321Z   token: ***
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0415857Z   ssh-strict: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0416512Z   ssh-user: git
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0417042Z   persist-credentials: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0417669Z   clean: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0418491Z   sparse-checkout-cone-mode: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0419138Z   fetch-depth: 1
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0419774Z   fetch-tags: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0420323Z   show-progress: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0420891Z   lfs: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0421469Z   submodules: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0422175Z   set-safe-directory: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0422867Z   allow-unsafe-pr-checkout: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0424303Z env:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0424950Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.0425532Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1313189Z Syncing repository: Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1315580Z ##[group]Getting Git version info
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1316525Z Working directory is '/home/runner/work/alice-aegis/alice-aegis'
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1317864Z [command]/usr/bin/git version
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1401130Z git version 2.54.0
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1470720Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1476569Z Temporarily overriding HOME='/home/runner/work/_temp/6acb13c5-b2d2-471d-80ff-8229a63d74d1' before making global git config changes
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1478130Z Adding repository directory to the temporary git global config as a safe directory
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1479813Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/alice-aegis/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1481883Z Deleting the contents of '/home/runner/work/alice-aegis/alice-aegis'
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1483518Z ##[group]Initializing the repository
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1484502Z [command]/usr/bin/git init /home/runner/work/alice-aegis/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1698508Z hint: Using 'master' as the name for the initial branch. This default branch name
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1700754Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1702563Z hint: to use in all of your new repositories, which will suppress this warning,
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1703854Z hint: call:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1704774Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1706073Z hint: 	git config --global init.defaultBranch <name>
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1707161Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1708498Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1710121Z hint: 'development'. The just-created branch can be renamed via this command:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1711279Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1712164Z hint: 	git branch -m <name>
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1712950Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1713987Z hint: Disable this message with "git config set advice.defaultBranchName false"
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1715864Z Initialized empty Git repository in /home/runner/work/alice-aegis/alice-aegis/.git/
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1718148Z [command]/usr/bin/git remote add origin https://github.com/Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1750759Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1751782Z ##[group]Disabling automatic garbage collection
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1756046Z [command]/usr/bin/git config --local gc.auto 0
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1796840Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1798181Z ##[group]Setting up auth
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1802940Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.1835208Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.2249560Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.2278879Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.2462416Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.2495049Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.2681660Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.2717265Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.2718752Z ##[group]Fetching the repository
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:43.2726220Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +2d2455570907b15305db4e08f891f87d7c224fda:refs/remotes/origin/main
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.2162520Z From https://github.com/Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.2164104Z  * [new ref]         2d2455570907b15305db4e08f891f87d7c224fda -> origin/main
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.2185874Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.2187446Z ##[group]Determining the checkout info
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.2189263Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.2191337Z [command]/usr/bin/git sparse-checkout disable
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.2228175Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.2255364Z ##[group]Checking out the ref
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.2258618Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.3938843Z Switched to a new branch 'main'
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.3941520Z branch 'main' set up to track 'origin/main'.
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.3954840Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.3995466Z [command]/usr/bin/git log -1 --format=%H
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T03:11:44.4020069Z 2d2455570907b15305db4e08f891f87d7c224fda
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	﻿2026-08-07T03:11:44.4264567Z ##[group]Run uname -m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T03:11:44.4265894Z [36;1muname -m[0m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T03:11:44.4266968Z [36;1mtest "$(uname -m)" = "aarch64"[0m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T03:11:44.4268580Z [36;1mgrep -m1 -E 'model name|CPU part' /proc/cpuinfo || true[0m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T03:11:44.4307025Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T03:11:44.4308115Z env:
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T03:11:44.4309433Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T03:11:44.4310403Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T03:11:44.4405991Z aarch64
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T03:11:44.4425082Z CPU part	: 0xd49
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	﻿2026-08-07T03:11:44.4504508Z ##[group]Run rustup toolchain install stable --profile minimal
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T03:11:44.4506246Z [36;1mrustup toolchain install stable --profile minimal[0m
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T03:11:44.4539667Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T03:11:44.4540724Z env:
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T03:11:44.4541596Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T03:11:44.4542520Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T03:11:44.6819761Z info: syncing channel updates for stable-aarch64-unknown-linux-gnu
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T03:11:44.7971387Z 
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T03:11:44.8035348Z   stable-aarch64-unknown-linux-gnu unchanged - rustc 1.97.1 (8bab26f4f 2026-07-14)
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T03:11:44.8036660Z 
+aarch64 — CIS-1 selftest digest	Cache cargo	﻿2026-08-07T03:11:44.9232024Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9236012Z ##[group]Run actions/cache@v4
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9237033Z with:
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9237757Z   path: ~/.cargo/registry
+aarch64 — CIS-1 selftest digest	Cache cargo	~/.cargo/git
+aarch64 — CIS-1 selftest digest	Cache cargo	
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9239268Z   key: Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9240588Z   restore-keys: Linux-arm-cargo-
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9241414Z   enableCrossOsArchive: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9242247Z   fail-on-cache-miss: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9243027Z   lookup-only: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9243756Z   save-always: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9244506Z env:
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9245132Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:44.9245906Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:45.0151846Z (node:2242) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:45.0153757Z (Use `node --trace-deprecation ...` to show where the warning was created)
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:45.2895126Z Cache hit for: Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:45.2990630Z (node:2242) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:46.0735274Z Received 339857 of 339857 (100.0%), 0.7 MBs/sec
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:46.0736455Z Cache Size: ~0 MB (339857 B)
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:46.0761544Z [command]/usr/bin/tar -xf /home/runner/work/_temp/b522496f-6ce4-40f1-9515-aadc6f9c436f/cache.tzst -P -C /home/runner/work/alice-aegis/alice-aegis --use-compress-program unzstd
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:46.0838882Z Cache restored successfully
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T03:11:46.0924819Z Cache restored from key: Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+aarch64 — CIS-1 selftest digest	Build the selftest	﻿2026-08-07T03:11:46.1011422Z ##[group]Run cargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:46.1012377Z [36;1mcargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:46.1047132Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:46.1047478Z env:
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:46.1047887Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:46.1048159Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:47.4161748Z [1m[92m   Compiling[0m libm v0.2.16
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:52.8236133Z [1m[92m   Compiling[0m aegis-core v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-core)
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0434055Z [1m[33mwarning[0m[1m: function `fix_f32_vec` is never used[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0436289Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:385:4
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0437412Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0438169Z [1m[94m385[0m [1m[94m|[0m fn fix_f32_vec(out: &mut [i64], src: &[f32]) -> u32 {
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0439462Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0440195Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0440965Z     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0441452Z 
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0442053Z [1m[33mwarning[0m[1m: function `dequant_scale_f64` is never used[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0443037Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:465:4
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0443739Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0444497Z [1m[94m465[0m [1m[94m|[0m fn dequant_scale_f64(w: &FRatio, s: &ActScale) -> f64 {
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0445278Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0445657Z 
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0446071Z [1m[33mwarning[0m[1m: multiple fields are never read[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0447042Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:747:5
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0447813Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0448672Z [1m[94m743[0m [1m[94m|[0m pub struct CisEngine<'m, 'a> {
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0449513Z     [1m[94m|[0m            [1m[94m---------[0m [1m[94mfields in this struct[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0450288Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0450993Z [1m[94m747[0m [1m[94m|[0m     rope: RopeCache,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0451764Z     [1m[94m|[0m     [1m[33m^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0452461Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0453135Z [1m[94m756[0m [1m[94m|[0m     qf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0453718Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0454416Z [1m[94m757[0m [1m[94m|[0m     kf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0455039Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0455706Z [1m[94m758[0m [1m[94m|[0m     vf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0456308Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0456919Z [1m[94m759[0m [1m[94m|[0m     attn_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0457600Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0458371Z [1m[94m760[0m [1m[94m|[0m     scores: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0459189Z     [1m[94m|[0m     [1m[33m^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0459934Z [1m[94m761[0m [1m[94m|[0m     head_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0460557Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0461257Z [1m[94m762[0m [1m[94m|[0m     upf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0461817Z     [1m[94m|[0m     [1m[33m^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0462461Z [1m[94m763[0m [1m[94m|[0m     gatef: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0463075Z     [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0463439Z 
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0463849Z [1m[33mwarning[0m[1m: field `top_p` is never read[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0464666Z  [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/sampler.rs:3:5
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0465409Z   [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0466018Z [1m[94m1[0m [1m[94m|[0m pub struct Sampler {
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0466675Z   [1m[94m|[0m            [1m[94m-------[0m [1m[94mfield in this struct[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0467844Z [1m[94m2[0m [1m[94m|[0m     temperature: f32,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0468700Z [1m[94m3[0m [1m[94m|[0m     top_p: f32,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0469325Z   [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.0469638Z 
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.7765425Z [1m[33mwarning[0m: `aegis-core` (lib) generated 4 warnings
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:53.7766543Z [1m[92m   Compiling[0m aegis-linux v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-linux)
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T03:11:54.1713642Z [1m[92m    Finished[0m `release` profile [optimized] target(s) in 7.72s
+aarch64 — CIS-1 selftest digest	Run and pin the digest	﻿2026-08-07T03:11:54.1940800Z ##[group]Run set -euo pipefail
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1941557Z [36;1mset -euo pipefail[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1941944Z [36;1mOUT=$(./aegis-linux/target/release/examples/cis_selftest)[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1942396Z [36;1mecho "$OUT"[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1942671Z [36;1mLINE=$(echo "$OUT" | grep '^CIS_SELFTEST ')[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1943177Z [36;1mecho "$LINE" | grep -q 'ALL_PASS=true' || { echo '::error::a selftest section FAILED on aarch64'; exit 1; }[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1943768Z [36;1mecho "$LINE" | grep -q 'digest=76985613c965f643' || {[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1944858Z [36;1m  echo '::error::DIGEST MISMATCH — aarch64 does not reproduce the x86 digest. This falsifies the cross-ISA identity claim and is a finding: capture this log verbatim.';[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1945636Z [36;1m  exit 1;[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1945842Z [36;1m}[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1946378Z [36;1mecho "aarch64 reproduces the x86 digest: cross-ISA identity holds on a second ISA."[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1967805Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1968667Z env:
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1968919Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.1969164Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2023858Z CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2024879Z [A1 golden_tmv_8x32] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2025215Z [A2 tmv_undefined_code_11] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2025487Z [A3 golden_requant_table] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2025818Z [A4 golden_quantize_activations_16] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2026144Z [A5 quantize_ties_and_zero] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2026435Z [A6 golden_rmsnorm_16] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2026717Z [A7 argmax_ties_break_low] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2026979Z [A8 from_ratio_goldens] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2027256Z [B1 rne_div sweep (512)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2027519Z [B2 requant sweep (512+512)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2027786Z [B3 tmv shapes sweep (10 shapes)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2028143Z [B4 quantize sweep (8x33)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2028686Z [B5 rmsnorm sweep (8x24)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2029000Z [B6 argmax sweep (64x17)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2029281Z CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T03:11:54.2059095Z aarch64 reproduces the x86 digest: cross-ISA identity holds on a second ISA.
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	﻿2026-08-07T03:11:54.2092234Z ##[group]Run cargo build --release --example cis_decode --manifest-path aegis-linux/Cargo.toml
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2093073Z [36;1mcargo build --release --example cis_decode --manifest-path aegis-linux/Cargo.toml[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2112713Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2113007Z env:
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2113213Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2113497Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2302936Z [1m[33mwarning[0m[1m: function `fix_f32_vec` is never used[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2303838Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:385:4
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2304544Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2305052Z [1m[94m385[0m [1m[94m|[0m fn fix_f32_vec(out: &mut [i64], src: &[f32]) -> u32 {
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2305564Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2306000Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2306494Z     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2306977Z 
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2307302Z [1m[33mwarning[0m[1m: function `dequant_scale_f64` is never used[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2307954Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:465:4
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2308779Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2309240Z [1m[94m465[0m [1m[94m|[0m fn dequant_scale_f64(w: &FRatio, s: &ActScale) -> f64 {
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2309804Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2310041Z 
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2310297Z [1m[33mwarning[0m[1m: multiple fields are never read[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2310867Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:747:5
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2311708Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2312124Z [1m[94m743[0m [1m[94m|[0m pub struct CisEngine<'m, 'a> {
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2312647Z     [1m[94m|[0m            [1m[94m---------[0m [1m[94mfields in this struct[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2313106Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2313427Z [1m[94m747[0m [1m[94m|[0m     rope: RopeCache,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2313853Z     [1m[94m|[0m     [1m[33m^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2314208Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2314533Z [1m[94m756[0m [1m[94m|[0m     qf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2314961Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2315362Z [1m[94m757[0m [1m[94m|[0m     kf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2315776Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2316214Z [1m[94m758[0m [1m[94m|[0m     vf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2316580Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2317031Z [1m[94m759[0m [1m[94m|[0m     attn_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2317410Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2317888Z [1m[94m760[0m [1m[94m|[0m     scores: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2318721Z     [1m[94m|[0m     [1m[33m^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2319126Z [1m[94m761[0m [1m[94m|[0m     head_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2319640Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2320066Z [1m[94m762[0m [1m[94m|[0m     upf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2320483Z     [1m[94m|[0m     [1m[33m^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2320946Z [1m[94m763[0m [1m[94m|[0m     gatef: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2321337Z     [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2321562Z 
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2321802Z [1m[33mwarning[0m[1m: field `top_p` is never read[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2322385Z  [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/sampler.rs:3:5
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2322934Z   [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2323311Z [1m[94m1[0m [1m[94m|[0m pub struct Sampler {
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2323795Z   [1m[94m|[0m            [1m[94m-------[0m [1m[94mfield in this struct[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2324297Z [1m[94m2[0m [1m[94m|[0m     temperature: f32,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2324707Z [1m[94m3[0m [1m[94m|[0m     top_p: f32,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2325481Z   [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2325757Z 
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2326025Z [1m[33mwarning[0m: `aegis-core` (lib) generated 4 warnings
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.2326633Z [1m[92m   Compiling[0m aegis-linux v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-linux)
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T03:11:54.5753814Z [1m[92m    Finished[0m `release` profile [optimized] target(s) in 0.35s
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	﻿2026-08-07T03:11:54.5804452Z ##[group]Run set -euo pipefail
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5804931Z [36;1mset -euo pipefail[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5805335Z [36;1mM=model-lab/tinybit/m7_final_gate_work/artifacts[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5806004Z [36;1mOUT=$(./aegis-linux/target/release/examples/cis_decode "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" 64 "Once upon a time")[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5806598Z [36;1mecho "$OUT"[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5806872Z [36;1mLINE=$(echo "$OUT" | grep '^CIS_DECODE ')[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5807253Z [36;1mecho "$LINE" | grep -q 'digest=67e8c0a96abc04e1' || {[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5808176Z [36;1m  echo '::error::TOKEN-LEVEL DIGEST MISMATCH — this host does not reproduce the pinned 68-token decode. This falsifies token-level cross-ISA identity and is a finding: capture this log verbatim.';[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5809234Z [36;1m  exit 1;[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5809487Z [36;1m}[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5809832Z [36;1mecho "token-level decode reproduces the pinned digest on $(uname -m)."[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5831002Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5831373Z env:
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5831618Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:54.5831855Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:55.3062921Z model : 7 layers, hidden 384, vocab 8192
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:55.3063413Z prompt: "Once upon a time" -> 4 tokens
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:55.3064440Z token ids: [12, 407, 283, 259, 397, 484, 408, 411, 14, 341, 366, 259, 347, 12, 678, 483, 388, 398, 510, 266, 326, 331, 14, 535, 329, 12, 398, 389, 259, 567, 12, 1070, 835, 354, 338, 483, 14, 285, 835, 283, 386, 567, 267, 366, 670, 2284, 14, 411, 589, 263, 835, 283, 3071, 12, 404, 398, 719, 266, 326, 331, 311, 14, 199, 674]
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:55.3066090Z text     : ", there was a little girl named Lily. She had a big, red ball that she loved to play with. One day, she saw a small, green bug on her ball. The bug was very small and had many legs. Lily thought the bug was disgusting, so she decided to play with it.\nLily"
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:55.3067363Z CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T03:11:55.3101740Z token-level decode reproduces the pinned digest on aarch64.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	﻿2026-08-07T03:11:55.4328617Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T03:11:55.4330119Z Post job cleanup.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T03:11:55.5243610Z Cache hit occurred on the primary key Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468, not saving cache.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T03:11:55.5246903Z (node:2395) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T03:11:55.5247825Z (Use `node --trace-deprecation ...` to show where the warning was created)
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	﻿2026-08-07T03:11:55.5373217Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.5374636Z Post job cleanup.
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6065234Z [command]/usr/bin/git version
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6104314Z git version 2.54.0
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6138845Z Temporarily overriding HOME='/home/runner/work/_temp/5fb0ff04-69eb-419a-8e31-68ce9e1a3416' before making global git config changes
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6139779Z Adding repository directory to the temporary git global config as a safe directory
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6143205Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/alice-aegis/alice-aegis
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6183614Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6212857Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6407243Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6420225Z http.https://github.com/.extraheader
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6421377Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6448095Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6628193Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T03:11:55.6657231Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+aarch64 — CIS-1 selftest digest	Complete job	﻿2026-08-07T03:11:55.6970403Z Cleaning up orphan processes
+aarch64 — CIS-1 selftest digest	Complete job	2026-08-07T03:11:55.7261931Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -1,0 +1,99 @@
+======================================================================
+M7 TERNARY RETARGETING — does the capability survive the export gate?
+======================================================================
+  source      : /home/killboxincorporated/model-lab/tinybit/checkpoints/m7_ternary.pt (step 122071)
+  params      : 14,171,392 linear=bitlinear
+  arch        : L7 h384 i1024 heads6 vocab8192
+  recipe      : CONSTANT lr 1.00e-04, wd 0 (constant beat the anneal by 0.4168 nats in the fp experiment)
+  budget      : 600 steps x B2 x T512 = 614,400 tokens
+  domain data : /tmp/claude-1000/-home-killboxincorporated/d75b4760-6465-4d8e-bf5f-32d865609e80/scratchpad/smoltalk_train_8k.bin
+  PRE-REG     : PASS iff round-trip rel diff <= 3% AND full token parity.
+                Baseline 0.19% (471/471) from m7_final_roundtrip_2026-07-27.log
+  output      : /home/killboxincorporated/model-lab/tinybit/checkpoints/m7_ternary_retargeted.pt
+[retarget] copied source -> output (original untouched)
+[retarget] optimizer moments restored
+[retarget] BEFORE  domain_ppl 607.2116   general_ppl 5.1395
+rt     0/600 | loss 6.0305 | lr 1.00e-04 | gnorm 5.79 | 1.3s
+rt    25/600 | loss 5.2228 | lr 1.00e-04 | gnorm 7.23 | 26.8s
+rt    50/600 | loss 5.2721 | lr 1.00e-04 | gnorm 4.91 | 52.3s
+rt    75/600 | loss 5.2782 | lr 1.00e-04 | gnorm 5.25 | 78.2s
+rt   100/600 | loss 4.8216 | lr 1.00e-04 | gnorm 5.89 | 104.5s
+rt   125/600 | loss 4.4548 | lr 1.00e-04 | gnorm 5.00 | 130.1s
+  [val] 150 | domain 148.0580 (-459.1536) | general 7.0756 (+1.9361)
+rt   150/600 | loss 4.8195 | lr 1.00e-04 | gnorm 4.30 | 156.5s
+rt   175/600 | loss 3.4229 | lr 1.00e-04 | gnorm 6.28 | 182.3s
+rt   200/600 | loss 3.6636 | lr 1.00e-04 | gnorm 5.69 | 208.0s
+rt   225/600 | loss 4.4413 | lr 1.00e-04 | gnorm 6.57 | 233.8s
+rt   250/600 | loss 4.1957 | lr 1.00e-04 | gnorm 4.74 | 259.3s
+rt   275/600 | loss 4.4184 | lr 1.00e-04 | gnorm 4.02 | 284.7s
+  [val] 300 | domain 93.9680 (-513.2436) | general 8.0747 (+2.9352)
+rt   300/600 | loss 4.0643 | lr 1.00e-04 | gnorm 6.79 | 310.8s
+rt   325/600 | loss 4.0273 | lr 1.00e-04 | gnorm 5.06 | 336.4s
+rt   350/600 | loss 3.3843 | lr 1.00e-04 | gnorm 5.11 | 361.8s
+rt   375/600 | loss 3.8071 | lr 1.00e-04 | gnorm 5.09 | 387.2s
+rt   400/600 | loss 4.2238 | lr 1.00e-04 | gnorm 4.25 | 412.9s
+rt   425/600 | loss 4.1607 | lr 1.00e-04 | gnorm 4.18 | 438.3s
+  [val] 450 | domain 78.1408 (-529.0708) | general 8.8368 (+3.6973)
+rt   450/600 | loss 3.4261 | lr 1.00e-04 | gnorm 4.43 | 464.3s
+rt   475/600 | loss 3.5559 | lr 1.00e-04 | gnorm 4.07 | 489.8s
+rt   500/600 | loss 3.1877 | lr 1.00e-04 | gnorm 4.51 | 515.3s
+rt   525/600 | loss 3.7504 | lr 1.00e-04 | gnorm 4.98 | 540.9s
+rt   550/600 | loss 3.6644 | lr 1.00e-04 | gnorm 3.32 | 566.3s
+rt   575/600 | loss 3.6219 | lr 1.00e-04 | gnorm 3.95 | 592.4s
+rt   599/600 | loss 3.2160 | lr 1.00e-04 | gnorm 3.84 | 617.1s
+  [val] 600 | domain 72.4398 (-534.7718) | general 9.4781 (+4.3386)
+
+======================================================================
+RETARGET COMPLETE (secondary numbers — the gate is what decides)
+  domain  ppl 607.2116 -> 72.4398   (+88.07%)
+  general ppl 5.1395 -> 9.4781   (-84.42%)
+  wall 618.1s | checkpoint /home/killboxincorporated/model-lab/tinybit/checkpoints/m7_ternary_retargeted.pt
+  NEXT: export -> repack -> engine round-trip gate. That is the verdict.
+[retarget] done
+
+======================================================================
+PRE-REGISTERED GATE: does the RETARGETED ternary model round-trip?
+PASS iff rel diff <= 3% AND full token parity.
+Baseline (un-retargeted): torch 3.6808 / engine 3.6880 = 0.19%, 471/471
+======================================================================
+======================================================================
+M7 FINAL-ARTIFACT round-trip gate | 2026-07-29 12:00:39
+======================================================================
+loaded /home/killboxincorporated/model-lab/tinybit/checkpoints/m7_ternary_retargeted.pt @ step 122671 | params 14.17M
+  [heldout] 1952 chars -> 471 tokens (ctx=512)
+[a] torch QAT teacher-forced PPL (471 tokens): 5.5853
+[b] export -> /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/export
+[c] repack -> /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/artifacts
+  $ nice -n 10 /home/killboxincorporated/ranger-venv/bin/python3 /home/killboxincorporated/aegis-forge/repack_ternary.py /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/export /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/artifacts --max-seq 512
+    | VOCAB.BIN: 8192 tokens, 7935 merges
+    | EMBED.BIN: 6291456 bytes (8192 x 384 BF16)
+    | layer 0: repacked
+    | layer 1: repacked
+    | layer 2: repacked
+    | layer 3: repacked
+    | layer 4: repacked
+    | layer 5: repacked
+    | layer 6: repacked
+    | MODEL.SAF: 127 tensors, 2797632 bytes
+    | Repack complete. Next gates: loader asserts (cargo test), reference parity (tests/reference_parity.rs), then G4a PPL agreement.
+    MODEL.SAF = 2.80 MB (the deployable sovereignty artifact)
+[d] engine eval
+  $ nice -n 10 /home/killboxincorporated/aegis-eval/target/release/aegis-eval /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/artifacts/MODEL.SAF /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/artifacts/EMBED.BIN /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/artifacts/VOCAB.BIN /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/heldout.txt 512 --sample
+    | ==================================================
+    |  A.L.I.C.E. Perplexity Evaluator (measured)
+    | ==================================================
+    | Engine online. SIMD level: AVX2+FMA
+    | Dataset: /home/killboxincorporated/model-lab/tinybit/m7_retarget_gate_work/heldout.txt | sample: 1952 chars -> 471 tokens
+    | --------------------------------------------------
+    | Perplexity (teacher-forced, 471 tokens): 5.639
+    | Eval wall time: 1.6s (295.48 tok/s)
+    | --------------------------------------------------
+    | NOTE: vocab 8192 tokens (full source vocab; cross-tokenizer PPLs are not comparable).
+    | Report this number only alongside that caveat.
+======================================================================
+token count : torch=471 engine=471 OK
+torch  PPL  : 5.5853
+engine PPL  : 5.6390
+rel diff    : 0.95% (tol 3%)
+wall clock  : 3.8s
+>>> M7 FINAL ROUND-TRIP GATE PASS <<<

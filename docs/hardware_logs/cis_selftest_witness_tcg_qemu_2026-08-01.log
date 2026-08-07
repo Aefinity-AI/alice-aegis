@@ -1,0 +1,15 @@
+CIS_SELFTEST + WITNESS v0 — TCG-emulated boot leg — 2026-08-01
+Source: scripts/linux-arm/qemu-test.sh correctness boot of UKI v4 (QEMU -cpu max, TCG — Rule A:
+no timing herein is a result; the DIGEST and CHAIN lines are integer/hash identities, which is
+the only thing this log banks). Verbatim excerpt of the qemu-test-extracted BOOTLOG_LINUX_ARM.txt
+(scripts/linux-arm/work/BOOTLOG_LINUX_ARM.txt at extraction time), sections CIS_SELFTEST + WITNESS:
+
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+==== WITNESS v0 gen (hash-chain identity artifact) ====
+AEGIS-WITNESS v0-float-DEMO
+--
+ntok 33
+chain 68ea29e30f5e981381387dc1a530de416816e689aeedf3cfaf4c0db40bc9b5f6
+==== MEMBW PROBE (FABLE-0 G1) ====
+# membw: buffer 64 MB, 1 passes, up to 2 threads

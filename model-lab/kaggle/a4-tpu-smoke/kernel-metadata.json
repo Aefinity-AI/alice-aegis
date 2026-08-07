@@ -1,0 +1,10 @@
+{
+  "id": "aefinityaiinc/a4-tpu-smoke",
+  "title": "a4-tpu-smoke",
+  "code_file": "smoke.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_internet": true,
+  "machine_shape": "Tpu1VmV38"
+}

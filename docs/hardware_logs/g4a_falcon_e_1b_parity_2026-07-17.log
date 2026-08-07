@@ -1,0 +1,24 @@
+=== G4a gate: Falcon-E-1B engine vs transformers reference PPL, identical token IDs ===
+date: 2026-07-18T01:56:01Z
+engine side: aegis-eval falcon-e-artifacts/{MODEL.SAF,EMBED.BIN,VOCAB.BIN} falcon-e-artifacts/t2d_sample.txt 1900 --sample
+tokenizer parity: T2d EXACT 2410/2410 (commit 1b02240) — engine ids == ref_tokens.txt ids
+---
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: falcon-e-artifacts/t2d_sample.txt | sample: 5440 chars -> 1896 tokens
+--------------------------------------------------
+Perplexity (teacher-forced, 1896 tokens): 4.837
+Eval wall time: 531.3s (3.57 tok/s)
+--------------------------------------------------
+NOTE: pruned-vocab model (50,256 of 128,256 tokens; ASCII-oriented).
+Report this number only alongside that caveat.
+--- reference side (completed 2026-07-18T02:12:47Z) ---
+cmd: ranger-venv python model-lab/scripts/g4a_reference_ppl.py 1896  (TORCHDYNAMO_DISABLE=1, 4 threads, nice 5, ids = first 1896 of falcon-e-artifacts/ref_tokens.txt)
+transformers reference PPL (teacher-forced, 1896 tokens, 1895 predictions): 4.831
+forward wall: 389.9s (4.86 tok/s), peak RSS 1.28GB (under contention: aegis-ppl-rerun + downloads)
+
+=== G4a VERDICT: PASS ===
+engine 4.837 vs reference 4.831 -> rel diff 0.12% (gate: 5%)
+caveat: box under load both sides; PPL is deterministic, timing figures are contended

@@ -1,0 +1,19 @@
+Battery node: /sys/class/power_supply/battery
+[1/3] Idle baseline (300s — do not touch the machine)...
+      idle: 4.957 W  (coulomb cross-check: 4.42 W)
+[2/3] Generation run (1900 tokens)...
+      load: 24.650 W over 385s  (coulomb cross-check: 29.41 W)
+      load: 24.650 W averaged over 385s of generation
+      tokens generated: 1901
+[3/3] Results
+  idle power:            4.96 W
+  power during decode:   24.65 W
+  incremental power:     19.69 W
+  decode rate:           4.94 tok/s (generation window only)
+
+  ENERGY/TOKEN (incremental, inference only): 3.988 J
+  ENERGY/TOKEN (total system draw):           4.992 J
+
+Report the incremental figure with the caveat that it excludes idle
+system draw; report both when comparing against published numbers.
+Log: /tmp/energy_run.log

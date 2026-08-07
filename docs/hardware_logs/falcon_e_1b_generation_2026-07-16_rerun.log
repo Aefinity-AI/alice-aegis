@@ -1,0 +1,24 @@
+=== Falcon-E-1B-Instruct logged generation re-run ===
+date: 2026-07-17T03:17:11Z
+host: Crostini VM, i5-10210U | binary: aegis-linux/target/release/aegis-linux (2026-07-16 13:35:30)
+cmd: aegis-linux falcon-e-artifacts/MODEL.SAF falcon-e-artifacts/EMBED.BIN falcon-e-artifacts/VOCAB.BIN 48 'What is the capital of France?'
+---
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine (BitNet 1.58b 2B-4T)...
+Engine Online. Evaluation Harness Ready.
+
+Prompt: What is the capital of France?
+[SYSTEM] Analyzing 17 tokens...
+The capital of France is Paris.
+
+[PERFORMANCE] Average Cycles/Token: 412107246
+
+
+Final Full Response: The capital of France is Paris.
+Generated 7 tokens
+Wall time 3.431 s (2.04 tok/s incl. prefill)
+Prefill 17 tokens in 4338702868 cycles (255217815 cycles/token)
+Decode 6 tokens in 1.367 s (4.39 tok/s decode-only)
+exit=0

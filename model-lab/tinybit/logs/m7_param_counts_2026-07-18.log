@@ -1,0 +1,13 @@
+configs/m7_ternary.json
+  linear=bitlinear  hidden=384 inter=1024 layers=7 heads=6 kv=2 vocab=8192 ctx=512
+  BitLinear modules: 49 | plain nn.Linear modules: 0
+  embedding (tied head): 3,145,728
+  per-layer:             1,575,040  x 7
+  TOTAL params:          14,171,392  (14.171M)
+configs/m7a_twin.json
+  linear=fp  hidden=256 inter=704 layers=6 heads=4 kv=2 vocab=8192 ctx=512
+  BitLinear modules: 0 | plain nn.Linear modules: 42
+  embedding (tied head): 2,097,152
+  per-layer:             738,752  x 6
+  TOTAL params:          6,529,920  (6.530M)
+ratio: 2.170x  (14,171,392 / 6,529,920)

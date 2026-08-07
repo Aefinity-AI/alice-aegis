@@ -1,0 +1,256 @@
+=== M3 gate: ARC-Easy n=100 MC eval, engine vs transformers reference, identical token ids ===
+date: 2026-07-18T07:53:54Z
+items: model-lab/data/evals/arc_easy/arc_easy_val_n100_seed42.jsonl (ARC-Easy validation, n=100 seed=42, Falcon-E tokenizer, no BOS — G4a convention)
+engine cmd: aegis-eval falcon-e-artifacts/{MODEL.SAF,EMBED.BIN,VOCAB.BIN} --mc <items> --mc-out model-lab/data/evals/arc_easy/m3_engine_results_n100.jsonl
+caveat: box under load (aegis-ppl-rerun active) — NLLs deterministic, timing contended
+--- engine side ---
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+MC mode: items=model-lab/data/evals/arc_easy/arc_easy_val_n100_seed42.jsonl out=model-lab/data/evals/arc_easy/m3_engine_results_n100.jsonl
+Scoring: acc: pred = argmin_k cont_nll[k] (raw sum over continuation tokens); acc_norm: pred = argmax_k(-cont_nll[k] / utf8_byte_len(choice_text_k)); ties -> lower index
+[1] Mercury_7030153 pred_raw=2 pred_norm=1 gold=2 nll=[22.357977,8.990219,6.545270,15.964914] | running acc 1.000 acc_norm 0.000 | 137s
+[2] Mercury_7241343 pred_raw=1 pred_norm=3 gold=3 nll=[9.634570,6.019278,13.357190,9.844808] | running acc 0.500 acc_norm 0.500 | 267s
+[3] ACTAAP_2009_5_14 pred_raw=0 pred_norm=3 gold=0 nll=[12.116031,12.972437,21.531803,24.662649] | running acc 0.667 acc_norm 0.333 | 398s
+[4] Mercury_7137463 pred_raw=0 pred_norm=0 gold=0 nll=[14.019739,20.520419,15.016057,18.688476] | running acc 0.750 acc_norm 0.500 | 534s
+[5] Mercury_7008435 pred_raw=3 pred_norm=3 gold=3 nll=[17.480190,16.561181,14.593842,11.332998] | running acc 0.800 acc_norm 0.600 | 566s
+[6] Mercury_7057925 pred_raw=0 pred_norm=0 gold=0 nll=[8.630884,17.709521,16.735747,18.973937] | running acc 0.833 acc_norm 0.667 | 604s
+[7] Mercury_7013073 pred_raw=2 pred_norm=2 gold=2 nll=[6.630503,10.069213,5.757796,12.259782] | running acc 0.857 acc_norm 0.714 | 661s
+[8] ACTAAP_2013_5_16 pred_raw=0 pred_norm=0 gold=0 nll=[13.285202,22.553488,16.049979,35.187337] | running acc 0.875 acc_norm 0.750 | 713s
+[9] ACTAAP_2011_5_2 pred_raw=3 pred_norm=3 gold=3 nll=[11.167500,7.158079,7.811926,3.013391] | running acc 0.889 acc_norm 0.778 | 767s
+[10] Mercury_7040863 pred_raw=2 pred_norm=3 gold=2 nll=[13.310294,14.045850,10.374048,13.342840] | running acc 0.900 acc_norm 0.700 | 814s
+[11] VASoL_2007_3_33 pred_raw=1 pred_norm=3 gold=1 nll=[11.008699,9.085465,28.757093,14.656291] | running acc 0.909 acc_norm 0.636 | 862s
+[12] Mercury_7164658 pred_raw=2 pred_norm=2 gold=2 nll=[10.988693,9.957621,3.797342,7.533175] | running acc 0.917 acc_norm 0.667 | 943s
+[13] TIMSS_2007_4_pg110 pred_raw=2 pred_norm=2 gold=2 nll=[15.202219,17.036029,12.926901,15.518225] | running acc 0.923 acc_norm 0.692 | 1006s
+[14] Mercury_183190 pred_raw=2 pred_norm=3 gold=2 nll=[29.353413,22.407929,22.183687,27.570100] | running acc 0.929 acc_norm 0.643 | 1062s
+[15] Mercury_SC_401592 pred_raw=3 pred_norm=0 gold=0 nll=[7.294312,7.766678,8.788933,7.195551] | running acc 0.867 acc_norm 0.667 | 1114s
+[16] Mercury_182665 pred_raw=2 pred_norm=2 gold=1 nll=[25.235821,27.884671,14.629993,24.276020] | running acc 0.812 acc_norm 0.625 | 1167s
+[17] Mercury_SC_405304 pred_raw=1 pred_norm=1 gold=3 nll=[7.169746,2.813195,7.227919,5.336381] | running acc 0.765 acc_norm 0.588 | 1280s
+[18] Mercury_SC_416156 pred_raw=1 pred_norm=1 gold=1 nll=[13.656860,8.908760,13.104071,15.435432] | running acc 0.778 acc_norm 0.611 | 1318s
+[19] Mercury_7082688 pred_raw=0 pred_norm=0 gold=0 nll=[12.698423,15.926274,20.102735,19.878899] | running acc 0.789 acc_norm 0.632 | 1389s
+[20] AKDE&ED_2012_4_35 pred_raw=1 pred_norm=1 gold=1 nll=[38.564036,30.530020,49.902236,52.987266] | running acc 0.800 acc_norm 0.650 | 1522s
+[21] Mercury_SC_402067 pred_raw=1 pred_norm=3 gold=2 nll=[28.985476,13.288340,17.464403,37.094444] | running acc 0.762 acc_norm 0.619 | 1581s
+[22] Mercury_189770 pred_raw=0 pred_norm=0 gold=3 nll=[10.562035,17.710916,34.904233,18.861092] | running acc 0.727 acc_norm 0.591 | 1640s
+[23] Mercury_7270025 pred_raw=3 pred_norm=1 gold=2 nll=[38.723551,20.060835,25.945738,17.911946] | running acc 0.696 acc_norm 0.565 | 1691s
+[24] Mercury_7252683 pred_raw=0 pred_norm=3 gold=3 nll=[9.278985,23.250769,13.554297,17.122412] | running acc 0.667 acc_norm 0.583 | 1747s
+[25] Mercury_7204050 pred_raw=1 pred_norm=1 gold=3 nll=[13.509811,6.038287,11.293785,10.670674] | running acc 0.640 acc_norm 0.560 | 1854s
+[26] Mercury_7251755 pred_raw=3 pred_norm=2 gold=1 nll=[13.494312,9.715640,12.068228,6.604944] | running acc 0.615 acc_norm 0.538 | 1931s
+[27] OHAT_2011_5_20 pred_raw=0 pred_norm=3 gold=0 nll=[20.123950,26.594475,31.069483,27.187156] | running acc 0.630 acc_norm 0.519 | 2019s
+[28] Mercury_408929 pred_raw=3 pred_norm=3 gold=3 nll=[5.874476,4.922488,3.579321,2.859249] | running acc 0.643 acc_norm 0.536 | 2120s
+[29] Mercury_7068495 pred_raw=2 pred_norm=2 gold=2 nll=[8.641079,9.405099,6.643128,16.648585] | running acc 0.655 acc_norm 0.552 | 2163s
+[30] Mercury_416365 pred_raw=0 pred_norm=0 gold=2 nll=[5.812345,9.030350,13.840326,18.112701] | running acc 0.633 acc_norm 0.533 | 2241s
+[31] Mercury_411424 pred_raw=1 pred_norm=1 gold=1 nll=[15.784529,12.079439,14.563432,16.651728] | running acc 0.645 acc_norm 0.548 | 2345s
+[32] Mercury_7015715 pred_raw=2 pred_norm=2 gold=2 nll=[14.296476,10.883307,9.904357,13.769840] | running acc 0.656 acc_norm 0.562 | 2386s
+[33] MCAS_2002_5_12 pred_raw=0 pred_norm=0 gold=0 nll=[5.300649,10.611532,9.945411,6.725346] | running acc 0.667 acc_norm 0.576 | 2462s
+[34] Mercury_7248273 pred_raw=1 pred_norm=1 gold=1 nll=[8.099299,2.537014,12.842485,8.460951] | running acc 0.676 acc_norm 0.588 | 2519s
+[35] Mercury_7206500 pred_raw=0 pred_norm=0 gold=0 nll=[6.299962,14.873115,8.687786,22.664033] | running acc 0.686 acc_norm 0.600 | 2620s
+[36] Mercury_7044783 pred_raw=0 pred_norm=2 gold=0 nll=[6.339033,9.187715,9.923264,10.638579] | running acc 0.694 acc_norm 0.583 | 2653s
+[37] Mercury_7026863 pred_raw=2 pred_norm=2 gold=1 nll=[19.051564,20.119576,16.407997,30.984114] | running acc 0.676 acc_norm 0.568 | 2695s
+[38] Mercury_SC_415418 pred_raw=1 pred_norm=1 gold=1 nll=[19.417588,13.174595,19.400124,22.382935] | running acc 0.684 acc_norm 0.579 | 2732s
+[39] Mercury_SC_413138 pred_raw=1 pred_norm=1 gold=1 nll=[5.780609,1.123273,4.054070,8.110104] | running acc 0.692 acc_norm 0.590 | 2774s
+[40] Mercury_7241273 pred_raw=1 pred_norm=3 gold=1 nll=[20.825586,15.499226,18.930437,17.295542] | running acc 0.700 acc_norm 0.575 | 2817s
+[41] Mercury_7074970 pred_raw=2 pred_norm=2 gold=2 nll=[15.577783,15.143857,11.489620,13.570284] | running acc 0.707 acc_norm 0.585 | 2853s
+[42] Mercury_7270060 pred_raw=3 pred_norm=1 gold=1 nll=[6.337279,5.334238,8.177995,4.846393] | running acc 0.690 acc_norm 0.595 | 2907s
+[43] Mercury_7213885 pred_raw=1 pred_norm=2 gold=1 nll=[13.336406,10.758924,15.526012,15.423584] | running acc 0.698 acc_norm 0.581 | 2960s
+[44] Mercury_7142030 pred_raw=2 pred_norm=2 gold=2 nll=[15.209496,10.965152,9.608766,25.398090] | running acc 0.705 acc_norm 0.591 | 3007s
+[45] Mercury_SC_408452 pred_raw=1 pred_norm=1 gold=1 nll=[9.109264,4.018951,10.895646,13.513713] | running acc 0.711 acc_norm 0.600 | 3055s
+[46] MDSA_2010_8_1 pred_raw=0 pred_norm=3 gold=0 nll=[7.704230,11.020790,11.388134,10.026901] | running acc 0.717 acc_norm 0.587 | 3102s
+[47] Mercury_SC_400201 pred_raw=0 pred_norm=0 gold=0 nll=[8.706609,16.093557,18.172837,17.574582] | running acc 0.723 acc_norm 0.596 | 3138s
+[48] Mercury_7227763 pred_raw=0 pred_norm=1 gold=2 nll=[15.115241,42.947018,18.938494,34.748258] | running acc 0.708 acc_norm 0.583 | 3205s
+[49] Mercury_7176190 pred_raw=1 pred_norm=1 gold=1 nll=[17.641328,11.851127,28.780778,30.496296] | running acc 0.714 acc_norm 0.592 | 3301s
+[50] AKDE&ED_2012_8_18 pred_raw=1 pred_norm=1 gold=1 nll=[15.603958,7.239593,14.006144,14.120033] | running acc 0.720 acc_norm 0.600 | 3327s
+[51] Mercury_7098193 pred_raw=0 pred_norm=3 gold=0 nll=[10.464120,16.367906,20.932589,23.835300] | running acc 0.725 acc_norm 0.588 | 3348s
+[52] Mercury_175648 pred_raw=1 pred_norm=1 gold=1 nll=[6.145347,4.113218,6.291661,6.944627] | running acc 0.731 acc_norm 0.596 | 3370s
+[53] Mercury_7099015 pred_raw=1 pred_norm=0 gold=1 nll=[17.944952,14.851089,19.361682,21.389398] | running acc 0.736 acc_norm 0.585 | 3409s
+[54] AKDE&ED_2012_8_31 pred_raw=0 pred_norm=2 gold=1 nll=[22.355370,36.308099,38.071645,49.564650] | running acc 0.722 acc_norm 0.574 | 3436s
+[55] MCAS_2013_8_29415 pred_raw=2 pred_norm=2 gold=1 nll=[20.600157,23.150107,18.766827,32.319534] | running acc 0.709 acc_norm 0.564 | 3475s
+[56] Mercury_7083388 pred_raw=1 pred_norm=1 gold=1 nll=[12.628155,3.947999,12.358003,14.254700] | running acc 0.714 acc_norm 0.571 | 3498s
+[57] NYSEDREGENTS_2014_8_19 pred_raw=0 pred_norm=2 gold=0 nll=[7.340847,11.549466,12.682181,9.217164] | running acc 0.719 acc_norm 0.561 | 3517s
+[58] MCAS_2003_5_26 pred_raw=2 pred_norm=2 gold=2 nll=[19.535497,22.837804,18.874898,23.778072] | running acc 0.724 acc_norm 0.569 | 3539s
+[59] Mercury_7027318 pred_raw=0 pred_norm=0 gold=0 nll=[2.556755,5.447895,9.476577,4.948660] | running acc 0.729 acc_norm 0.576 | 3571s
+[60] TIMSS_2011_4_pg76 pred_raw=3 pred_norm=0 gold=3 nll=[14.234316,16.678214,19.009397,13.735606] | running acc 0.733 acc_norm 0.567 | 3591s
+[61] NAEP_2009_8_S10+1 pred_raw=2 pred_norm=2 gold=2 nll=[12.824111,16.796958,7.202385,14.325542] | running acc 0.738 acc_norm 0.574 | 3640s
+[62] Mercury_SC_402278 pred_raw=0 pred_norm=0 gold=0 nll=[9.262413,12.806289,16.749775,15.389982] | running acc 0.742 acc_norm 0.581 | 3678s
+[63] Mercury_SC_417580 pred_raw=0 pred_norm=0 gold=3 nll=[9.589041,12.528808,17.781670,19.465101] | running acc 0.730 acc_norm 0.571 | 3706s
+[64] Mercury_7008803 pred_raw=0 pred_norm=0 gold=0 nll=[13.371757,24.506210,20.740738,23.088734] | running acc 0.734 acc_norm 0.578 | 3726s
+[65] Mercury_190138 pred_raw=1 pred_norm=2 gold=2 nll=[19.185763,14.187945,14.295832,21.260960] | running acc 0.723 acc_norm 0.585 | 3749s
+[66] Mercury_7173513 pred_raw=0 pred_norm=2 gold=2 nll=[13.805959,15.093612,14.185678,17.700479] | running acc 0.712 acc_norm 0.591 | 3791s
+[67] Mercury_179393 pred_raw=0 pred_norm=0 gold=0 nll=[26.365109,27.533547,26.398698,29.926561] | running acc 0.716 acc_norm 0.597 | 3813s
+[68] Mercury_7057540 pred_raw=3 pred_norm=3 gold=3 nll=[21.973672,29.273776,23.612953,21.816077] | running acc 0.721 acc_norm 0.603 | 3859s
+[69] Mercury_7090650 pred_raw=1 pred_norm=0 gold=1 nll=[12.303038,12.115691,13.583796,13.549531] | running acc 0.725 acc_norm 0.594 | 3887s
+[70] WASL_2005_5_11 pred_raw=1 pred_norm=1 gold=1 nll=[34.463259,10.103700,31.584522] | running acc 0.729 acc_norm 0.600 | 3909s
+[71] Mercury_7213080 pred_raw=3 pred_norm=3 gold=3 nll=[7.383292,6.439427,6.895106,5.439263] | running acc 0.732 acc_norm 0.606 | 3936s
+[72] AKDE&ED_2008_4_22 pred_raw=3 pred_norm=3 gold=3 nll=[11.133078,8.723046,8.690229,4.234233] | running acc 0.736 acc_norm 0.611 | 3965s
+[73] Mercury_7003710 pred_raw=0 pred_norm=0 gold=0 nll=[3.738974,8.679232,8.524400,7.859823] | running acc 0.740 acc_norm 0.616 | 3986s
+[74] Mercury_7041825 pred_raw=1 pred_norm=1 gold=1 nll=[10.833676,5.415733,9.255169,12.035117] | running acc 0.743 acc_norm 0.622 | 4015s
+[75] Mercury_7069528 pred_raw=0 pred_norm=0 gold=0 nll=[4.506415,7.836678,7.468626,10.302967] | running acc 0.747 acc_norm 0.627 | 4034s
+[76] Mercury_7215408 pred_raw=1 pred_norm=1 gold=1 nll=[7.680955,4.295715,9.176240,7.181085] | running acc 0.750 acc_norm 0.632 | 4056s
+[77] Mercury_SC_400171 pred_raw=1 pred_norm=1 gold=1 nll=[26.231850,19.327573,25.942192,20.962804] | running acc 0.753 acc_norm 0.636 | 4082s
+[78] Mercury_7012968 pred_raw=0 pred_norm=3 gold=3 nll=[19.227149,20.406793,21.484222,22.719474] | running acc 0.744 acc_norm 0.641 | 4134s
+[79] Mercury_SC_409390 pred_raw=3 pred_norm=3 gold=1 nll=[27.266111,37.187047,43.627590,26.983043] | running acc 0.734 acc_norm 0.633 | 4167s
+[80] Mercury_SC_406155 pred_raw=0 pred_norm=0 gold=1 nll=[14.518007,25.723537,26.260732,24.291306] | running acc 0.725 acc_norm 0.625 | 4197s
+[81] LEAP__5_10316 pred_raw=2 pred_norm=2 gold=2 nll=[18.689436,21.491649,18.479061,23.730198] | running acc 0.728 acc_norm 0.630 | 4218s
+[82] MCAS_2009_8_4 pred_raw=3 pred_norm=3 gold=2 nll=[19.311316,20.977997,16.303872,13.763296] | running acc 0.720 acc_norm 0.622 | 4242s
+[83] Mercury_SC_401622 pred_raw=0 pred_norm=3 gold=2 nll=[10.768935,13.096768,13.091982,10.960497] | running acc 0.711 acc_norm 0.614 | 4274s
+[84] Mercury_409399 pred_raw=1 pred_norm=1 gold=1 nll=[8.977433,6.687548,13.661293,12.195003] | running acc 0.714 acc_norm 0.619 | 4331s
+[85] Mercury_7032568 pred_raw=1 pred_norm=1 gold=0 nll=[11.459450,7.069587,19.752784,23.903878] | running acc 0.706 acc_norm 0.612 | 4351s
+[86] Mercury_7108413 pred_raw=2 pred_norm=2 gold=2 nll=[10.469227,10.906421,5.647251,9.650765] | running acc 0.709 acc_norm 0.616 | 4396s
+[87] Mercury_7033705 pred_raw=2 pred_norm=2 gold=3 nll=[11.285530,10.811929,9.350144,21.252756] | running acc 0.701 acc_norm 0.609 | 4424s
+[88] Mercury_7114013 pred_raw=2 pred_norm=2 gold=0 nll=[22.018729,24.680076,21.620321,34.076637] | running acc 0.693 acc_norm 0.602 | 4444s
+[89] Mercury_SC_400033 pred_raw=1 pred_norm=1 gold=1 nll=[42.683311,33.452157,34.474736,38.838309] | running acc 0.697 acc_norm 0.607 | 4472s
+[90] Mercury_7082460 pred_raw=3 pred_norm=1 gold=1 nll=[43.733827,40.557072,46.728008,38.055086] | running acc 0.689 acc_norm 0.611 | 4498s
+[91] Mercury_7143150 pred_raw=1 pred_norm=3 gold=3 nll=[16.576303,13.193367,13.412749,13.233435] | running acc 0.681 acc_norm 0.615 | 4518s
+[92] MCAS_2002_8_19 pred_raw=3 pred_norm=3 gold=3 nll=[6.961310,5.475087,10.306932,4.865708] | running acc 0.685 acc_norm 0.620 | 4549s
+[93] Mercury_7202388 pred_raw=0 pred_norm=0 gold=0 nll=[14.618720,18.682948,18.475510,26.843984] | running acc 0.688 acc_norm 0.624 | 4609s
+[94] Mercury_7269028 pred_raw=0 pred_norm=0 gold=0 nll=[6.422297,12.271117,15.532586,16.862892] | running acc 0.691 acc_norm 0.628 | 4633s
+[95] Mercury_7228323 pred_raw=2 pred_norm=2 gold=2 nll=[38.267529,30.842422,28.133628,43.394654] | running acc 0.695 acc_norm 0.632 | 4662s
+[96] ACTAAP_2012_7_16 pred_raw=1 pred_norm=1 gold=3 nll=[5.611391,2.392932,5.815006,2.967914] | running acc 0.688 acc_norm 0.625 | 4685s
+[97] Mercury_7221533 pred_raw=3 pred_norm=3 gold=3 nll=[14.551711,7.580553,11.126063,3.359965] | running acc 0.691 acc_norm 0.629 | 4711s
+[98] Mercury_406736 pred_raw=1 pred_norm=1 gold=1 nll=[23.487467,17.462560,27.164137,27.874101] | running acc 0.694 acc_norm 0.633 | 4739s
+[99] NYSEDREGENTS_2014_8_18 pred_raw=1 pred_norm=1 gold=0 nll=[10.646278,9.216607,15.831076,20.237829] | running acc 0.687 acc_norm 0.626 | 4759s
+[100] MCAS_2006_9_16 pred_raw=2 pred_norm=2 gold=2 nll=[30.341267,26.984001,23.189325,45.090657] | running acc 0.690 acc_norm 0.630 | 4798s
+--------------------------------------------------
+MC summary: n=100 acc=0.6900 (69/100) acc_norm=0.6300 (63/100)
+tokens forwarded: 15277 | wall 4798.0s (3.18 tok/s)
+--------------------------------------------------
+NOTE: vocab 32768 tokens (full source vocab; cross-tokenizer PPLs are not comparable).
+Report this number only alongside that caveat.
+engine_rc=0
+
+--- reference side (full stdout, appended by m3_close_gate.sh 2026-07-18T09:15:48Z) ---
+[transformers] You don't have a GPU available to load the model, the inference will be slow because of weight unpacking
+Loading weights:   0%|          | 0/387 [00:00<?, ?it/s]Loading weights:  13%|█▎        | 52/387 [00:00<00:02, 144.91it/s]Loading weights:  33%|███▎      | 127/387 [00:00<00:01, 255.18it/s]Loading weights:  41%|████      | 157/387 [00:00<00:01, 223.79it/s]Loading weights:  48%|████▊     | 185/387 [00:01<00:01, 118.72it/s]Loading weights:  56%|█████▌    | 216/387 [00:01<00:01, 136.74it/s]Loading weights:  61%|██████    | 235/387 [00:02<00:03, 48.69it/s] Loading weights:  81%|████████▏ | 315/387 [00:02<00:00, 100.81it/s]Loading weights:  90%|████████▉ | 347/387 [00:03<00:00, 94.38it/s] Loading weights: 100%|██████████| 387/387 [00:03<00:00, 118.08it/s]
+load: 5.5s
+[1] Mercury_7030153 pred_raw=2 pred_norm=1 gold=2 nll=[22.243307,8.510452,6.712007,16.236973] | running acc 1.000 acc_norm 0.000 | 52s
+[2] Mercury_7241343 pred_raw=1 pred_norm=1 gold=3 nll=[9.244230,6.069268,13.549932,11.008559] | running acc 0.500 acc_norm 0.000 | 88s
+[3] ACTAAP_2009_5_14 pred_raw=0 pred_norm=3 gold=0 nll=[12.177969,12.959534,21.103449,25.838308] | running acc 0.667 acc_norm 0.000 | 121s
+[4] Mercury_7137463 pred_raw=0 pred_norm=0 gold=0 nll=[13.780092,20.567951,14.805051,18.072769] | running acc 0.750 acc_norm 0.250 | 158s
+[5] Mercury_7008435 pred_raw=3 pred_norm=3 gold=3 nll=[17.463804,16.853973,14.801252,11.312714] | running acc 0.800 acc_norm 0.400 | 170s
+[6] Mercury_7057925 pred_raw=0 pred_norm=0 gold=0 nll=[8.566180,17.659924,16.547407,18.689404] | running acc 0.833 acc_norm 0.500 | 186s
+[7] Mercury_7013073 pred_raw=2 pred_norm=2 gold=2 nll=[6.507295,10.028156,5.569795,12.340992] | running acc 0.857 acc_norm 0.571 | 205s
+[8] ACTAAP_2013_5_16 pred_raw=0 pred_norm=0 gold=0 nll=[13.287990,22.422989,15.831730,35.232082] | running acc 0.875 acc_norm 0.625 | 220s
+[9] ACTAAP_2011_5_2 pred_raw=3 pred_norm=3 gold=3 nll=[10.877920,7.115284,7.674795,3.055817] | running acc 0.889 acc_norm 0.667 | 235s
+[10] Mercury_7040863 pred_raw=2 pred_norm=3 gold=2 nll=[13.680122,14.049263,10.515016,13.504861] | running acc 0.900 acc_norm 0.600 | 254s
+[11] VASoL_2007_3_33 pred_raw=1 pred_norm=3 gold=1 nll=[10.775239,9.157183,28.689663,15.308862] | running acc 0.909 acc_norm 0.545 | 273s
+[12] Mercury_7164658 pred_raw=2 pred_norm=2 gold=2 nll=[10.988169,9.636935,3.712778,7.728403] | running acc 0.917 acc_norm 0.583 | 321s
+[13] TIMSS_2007_4_pg110 pred_raw=2 pred_norm=2 gold=2 nll=[15.427299,17.114067,12.798361,15.510985] | running acc 0.923 acc_norm 0.615 | 375s
+[14] Mercury_183190 pred_raw=1 pred_norm=1 gold=2 nll=[29.213503,22.135035,22.368382,27.882986] | running acc 0.857 acc_norm 0.571 | 458s
+[15] Mercury_SC_401592 pred_raw=3 pred_norm=0 gold=0 nll=[7.843177,8.499136,9.151386,7.636148] | running acc 0.800 acc_norm 0.600 | 489s
+[16] Mercury_182665 pred_raw=2 pred_norm=2 gold=1 nll=[25.815224,27.741713,14.766821,25.179277] | running acc 0.750 acc_norm 0.562 | 520s
+[17] Mercury_SC_405304 pred_raw=1 pred_norm=1 gold=3 nll=[7.172249,2.866791,7.289101,5.194541] | running acc 0.706 acc_norm 0.529 | 569s
+[18] Mercury_SC_416156 pred_raw=1 pred_norm=1 gold=1 nll=[13.804270,9.085520,13.241770,15.541574] | running acc 0.722 acc_norm 0.556 | 582s
+[19] Mercury_7082688 pred_raw=0 pred_norm=0 gold=0 nll=[12.698115,15.147533,19.340643,20.280258] | running acc 0.737 acc_norm 0.579 | 604s
+[20] AKDE&ED_2012_4_35 pred_raw=1 pred_norm=1 gold=1 nll=[38.573288,30.523613,49.714825,52.768612] | running acc 0.750 acc_norm 0.600 | 646s
+[21] Mercury_SC_402067 pred_raw=1 pred_norm=3 gold=2 nll=[29.051758,13.430585,17.885643,37.334213] | running acc 0.714 acc_norm 0.571 | 669s
+[22] Mercury_189770 pred_raw=0 pred_norm=0 gold=3 nll=[10.667090,17.632713,35.214359,18.704836] | running acc 0.682 acc_norm 0.545 | 695s
+[23] Mercury_7270025 pred_raw=3 pred_norm=1 gold=2 nll=[39.234936,20.119984,25.404367,18.011805] | running acc 0.652 acc_norm 0.522 | 714s
+[24] Mercury_7252683 pred_raw=0 pred_norm=3 gold=3 nll=[9.379142,23.237326,13.652369,17.142281] | running acc 0.625 acc_norm 0.542 | 735s
+[25] Mercury_7204050 pred_raw=1 pred_norm=1 gold=3 nll=[13.829016,6.172767,11.557243,10.220002] | running acc 0.600 acc_norm 0.520 | 780s
+[26] Mercury_7251755 pred_raw=3 pred_norm=2 gold=1 nll=[13.656186,9.864923,11.903568,6.477301] | running acc 0.577 acc_norm 0.500 | 813s
+[27] OHAT_2011_5_20 pred_raw=0 pred_norm=0 gold=0 nll=[20.492252,26.879221,31.215014,27.850365] | running acc 0.593 acc_norm 0.519 | 853s
+[28] Mercury_408929 pred_raw=3 pred_norm=3 gold=3 nll=[5.714728,4.714728,3.308478,2.808478] | running acc 0.607 acc_norm 0.536 | 894s
+[29] Mercury_7068495 pred_raw=2 pred_norm=2 gold=2 nll=[8.752718,9.596468,6.654366,17.032038] | running acc 0.621 acc_norm 0.552 | 913s
+[30] Mercury_416365 pred_raw=0 pred_norm=0 gold=2 nll=[5.844775,9.288123,13.668489,18.144518] | running acc 0.600 acc_norm 0.533 | 948s
+[31] Mercury_411424 pred_raw=1 pred_norm=1 gold=1 nll=[15.774159,11.957660,14.585571,16.619047] | running acc 0.613 acc_norm 0.548 | 988s
+[32] Mercury_7015715 pred_raw=2 pred_norm=2 gold=2 nll=[14.085167,10.774333,9.737096,13.692175] | running acc 0.625 acc_norm 0.562 | 1004s
+[33] MCAS_2002_5_12 pred_raw=0 pred_norm=0 gold=0 nll=[5.529247,10.971298,10.233823,6.933162] | running acc 0.636 acc_norm 0.576 | 1039s
+[34] Mercury_7248273 pred_raw=1 pred_norm=1 gold=1 nll=[8.162153,2.796180,12.684462,8.607474] | running acc 0.647 acc_norm 0.588 | 1065s
+[35] Mercury_7206500 pred_raw=0 pred_norm=0 gold=0 nll=[6.593379,15.300253,8.660964,23.039103] | running acc 0.657 acc_norm 0.600 | 1109s
+[36] Mercury_7044783 pred_raw=0 pred_norm=2 gold=0 nll=[5.510558,8.131292,9.732614,9.670625] | running acc 0.667 acc_norm 0.583 | 1125s
+[37] Mercury_7026863 pred_raw=2 pred_norm=2 gold=1 nll=[18.990572,19.299643,16.468643,31.019974] | running acc 0.649 acc_norm 0.568 | 1146s
+[38] Mercury_SC_415418 pred_raw=1 pred_norm=1 gold=1 nll=[19.414557,12.993089,19.004257,22.423777] | running acc 0.658 acc_norm 0.579 | 1163s
+[39] Mercury_SC_413138 pred_raw=1 pred_norm=1 gold=1 nll=[5.921585,1.131322,4.370271,8.307771] | running acc 0.667 acc_norm 0.590 | 1184s
+[40] Mercury_7241273 pred_raw=1 pred_norm=3 gold=1 nll=[20.836491,15.624983,19.008669,17.821863] | running acc 0.675 acc_norm 0.575 | 1206s
+[41] Mercury_7074970 pred_raw=2 pred_norm=2 gold=2 nll=[15.818530,15.576488,12.047222,13.951782] | running acc 0.683 acc_norm 0.585 | 1223s
+[42] Mercury_7270060 pred_raw=3 pred_norm=1 gold=1 nll=[6.460629,5.188007,8.191408,4.789583] | running acc 0.667 acc_norm 0.595 | 1245s
+[43] Mercury_7213885 pred_raw=1 pred_norm=2 gold=1 nll=[14.266558,11.370540,15.970881,16.154213] | running acc 0.674 acc_norm 0.581 | 1267s
+[44] Mercury_7142030 pred_raw=2 pred_norm=2 gold=2 nll=[15.351874,11.169250,9.660599,25.295855] | running acc 0.682 acc_norm 0.591 | 1287s
+[45] Mercury_SC_408452 pred_raw=1 pred_norm=1 gold=1 nll=[8.869267,3.912125,11.084987,13.806078] | running acc 0.689 acc_norm 0.600 | 1309s
+[46] MDSA_2010_8_1 pred_raw=0 pred_norm=3 gold=0 nll=[7.587216,11.079404,11.305966,9.851179] | running acc 0.696 acc_norm 0.587 | 1330s
+[47] Mercury_SC_400201 pred_raw=0 pred_norm=0 gold=0 nll=[8.024896,15.980940,18.427673,16.818474] | running acc 0.702 acc_norm 0.596 | 1347s
+[48] Mercury_7227763 pred_raw=0 pred_norm=1 gold=2 nll=[15.076139,42.853355,19.166159,34.833282] | running acc 0.688 acc_norm 0.583 | 1378s
+[49] Mercury_7176190 pred_raw=1 pred_norm=1 gold=1 nll=[17.613781,11.574227,28.427498,30.495369] | running acc 0.694 acc_norm 0.592 | 1434s
+[50] AKDE&ED_2012_8_18 pred_raw=1 pred_norm=1 gold=1 nll=[15.313917,7.078386,13.620211,13.944200] | running acc 0.700 acc_norm 0.600 | 1451s
+[51] Mercury_7098193 pred_raw=0 pred_norm=3 gold=0 nll=[10.863793,16.988794,21.081089,23.749397] | running acc 0.706 acc_norm 0.588 | 1467s
+[52] Mercury_175648 pred_raw=1 pred_norm=1 gold=1 nll=[6.343016,4.104716,6.288004,6.976416] | running acc 0.712 acc_norm 0.596 | 1483s
+[53] Mercury_7099015 pred_raw=1 pred_norm=0 gold=1 nll=[17.906439,14.716978,19.434954,21.415504] | running acc 0.717 acc_norm 0.585 | 1510s
+[54] AKDE&ED_2012_8_31 pred_raw=0 pred_norm=2 gold=1 nll=[22.585835,36.297710,38.070335,49.536369] | running acc 0.704 acc_norm 0.574 | 1530s
+[55] MCAS_2013_8_29415 pred_raw=2 pred_norm=2 gold=1 nll=[20.169657,22.811253,18.383959,32.037434] | running acc 0.691 acc_norm 0.564 | 1555s
+[56] Mercury_7083388 pred_raw=1 pred_norm=1 gold=1 nll=[12.387316,3.834733,12.153119,13.962107] | running acc 0.696 acc_norm 0.571 | 1571s
+[57] NYSEDREGENTS_2014_8_19 pred_raw=0 pred_norm=2 gold=0 nll=[7.637361,11.886907,13.159324,9.168612] | running acc 0.702 acc_norm 0.561 | 1584s
+[58] MCAS_2003_5_26 pred_raw=2 pred_norm=2 gold=2 nll=[19.814442,23.022366,19.432272,24.184109] | running acc 0.707 acc_norm 0.569 | 1601s
+[59] Mercury_7027318 pred_raw=0 pred_norm=0 gold=0 nll=[2.490390,5.477614,9.532877,5.345524] | running acc 0.712 acc_norm 0.576 | 1624s
+[60] TIMSS_2011_4_pg76 pred_raw=3 pred_norm=0 gold=3 nll=[14.418672,16.758453,19.320953,13.767158] | running acc 0.717 acc_norm 0.567 | 1638s
+[61] NAEP_2009_8_S10+1 pred_raw=2 pred_norm=2 gold=2 nll=[12.819990,16.800629,7.308307,14.055555] | running acc 0.721 acc_norm 0.574 | 1669s
+[62] Mercury_SC_402278 pred_raw=0 pred_norm=0 gold=0 nll=[9.180386,12.729501,16.600643,15.278129] | running acc 0.726 acc_norm 0.581 | 1692s
+[63] Mercury_SC_417580 pred_raw=0 pred_norm=0 gold=3 nll=[9.582129,12.353828,17.513462,19.285706] | running acc 0.714 acc_norm 0.571 | 1712s
+[64] Mercury_7008803 pred_raw=0 pred_norm=0 gold=0 nll=[15.168367,25.953110,22.552628,24.313972] | running acc 0.719 acc_norm 0.578 | 1727s
+[65] Mercury_190138 pred_raw=1 pred_norm=2 gold=2 nll=[19.273022,14.377385,14.482301,21.185104] | running acc 0.708 acc_norm 0.585 | 1744s
+[66] Mercury_7173513 pred_raw=0 pred_norm=2 gold=2 nll=[13.488688,14.784082,14.275384,17.922348] | running acc 0.697 acc_norm 0.591 | 1772s
+[67] Mercury_179393 pred_raw=2 pred_norm=2 gold=0 nll=[26.363819,27.610405,26.347660,29.786173] | running acc 0.687 acc_norm 0.582 | 1787s
+[68] Mercury_7057540 pred_raw=0 pred_norm=3 gold=3 nll=[21.960794,28.810293,23.313618,22.007666] | running acc 0.676 acc_norm 0.588 | 1816s
+[69] Mercury_7090650 pred_raw=0 pred_norm=0 gold=1 nll=[11.990876,12.111077,13.356751,13.318836] | running acc 0.667 acc_norm 0.580 | 1835s
+[70] WASL_2005_5_11 pred_raw=1 pred_norm=1 gold=1 nll=[34.166161,10.108551,32.298210] | running acc 0.671 acc_norm 0.586 | 1851s
+[71] Mercury_7213080 pred_raw=3 pred_norm=3 gold=3 nll=[7.360357,6.391607,6.555355,5.279575] | running acc 0.676 acc_norm 0.592 | 1869s
+[72] AKDE&ED_2008_4_22 pred_raw=3 pred_norm=3 gold=3 nll=[11.092924,8.316327,8.742324,4.238350] | running acc 0.681 acc_norm 0.597 | 1890s
+[73] Mercury_7003710 pred_raw=0 pred_norm=0 gold=0 nll=[4.072666,8.965141,8.479562,8.091516] | running acc 0.685 acc_norm 0.603 | 1904s
+[74] Mercury_7041825 pred_raw=1 pred_norm=1 gold=1 nll=[10.643606,5.393606,9.190481,12.035177] | running acc 0.689 acc_norm 0.608 | 1923s
+[75] Mercury_7069528 pred_raw=0 pred_norm=0 gold=0 nll=[4.713395,7.813868,7.609493,10.049871] | running acc 0.693 acc_norm 0.613 | 1937s
+[76] Mercury_7215408 pred_raw=1 pred_norm=1 gold=1 nll=[7.502649,4.214580,9.049821,7.022596] | running acc 0.697 acc_norm 0.618 | 1953s
+[77] Mercury_SC_400171 pred_raw=1 pred_norm=1 gold=1 nll=[25.281708,18.196451,25.182642,20.281328] | running acc 0.701 acc_norm 0.623 | 1972s
+[78] Mercury_7012968 pred_raw=0 pred_norm=3 gold=3 nll=[19.334803,20.167473,21.560776,22.872755] | running acc 0.692 acc_norm 0.628 | 2008s
+[79] Mercury_SC_409390 pred_raw=0 pred_norm=3 gold=1 nll=[26.532112,37.349953,43.728775,27.025040] | running acc 0.684 acc_norm 0.620 | 2032s
+[80] Mercury_SC_406155 pred_raw=0 pred_norm=0 gold=1 nll=[14.410982,25.622623,26.347296,24.042757] | running acc 0.675 acc_norm 0.613 | 2052s
+[81] LEAP__5_10316 pred_raw=2 pred_norm=2 gold=2 nll=[18.406265,21.390987,18.192646,23.612246] | running acc 0.679 acc_norm 0.617 | 2068s
+[82] MCAS_2009_8_4 pred_raw=3 pred_norm=3 gold=2 nll=[19.447746,20.961603,16.177038,13.801542] | running acc 0.671 acc_norm 0.610 | 2086s
+[83] Mercury_SC_401622 pred_raw=0 pred_norm=3 gold=2 nll=[10.262555,12.793153,12.915257,10.664938] | running acc 0.663 acc_norm 0.602 | 2107s
+[84] Mercury_409399 pred_raw=1 pred_norm=1 gold=1 nll=[9.139246,6.613578,13.757724,12.117427] | running acc 0.667 acc_norm 0.607 | 2142s
+[85] Mercury_7032568 pred_raw=1 pred_norm=1 gold=0 nll=[11.561845,7.225830,19.976452,23.891367] | running acc 0.659 acc_norm 0.600 | 2157s
+[86] Mercury_7108413 pred_raw=2 pred_norm=2 gold=2 nll=[10.519996,10.660200,5.343009,9.766242] | running acc 0.663 acc_norm 0.605 | 2186s
+[87] Mercury_7033705 pred_raw=2 pred_norm=2 gold=3 nll=[10.926226,10.520135,9.121580,21.546415] | running acc 0.655 acc_norm 0.598 | 2204s
+[88] Mercury_7114013 pred_raw=2 pred_norm=2 gold=0 nll=[22.349586,25.081114,21.572212,34.139400] | running acc 0.648 acc_norm 0.591 | 2219s
+[89] Mercury_SC_400033 pred_raw=1 pred_norm=1 gold=1 nll=[42.520176,33.535194,34.637810,38.949173] | running acc 0.652 acc_norm 0.596 | 2239s
+[90] Mercury_7082460 pred_raw=3 pred_norm=1 gold=1 nll=[42.980900,40.110954,46.742832,37.890903] | running acc 0.644 acc_norm 0.600 | 2257s
+[91] Mercury_7143150 pred_raw=1 pred_norm=3 gold=3 nll=[16.483252,12.930604,13.072512,12.962763] | running acc 0.637 acc_norm 0.604 | 2272s
+[92] MCAS_2002_8_19 pred_raw=3 pred_norm=3 gold=3 nll=[7.285158,5.919540,10.714473,5.271376] | running acc 0.641 acc_norm 0.609 | 2293s
+[93] Mercury_7202388 pred_raw=0 pred_norm=0 gold=0 nll=[14.399227,18.491392,17.297192,26.577009] | running acc 0.645 acc_norm 0.613 | 2333s
+[94] Mercury_7269028 pred_raw=0 pred_norm=0 gold=0 nll=[6.190820,12.207470,15.550386,16.891079] | running acc 0.649 acc_norm 0.617 | 2351s
+[95] Mercury_7228323 pred_raw=2 pred_norm=2 gold=2 nll=[38.393196,30.306677,27.838360,43.529846] | running acc 0.653 acc_norm 0.621 | 2371s
+[96] ACTAAP_2012_7_16 pred_raw=1 pred_norm=1 gold=3 nll=[5.801415,2.238916,5.891897,2.891897] | running acc 0.646 acc_norm 0.615 | 2387s
+[97] Mercury_7221533 pred_raw=3 pred_norm=3 gold=3 nll=[14.664322,7.539322,11.372428,3.309928] | running acc 0.649 acc_norm 0.619 | 2405s
+[98] Mercury_406736 pred_raw=1 pred_norm=1 gold=1 nll=[24.099388,18.048618,27.326321,28.291533] | running acc 0.653 acc_norm 0.622 | 2425s
+[99] NYSEDREGENTS_2014_8_18 pred_raw=1 pred_norm=1 gold=0 nll=[10.612563,8.872150,15.308439,20.004177] | running acc 0.646 acc_norm 0.616 | 2440s
+[100] MCAS_2006_9_16 pred_raw=2 pred_norm=2 gold=2 nll=[30.625078,27.238516,23.189178,45.023628] | running acc 0.650 acc_norm 0.620 | 2467s
+--------------------------------------------------
+MC reference summary: n=100 acc=0.6500 (65/100) acc_norm=0.6200 (62/100)
+tokens forwarded: 12581 | wall 2467.4s (5.10 tok/s) | peak RSS 0.98GB
+normalization: acc: pred = argmin_k cont_nll[k] (raw sum over continuation tokens); acc_norm: pred = argmax_k(-cont_nll[k] / utf8_byte_len(choice_text_k)); ties -> lower index
+ref_rc=0
+
+--- quality bars (fmt/clippy, appended by m3_close_gate.sh 2026-07-18T09:15:48Z) ---
+=== M3 quality bars: aegis-eval crate (2026-07-18T08:08:51Z) ===
+$ cargo fmt --check
+fmt: PASS
+$ cargo clippy -j 4 -- -D warnings
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+clippy_rc=0
+
+--- M3 PARITY VERDICT (mc_compare.py, run 2026-07-18T09:15:48Z) ---
+engine result rows: 102
+ref result rows:    102
+--- M3 parity diff table (engine vs transformers reference) ---
+n items: 100 | per-choice NLL values compared: 399
+per-choice NLL: max abs diff 1.811890 nats (item Mercury_7008803)
+per-choice NLL: max rel diff 15.034% (item Mercury_7044783)
+per-choice NLL: mean abs diff 0.236719 nats
+largest per-item NLL diffs: Mercury_7008803=1.8119, Mercury_7202388=1.1783, ACTAAP_2009_5_14=1.1757, Mercury_7241343=1.1638, Mercury_SC_400171=1.1311
+pred_raw disagreements : 5/100 ['Mercury_183190', 'Mercury_179393', 'Mercury_7057540', 'Mercury_7090650', 'Mercury_SC_409390']
+pred_norm disagreements: 4/100 ['Mercury_7241343', 'Mercury_183190', 'OHAT_2011_5_20', 'Mercury_179393']
+acc      : engine 0.6900 vs ref 0.6500 -> |delta| 4.00 points (gate 5.0)
+acc_norm : engine 0.6300 vs ref 0.6200 -> |delta| 1.00 points (gate 5.0)
+=== M3 VERDICT: PASS ===
+mc_compare exit code: 0 (PASS)

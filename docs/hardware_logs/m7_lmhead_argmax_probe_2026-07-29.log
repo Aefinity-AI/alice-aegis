@@ -1,0 +1,86 @@
+=== lmhead_probe.py ===
+cfg: {'vocab_size': 8192, 'hidden_size': 384, 'intermediate_size': 1024, 'num_hidden_layers': 7, 'num_attention_heads': 6, 'num_key_value_heads': 2, 'max_position_embeddings': 512, 'rms_norm_eps': 1e-05, 'rope_theta': 10000.0, 'hidden_act': 'silu', 'tie_word_embeddings': True, 'use_subln': True, 'linear': 'bitlinear'}
+
+V=8192 d=384 hidden states=4096
+
+=== EMBEDDING GEOMETRY ===
+raw   row-norm  min 1.1883 p50 1.5360 max 1.9053  max/med 1.24
+centred row-norm min 0.0879 p50 0.3974 max 1.5981  max/med 4.02
+||mu|| = 1.4858  (mean row norm 1.5553)
+||h||  min 58.585 p50 70.571 max 114.005
+
+top-1 logit: p50 9.738   top1-top2 gap: p10 0.2195 p50 1.5067
+cos(h, E_argmax): p10 -0.0244 p50 0.0991 max 0.3225
+
+=== CERTIFIED (EXACT) ARGMAX SCREENING — survivors that must be rescored ===
+A raw C-S, oracle threshold        survivors p50   8192.0 (100.00%)  mean   8192.0 (100.00%)  worst   8192  argmax-kept True
+B centred C-S, oracle thr          survivors p50   6315.5 ( 77.09%)  mean   6356.5 ( 77.59%)  worst   8192  argmax-kept True
+C prefix- 48 + tail C-S            survivors p50   8192.0 (100.00%)  mean   8192.0 (100.00%)  worst   8192  argmax-kept True
+C prefix- 96 + tail C-S            survivors p50   8192.0 (100.00%)  mean   8192.0 (100.00%)  worst   8192  argmax-kept True
+C prefix-192 + tail C-S            survivors p50   8192.0 (100.00%)  mean   8192.0 (100.00%)  worst   8192  argmax-kept True
+D INT8 screen, rigorous bound      survivors p50      3.0 (  0.04%)  mean      3.8 (  0.05%)  worst     33  argmax-kept True
+   (true |a-c| max over all rows: 0.65661; rigorous bound p50 0.32127)
+D' INT8 screen, empirical env      survivors p50      1.0 (  0.01%)  mean      2.1 (  0.03%)  worst     51  argmax-kept True
+   SVD energy: r=32 44.4%  r=64 56.1%  r=128 72.6%  r=192 83.8%
+E rank- 32 SVD + resid bound       survivors p50   8192.0 (100.00%)  mean   8192.0 (100.00%)  worst   8192  argmax-kept True
+E rank- 64 SVD + resid bound       survivors p50   8192.0 (100.00%)  mean   8191.5 ( 99.99%)  worst   8192  argmax-kept True
+E rank-128 SVD + resid bound       survivors p50   8192.0 (100.00%)  mean   8186.8 ( 99.94%)  worst   8192  argmax-kept True
+E rank-192 SVD + resid bound       survivors p50   8192.0 (100.00%)  mean   8152.2 ( 99.51%)  worst   8192  argmax-kept True
+
+=== ARGMAX FLIP RATE (greedy fidelity), n=512 positions ===
+BF16 (what the engine ships)   flips vs fp32 : 0.195%  (1/512)
+per-row INT8 (audit action 1)  flips vs BF16 : 1.953%  (10/512)
+per-row INT8                   flips vs fp32 : 2.148%
+CENTRED per-row INT8           flips vs fp32 : 1.172%
+   INT8: gap12 at flipped positions p50 0.02816 vs unflipped p50 1.54071
+   INT8-centred: gap12 at flipped positions p50 0.07263 vs unflipped p50 1.52364
+   BF16-vs-fp32: P(identical 100-token continuation) ~ 82.24%   256-token ~ 60.62%
+   INT8-vs-BF16: P(identical 100-token continuation) ~ 13.91%   256-token ~ 0.64%
+
+=== CONSECUTIVE-POSITION HIDDEN DRIFT (delta-logit reuse) ===
+||h_t - h_(t-1)|| / ||h_t||: p10 0.896 p50 1.199 p90 1.498
+fraction of steps with ratio < 0.25: 0.00%   < 0.5: 0.54%
+
+=== lmhead_probe2.py ===
+positions n=12288  V=8192 d=384
+top1-top2 gap: p1 0.02237 p10 0.2292 p50 1.5316
+
+=== CERTIFIED-EXACT SCREEN: survivors that must be rescored (of 8192 rows) ===
+            screen  B/elem     p50     p90     p99     max     mean     <=8   <=32 exact
+      centred int4   0.500    6126    8192    8192    8192  5880.41    0.0%   0.0%  True
+      centred int5   0.625     564    1900    3284    7548   811.94    0.0%   0.4%  True
+      centred int6   0.750      40     128     322    2044    58.81   13.3%  43.1%  True
+      centred int7   0.875       6      22      50     133     9.67   59.5%  96.2%  True
+      centred int8   1.000       2       7      14      39     3.18   94.8% 100.0%  True
+                   (L1 bound alone p50 surv 3; L2 bound alone p50 surv 2)
+    UNcentred int8   1.000       3      11      40    3699     7.71
+
+=== ARGMAX FLIP RATE vs the shipped BF16 head, n=12288 ===
+fp32 master                   0.464%  95%CI[0.344,0.584]  P(100-tok run identical) 62.82%  P(256) 30.41%
+UNcentred int6                8.057%  95%CI[7.575,8.538]  P(100-tok run identical)  0.02%  P(256)  0.00%
+centred int6 (+mu)            6.958%  95%CI[6.508,7.408]  P(100-tok run identical)  0.07%  P(256)  0.00%
+UNcentred int8                2.189%  95%CI[1.930,2.448]  P(100-tok run identical) 10.93%  P(256)  0.35%
+centred int8 (+mu)            1.766%  95%CI[1.533,1.999]  P(100-tok run identical) 16.83%  P(256)  1.04%
+
+distinct argmax tokens over 12288 positions: 1054 of 8192 (12.87%)
+   top 31 rows cover 50% of argmax outcomes
+   top 368 rows cover 90% of argmax outcomes
+   top 932 rows cover 99% of argmax outcomes
+
+=== lmhead_probe3.py ===
+n=12288 V=8192 d=384
+
+Q1  int16-fixed deployed table vs BF16 table: flips 0.0000% (0/12288)   P(256-tok run identical) 100.00%
+    max abs logit delta 0.003173
+    bytes: mu 768 + scales 32768 + planes 6291456 = 6324992  (BF16 today 6291456)
+    true |a - Ldep| max 0.8039  vs bound p50 0.2764
+
+Q2  HI-plane certified screen: argmax always kept = True
+    survivors  p50 2  p90 7  p99 15  MAX 43  mean 3.20
+    fraction of steps with <=8 survivors 94.6%   <=64 100.0%
+
+Q3  cost accounting per decode step (M7: V=8192 d=384)
+    today  : stream 6,291,456 B BF16, 3,145,728 MAC
+    2-plane(p50): stream 3,146,496 B  (2.000x less)  rescore 2 rows = 768 MAC (0.02% extra)
+    2-plane(p99): stream 3,151,488 B  (1.996x less)  rescore 15 rows = 5,760 MAC (0.18% extra)
+    2-plane(MAX): stream 3,162,240 B  (1.990x less)  rescore 43 rows = 16,512 MAC (0.52% extra)

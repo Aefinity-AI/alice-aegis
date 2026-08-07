@@ -1,0 +1,926 @@
+
+==== AEGIS MINIMAL-LINUX ARM ====
+boot_utc_unavailable_rtc: Sat Aug  1 18:36:52 UTC 2026
+kernel : Linux 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20)
+cmdline: console=ttyS0,115200 console=tty0 rdinit=/init mitigations=off quiet loglevel=4
+cpu    :  Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+machine: Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+cpus_on: 4
+governor: performance
+cur_freq: 2195073 kHz
+loadavg : 0.08 0.02 0.01 1/87 211
+cpu0 msr 0x1fc = 0x000000000004005c
+cpu1 msr 0x1fc = 0x000000000004005c
+cpu2 msr 0x1fc = 0x000000000004005c
+cpu3 msr 0x1fc = 0x000000000004005c
+cpu0 msr 0x198 = 0x0000203600001900
+cpu1 msr 0x198 = 0x0000204a00001900
+cpu2 msr 0x198 = 0x0000203600001900
+cpu3 msr 0x198 = 0x0000204a00001900
+==== GAUNTLET (Linux arm) ====
+--- L1 fresh-process run 1/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5782272
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.173 s (374.85 tok/s incl. prefill)
+Prefill 4 tokens in 8769391 cycles (2192347 cycles/token)
+Decode 64 tokens in 0.169 s (379.52 tok/s decode-only)
+--- L1 fresh-process run 2/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6124174
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.184 s (354.07 tok/s incl. prefill)
+Prefill 4 tokens in 8957532 cycles (2239383 cycles/token)
+Decode 64 tokens in 0.179 s (358.33 tok/s decode-only)
+--- L1 fresh-process run 3/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5831076
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (371.74 tok/s incl. prefill)
+Prefill 4 tokens in 8775679 cycles (2193919 cycles/token)
+Decode 64 tokens in 0.170 s (376.34 tok/s decode-only)
+--- L1 fresh-process run 4/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5798360
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.72 tok/s incl. prefill)
+Prefill 4 tokens in 8878599 cycles (2219649 cycles/token)
+Decode 64 tokens in 0.169 s (378.46 tok/s decode-only)
+--- L1 fresh-process run 5/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5810733
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (372.93 tok/s incl. prefill)
+Prefill 4 tokens in 8882780 cycles (2220695 cycles/token)
+Decode 64 tokens in 0.169 s (377.65 tok/s decode-only)
+--- L1 fresh-process run 6/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5829791
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (371.75 tok/s incl. prefill)
+Prefill 4 tokens in 8864495 cycles (2216123 cycles/token)
+Decode 64 tokens in 0.170 s (376.43 tok/s decode-only)
+--- L1 fresh-process run 7/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5890319
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.177 s (368.18 tok/s incl. prefill)
+Prefill 4 tokens in 8716333 cycles (2179083 cycles/token)
+Decode 64 tokens in 0.172 s (372.55 tok/s decode-only)
+--- L2 in-process n=20
+iter,decode_cyc_per_tok,decode_total_cyc,decode_steps,prefill_cyc,out_hash
+0,5631303,360403424,64,8646019,7aed346907e42110
+1,5602837,358581621,64,8423815,7aed346907e42110
+2,5602266,358545039,64,8390002,7aed346907e42110
+3,6354872,406711862,64,8388358,7aed346907e42110
+4,5895127,377288128,64,8461000,7aed346907e42110
+5,5900606,377638785,64,8411771,7aed346907e42110
+6,5634319,360596420,64,8409371,7aed346907e42110
+7,5873437,375900003,64,8406246,7aed346907e42110
+8,6632582,424485300,64,10178984,7aed346907e42110
+9,6634766,424625052,64,10190928,7aed346907e42110
+10,6960025,445441640,64,10164412,7aed346907e42110
+11,6644027,425217764,64,10153240,7aed346907e42110
+12,6417734,410735039,64,10169556,7aed346907e42110
+13,5633442,360540350,64,8381341,7aed346907e42110
+14,5632603,360486648,64,8387077,7aed346907e42110
+15,5635789,360690507,64,8390202,7aed346907e42110
+16,5633399,360537559,64,8382750,7aed346907e42110
+17,5634225,360590441,64,8374642,7aed346907e42110
+18,5634518,360609164,64,8381524,7aed346907e42110
+19,5632169,360458816,64,8392663,7aed346907e42110
+--- L3 prompt: "hello alice"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: hello alice
+[SYSTEM] Analyzing 3 tokens...
+, and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+
+[PERFORMANCE] Average Cycles/Token: 5960375
+
+
+Final Full Response: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+Generated 85 tokens
+Wall time 0.236 s (360.89 tok/s incl. prefill)
+Prefill 3 tokens in 8031826 cycles (2677275 cycles/token)
+Decode 84 tokens in 0.231 s (363.49 tok/s decode-only)
+--- L3 prompt: "how are you today?"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: how are you today?
+[SYSTEM] Analyzing 6 tokens...
+ Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+
+[PERFORMANCE] Average Cycles/Token: 6845148
+
+
+Final Full Response:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+Generated 257 tokens
+Wall time 0.805 s (319.44 tok/s incl. prefill)
+Prefill 6 tokens in 11715643 cycles (1952607 cycles/token)
+Decode 256 tokens in 0.798 s (320.63 tok/s decode-only)
+--- L3 prompt: "continue"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: continue
+[SYSTEM] Analyzing 4 tokens...
+.
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+
+[PERFORMANCE] Average Cycles/Token: 6622381
+
+
+Final Full Response: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+Generated 214 tokens
+Wall time 0.651 s (328.72 tok/s incl. prefill)
+Prefill 4 tokens in 8832441 cycles (2208110 cycles/token)
+Decode 213 tokens in 0.646 s (329.62 tok/s decode-only)
+==== GAUNTLET DONE ====
+final cur_freq: 2692474 kHz
+==== MECHV2L (n=10 per prompt; output buffered to tmpfs during runs) ====
+MECHV2L "hello alice" run 1/10
+[PERFORMANCE] Average Cycles/Token: 5799320
+Prefill 3 tokens in 7809742 cycles (2603247 cycles/token)
+Decode 84 tokens in 0.225 s (373.69 tok/s decode-only)
+MECHV2L RESPONSE "hello alice": , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+MECHV2L "hello alice" run 2/10
+[PERFORMANCE] Average Cycles/Token: 6385732
+Prefill 3 tokens in 7826651 cycles (2608883 cycles/token)
+Decode 84 tokens in 0.247 s (339.75 tok/s decode-only)
+MECHV2L "hello alice" run 3/10
+[PERFORMANCE] Average Cycles/Token: 6254551
+Prefill 3 tokens in 7796913 cycles (2598971 cycles/token)
+Decode 84 tokens in 0.242 s (346.76 tok/s decode-only)
+MECHV2L "hello alice" run 4/10
+[PERFORMANCE] Average Cycles/Token: 5798072
+Prefill 3 tokens in 7809570 cycles (2603190 cycles/token)
+Decode 84 tokens in 0.225 s (373.79 tok/s decode-only)
+MECHV2L "hello alice" run 5/10
+[PERFORMANCE] Average Cycles/Token: 6834891
+Prefill 3 tokens in 7830528 cycles (2610176 cycles/token)
+Decode 84 tokens in 0.265 s (317.05 tok/s decode-only)
+MECHV2L "hello alice" run 6/10
+[PERFORMANCE] Average Cycles/Token: 6816330
+Prefill 3 tokens in 9545212 cycles (3181737 cycles/token)
+Decode 84 tokens in 0.264 s (317.91 tok/s decode-only)
+MECHV2L "hello alice" run 7/10
+[PERFORMANCE] Average Cycles/Token: 7159479
+Prefill 3 tokens in 9526964 cycles (3175654 cycles/token)
+Decode 84 tokens in 0.277 s (302.86 tok/s decode-only)
+MECHV2L "hello alice" run 8/10
+[PERFORMANCE] Average Cycles/Token: 6397302
+Prefill 3 tokens in 9532476 cycles (3177492 cycles/token)
+Decode 84 tokens in 0.248 s (339.14 tok/s decode-only)
+MECHV2L "hello alice" run 9/10
+[PERFORMANCE] Average Cycles/Token: 5831537
+Prefill 3 tokens in 7796861 cycles (2598953 cycles/token)
+Decode 84 tokens in 0.226 s (371.58 tok/s decode-only)
+MECHV2L "hello alice" run 10/10
+[PERFORMANCE] Average Cycles/Token: 5820902
+Prefill 3 tokens in 7810313 cycles (2603437 cycles/token)
+Decode 84 tokens in 0.226 s (372.26 tok/s decode-only)
+MECHV2L "how are you today?" run 1/10
+[PERFORMANCE] Average Cycles/Token: 6752321
+Prefill 6 tokens in 10984530 cycles (1830755 cycles/token)
+Decode 256 tokens in 0.788 s (325.04 tok/s decode-only)
+MECHV2L RESPONSE "how are you today?":  Come with me."
+MECHV2L "how are you today?" run 2/10
+[PERFORMANCE] Average Cycles/Token: 6702120
+Prefill 6 tokens in 11000580 cycles (1833430 cycles/token)
+Decode 256 tokens in 0.782 s (327.48 tok/s decode-only)
+MECHV2L "how are you today?" run 3/10
+[PERFORMANCE] Average Cycles/Token: 6691246
+Prefill 6 tokens in 10980892 cycles (1830148 cycles/token)
+Decode 256 tokens in 0.780 s (328.01 tok/s decode-only)
+MECHV2L "how are you today?" run 4/10
+[PERFORMANCE] Average Cycles/Token: 7069498
+Prefill 6 tokens in 10988241 cycles (1831373 cycles/token)
+Decode 256 tokens in 0.825 s (310.46 tok/s decode-only)
+MECHV2L "how are you today?" run 5/10
+[PERFORMANCE] Average Cycles/Token: 7793495
+Prefill 6 tokens in 10988469 cycles (1831411 cycles/token)
+Decode 256 tokens in 0.909 s (281.62 tok/s decode-only)
+MECHV2L "how are you today?" run 6/10
+[PERFORMANCE] Average Cycles/Token: 7033303
+Prefill 6 tokens in 16183452 cycles (2697242 cycles/token)
+Decode 256 tokens in 0.820 s (312.05 tok/s decode-only)
+MECHV2L "how are you today?" run 7/10
+[PERFORMANCE] Average Cycles/Token: 6721115
+Prefill 6 tokens in 11071095 cycles (1845182 cycles/token)
+Decode 256 tokens in 0.784 s (326.55 tok/s decode-only)
+MECHV2L "how are you today?" run 8/10
+[PERFORMANCE] Average Cycles/Token: 6793941
+Prefill 6 tokens in 11344681 cycles (1890780 cycles/token)
+Decode 256 tokens in 0.792 s (323.05 tok/s decode-only)
+MECHV2L "how are you today?" run 9/10
+[PERFORMANCE] Average Cycles/Token: 6726567
+Prefill 6 tokens in 11425914 cycles (1904319 cycles/token)
+Decode 256 tokens in 0.785 s (326.29 tok/s decode-only)
+MECHV2L "how are you today?" run 10/10
+[PERFORMANCE] Average Cycles/Token: 7098329
+Prefill 6 tokens in 11018741 cycles (1836456 cycles/token)
+Decode 256 tokens in 0.828 s (309.20 tok/s decode-only)
+MECHV2L "continue" run 1/10
+[PERFORMANCE] Average Cycles/Token: 7441060
+Prefill 4 tokens in 8351621 cycles (2087905 cycles/token)
+Decode 213 tokens in 0.726 s (293.30 tok/s decode-only)
+MECHV2L RESPONSE "continue": .
+MECHV2L "continue" run 2/10
+[PERFORMANCE] Average Cycles/Token: 7180524
+Prefill 4 tokens in 10391804 cycles (2597951 cycles/token)
+Decode 213 tokens in 0.700 s (304.16 tok/s decode-only)
+MECHV2L "continue" run 3/10
+[PERFORMANCE] Average Cycles/Token: 6519997
+Prefill 4 tokens in 8421900 cycles (2105475 cycles/token)
+Decode 213 tokens in 0.636 s (334.78 tok/s decode-only)
+MECHV2L "continue" run 4/10
+[PERFORMANCE] Average Cycles/Token: 6665000
+Prefill 4 tokens in 8598012 cycles (2149503 cycles/token)
+Decode 213 tokens in 0.650 s (327.56 tok/s decode-only)
+MECHV2L "continue" run 5/10
+[PERFORMANCE] Average Cycles/Token: 6793926
+Prefill 4 tokens in 8867854 cycles (2216963 cycles/token)
+Decode 213 tokens in 0.663 s (321.33 tok/s decode-only)
+MECHV2L "continue" run 6/10
+[PERFORMANCE] Average Cycles/Token: 6499111
+Prefill 4 tokens in 8566645 cycles (2141661 cycles/token)
+Decode 213 tokens in 0.634 s (335.85 tok/s decode-only)
+MECHV2L "continue" run 7/10
+[PERFORMANCE] Average Cycles/Token: 6502432
+Prefill 4 tokens in 8831959 cycles (2207989 cycles/token)
+Decode 213 tokens in 0.635 s (335.70 tok/s decode-only)
+MECHV2L "continue" run 8/10
+[PERFORMANCE] Average Cycles/Token: 7465151
+Prefill 4 tokens in 8487366 cycles (2121841 cycles/token)
+Decode 213 tokens in 0.729 s (292.36 tok/s decode-only)
+MECHV2L "continue" run 9/10
+[PERFORMANCE] Average Cycles/Token: 7536215
+Prefill 4 tokens in 10296144 cycles (2574036 cycles/token)
+Decode 213 tokens in 0.735 s (289.86 tok/s decode-only)
+MECHV2L "continue" run 10/10
+[PERFORMANCE] Average Cycles/Token: 6464757
+Prefill 4 tokens in 8527416 cycles (2131854 cycles/token)
+Decode 213 tokens in 0.631 s (337.66 tok/s decode-only)
+==== MECHV2L DONE ====
+==== CIS_SELFTEST (integer semantics identity) ====
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+==== WITNESS v0 gen (hash-chain identity artifact) ====
+AEGIS-WITNESS v0-float-DEMO
+model 23cfad0a3c7de2b676e176755f0848cd2cad8e71e2cdffea3d903a232c96e973
+embed 3752cd5ca2e39593cdf0910968f8ff629d79417f253e33e1a1c4faa0ce33848e
+vocab 5a1d79caf517084a73de5e5379d2995e61f23afaada91822da12ecb4ad7fcd8a
+arith AVX2+FMA
+maxtok 32
+prompt-hex 68656c6c6f20616c696365
+ntok 33
+chain 68ea29e30f5e981381387dc1a530de416816e689aeedf3cfaf4c0db40bc9b5f6
+==== MEMBW PROBE (FABLE-0 G1) ====
+# membw: buffer 512 MB, 5 passes, up to 4 threads
+# method: 4 independent accumulators (a dependent chain measures LATENCY,
+#         not bandwidth); buffer pre-faulted; wall clock via Instant.
+# NOTE: a single-thread figure is NOT the machine ceiling. Both are printed.
+
+label,threads,pass,bytes_read,secs,GB_per_s,checksum
+seq_read,1,0,536870912,0.049559,10.833,6da96b07d6000001
+seq_read,1,1,536870912,0.049026,10.951,6da96b07d6000001
+seq_read,1,2,536870912,0.049012,10.954,6da96b07d6000001
+seq_read,1,3,536870912,0.059125,9.080,6da96b07d6000001
+seq_read,1,4,536870912,0.049038,10.948,6da96b07d6000001
+seq_read,4,0,536870912,0.047659,11.265,6da96b07d6000001
+seq_read,4,1,536870912,0.045877,11.703,6da96b07d6000001
+seq_read,4,2,536870912,0.046043,11.660,6da96b07d6000001
+seq_read,4,3,536870912,0.046021,11.666,6da96b07d6000001
+seq_read,4,4,536870912,0.046066,11.654,6da96b07d6000001
+ternary_stream,1,0,536870912,0.875962,0.613,2e1
+ternary_stream,1,1,536870912,0.872882,0.615,2e1
+ternary_stream,1,2,536870912,0.872877,0.615,2e1
+ternary_stream,1,3,536870912,0.894914,0.600,2e1
+ternary_stream,1,4,536870912,0.975047,0.551,2e1
+
+==== SUMMARY (best of 5 passes; report ALL THREE or none) ====
+  peak sequential read, 1 thread     : 10.95 GB/s
+  peak sequential read, 4 threads    : 11.70 GB/s
+  ternary weight-stream, 1 thread    : 0.62 GB/s
+
+  CAVEAT ON ARM 3: this is a SCALAR LUT walk, not the AVX2 kernel
+  (aegis_core::ops::ternary_matvec_serial). It is therefore a LOWER
+  BOUND on the engine's streaming rate, not the engine's rate. Compare
+  it to the technical report's 'achieved' bandwidth row, which is itself
+  a derivation from a cycle count and an unstated nominal clock.
+
+  The decode roofline must divide by the TERNARY figure, not the peak.
+  Quoting a single-thread peak as 'the machine bandwidth ceiling' both
+  understates the machine and overstates the kernel's share of it.
+  This run is one machine, one buffer size, one pattern. It replaces an
+  unsourced number with a measured one; it does not make it a ceiling.
+==== KERNEL A/B: fused_vs_sequential + bitplane_vs_lut (reps=default) ====
+--- fused_vs_sequential capture 1/3
+Fused dual/tri matvec vs sequential incumbent — same-binary interleaved A/B
+NOT A RESULT unless captured via scripts/capture-bench.sh on an idle, named machine.
+machine: Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+
+--- CLOCK STATE (bound to this run; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0         120056380        120000000     2.1939     1.000x
+    1         122629724        120000000     2.1478     0.979x
+    2         120076460        120000000     2.1935     0.999x
+    3         120070576        120000000     2.1936     0.999x
+    4         120045092        120000000     2.1941     1.000x
+    mean 2.1846 GHz | EFFECTIVE / NOMINAL = 0.995  <-- rescales every tick-derived figure
+
+--- DUAL BitNet-2B SwiGLU gate+up: outs [6912, 6912] x in 2560  (35.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           5.293      8.927      1.687
+    1   fused-first          5.145      8.932      1.736
+    2   seq-first           5.284      8.896      1.684
+    3   fused-first          5.191      8.966      1.727
+    4   seq-first           5.240      8.883      1.695
+    5   fused-first          5.153      8.993      1.745
+    6   seq-first           5.212      8.897      1.707
+  best: sequential 5.145 ms (6.88 GMAC/s) | fused 8.883 ms (3.98 GMAC/s) | fused/seq 1.726
+
+--- TRI  BitNet-2B Q/K/V (GQA): outs [2560, 640, 640] x in 2560  (9.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           1.421      1.915      1.348
+    1   fused-first          1.325      2.018      1.523
+    2   seq-first           1.396      1.911      1.369
+    3   fused-first          1.363      2.007      1.473
+    4   seq-first           1.400      1.945      1.390
+    5   fused-first          1.329      1.980      1.490
+    6   seq-first           1.392      1.912      1.374
+  best: sequential 1.325 ms (7.42 GMAC/s) | fused 1.911 ms (5.14 GMAC/s) | fused/seq 1.442
+
+--- DUAL M7 SwiGLU gate+up: outs [1024, 1024] x in 384  (0.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.116      0.201      1.729
+    1   fused-first          0.116      0.201      1.734
+    2   seq-first           0.116      0.202      1.737
+    3   fused-first          0.116      0.201      1.736
+    4   seq-first           0.127      0.201      1.587
+    5   fused-first          0.116      0.201      1.735
+    6   seq-first           0.116      0.201      1.735
+  best: sequential 0.116 ms (6.79 GMAC/s) | fused 0.201 ms (3.91 GMAC/s) | fused/seq 1.734
+
+--- TRI  M7 Q/K/V: outs [384, 384, 384] x in 384  (0.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.065      0.125      1.909
+    1   fused-first          0.065      0.125      1.913
+    2   seq-first           0.129      0.248      1.920
+    3   fused-first          0.130      0.248      1.904
+    4   seq-first           0.130      0.244      1.877
+    5   fused-first          0.130      0.248      1.906
+    6   seq-first           0.130      0.248      1.906
+  best: sequential 0.065 ms (6.77 GMAC/s) | fused 0.125 ms (3.54 GMAC/s) | fused/seq 1.911
+
+Reminder: single-thread kernel A/B; pool-split fusion is a separate question.
+--- fused_vs_sequential capture 2/3
+Fused dual/tri matvec vs sequential incumbent — same-binary interleaved A/B
+NOT A RESULT unless captured via scripts/capture-bench.sh on an idle, named machine.
+machine: Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+
+--- CLOCK STATE (bound to this run; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98248295        120000000     2.6809     1.221x
+    1          98097539        120000000     2.6850     1.223x
+    2          98193680        120000000     2.6824     1.222x
+    3          98135755        120000000     2.6839     1.223x
+    4          98123150        120000000     2.6843     1.223x
+    mean 2.6833 GHz | EFFECTIVE / NOMINAL = 1.222  <-- rescales every tick-derived figure
+
+--- DUAL BitNet-2B SwiGLU gate+up: outs [6912, 6912] x in 2560  (35.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           5.248      8.915      1.699
+    1   fused-first          5.097      8.996      1.765
+    2   seq-first           5.161      8.853      1.715
+    3   fused-first          5.103      8.948      1.754
+    4   seq-first           5.162      8.884      1.721
+    5   fused-first          5.097      8.890      1.744
+    6   seq-first           5.164      8.918      1.727
+  best: sequential 5.097 ms (6.94 GMAC/s) | fused 8.853 ms (4.00 GMAC/s) | fused/seq 1.737
+
+--- TRI  BitNet-2B Q/K/V (GQA): outs [2560, 640, 640] x in 2560  (9.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           1.461      1.962      1.343
+    1   fused-first          1.352      2.056      1.520
+    2   seq-first           1.388      1.909      1.376
+    3   fused-first          1.315      1.966      1.495
+    4   seq-first           1.374      1.900      1.383
+    5   fused-first          1.311      1.977      1.509
+    6   seq-first           1.405      1.904      1.355
+  best: sequential 1.311 ms (7.50 GMAC/s) | fused 1.900 ms (5.17 GMAC/s) | fused/seq 1.450
+
+--- DUAL M7 SwiGLU gate+up: outs [1024, 1024] x in 384  (0.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.116      0.201      1.733
+    1   fused-first          0.116      0.201      1.735
+    2   seq-first           0.116      0.201      1.731
+    3   fused-first          0.116      0.201      1.738
+    4   seq-first           0.116      0.201      1.734
+    5   fused-first          0.116      0.201      1.737
+    6   seq-first           0.116      0.201      1.733
+  best: sequential 0.116 ms (6.79 GMAC/s) | fused 0.201 ms (3.91 GMAC/s) | fused/seq 1.734
+
+--- TRI  M7 Q/K/V: outs [384, 384, 384] x in 384  (0.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.065      0.125      1.910
+    1   fused-first          0.065      0.125      1.913
+    2   seq-first           0.065      0.125      1.914
+    3   fused-first          0.065      0.125      1.910
+    4   seq-first           0.065      0.125      1.914
+    5   fused-first          0.065      0.125      1.911
+    6   seq-first           0.065      0.125      1.913
+  best: sequential 0.065 ms (6.78 GMAC/s) | fused 0.125 ms (3.54 GMAC/s) | fused/seq 1.912
+
+Reminder: single-thread kernel A/B; pool-split fusion is a separate question.
+--- fused_vs_sequential capture 3/3
+Fused dual/tri matvec vs sequential incumbent — same-binary interleaved A/B
+NOT A RESULT unless captured via scripts/capture-bench.sh on an idle, named machine.
+machine: Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+
+--- CLOCK STATE (bound to this run; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98342558        120000000     2.6783     1.220x
+    1          98227855        120000000     2.6814     1.222x
+    2          98246359        120000000     2.6809     1.221x
+    3          98176869        120000000     2.6828     1.222x
+    4          98289403        120000000     2.6797     1.221x
+    mean 2.6806 GHz | EFFECTIVE / NOMINAL = 1.221  <-- rescales every tick-derived figure
+
+--- DUAL BitNet-2B SwiGLU gate+up: outs [6912, 6912] x in 2560  (35.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           5.235      8.947      1.709
+    1   fused-first          5.138      8.970      1.746
+    2   seq-first           5.248      8.926      1.701
+    3   fused-first          5.138      8.941      1.740
+    4   seq-first           5.252      8.920      1.699
+    5   fused-first          5.194      8.943      1.722
+    6   seq-first           5.232      8.884      1.698
+  best: sequential 5.138 ms (6.89 GMAC/s) | fused 8.884 ms (3.98 GMAC/s) | fused/seq 1.729
+
+--- TRI  BitNet-2B Q/K/V (GQA): outs [2560, 640, 640] x in 2560  (9.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           1.457      1.924      1.320
+    1   fused-first          1.330      2.013      1.513
+    2   seq-first           1.399      1.947      1.392
+    3   fused-first          1.334      1.983      1.487
+    4   seq-first           1.398      1.943      1.390
+    5   fused-first          1.372      1.998      1.456
+    6   seq-first           1.429      1.920      1.344
+  best: sequential 1.330 ms (7.39 GMAC/s) | fused 1.920 ms (5.12 GMAC/s) | fused/seq 1.443
+
+--- DUAL M7 SwiGLU gate+up: outs [1024, 1024] x in 384  (0.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.116      0.201      1.734
+    1   fused-first          0.116      0.201      1.736
+    2   seq-first           0.116      0.201      1.736
+    3   fused-first          0.116      0.201      1.737
+    4   seq-first           0.116      0.201      1.735
+    5   fused-first          0.116      0.201      1.736
+    6   seq-first           0.116      0.201      1.735
+  best: sequential 0.116 ms (6.79 GMAC/s) | fused 0.201 ms (3.91 GMAC/s) | fused/seq 1.735
+
+--- TRI  M7 Q/K/V: outs [384, 384, 384] x in 384  (0.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.065      0.125      1.913
+    1   fused-first          0.065      0.125      1.914
+    2   seq-first           0.065      0.125      1.915
+    3   fused-first          0.065      0.125      1.912
+    4   seq-first           0.065      0.125      1.914
+    5   fused-first          0.065      0.125      1.912
+    6   seq-first           0.065      0.125      1.915
+  best: sequential 0.065 ms (6.78 GMAC/s) | fused 0.125 ms (3.54 GMAC/s) | fused/seq 1.914
+
+Reminder: single-thread kernel A/B; pool-split fusion is a separate question.
+--- bitplane_vs_lut capture 1/3
+Bitplane-dense tri-matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98458788        120000000     2.6751     1.219x
+    1          98273733        120000000     2.6802     1.221x
+    2          98218979        120000000     2.6817     1.222x
+    3          98301392        120000000     2.6794     1.221x
+    4          98315172        120000000     2.6790     1.221x
+  
+    mean 2.6791 GHz | min 2.6751 | max 2.6817 | spread 0.244%
+    EFFECTIVE / NOMINAL = 1.221  <-- the factor that rescales every derived figure
+
+pack_bitplanes (one-time, at model load): 109.0 ms for this tensor
+  layout memory: 2211840 bytes/plane x 2 = 4423680 bytes (vs 4423680 packed) -- both 2 bits/weight
+
+gate: variant(i) byte-identical to incumbent ........ true
+gate: variant(ii) byte-identical to scalar-dual ref .. true
+
+incumbent LUT+FMA matvec :    2.37 ms  ( 7.46 GMAC/s)  [engine decode kernel]
+bitplane (i) ordered     :    5.98 ms  ( 2.96 GMAC/s)  = 0.40x incumbent
+bitplane (ii) dual-acc   :    5.78 ms  ( 3.06 GMAC/s)  = 0.41x incumbent
+post-timing gates hold: true
+--- bitplane_vs_lut capture 2/3
+Bitplane-dense tri-matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98898645        120000000     2.6632     1.213x
+    1          98227885        120000000     2.6814     1.222x
+    2         114569209        120000000     2.2990     1.047x
+    3          98236391        120000000     2.6812     1.222x
+    4         113738689        120000000     2.3157     1.055x
+  
+    mean 2.5281 GHz | min 2.2990 | max 2.6814 | spread 15.128%
+    EFFECTIVE / NOMINAL = 1.152  <-- the factor that rescales every derived figure
+
+pack_bitplanes (one-time, at model load): 120.5 ms for this tensor
+  layout memory: 2211840 bytes/plane x 2 = 4423680 bytes (vs 4423680 packed) -- both 2 bits/weight
+
+gate: variant(i) byte-identical to incumbent ........ true
+gate: variant(ii) byte-identical to scalar-dual ref .. true
+
+incumbent LUT+FMA matvec :    2.88 ms  ( 6.15 GMAC/s)  [engine decode kernel]
+bitplane (i) ordered     :    7.24 ms  ( 2.44 GMAC/s)  = 0.40x incumbent
+bitplane (ii) dual-acc   :    7.05 ms  ( 2.51 GMAC/s)  = 0.41x incumbent
+post-timing gates hold: true
+--- bitplane_vs_lut capture 3/3
+Bitplane-dense tri-matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0         120064376        120000000     2.1937     0.999x
+    1         120048600        120000000     2.1940     1.000x
+    2         120047628        120000000     2.1940     1.000x
+    3         120060128        120000000     2.1938     0.999x
+    4         140459156        120000000     1.8752     0.854x
+  
+    mean 2.1302 GHz | min 1.8752 | max 2.1940 | spread 14.968%
+    EFFECTIVE / NOMINAL = 0.971  <-- the factor that rescales every derived figure
+
+pack_bitplanes (one-time, at model load): 112.3 ms for this tensor
+  layout memory: 2211840 bytes/plane x 2 = 4423680 bytes (vs 4423680 packed) -- both 2 bits/weight
+
+gate: variant(i) byte-identical to incumbent ........ true
+gate: variant(ii) byte-identical to scalar-dual ref .. true
+
+incumbent LUT+FMA matvec :    2.37 ms  ( 7.47 GMAC/s)  [engine decode kernel]
+bitplane (i) ordered     :    5.99 ms  ( 2.95 GMAC/s)  = 0.40x incumbent
+bitplane (ii) dual-acc   :    5.77 ms  ( 3.07 GMAC/s)  = 0.41x incumbent
+post-timing gates hold: true
+--- colskip_vs_incumbent capture 1/3
+ReLU^2 column-skip matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary, down_proj shape)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98513903        120000000     2.6736     1.218x
+    1          98233823        120000000     2.6813     1.222x
+    2          98131113        120000000     2.6841     1.223x
+    3          98189647        120000000     2.6825     1.222x
+    4          98245363        120000000     2.6809     1.221x
+  
+    mean 2.6805 GHz | min 2.6736 | max 2.6841 | spread 0.389%
+    EFFECTIVE / NOMINAL = 1.221  <-- the factor that rescales every derived figure
+
+pack_colmajor (one-time, at model load): 73.6 ms for this tensor
+  layout memory: 4423680 bytes column-major (vs 4423680 row-major) -- both 2 bits/weight;
+  a skipped column skips 640 contiguous bytes of weight traffic
+
+=== REAL vectors: 94 captured down_proj inputs, mean z = 0.7927 (A15 pooled mean was 0.7888) ===
+gate: ordered==incumbent and chain==mirror on all 94 vectors .. true
+  (totals over 94 matvecs, best-of-5)
+  incumbent LUT+FMA        :   226.435 ms  ( 7.35 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :    78.411 ms  (21.21 GMAC/s nominal)  = 2.89x incumbent
+  colskip chain (mirror-pin):   80.769 ms  (20.59 GMAC/s nominal)  = 2.80x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.000 (actual 0.0000, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.940 ms  ( 6.02 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     4.271 ms  ( 4.14 GMAC/s nominal)  = 0.69x incumbent
+  colskip chain (mirror-pin):    4.540 ms  ( 3.90 GMAC/s nominal)  = 0.65x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.500 (actual 0.5111, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.934 ms  ( 6.03 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     2.225 ms  ( 7.95 GMAC/s nominal)  = 1.32x incumbent
+  colskip chain (mirror-pin):    2.320 ms  ( 7.63 GMAC/s nominal)  = 1.26x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.789 (actual 0.7863, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.956 ms  ( 5.99 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     1.049 ms  (16.86 GMAC/s nominal)  = 2.82x incumbent
+  colskip chain (mirror-pin):    1.023 ms  (17.29 GMAC/s nominal)  = 2.89x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.900 (actual 0.8990, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.910 ms  ( 6.08 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.493 ms  (35.89 GMAC/s nominal)  = 5.90x incumbent
+  colskip chain (mirror-pin):    0.499 ms  (35.46 GMAC/s nominal)  = 5.83x incumbent
+  post-timing gates hold: true
+
+--- colskip_vs_incumbent capture 2/3
+ReLU^2 column-skip matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary, down_proj shape)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0         120038700        120000000     2.1942     1.000x
+    1         120044076        120000000     2.1941     1.000x
+    2         120054292        120000000     2.1939     1.000x
+    3         120039920        120000000     2.1942     1.000x
+    4         100656477        120000000     2.6167     1.192x
+  
+    mean 2.2786 GHz | min 2.1939 | max 2.6167 | spread 18.555%
+    EFFECTIVE / NOMINAL = 1.038  <-- the factor that rescales every derived figure
+
+pack_colmajor (one-time, at model load): 73.2 ms for this tensor
+  layout memory: 4423680 bytes column-major (vs 4423680 row-major) -- both 2 bits/weight;
+  a skipped column skips 640 contiguous bytes of weight traffic
+
+=== REAL vectors: 94 captured down_proj inputs, mean z = 0.7927 (A15 pooled mean was 0.7888) ===
+gate: ordered==incumbent and chain==mirror on all 94 vectors .. true
+  (totals over 94 matvecs, best-of-5)
+  incumbent LUT+FMA        :   226.798 ms  ( 7.33 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :    78.375 ms  (21.22 GMAC/s nominal)  = 2.89x incumbent
+  colskip chain (mirror-pin):   81.028 ms  (20.53 GMAC/s nominal)  = 2.80x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.000 (actual 0.0000, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.939 ms  ( 6.02 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     4.286 ms  ( 4.13 GMAC/s nominal)  = 0.69x incumbent
+  colskip chain (mirror-pin):    4.539 ms  ( 3.90 GMAC/s nominal)  = 0.65x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.500 (actual 0.5111, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.936 ms  ( 6.03 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     2.221 ms  ( 7.97 GMAC/s nominal)  = 1.32x incumbent
+  colskip chain (mirror-pin):    2.321 ms  ( 7.62 GMAC/s nominal)  = 1.27x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.789 (actual 0.7863, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.958 ms  ( 5.98 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     1.033 ms  (17.13 GMAC/s nominal)  = 2.86x incumbent
+  colskip chain (mirror-pin):    1.023 ms  (17.30 GMAC/s nominal)  = 2.89x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.900 (actual 0.8990, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.418 ms  ( 7.32 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.436 ms  (40.59 GMAC/s nominal)  = 5.55x incumbent
+  colskip chain (mirror-pin):    0.404 ms  (43.79 GMAC/s nominal)  = 5.98x incumbent
+  post-timing gates hold: true
+
+--- colskip_vs_incumbent capture 3/3
+ReLU^2 column-skip matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary, down_proj shape)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98439704        120000000     2.6756     1.219x
+    1          98183596        120000000     2.6826     1.222x
+    2          98132199        120000000     2.6840     1.223x
+    3          98078591        120000000     2.6855     1.224x
+    4          98140947        120000000     2.6838     1.223x
+  
+    mean 2.6823 GHz | min 2.6756 | max 2.6855 | spread 0.367%
+    EFFECTIVE / NOMINAL = 1.222  <-- the factor that rescales every derived figure
+
+pack_colmajor (one-time, at model load): 73.3 ms for this tensor
+  layout memory: 4423680 bytes column-major (vs 4423680 row-major) -- both 2 bits/weight;
+  a skipped column skips 640 contiguous bytes of weight traffic
+
+=== REAL vectors: 94 captured down_proj inputs, mean z = 0.7927 (A15 pooled mean was 0.7888) ===
+gate: ordered==incumbent and chain==mirror on all 94 vectors .. true
+  (totals over 94 matvecs, best-of-5)
+  incumbent LUT+FMA        :   226.549 ms  ( 7.34 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :    78.278 ms  (21.25 GMAC/s nominal)  = 2.89x incumbent
+  colskip chain (mirror-pin):   80.885 ms  (20.56 GMAC/s nominal)  = 2.80x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.000 (actual 0.0000, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.929 ms  ( 6.04 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     4.268 ms  ( 4.15 GMAC/s nominal)  = 0.69x incumbent
+  colskip chain (mirror-pin):    4.565 ms  ( 3.88 GMAC/s nominal)  = 0.64x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.500 (actual 0.5111, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.930 ms  ( 6.04 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     2.223 ms  ( 7.96 GMAC/s nominal)  = 1.32x incumbent
+  colskip chain (mirror-pin):    2.341 ms  ( 7.56 GMAC/s nominal)  = 1.25x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.789 (actual 0.7863, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.413 ms  ( 7.33 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.839 ms  (21.08 GMAC/s nominal)  = 2.87x incumbent
+  colskip chain (mirror-pin):    0.865 ms  (20.45 GMAC/s nominal)  = 2.79x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.900 (actual 0.8990, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.399 ms  ( 7.37 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.413 ms  (42.80 GMAC/s nominal)  = 5.80x incumbent
+  colskip chain (mirror-pin):    0.420 ms  (42.18 GMAC/s nominal)  = 5.72x incumbent
+  post-timing gates hold: true
+
+==== KERNEL A/B DONE ====

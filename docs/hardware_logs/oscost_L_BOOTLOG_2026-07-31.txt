@@ -1,0 +1,1911 @@
+
+==== AEGIS MINIMAL-LINUX ARM ====
+boot_utc_unavailable_rtc: Sat Aug  1 00:13:21 UTC 2026
+kernel : Linux 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20)
+cmdline: console=ttyS0,115200 console=tty0 rdinit=/init mitigations=off quiet loglevel=4
+cpu    :  Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+cpus_on: 4
+governor: performance
+cur_freq: 2194813 kHz
+loadavg : 0.08 0.02 0.01 1/92 212
+cpu0 msr 0x1fc = 0x000000000004005c
+cpu1 msr 0x1fc = 0x000000000004005c
+cpu2 msr 0x1fc = 0x000000000004005c
+cpu3 msr 0x1fc = 0x000000000004005c
+cpu0 msr 0x198 = 0x00001f5a00001800
+cpu1 msr 0x198 = 0x00001f6a00001800
+cpu2 msr 0x198 = 0x00001f5a00001800
+cpu3 msr 0x198 = 0x00001f6a00001800
+==== GAUNTLET (Linux arm) ====
+--- L1 fresh-process run 1/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5834377
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (371.60 tok/s incl. prefill)
+Prefill 4 tokens in 8722427 cycles (2180606 cycles/token)
+Decode 64 tokens in 0.170 s (376.13 tok/s decode-only)
+--- L1 fresh-process run 2/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5805075
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.40 tok/s incl. prefill)
+Prefill 4 tokens in 8765216 cycles (2191304 cycles/token)
+Decode 64 tokens in 0.169 s (378.03 tok/s decode-only)
+--- L1 fresh-process run 3/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5807815
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.02 tok/s incl. prefill)
+Prefill 4 tokens in 8972893 cycles (2243223 cycles/token)
+Decode 64 tokens in 0.169 s (377.85 tok/s decode-only)
+--- L1 fresh-process run 4/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5801032
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.47 tok/s incl. prefill)
+Prefill 4 tokens in 8945091 cycles (2236272 cycles/token)
+Decode 64 tokens in 0.169 s (378.29 tok/s decode-only)
+--- L1 fresh-process run 5/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5806733
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.27 tok/s incl. prefill)
+Prefill 4 tokens in 8795003 cycles (2198750 cycles/token)
+Decode 64 tokens in 0.169 s (377.92 tok/s decode-only)
+--- L1 fresh-process run 6/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5815470
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (372.65 tok/s incl. prefill)
+Prefill 4 tokens in 8796619 cycles (2199154 cycles/token)
+Decode 64 tokens in 0.170 s (377.36 tok/s decode-only)
+--- L1 fresh-process run 7/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5808320
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.12 tok/s incl. prefill)
+Prefill 4 tokens in 8828833 cycles (2207208 cycles/token)
+Decode 64 tokens in 0.169 s (377.82 tok/s decode-only)
+--- L2 in-process n=20
+iter,decode_cyc_per_tok,decode_total_cyc,decode_steps,prefill_cyc,out_hash
+0,5655539,361954532,64,8561687,7aed346907e42110
+1,5633846,360566200,64,8484966,7aed346907e42110
+2,5631074,360388750,64,8464213,7aed346907e42110
+3,5628478,360222645,64,8617458,7aed346907e42110
+4,5630650,360361660,64,8455590,7aed346907e42110
+5,5628941,360252256,64,8468856,7aed346907e42110
+6,5630824,360372790,64,8465594,7aed346907e42110
+7,6844479,438046672,64,8379782,7aed346907e42110
+8,5965830,381813173,64,8394144,7aed346907e42110
+9,5632725,360494416,64,8462104,7aed346907e42110
+10,5633879,360568278,64,8461027,7aed346907e42110
+11,5693539,364386525,64,8441500,7aed346907e42110
+12,6638470,424862092,64,10166244,7aed346907e42110
+13,6632152,424457772,64,10157160,7aed346907e42110
+14,6955498,445151904,64,10161164,7aed346907e42110
+15,6681184,427595828,64,10156248,7aed346907e42110
+16,6574888,420792847,64,10157056,7aed346907e42110
+17,5629824,360308752,64,8385265,7aed346907e42110
+18,5630491,360351478,64,8449214,7aed346907e42110
+19,5632282,360466069,64,8459716,7aed346907e42110
+--- L3 prompt: "hello alice"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: hello alice
+[SYSTEM] Analyzing 3 tokens...
+, and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+
+[PERFORMANCE] Average Cycles/Token: 5923925
+
+
+Final Full Response: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+Generated 85 tokens
+Wall time 0.234 s (363.01 tok/s incl. prefill)
+Prefill 3 tokens in 8161162 cycles (2720387 cycles/token)
+Decode 84 tokens in 0.230 s (365.76 tok/s decode-only)
+--- L3 prompt: "how are you today?"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: how are you today?
+[SYSTEM] Analyzing 6 tokens...
+ Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+
+[PERFORMANCE] Average Cycles/Token: 6815914
+
+
+Final Full Response:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+Generated 257 tokens
+Wall time 0.801 s (320.82 tok/s incl. prefill)
+Prefill 6 tokens in 11552164 cycles (1925360 cycles/token)
+Decode 256 tokens in 0.795 s (322.01 tok/s decode-only)
+--- L3 prompt: "continue"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: continue
+[SYSTEM] Analyzing 4 tokens...
+.
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+
+[PERFORMANCE] Average Cycles/Token: 6558099
+
+
+Final Full Response: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+Generated 214 tokens
+Wall time 0.645 s (331.86 tok/s incl. prefill)
+Prefill 4 tokens in 8890746 cycles (2222686 cycles/token)
+Decode 213 tokens in 0.640 s (332.82 tok/s decode-only)
+==== GAUNTLET DONE ====
+final cur_freq: 2520271 kHz
+
+==== AEGIS MINIMAL-LINUX ARM ====
+boot_utc_unavailable_rtc: Sat Aug  1 00:37:59 UTC 2026
+kernel : Linux 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20)
+cmdline: console=ttyS0,115200 console=tty0 rdinit=/init mitigations=off quiet loglevel=4
+cpu    :  Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+cpus_on: 4
+governor: performance
+cur_freq: 2195181 kHz
+loadavg : 0.08 0.02 0.01 1/87 207
+cpu0 msr 0x1fc = 0x000000000004005c
+cpu1 msr 0x1fc = 0x000000000004005c
+cpu2 msr 0x1fc = 0x000000000004005c
+cpu3 msr 0x1fc = 0x000000000004005c
+cpu0 msr 0x198 = 0x00001d7e00001600
+cpu1 msr 0x198 = 0x00001d8500001600
+cpu2 msr 0x198 = 0x00001d7e00001600
+cpu3 msr 0x198 = 0x00001d8500001600
+==== GAUNTLET (Linux arm) ====
+--- L1 fresh-process run 1/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5801051
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.75 tok/s incl. prefill)
+Prefill 4 tokens in 8666188 cycles (2166547 cycles/token)
+Decode 64 tokens in 0.169 s (378.29 tok/s decode-only)
+--- L1 fresh-process run 2/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5832251
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (371.47 tok/s incl. prefill)
+Prefill 4 tokens in 8821348 cycles (2205337 cycles/token)
+Decode 64 tokens in 0.170 s (376.26 tok/s decode-only)
+--- L1 fresh-process run 3/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5814323
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (372.77 tok/s incl. prefill)
+Prefill 4 tokens in 8838328 cycles (2209582 cycles/token)
+Decode 64 tokens in 0.170 s (377.43 tok/s decode-only)
+--- L1 fresh-process run 4/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5797127
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.84 tok/s incl. prefill)
+Prefill 4 tokens in 8834478 cycles (2208619 cycles/token)
+Decode 64 tokens in 0.169 s (378.54 tok/s decode-only)
+--- L1 fresh-process run 5/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5793321
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.99 tok/s incl. prefill)
+Prefill 4 tokens in 8921522 cycles (2230380 cycles/token)
+Decode 64 tokens in 0.169 s (378.79 tok/s decode-only)
+--- L1 fresh-process run 6/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5805798
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.25 tok/s incl. prefill)
+Prefill 4 tokens in 8855373 cycles (2213843 cycles/token)
+Decode 64 tokens in 0.169 s (377.97 tok/s decode-only)
+--- L1 fresh-process run 7/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5815980
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (372.69 tok/s incl. prefill)
+Prefill 4 tokens in 8782689 cycles (2195672 cycles/token)
+Decode 64 tokens in 0.170 s (377.31 tok/s decode-only)
+--- L2 in-process n=20
+iter,decode_cyc_per_tok,decode_total_cyc,decode_steps,prefill_cyc,out_hash
+0,5646765,361392985,64,8529351,7aed346907e42110
+1,5617852,359542541,64,8396122,7aed346907e42110
+2,5611464,359133710,64,8400592,7aed346907e42110
+3,6875044,440002825,64,8393850,7aed346907e42110
+4,5987689,383212122,64,8413686,7aed346907e42110
+5,5871490,375775403,64,8393285,7aed346907e42110
+6,6636788,424754476,64,10160156,7aed346907e42110
+7,6634026,424577688,64,10156212,7aed346907e42110
+8,6635733,424686952,64,10176924,7aed346907e42110
+9,6977297,446547036,64,10171724,7aed346907e42110
+10,6515412,416986411,64,10198652,7aed346907e42110
+11,5643812,361203968,64,8671283,7aed346907e42110
+12,5642860,361143061,64,8405745,7aed346907e42110
+13,5644193,361228358,64,8382425,7aed346907e42110
+14,5645629,361320257,64,8391811,7aed346907e42110
+15,5648747,361519838,64,8391322,7aed346907e42110
+16,5642779,361137912,64,8385034,7aed346907e42110
+17,5643889,361208920,64,8385226,7aed346907e42110
+18,5641338,361045673,64,8379666,7aed346907e42110
+19,5642547,361123060,64,8396526,7aed346907e42110
+--- L3 prompt: "hello alice"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: hello alice
+[SYSTEM] Analyzing 3 tokens...
+, and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+
+[PERFORMANCE] Average Cycles/Token: 5918392
+
+
+Final Full Response: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+Generated 85 tokens
+Wall time 0.234 s (363.14 tok/s incl. prefill)
+Prefill 3 tokens in 8330532 cycles (2776844 cycles/token)
+Decode 84 tokens in 0.229 s (366.02 tok/s decode-only)
+--- L3 prompt: "how are you today?"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: how are you today?
+[SYSTEM] Analyzing 6 tokens...
+ Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+
+[PERFORMANCE] Average Cycles/Token: 6828899
+
+
+Final Full Response:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+Generated 257 tokens
+Wall time 0.803 s (320.19 tok/s incl. prefill)
+Prefill 6 tokens in 11586092 cycles (1931015 cycles/token)
+Decode 256 tokens in 0.797 s (321.40 tok/s decode-only)
+--- L3 prompt: "continue"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: continue
+[SYSTEM] Analyzing 4 tokens...
+.
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+
+[PERFORMANCE] Average Cycles/Token: 6611573
+
+
+Final Full Response: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+Generated 214 tokens
+Wall time 0.650 s (329.14 tok/s incl. prefill)
+Prefill 4 tokens in 8925894 cycles (2231473 cycles/token)
+Decode 213 tokens in 0.645 s (330.16 tok/s decode-only)
+==== GAUNTLET DONE ====
+final cur_freq: 2692191 kHz
+
+==== AEGIS MINIMAL-LINUX ARM ====
+boot_utc_unavailable_rtc: Sat Aug  1 00:39:49 UTC 2026
+kernel : Linux 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20)
+cmdline: console=ttyS0,115200 console=tty0 rdinit=/init mitigations=off quiet loglevel=4
+cpu    :  Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+cpus_on: 4
+governor: performance
+cur_freq: 2095075 kHz
+loadavg : 0.08 0.02 0.01 1/88 208
+cpu0 msr 0x1fc = 0x000000000004005c
+cpu1 msr 0x1fc = 0x000000000004005c
+cpu2 msr 0x1fc = 0x000000000004005c
+cpu3 msr 0x1fc = 0x000000000004005c
+cpu0 msr 0x198 = 0x00001ceb00001500
+cpu1 msr 0x198 = 0x00001cf000001500
+cpu2 msr 0x198 = 0x00001ceb00001500
+cpu3 msr 0x198 = 0x00001cf000001500
+==== GAUNTLET (Linux arm) ====
+--- L1 fresh-process run 1/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7064930
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.212 s (306.73 tok/s incl. prefill)
+Prefill 4 tokens in 11011368 cycles (2752842 cycles/token)
+Decode 64 tokens in 0.206 s (310.64 tok/s decode-only)
+--- L1 fresh-process run 2/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7028153
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.211 s (308.04 tok/s incl. prefill)
+Prefill 4 tokens in 11434884 cycles (2858721 cycles/token)
+Decode 64 tokens in 0.205 s (312.26 tok/s decode-only)
+--- L1 fresh-process run 3/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7089288
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.213 s (305.57 tok/s incl. prefill)
+Prefill 4 tokens in 11258576 cycles (2814644 cycles/token)
+Decode 64 tokens in 0.207 s (309.57 tok/s decode-only)
+--- L1 fresh-process run 4/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7030537
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.211 s (308.16 tok/s incl. prefill)
+Prefill 4 tokens in 11053340 cycles (2763335 cycles/token)
+Decode 64 tokens in 0.205 s (312.16 tok/s decode-only)
+--- L1 fresh-process run 5/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7019829
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.211 s (308.77 tok/s incl. prefill)
+Prefill 4 tokens in 10850464 cycles (2712616 cycles/token)
+Decode 64 tokens in 0.205 s (312.63 tok/s decode-only)
+--- L1 fresh-process run 6/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7031449
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.211 s (308.28 tok/s incl. prefill)
+Prefill 4 tokens in 10859452 cycles (2714863 cycles/token)
+Decode 64 tokens in 0.205 s (312.12 tok/s decode-only)
+--- L1 fresh-process run 7/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7022911
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.211 s (308.64 tok/s incl. prefill)
+Prefill 4 tokens in 10868748 cycles (2717187 cycles/token)
+Decode 64 tokens in 0.205 s (312.50 tok/s decode-only)
+--- L2 in-process n=20
+iter,decode_cyc_per_tok,decode_total_cyc,decode_steps,prefill_cyc,out_hash
+0,6898963,441533680,64,11103520,7aed346907e42110
+1,6882201,440460900,64,10660988,7aed346907e42110
+2,6881073,440388700,64,10689812,7aed346907e42110
+3,6880855,440374724,64,10678000,7aed346907e42110
+4,6882932,440507656,64,10708252,7aed346907e42110
+5,6881975,440446452,64,10661612,7aed346907e42110
+6,6881697,440428628,64,10669032,7aed346907e42110
+7,6881499,440415956,64,10668592,7aed346907e42110
+8,8102106,518534784,64,10667672,7aed346907e42110
+9,7234842,463029924,64,10676256,7aed346907e42110
+10,6911273,442321500,64,10683564,7aed346907e42110
+11,6910684,442283784,64,10667816,7aed346907e42110
+12,6913577,442468948,64,10665004,7aed346907e42110
+13,6912192,442380308,64,10659036,7aed346907e42110
+14,7284346,466198188,64,10688208,7aed346907e42110
+15,6913529,442465860,64,10716824,7aed346907e42110
+16,6926846,443318164,64,10660116,7aed346907e42110
+17,6914908,442554172,64,10689652,7aed346907e42110
+18,6922610,443047040,64,10698208,7aed346907e42110
+19,6914164,442506508,64,10665304,7aed346907e42110
+--- L3 prompt: "hello alice"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: hello alice
+[SYSTEM] Analyzing 3 tokens...
+, and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+
+[PERFORMANCE] Average Cycles/Token: 7154629
+
+
+Final Full Response: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+Generated 85 tokens
+Wall time 0.283 s (300.60 tok/s incl. prefill)
+Prefill 3 tokens in 10048832 cycles (3349610 cycles/token)
+Decode 84 tokens in 0.277 s (302.89 tok/s decode-only)
+--- L3 prompt: "how are you today?"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: how are you today?
+[SYSTEM] Analyzing 6 tokens...
+ Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+
+[PERFORMANCE] Average Cycles/Token: 8283115
+
+
+Final Full Response:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+Generated 257 tokens
+Wall time 0.974 s (263.98 tok/s incl. prefill)
+Prefill 6 tokens in 14452136 cycles (2408689 cycles/token)
+Decode 256 tokens in 0.966 s (264.97 tok/s decode-only)
+--- L3 prompt: "continue"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: continue
+[SYSTEM] Analyzing 4 tokens...
+.
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+
+[PERFORMANCE] Average Cycles/Token: 8016232
+
+
+Final Full Response: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+Generated 214 tokens
+Wall time 0.788 s (271.56 tok/s incl. prefill)
+Prefill 4 tokens in 10906184 cycles (2726546 cycles/token)
+Decode 213 tokens in 0.782 s (272.30 tok/s decode-only)
+==== GAUNTLET DONE ====
+final cur_freq: 2095051 kHz
+
+==== AEGIS MINIMAL-LINUX ARM ====
+boot_utc_unavailable_rtc: Sat Aug  1 00:41:49 UTC 2026
+kernel : Linux 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20)
+cmdline: console=ttyS0,115200 console=tty0 rdinit=/init mitigations=off quiet loglevel=4
+cpu    :  Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+cpus_on: 4
+governor: performance
+cur_freq: 2262547 kHz
+loadavg : 0.08 0.02 0.01 1/88 208
+cpu0 msr 0x1fc = 0x000000000004005c
+cpu1 msr 0x1fc = 0x000000000004005c
+cpu2 msr 0x1fc = 0x000000000004005c
+cpu3 msr 0x1fc = 0x000000000004005c
+cpu0 msr 0x198 = 0x00001d7e00001600
+cpu1 msr 0x198 = 0x00001d6000001600
+cpu2 msr 0x198 = 0x00001d7e00001600
+cpu3 msr 0x198 = 0x00001d6000001600
+==== GAUNTLET (Linux arm) ====
+--- L1 fresh-process run 1/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5791261
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (374.42 tok/s incl. prefill)
+Prefill 4 tokens in 8633774 cycles (2158443 cycles/token)
+Decode 64 tokens in 0.169 s (378.94 tok/s decode-only)
+--- L1 fresh-process run 2/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6718323
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.201 s (323.85 tok/s incl. prefill)
+Prefill 4 tokens in 8719929 cycles (2179982 cycles/token)
+Decode 64 tokens in 0.196 s (326.65 tok/s decode-only)
+--- L1 fresh-process run 3/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7439783
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.223 s (292.12 tok/s incl. prefill)
+Prefill 4 tokens in 10382576 cycles (2595644 cycles/token)
+Decode 64 tokens in 0.217 s (294.99 tok/s decode-only)
+--- L1 fresh-process run 4/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6745144
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.202 s (321.27 tok/s incl. prefill)
+Prefill 4 tokens in 10492208 cycles (2623052 cycles/token)
+Decode 64 tokens in 0.197 s (325.37 tok/s decode-only)
+--- L1 fresh-process run 5/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6757956
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.203 s (320.74 tok/s incl. prefill)
+Prefill 4 tokens in 10331520 cycles (2582880 cycles/token)
+Decode 64 tokens in 0.197 s (324.75 tok/s decode-only)
+--- L1 fresh-process run 6/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6732594
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.202 s (321.86 tok/s incl. prefill)
+Prefill 4 tokens in 10479008 cycles (2619752 cycles/token)
+Decode 64 tokens in 0.196 s (325.97 tok/s decode-only)
+--- L1 fresh-process run 7/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6744065
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.202 s (321.33 tok/s incl. prefill)
+Prefill 4 tokens in 10495828 cycles (2623957 cycles/token)
+Decode 64 tokens in 0.197 s (325.42 tok/s decode-only)
+--- L2 in-process n=20
+iter,decode_cyc_per_tok,decode_total_cyc,decode_steps,prefill_cyc,out_hash
+0,6680167,427530732,64,30389716,7aed346907e42110
+1,6617846,423542164,64,10154248,7aed346907e42110
+2,6617997,423551820,64,10182924,7aed346907e42110
+3,6617041,423490636,64,10163040,7aed346907e42110
+4,5853264,374608911,64,10153284,7aed346907e42110
+5,5621931,359803624,64,8399555,7aed346907e42110
+6,5620608,359718926,64,8403575,7aed346907e42110
+7,5621579,359781084,64,8399090,7aed346907e42110
+8,5622652,359849783,64,8453055,7aed346907e42110
+9,5620576,359716911,64,8477589,7aed346907e42110
+10,5619426,359643283,64,8450533,7aed346907e42110
+11,5621210,359757472,64,8448340,7aed346907e42110
+12,5620641,359721076,64,8454369,7aed346907e42110
+13,5621117,359751505,64,8442930,7aed346907e42110
+14,5623778,359921850,64,8444532,7aed346907e42110
+15,5618635,359592695,64,8430115,7aed346907e42110
+16,5619970,359678120,64,8437136,7aed346907e42110
+17,5624328,359957054,64,8468016,7aed346907e42110
+18,5621882,359800508,64,8518950,7aed346907e42110
+19,5624147,359945413,64,8525100,7aed346907e42110
+--- L3 prompt: "hello alice"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: hello alice
+[SYSTEM] Analyzing 3 tokens...
+, and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+
+[PERFORMANCE] Average Cycles/Token: 6003583
+
+
+Final Full Response: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+Generated 85 tokens
+Wall time 0.237 s (358.37 tok/s incl. prefill)
+Prefill 3 tokens in 8234324 cycles (2744774 cycles/token)
+Decode 84 tokens in 0.233 s (361.04 tok/s decode-only)
+--- L3 prompt: "how are you today?"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: how are you today?
+[SYSTEM] Analyzing 6 tokens...
+ Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+
+[PERFORMANCE] Average Cycles/Token: 7238251
+
+
+Final Full Response:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+Generated 257 tokens
+Wall time 0.850 s (302.25 tok/s incl. prefill)
+Prefill 6 tokens in 11543324 cycles (1923887 cycles/token)
+Decode 256 tokens in 0.844 s (303.22 tok/s decode-only)
+--- L3 prompt: "continue"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: continue
+[SYSTEM] Analyzing 4 tokens...
+.
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+
+[PERFORMANCE] Average Cycles/Token: 7448760
+
+
+Final Full Response: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+Generated 214 tokens
+Wall time 0.732 s (292.41 tok/s incl. prefill)
+Prefill 4 tokens in 8814972 cycles (2203743 cycles/token)
+Decode 213 tokens in 0.727 s (292.96 tok/s decode-only)
+==== GAUNTLET DONE ====
+final cur_freq: 2196556 kHz
+
+==== AEGIS MINIMAL-LINUX ARM ====
+boot_utc_unavailable_rtc: Sat Aug  1 00:43:54 UTC 2026
+kernel : Linux 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20)
+cmdline: console=ttyS0,115200 console=tty0 rdinit=/init mitigations=off quiet loglevel=4
+cpu    :  Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+cpus_on: 4
+governor: performance
+cur_freq: 2195034 kHz
+loadavg : 0.08 0.02 0.01 1/88 202
+cpu0 msr 0x1fc = 0x000000000004005c
+cpu1 msr 0x1fc = 0x000000000004005c
+cpu2 msr 0x1fc = 0x000000000004005c
+cpu3 msr 0x1fc = 0x000000000004005c
+cpu0 msr 0x198 = 0x00001d7e00001600
+cpu1 msr 0x198 = 0x00001d6000001600
+cpu2 msr 0x198 = 0x00001d7e00001600
+cpu3 msr 0x198 = 0x00001d6000001600
+==== GAUNTLET (Linux arm) ====
+--- L1 fresh-process run 1/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5826607
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (372.14 tok/s incl. prefill)
+Prefill 4 tokens in 8673362 cycles (2168340 cycles/token)
+Decode 64 tokens in 0.170 s (376.63 tok/s decode-only)
+--- L1 fresh-process run 2/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5807648
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.23 tok/s incl. prefill)
+Prefill 4 tokens in 8766979 cycles (2191744 cycles/token)
+Decode 64 tokens in 0.169 s (377.86 tok/s decode-only)
+--- L1 fresh-process run 3/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5797166
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.78 tok/s incl. prefill)
+Prefill 4 tokens in 8848482 cycles (2212120 cycles/token)
+Decode 64 tokens in 0.169 s (378.51 tok/s decode-only)
+--- L1 fresh-process run 4/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5839207
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (371.14 tok/s incl. prefill)
+Prefill 4 tokens in 8922700 cycles (2230675 cycles/token)
+Decode 64 tokens in 0.170 s (375.81 tok/s decode-only)
+--- L1 fresh-process run 5/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5799352
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.61 tok/s incl. prefill)
+Prefill 4 tokens in 8911951 cycles (2227987 cycles/token)
+Decode 64 tokens in 0.169 s (378.40 tok/s decode-only)
+--- L1 fresh-process run 6/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5832888
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (371.33 tok/s incl. prefill)
+Prefill 4 tokens in 8879112 cycles (2219778 cycles/token)
+Decode 64 tokens in 0.170 s (376.22 tok/s decode-only)
+--- L1 fresh-process run 7/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5799948
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.44 tok/s incl. prefill)
+Prefill 4 tokens in 9038231 cycles (2259557 cycles/token)
+Decode 64 tokens in 0.169 s (378.36 tok/s decode-only)
+--- L2 in-process n=20
+iter,decode_cyc_per_tok,decode_total_cyc,decode_steps,prefill_cyc,out_hash
+0,5641187,361036026,64,8657094,7aed346907e42110
+1,5617521,359521344,64,8540430,7aed346907e42110
+2,5615858,359414932,64,8486674,7aed346907e42110
+3,5612674,359211140,64,8487063,7aed346907e42110
+4,5614813,359348055,64,8481740,7aed346907e42110
+5,5637166,360778644,64,8492164,7aed346907e42110
+6,5648793,361522791,64,8481146,7aed346907e42110
+7,6522447,417436671,64,8484244,7aed346907e42110
+8,7155452,457948934,64,8407809,7aed346907e42110
+9,6645753,425328220,64,10203340,7aed346907e42110
+10,6646551,425379320,64,10172400,7aed346907e42110
+11,6646413,425370452,64,10181396,7aed346907e42110
+12,6645075,425284820,64,10194248,7aed346907e42110
+13,6968845,446006120,64,10164024,7aed346907e42110
+14,6695504,428512272,64,10174480,7aed346907e42110
+15,6644796,425266972,64,10205096,7aed346907e42110
+16,6645448,425308672,64,10166020,7aed346907e42110
+17,6645469,425310028,64,10170616,7aed346907e42110
+18,5715925,365819209,64,10191156,7aed346907e42110
+19,5665337,362581581,64,8399518,7aed346907e42110
+--- L3 prompt: "hello alice"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: hello alice
+[SYSTEM] Analyzing 3 tokens...
+, and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+
+[PERFORMANCE] Average Cycles/Token: 5901895
+
+
+Final Full Response: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+Generated 85 tokens
+Wall time 0.233 s (364.33 tok/s incl. prefill)
+Prefill 3 tokens in 8180356 cycles (2726785 cycles/token)
+Decode 84 tokens in 0.229 s (367.13 tok/s decode-only)
+--- L3 prompt: "how are you today?"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: how are you today?
+[SYSTEM] Analyzing 6 tokens...
+ Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+
+[PERFORMANCE] Average Cycles/Token: 6851296
+
+
+Final Full Response:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+Generated 257 tokens
+Wall time 0.805 s (319.18 tok/s incl. prefill)
+Prefill 6 tokens in 11449547 cycles (1908257 cycles/token)
+Decode 256 tokens in 0.799 s (320.34 tok/s decode-only)
+--- L3 prompt: "continue"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: continue
+[SYSTEM] Analyzing 4 tokens...
+.
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+
+[PERFORMANCE] Average Cycles/Token: 6605331
+
+
+Final Full Response: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+Generated 214 tokens
+Wall time 0.650 s (329.39 tok/s incl. prefill)
+Prefill 4 tokens in 9300857 cycles (2325214 cycles/token)
+Decode 213 tokens in 0.645 s (330.46 tok/s decode-only)
+==== GAUNTLET DONE ====
+final cur_freq: 2692411 kHz
+
+==== AEGIS MINIMAL-LINUX ARM ====
+boot_utc_unavailable_rtc: Sat Aug  1 00:45:41 UTC 2026
+kernel : Linux 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20)
+cmdline: console=ttyS0,115200 console=tty0 rdinit=/init mitigations=off quiet loglevel=4
+cpu    :  Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+cpus_on: 4
+governor: performance
+cur_freq: 2195189 kHz
+loadavg : 0.08 0.02 0.01 1/88 202
+cpu0 msr 0x1fc = 0x000000000004005c
+cpu1 msr 0x1fc = 0x000000000004005c
+cpu2 msr 0x1fc = 0x000000000004005c
+cpu3 msr 0x1fc = 0x000000000004005c
+cpu0 msr 0x198 = 0x00001d7e00001600
+cpu1 msr 0x198 = 0x00001d6000001600
+cpu2 msr 0x198 = 0x00001d7e00001600
+cpu3 msr 0x198 = 0x00001d6000001600
+==== GAUNTLET (Linux arm) ====
+--- L1 fresh-process run 1/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5827003
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (372.04 tok/s incl. prefill)
+Prefill 4 tokens in 8742445 cycles (2185611 cycles/token)
+Decode 64 tokens in 0.170 s (376.60 tok/s decode-only)
+--- L1 fresh-process run 2/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5794514
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.72 tok/s incl. prefill)
+Prefill 4 tokens in 9105142 cycles (2276285 cycles/token)
+Decode 64 tokens in 0.169 s (378.69 tok/s decode-only)
+--- L1 fresh-process run 3/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5800215
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.30 tok/s incl. prefill)
+Prefill 4 tokens in 9196920 cycles (2299230 cycles/token)
+Decode 64 tokens in 0.169 s (378.35 tok/s decode-only)
+--- L1 fresh-process run 4/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5808041
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.02 tok/s incl. prefill)
+Prefill 4 tokens in 8907688 cycles (2226922 cycles/token)
+Decode 64 tokens in 0.169 s (377.83 tok/s decode-only)
+--- L1 fresh-process run 5/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5813681
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (372.46 tok/s incl. prefill)
+Prefill 4 tokens in 9198009 cycles (2299502 cycles/token)
+Decode 64 tokens in 0.170 s (377.47 tok/s decode-only)
+--- L1 fresh-process run 6/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5801380
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.12 tok/s incl. prefill)
+Prefill 4 tokens in 9168329 cycles (2292082 cycles/token)
+Decode 64 tokens in 0.169 s (378.27 tok/s decode-only)
+--- L1 fresh-process run 7/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5795422
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.89 tok/s incl. prefill)
+Prefill 4 tokens in 8826309 cycles (2206577 cycles/token)
+Decode 64 tokens in 0.169 s (378.66 tok/s decode-only)
+--- L2 in-process n=20
+iter,decode_cyc_per_tok,decode_total_cyc,decode_steps,prefill_cyc,out_hash
+0,5629450,360284832,64,8841524,7aed346907e42110
+1,5614289,359314557,64,8523565,7aed346907e42110
+2,5606977,358846552,64,8525568,7aed346907e42110
+3,5607346,358870147,64,8442598,7aed346907e42110
+4,5608789,358962530,64,8443630,7aed346907e42110
+5,6832588,437285632,64,8439940,7aed346907e42110
+6,6516433,417051747,64,9566529,7aed346907e42110
+7,6632090,424453784,64,10155116,7aed346907e42110
+8,6631182,424395684,64,10154312,7aed346907e42110
+9,6633641,424553044,64,10176816,7aed346907e42110
+10,6631914,424442504,64,10167808,7aed346907e42110
+11,6979386,446680720,64,10169484,7aed346907e42110
+12,6699052,428739336,64,10147592,7aed346907e42110
+13,6631594,424422040,64,10161452,7aed346907e42110
+14,6632434,424475820,64,10154612,7aed346907e42110
+15,6631986,424447128,64,10158836,7aed346907e42110
+16,6129345,392278127,64,10165308,7aed346907e42110
+17,5641362,361047220,64,8468037,7aed346907e42110
+18,5641867,361079501,64,8427372,7aed346907e42110
+19,5641355,361046753,64,8369735,7aed346907e42110
+--- L3 prompt: "hello alice"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: hello alice
+[SYSTEM] Analyzing 3 tokens...
+, and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+
+[PERFORMANCE] Average Cycles/Token: 5965141
+
+
+Final Full Response: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+Generated 85 tokens
+Wall time 0.236 s (360.61 tok/s incl. prefill)
+Prefill 3 tokens in 8190855 cycles (2730285 cycles/token)
+Decode 84 tokens in 0.231 s (363.32 tok/s decode-only)
+--- L3 prompt: "how are you today?"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: how are you today?
+[SYSTEM] Analyzing 6 tokens...
+ Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+
+[PERFORMANCE] Average Cycles/Token: 6975624
+
+
+Final Full Response:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+Generated 257 tokens
+Wall time 0.820 s (313.45 tok/s incl. prefill)
+Prefill 6 tokens in 11794142 cycles (1965690 cycles/token)
+Decode 256 tokens in 0.814 s (314.64 tok/s decode-only)
+--- L3 prompt: "continue"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: continue
+[SYSTEM] Analyzing 4 tokens...
+.
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+
+[PERFORMANCE] Average Cycles/Token: 6618261
+
+
+Final Full Response: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+Generated 214 tokens
+Wall time 0.651 s (328.90 tok/s incl. prefill)
+Prefill 4 tokens in 8877546 cycles (2219386 cycles/token)
+Decode 213 tokens in 0.646 s (329.83 tok/s decode-only)
+==== GAUNTLET DONE ====
+final cur_freq: 2693745 kHz
+
+==== AEGIS MINIMAL-LINUX ARM ====
+boot_utc_unavailable_rtc: Sat Aug  1 00:47:56 UTC 2026
+kernel : Linux 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20)
+cmdline: console=ttyS0,115200 console=tty0 rdinit=/init mitigations=off quiet loglevel=4
+cpu    :  Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+cpus_on: 4
+governor: performance
+cur_freq: 2198079 kHz
+loadavg : 0.08 0.02 0.01 1/88 208
+cpu0 msr 0x1fc = 0x000000000004005c
+cpu1 msr 0x1fc = 0x000000000004005c
+cpu2 msr 0x1fc = 0x000000000004005c
+cpu3 msr 0x1fc = 0x000000000004005c
+cpu0 msr 0x198 = 0x00001d7e00001600
+cpu1 msr 0x198 = 0x00001d6000001600
+cpu2 msr 0x198 = 0x00001d7e00001600
+cpu3 msr 0x198 = 0x00001d6000001600
+==== GAUNTLET (Linux arm) ====
+--- L1 fresh-process run 1/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7060981
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.211 s (308.52 tok/s incl. prefill)
+Prefill 4 tokens in 8678141 cycles (2169535 cycles/token)
+Decode 64 tokens in 0.206 s (310.78 tok/s decode-only)
+--- L1 fresh-process run 2/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6340108
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.190 s (342.62 tok/s incl. prefill)
+Prefill 4 tokens in 8850603 cycles (2212650 cycles/token)
+Decode 64 tokens in 0.185 s (346.13 tok/s decode-only)
+--- L1 fresh-process run 3/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6767143
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.203 s (320.36 tok/s incl. prefill)
+Prefill 4 tokens in 10359356 cycles (2589839 cycles/token)
+Decode 64 tokens in 0.197 s (324.31 tok/s decode-only)
+--- L1 fresh-process run 4/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6754815
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.203 s (320.93 tok/s incl. prefill)
+Prefill 4 tokens in 10356528 cycles (2589132 cycles/token)
+Decode 64 tokens in 0.197 s (324.90 tok/s decode-only)
+--- L1 fresh-process run 5/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6838588
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.205 s (317.12 tok/s incl. prefill)
+Prefill 4 tokens in 10342960 cycles (2585740 cycles/token)
+Decode 64 tokens in 0.199 s (320.92 tok/s decode-only)
+--- L1 fresh-process run 6/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 7099576
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.213 s (305.75 tok/s incl. prefill)
+Prefill 4 tokens in 10372324 cycles (2593081 cycles/token)
+Decode 64 tokens in 0.207 s (309.12 tok/s decode-only)
+--- L1 fresh-process run 7/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 6057811
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.182 s (356.68 tok/s incl. prefill)
+Prefill 4 tokens in 10366872 cycles (2591718 cycles/token)
+Decode 64 tokens in 0.177 s (362.26 tok/s decode-only)
+--- L2 in-process n=20
+iter,decode_cyc_per_tok,decode_total_cyc,decode_steps,prefill_cyc,out_hash
+0,5635734,360687015,64,8611737,7aed346907e42110
+1,5609012,358976800,64,8391856,7aed346907e42110
+2,5609066,358980274,64,8389650,7aed346907e42110
+3,5607977,358910580,64,8387602,7aed346907e42110
+4,5606624,358823936,64,8484793,7aed346907e42110
+5,5607649,358889542,64,8474266,7aed346907e42110
+6,5607962,358909631,64,8458548,7aed346907e42110
+7,5606515,358816985,64,8419433,7aed346907e42110
+8,5605391,358745051,64,8466480,7aed346907e42110
+9,5607779,358897903,64,8461361,7aed346907e42110
+10,5612880,359224353,64,8451736,7aed346907e42110
+11,5608034,358914192,64,8471720,7aed346907e42110
+12,5608054,358915495,64,8473253,7aed346907e42110
+13,5607313,358868090,64,8484253,7aed346907e42110
+14,5606784,358834224,64,8470067,7aed346907e42110
+15,5609651,359017696,64,8471572,7aed346907e42110
+16,5608994,358975621,64,8484562,7aed346907e42110
+17,5606615,358823399,64,8469961,7aed346907e42110
+18,5607042,358850700,64,8480387,7aed346907e42110
+19,5607971,358910155,64,8460523,7aed346907e42110
+--- L3 prompt: "hello alice"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: hello alice
+[SYSTEM] Analyzing 3 tokens...
+, and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+
+[PERFORMANCE] Average Cycles/Token: 5953062
+
+
+Final Full Response: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+Generated 85 tokens
+Wall time 0.235 s (361.37 tok/s incl. prefill)
+Prefill 3 tokens in 8134854 cycles (2711618 cycles/token)
+Decode 84 tokens in 0.231 s (364.05 tok/s decode-only)
+--- L3 prompt: "how are you today?"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: how are you today?
+[SYSTEM] Analyzing 6 tokens...
+ Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+
+[PERFORMANCE] Average Cycles/Token: 7930835
+
+
+Final Full Response:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+Generated 257 tokens
+Wall time 0.931 s (275.95 tok/s incl. prefill)
+Prefill 6 tokens in 12016091 cycles (2002681 cycles/token)
+Decode 256 tokens in 0.925 s (276.74 tok/s decode-only)
+--- L3 prompt: "continue"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: continue
+[SYSTEM] Analyzing 4 tokens...
+.
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+
+[PERFORMANCE] Average Cycles/Token: 7798921
+
+
+Final Full Response: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+Generated 214 tokens
+Wall time 0.767 s (279.18 tok/s incl. prefill)
+Prefill 4 tokens in 10387544 cycles (2596886 cycles/token)
+Decode 213 tokens in 0.761 s (279.91 tok/s decode-only)
+==== GAUNTLET DONE ====
+final cur_freq: 2195091 kHz
