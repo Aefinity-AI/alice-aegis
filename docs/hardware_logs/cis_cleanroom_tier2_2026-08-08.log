@@ -1,0 +1,51 @@
+=== CIS-1 v1.0.1 clean-room Tier-2 sufficiency test — 2026-08-08 ===
+Machine: dev host, Intel i5-10210U (Comet Lake) under crosvm — identity artifact only (Rule A: no perf figures).
+Protocol: two independent subagent implementers, spec text inline as sole source,
+repo access forbidden (aegis-core never read); shared conformance harness = cis_selftest
+ported verbatim (use aegis_core::cis -> use crate::auditor). Harness golden vectors were
+visible in the implementers' project dirs and both reports state the A8 from_ratio goldens
+were needed to settle edge cases the spec text leaves open (see findings in ledger A31).
+Claim scope: implementable from SPEC TEXT + PUBLIC CONFORMANCE SUITE without reference source.
+
+--- auditor_a (400 lines): cargo run --release ---
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+--- auditor_b (484 lines): cargo run --release ---
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+--- independence check ---
+diff -q: files differ
+59db30204be92ed79e2dc2523b291949  /tmp/claude-1000/-home-killboxincorporated/ad50ab91-2261-42c1-b8df-49afc75a7e2e/scratchpad/auditor_a/src/auditor.rs
+7f5413edebfad43a04b1d798eebbb4c0  /tmp/claude-1000/-home-killboxincorporated/ad50ab91-2261-42c1-b8df-49afc75a7e2e/scratchpad/auditor_b/src/auditor.rs
+
+Normative Tier-2 constant (spec §8): 76985613c965f643 — matched by both.

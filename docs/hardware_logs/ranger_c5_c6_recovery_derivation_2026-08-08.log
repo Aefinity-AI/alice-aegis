@@ -1,0 +1,18 @@
+== RANGER C5/C6 recovery derivation (legal parent #2: written-down arithmetic from instrument-backed numbers) ==
+date: 2026-08-08T07:20:09Z
+derived by: Claude session, from the E10/E11 instrument JSONs copied alongside this file
+formula: log-PPL recovery = 1 - (ln(ppl_variant) - ln(ppl_anchor)) / (ln(ppl_a4) - ln(ppl_anchor))
+
+-- SmolLM2-135M (source e10_e11_actquant_SmolLM2-135M.json md5=ed164418fd91785f13d22f33a63d814d, model=HuggingFaceTB/SmolLM2-135M, tokens=16384, dtype=fp32) --
+raw: anchor=16.140442  a4=13773.503518  a4_rot=27.114174  a4_exempt_census=254.284497
+rotation sandwich recovery = 92.3 % of the A4 log-PPL collapse (SmolLM2-135M)
+census-8 static exemption recovery = 59.1 % (SmolLM2-135M)
+
+-- Qwen3-0.6B (source e10_e11_actquant_Qwen3-0_6B.json md5=202082787e942cbff17718741e3ca04c, model=Qwen/Qwen3-0.6B, tokens=8192, dtype=bfloat16) --
+raw: anchor=34.231503  a4=146845.311550  a4_rot=64.323344  a4_exempt_census=152449.922633
+rotation sandwich recovery = 92.5 % of the A4 log-PPL collapse (Qwen3-0.6B)
+census-8 static exemption recovery = -0.4 % (Qwen3-0.6B)
+
+ledger rows substantiated: C5 (rotation 92.3% / 92.5%), C6 (census exemption 59.1% at 135M)
+provenance: RANGER phase-1 runs on the Chromebook dev host (i5-10210U, virtualized), 2026-07;
+primary artifacts tracked in the ranger repo (Aefinity-AI/ranger), research/phase1/

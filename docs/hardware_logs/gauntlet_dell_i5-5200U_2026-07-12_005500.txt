@@ -1,0 +1,24 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831576 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA
+==== GAUNTLET ====
+GAUNTLET CPU: Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz | base=0MHz max=0MHz bus=0MHz | simd=AVX2+FMA hwp=false turbo=true baremetal=true
+GAUNTLET SIMD_scalar: 31 tok, path=scalar, prefill 27 tok 408278464193t 185.791s, decode 30 tok 17162364212 ticks/tok 0.12 tok/s, total 421.000s, clock 22%
+GAUNTLET SIMD_native: 31 tok, path=AVX2+FMA, prefill 27 tok 45604947327t 20.964s, decode 30 tok 3548301534 ticks/tok 0.61 tok/s, total 70.000s, clock 22%
+GAUNTLET PREFILL_pertoken: 2 tok, path=AVX2+FMA, prefill 38 tok 124177941607t 56.294s, decode 1 tok 3546644924 ticks/tok 0.62 tok/s, total 58.000s, clock 22%
+GAUNTLET PREFILL_batched: 2 tok, path=AVX2+FMA, prefill 38 tok 62792973885t 28.303s, decode 1 tok 3546655481 ticks/tok 0.62 tok/s, total 30.000s, clock 22%
+GAUNTLET PSTATE_run1: 31 tok, path=AVX2+FMA, prefill 27 tok 45604577639t 20.964s, decode 30 tok 3548319387 ticks/tok 0.61 tok/s, total 70.000s, clock 22%
+GAUNTLET PSTATE_run2_control: 31 tok, path=AVX2+FMA, prefill 27 tok 45605007976t 20.665s, decode 30 tok 3548334308 ticks/tok 0.62 tok/s, total 69.000s, clock 22%
+GAUNTLET TURBO: legacy ratio=27 (~2700MHz)
+GAUNTLET PSTATE_run3_turbo: 31 tok, path=AVX2+FMA, prefill 27 tok 45606441902t 20.665s, decode 30 tok 3548347118 ticks/tok 0.62 tok/s, total 69.000s, clock 22%
+GAUNTLET CTX_20: 21 tok, path=AVX2+FMA, prefill 27 tok 45607141766t 21.097s, decode 20 tok 3545464382 ticks/tok 0.60 tok/s, total 54.000s, clock 22%
+GAUNTLET CTX_100: 101 tok, path=AVX2+FMA, prefill 27 tok 45604773493t 20.723s, decode 100 tok 3568870988 ticks/tok 0.61 tok/s, total 183.000s, clock 22%
+GAUNTLET CTX_400: 401 tok, path=AVX2+FMA, prefill 27 tok 45604887731t 20.771s, decode 400 tok 3661843164 ticks/tok 0.59 tok/s, total 688.000s, clock 22%
+GAUNTLET PEAK_MEMORY: 571912597 bytes (545.41 MB) [Arena High-Water Mark]
+GAUNTLET DONE

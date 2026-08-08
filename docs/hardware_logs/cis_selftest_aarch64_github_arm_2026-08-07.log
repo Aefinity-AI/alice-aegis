@@ -1,0 +1,216 @@
+aarch64 — CIS-1 selftest digest	Set up job	﻿2026-08-07T00:50:54.9842471Z Current runner version: '2.336.0'
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9873664Z ##[group]Runner Image Provisioner
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9874688Z Hosted Compute Agent
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9875265Z Version: 20260707.563
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9876015Z Commit: 02667638d2b423fbc733a8e32a88b44996a3ba6e
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9876760Z Build Date: 2026-07-07T19:33:50Z
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9877445Z Worker ID: {f3229d86-b3fc-458a-ba07-8bdb89248468}
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9878238Z Azure Region: southcentralus
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9878943Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9881153Z ##[group]Operating System
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9881888Z Ubuntu
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9882388Z 24.04.4
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9882955Z LTS
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9883455Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9884036Z ##[group]Runner Image
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9884757Z Image: ubuntu-24.04-arm
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9885326Z Version: 20260719.67.1
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9886443Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24-arm64/20260719.67/images/ubuntu/Ubuntu2404-Arm64-Readme.md
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9888233Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24-arm64%2F20260719.67
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9890179Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9891390Z ##[group]GITHUB_TOKEN Permissions
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9894434Z Contents: read
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9895089Z Metadata: read
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9895760Z Packages: read
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9896342Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9898998Z Secret source: Actions
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:54.9900951Z Prepare workflow directory
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:55.0375015Z Prepare all required actions
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:55.0431900Z Getting action download info
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:55.3503548Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:55.8307619Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T00:50:56.0820767Z Complete job name: aarch64 — CIS-1 selftest digest
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	﻿2026-08-07T00:50:56.1731875Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1741783Z ##[group]Run actions/checkout@v4
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1742883Z with:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1743485Z   repository: Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1747622Z   token: ***
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1748163Z   ssh-strict: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1748703Z   ssh-user: git
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1749699Z   persist-credentials: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1750320Z   clean: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1750938Z   sparse-checkout-cone-mode: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1751565Z   fetch-depth: 1
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1752121Z   fetch-tags: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1752739Z   show-progress: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1753294Z   lfs: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1753807Z   submodules: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1754641Z   set-safe-directory: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1755253Z   allow-unsafe-pr-checkout: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1756436Z env:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1756980Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.1757696Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2648357Z Syncing repository: Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2651243Z ##[group]Getting Git version info
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2652387Z Working directory is '/home/runner/work/alice-aegis/alice-aegis'
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2653673Z [command]/usr/bin/git version
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2701133Z git version 2.54.0
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2720931Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2738619Z Temporarily overriding HOME='/home/runner/work/_temp/3f759e1b-8b0c-4302-94e4-d1c3bf2598fc' before making global git config changes
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2740507Z Adding repository directory to the temporary git global config as a safe directory
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2742262Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/alice-aegis/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2781133Z Deleting the contents of '/home/runner/work/alice-aegis/alice-aegis'
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2786997Z ##[group]Initializing the repository
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2791434Z [command]/usr/bin/git init /home/runner/work/alice-aegis/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2866661Z hint: Using 'master' as the name for the initial branch. This default branch name
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2867941Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2868942Z hint: to use in all of your new repositories, which will suppress this warning,
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2870096Z hint: call:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2870656Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2871338Z hint: 	git config --global init.defaultBranch <name>
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2872045Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2872739Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2873826Z hint: 'development'. The just-created branch can be renamed via this command:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2874678Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2875248Z hint: 	git branch -m <name>
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2875934Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2876687Z hint: Disable this message with "git config set advice.defaultBranchName false"
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2877863Z Initialized empty Git repository in /home/runner/work/alice-aegis/alice-aegis/.git/
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2888663Z [command]/usr/bin/git remote add origin https://github.com/Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2919314Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2920971Z ##[group]Disabling automatic garbage collection
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2923519Z [command]/usr/bin/git config --local gc.auto 0
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2955335Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2956563Z ##[group]Setting up auth
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2970877Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.2994341Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.3280716Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.3310896Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.3514277Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.3549307Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.3755876Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.3792225Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.3793568Z ##[group]Fetching the repository
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:56.3800941Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +184c555bf764025ebc1014550adfd84fa2149851:refs/remotes/origin/main
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.5767205Z From https://github.com/Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.5768238Z  * [new ref]         184c555bf764025ebc1014550adfd84fa2149851 -> origin/main
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.5789851Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.5790661Z ##[group]Determining the checkout info
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.5791786Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.5798405Z [command]/usr/bin/git sparse-checkout disable
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.5836106Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.5863995Z ##[group]Checking out the ref
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.5867866Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.7564948Z Switched to a new branch 'main'
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.7566182Z branch 'main' set up to track 'origin/main'.
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.7578971Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.7628569Z [command]/usr/bin/git log -1 --format=%H
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T00:50:57.7652542Z 184c555bf764025ebc1014550adfd84fa2149851
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	﻿2026-08-07T00:50:57.7871160Z ##[group]Run uname -m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T00:50:57.7872005Z [36;1muname -m[0m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T00:50:57.7872380Z [36;1mtest "$(uname -m)" = "aarch64"[0m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T00:50:57.7872892Z [36;1mgrep -m1 -E 'model name|CPU part' /proc/cpuinfo || true[0m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T00:50:57.7916926Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T00:50:57.7917638Z env:
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T00:50:57.7917986Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T00:50:57.7918371Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T00:50:57.8013448Z aarch64
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T00:50:57.8034151Z CPU part	: 0xd49
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	﻿2026-08-07T00:50:57.8085185Z ##[group]Run rustup toolchain install stable --profile minimal
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T00:50:57.8085915Z [36;1mrustup toolchain install stable --profile minimal[0m
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T00:50:57.8123047Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T00:50:57.8123513Z env:
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T00:50:57.8123997Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T00:50:57.8124406Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T00:50:57.9454459Z info: syncing channel updates for stable-aarch64-unknown-linux-gnu
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T00:50:58.1405617Z 
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T00:50:58.1471324Z   stable-aarch64-unknown-linux-gnu unchanged - rustc 1.97.1 (8bab26f4f 2026-07-14)
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T00:50:58.1472072Z 
+aarch64 — CIS-1 selftest digest	Cache cargo	﻿2026-08-07T00:50:58.2676074Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2678534Z ##[group]Run actions/cache@v4
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2679052Z with:
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2679933Z   path: ~/.cargo/registry
+aarch64 — CIS-1 selftest digest	Cache cargo	~/.cargo/git
+aarch64 — CIS-1 selftest digest	Cache cargo	
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2680547Z   key: Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2681216Z   restore-keys: Linux-arm-cargo-
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2681566Z   enableCrossOsArchive: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2682019Z   fail-on-cache-miss: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2682474Z   lookup-only: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2682781Z   save-always: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2683116Z env:
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2683376Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.2683693Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.3594298Z (node:2200) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.3595443Z (Use `node --trace-deprecation ...` to show where the warning was created)
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T00:50:58.5087646Z Cache not found for input keys: Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468, Linux-arm-cargo-
+aarch64 — CIS-1 selftest digest	Build the selftest	﻿2026-08-07T00:50:58.5170749Z ##[group]Run cargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:50:58.5171763Z [36;1mcargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:50:58.5209198Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:50:58.5210382Z env:
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:50:58.5210704Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:50:58.5211088Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:51:00.8787964Z [1m[92m    Updating[0m crates.io index
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:51:01.1716220Z [1m[92m Downloading[0m crates ...
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:51:01.3274068Z [1m[92m  Downloaded[0m libm v0.2.16
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:51:01.3721420Z [1m[92m   Compiling[0m libm v0.2.16
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:51:09.4743044Z [1m[92m   Compiling[0m aegis-core v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-core)
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:51:10.0007025Z [1m[92m   Compiling[0m aegis-linux v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-linux)
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T00:51:10.3944229Z [1m[92m    Finished[0m `release` profile [optimized] target(s) in 11.15s
+aarch64 — CIS-1 selftest digest	Run and pin the digest	﻿2026-08-07T00:51:10.4124054Z ##[group]Run set -euo pipefail
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4124575Z [36;1mset -euo pipefail[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4125044Z [36;1mOUT=$(./aegis-linux/target/release/examples/cis_selftest)[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4125412Z [36;1mecho "$OUT"[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4125667Z [36;1mLINE=$(echo "$OUT" | grep '^CIS_SELFTEST ')[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4126661Z [36;1mecho "$LINE" | grep -q 'ALL_PASS=true' || { echo '::error::a selftest section FAILED on aarch64'; exit 1; }[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4127208Z [36;1mecho "$LINE" | grep -q 'digest=76985613c965f643' || {[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4128294Z [36;1m  echo '::error::DIGEST MISMATCH — aarch64 does not reproduce the x86 digest. This falsifies the cross-ISA identity claim and is a finding: capture this log verbatim.';[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4129032Z [36;1m  exit 1;[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4129267Z [36;1m}[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4129946Z [36;1mecho "aarch64 reproduces the x86 digest: cross-ISA identity holds on a second ISA."[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4158961Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4159687Z env:
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4160002Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4160277Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4224421Z CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4224957Z [A1 golden_tmv_8x32] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4225299Z [A2 tmv_undefined_code_11] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4225645Z [A3 golden_requant_table] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4225985Z [A4 golden_quantize_activations_16] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4226298Z [A5 quantize_ties_and_zero] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4226633Z [A6 golden_rmsnorm_16] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4227113Z [A7 argmax_ties_break_low] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4227541Z [A8 from_ratio_goldens] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4227827Z [B1 rne_div sweep (512)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4228097Z [B2 requant sweep (512+512)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4228439Z [B3 tmv shapes sweep (10 shapes)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4228754Z [B4 quantize sweep (8x33)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4229052Z [B5 rmsnorm sweep (8x24)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4229585Z [B6 argmax sweep (64x17)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4229904Z CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T00:51:10.4261082Z aarch64 reproduces the x86 digest: cross-ISA identity holds on a second ISA.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	﻿2026-08-07T00:51:10.5533002Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T00:51:10.5534504Z Post job cleanup.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T00:51:10.6430260Z (node:2313) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T00:51:10.6431839Z (Use `node --trace-deprecation ...` to show where the warning was created)
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T00:51:10.6594738Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/alice-aegis/alice-aegis --files-from manifest.txt --use-compress-program zstdmt
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T00:51:10.8734902Z (node:2313) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T00:51:11.1497939Z Sent 339857 of 339857 (100.0%), 1.1 MBs/sec
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T00:51:11.2595269Z Cache saved with key: Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	﻿2026-08-07T00:51:11.2732145Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.2733576Z Post job cleanup.
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3460600Z [command]/usr/bin/git version
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3496598Z git version 2.54.0
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3533964Z Temporarily overriding HOME='/home/runner/work/_temp/6cfc23de-8c03-4a5a-b1e5-b77f5a4a62ac' before making global git config changes
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3534944Z Adding repository directory to the temporary git global config as a safe directory
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3538607Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/alice-aegis/alice-aegis
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3579824Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3616984Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3825167Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3848855Z http.https://github.com/.extraheader
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3858346Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.3891442Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.4093501Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T00:51:11.4140325Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+aarch64 — CIS-1 selftest digest	Complete job	﻿2026-08-07T00:51:11.4461600Z Cleaning up orphan processes
+aarch64 — CIS-1 selftest digest	Complete job	2026-08-07T00:51:11.4879776Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

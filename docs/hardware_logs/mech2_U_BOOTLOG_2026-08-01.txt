@@ -1,0 +1,181 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=2797632 embed=6291456 vocab=163954
+STAGE 3: tensor memory allocated
+H3 buffers: MODEL.SAF=0xF812000+2797632 EMBED.BIN=0x5AEA8000+6291456 VOCAB.BIN=0xFABE000+163954
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA, codegen=hardfloat
+TURBO_DIAG boot-pre: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-58C bdprochot_en=0
+STAGE 7 bd-prochot: already disabled, no write issued
+STAGE 7 pstate: legacy SpeedStep ratio=27 (~2700MHz)
+TURBO_DIAG boot-post: cur_ratio=25 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-57C bdprochot_en=0
+H3 probe: mtrr=1 pat=1 phys_bits=39 hypervisor=0
+H3 MTRRCAP=0xD0A (vcnt=10 fix=1 wc=1 smrr=1)
+H3 MTRR_DEF_TYPE=0xC00 (enable=1 fixed_enable=1 default=UC)
+H3 MTRR var0: base=0x0000000000000006 mask=0x0000007F00000800 -> WB 0x0+0x100000000
+H3 MTRR var1: base=0x0000000100000006 mask=0x0000007F00000800 -> WB 0x100000000+0x100000000
+H3 MTRR var2: base=0x00000000C0000000 mask=0x0000007FC0000800 -> UC 0xC0000000+0x40000000
+H3 MTRR var3: base=0x00000000B0000000 mask=0x0000007FF0000800 -> UC 0xB0000000+0x10000000
+H3 MTRR var4: base=0x00000000A8000000 mask=0x0000007FF8000800 -> UC 0xA8000000+0x8000000
+H3 MTRR var5: base=0x00000000A6000000 mask=0x0000007FFE000800 -> UC 0xA6000000+0x2000000
+H3 MTRR var6: base=0x00000000A5000000 mask=0x0000007FFF000800 -> UC 0xA5000000+0x1000000
+H3 MTRR var7: base=0x00000001E0000000 mask=0x0000007FE0000800 -> UC 0x1E0000000+0x20000000
+H3 MTRR var8: base=0x00000001D8000000 mask=0x0000007FF8000800 -> UC 0x1D8000000+0x8000000
+H3 MTRR var9: base=0x00000001D7800000 mask=0x0000007FFF800800 -> UC 0x1D7800000+0x800000
+H3 MTRR fixed: 64K@00000=0x0606060606060606 16K@80000=0x0606060606060606 16K@A0000=0x0000000000000000 4K@C0000=0x0000000000000000
+H3 MTRR fixed: 4K@C8000=0x0000000000000000 4K@D0000=0x0000000000000000 4K@D8000=0x0000000000000000 4K@E0000=0x0505050505050505
+H3 MTRR fixed: 4K@E8000=0x0505050505050505 4K@F0000=0x0505050505050505 4K@F8000=0x0505050505050505
+H3 PAT=0x0007040600070406 entries=[WB WT UC- UC WB WT UC- UC]
+H3 range image: 0x140000000-0x140067000 (421888 B) mtrr=WB (uniform)
+H3 map image: 0x140000000-0x140067000 type=LOADER_CODE att=0xF
+H3 range MODEL.SAF: 0xF812000-0xFABD040 (2797632 B) mtrr=WB (uniform)
+H3 map MODEL.SAF: 0xF812000-0xFABD040 type=LOADER_DATA att=0xF
+H3 range EMBED.BIN: 0x5AEA8000-0x5B4A8000 (6291456 B) mtrr=WB (uniform)
+H3 map EMBED.BIN: 0x5AEA8000-0x5B4A8000 type=LOADER_DATA att=0xF
+H3 range VOCAB.BIN: 0xFABE000-0xFAE6072 (163954 B) mtrr=WB (uniform)
+H3 map VOCAB.BIN: 0xFABE000-0xFAE6072 type=LOADER_DATA att=0xF
+H3 range heap0: 0x8D5BC000-0x8E5BC000 (16777216 B) mtrr=WB (uniform)
+H3 map heap0: 0x8D5BC000-0x8E5BC000 type=LOADER_DATA att=0xF
+H3 range heap1: 0x5B4A8000-0x870A8000 (734003200 B) mtrr=WB (uniform)
+H3 map heap1: 0x5B4A8000-0x870A8000 type=LOADER_DATA att=0xF
+H3 note: att bits are UEFI capability flags, not settings; effective type = MTRR verdict (PAT entry 0 assumed for firmware page tables)
+==== MECH v1 (2026-08-01): H1 console / H2 cpuidle turbo-bin ====
+MECH MSR_TURBO_RATIO_LIMIT raw=0x000019191919191b (byte0=1C bin, byte1=2C bin)
+MECH LOUD RESPONSE "hello alice": , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+MECH LOUD "hello alice": 85 tokens, 546965147 ticks, 6434884 ticks/token, clock 113%
+MECH LOUD RESPONSE "how are you today?":  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+MECH LOUD "how are you today?": 257 tokens, 1868217526 ticks, 7269328 ticks/token, clock 113%
+MECH LOUD RESPONSE "continue": .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+MECH LOUD "continue": 214 tokens, 1615796840 ticks, 7550452 ticks/token, clock 113%
+MECH QUIET RESPONSE "hello alice": , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+MECH QUIET "hello alice": 85 tokens, 518685773 ticks, 6102185 ticks/token, clock 113%
+MECH QUIET RESPONSE "how are you today?":  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+MECH QUIET "how are you today?": 257 tokens, 1768002942 ticks, 6879388 ticks/token, clock 113%
+MECH QUIET RESPONSE "continue": .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+MECH QUIET "continue": 214 tokens, 1505803843 ticks, 7036466 ticks/token, clock 113%
+MECH AP-PARK: 4 logical processors, 4 enabled
+MECH AP-PARK: dispatched MWAIT-C6 park to 3 AP(s)
+TURBO_DIAG mech-postpark: cur_ratio=27 req_ratio=27 eist=1 turbo_dis=0 clkmod=0x00 prochot_now=0 prochot_log=1 hot=0 temp=Tj-59C bdprochot_en=0
+MECH QUIET2 RESPONSE "hello alice": , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+MECH QUIET2 "hello alice": 85 tokens, 485736929 ticks, 5714552 ticks/token, clock 122%
+MECH QUIET2 RESPONSE "how are you today?":  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+MECH QUIET2 "how are you today?": 257 tokens, 1649234479 ticks, 6417254 ticks/token, clock 122%
+MECH QUIET2 RESPONSE "continue": .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+MECH QUIET2 "continue": 214 tokens, 1332347462 ticks, 6225922 ticks/token, clock 122%
+==== MECH v2 (2026-08-01): paired repeats under QUIET2 (APs parked) ====
+MECHV2 "hello alice" run 1/10: 85 tokens, 529665858 ticks, 6231363 ticks/token, clock 121%
+MECHV2 RESPONSE "hello alice": , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+MECHV2 "hello alice" run 2/10: 85 tokens, 514549494 ticks, 6053523 ticks/token, clock 122%
+MECHV2 EXACT "hello alice" run 2: true
+MECHV2 "hello alice" run 3/10: 85 tokens, 483456308 ticks, 5687721 ticks/token, clock 122%
+MECHV2 EXACT "hello alice" run 3: true
+MECHV2 "hello alice" run 4/10: 85 tokens, 483400186 ticks, 5687061 ticks/token, clock 122%
+MECHV2 EXACT "hello alice" run 4: true
+MECHV2 "hello alice" run 5/10: 85 tokens, 483332878 ticks, 5686269 ticks/token, clock 122%
+MECHV2 EXACT "hello alice" run 5: true
+MECHV2 "hello alice" run 6/10: 85 tokens, 505668659 ticks, 5949043 ticks/token, clock 122%
+MECHV2 EXACT "hello alice" run 6: true
+MECHV2 "hello alice" run 7/10: 85 tokens, 483410776 ticks, 5687185 ticks/token, clock 122%
+MECHV2 EXACT "hello alice" run 7: true
+MECHV2 "hello alice" run 8/10: 85 tokens, 483382726 ticks, 5686855 ticks/token, clock 122%
+MECHV2 EXACT "hello alice" run 8: true
+MECHV2 "hello alice" run 9/10: 85 tokens, 483476300 ticks, 5687956 ticks/token, clock 122%
+MECHV2 EXACT "hello alice" run 9: true
+MECHV2 "hello alice" run 10/10: 85 tokens, 483512860 ticks, 5688386 ticks/token, clock 122%
+MECHV2 EXACT "hello alice" run 10: true
+MECHV2 "how are you today?" run 1/10: 257 tokens, 1649140386 ticks, 6416888 ticks/token, clock 122%
+MECHV2 RESPONSE "how are you today?":  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+MECHV2 "how are you today?" run 2/10: 257 tokens, 1649088593 ticks, 6416687 ticks/token, clock 122%
+MECHV2 EXACT "how are you today?" run 2: true
+MECHV2 "how are you today?" run 3/10: 257 tokens, 1649386552 ticks, 6417846 ticks/token, clock 122%
+MECHV2 EXACT "how are you today?" run 3: true
+MECHV2 "how are you today?" run 4/10: 257 tokens, 1726584294 ticks, 6718226 ticks/token, clock 122%
+MECHV2 EXACT "how are you today?" run 4: true
+MECHV2 "how are you today?" run 5/10: 257 tokens, 1649197732 ticks, 6417111 ticks/token, clock 122%
+MECHV2 EXACT "how are you today?" run 5: true
+MECHV2 "how are you today?" run 6/10: 257 tokens, 1671496592 ticks, 6503877 ticks/token, clock 122%
+MECHV2 EXACT "how are you today?" run 6: true
+MECHV2 "how are you today?" run 7/10: 257 tokens, 1649098113 ticks, 6416724 ticks/token, clock 122%
+MECHV2 EXACT "how are you today?" run 7: true
+MECHV2 "how are you today?" run 8/10: 257 tokens, 1649259395 ticks, 6417351 ticks/token, clock 122%
+MECHV2 EXACT "how are you today?" run 8: true
+MECHV2 "how are you today?" run 9/10: 257 tokens, 1649487275 ticks, 6418238 ticks/token, clock 122%
+MECHV2 EXACT "how are you today?" run 9: true
+MECHV2 "how are you today?" run 10/10: 257 tokens, 1695334675 ticks, 6596632 ticks/token, clock 122%
+MECHV2 EXACT "how are you today?" run 10: true
+MECHV2 "continue" run 1/10: 214 tokens, 1363352821 ticks, 6370807 ticks/token, clock 122%
+MECHV2 RESPONSE "continue": .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+MECHV2 "continue" run 2/10: 214 tokens, 1352332742 ticks, 6319311 ticks/token, clock 122%
+MECHV2 EXACT "continue" run 2: true
+MECHV2 "continue" run 3/10: 214 tokens, 1334657805 ticks, 6236718 ticks/token, clock 122%
+MECHV2 EXACT "continue" run 3: true
+MECHV2 "continue" run 4/10: 214 tokens, 1332266326 ticks, 6225543 ticks/token, clock 122%
+MECHV2 EXACT "continue" run 4: true
+MECHV2 "continue" run 5/10: 214 tokens, 1332188835 ticks, 6225181 ticks/token, clock 122%
+MECHV2 EXACT "continue" run 5: true
+MECHV2 "continue" run 6/10: 214 tokens, 1332336513 ticks, 6225871 ticks/token, clock 122%
+MECHV2 EXACT "continue" run 6: true
+MECHV2 "continue" run 7/10: 214 tokens, 1332289345 ticks, 6225651 ticks/token, clock 122%
+MECHV2 EXACT "continue" run 7: true
+MECHV2 "continue" run 8/10: 214 tokens, 1332171180 ticks, 6225098 ticks/token, clock 122%
+MECHV2 EXACT "continue" run 8: true
+MECHV2 "continue" run 9/10: 214 tokens, 1409158404 ticks, 6584852 ticks/token, clock 122%
+MECHV2 EXACT "continue" run 9: true
+MECHV2 "continue" run 10/10: 214 tokens, 1351901851 ticks, 6317298 ticks/token, clock 122%
+MECHV2 EXACT "continue" run 10: true
+==== MECH DONE ====

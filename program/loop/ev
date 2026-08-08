@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# ev — the one command. `ev <verb>`; every verb works with the network down.
+#
+# Put it on PATH once:   ln -s ~/program/loop/ev ~/.local/bin/ev
+set -uo pipefail
+L="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+export ALICE_REPO="${ALICE_REPO:-$HOME}"
+T="$L/tools"; R="$L/runners"
+v="${1:-help}"; shift || true
+
+case "$v" in
+  # ---- measure (no model, ever) ---------------------------------------------
+  env)      exec python3 "$T/runcard.py" env "$@" ;;
+  run)      # ev run <runner> [extra args]  -> runs it under a runcard
+            n="${1:?usage: ev run <runner>}"; shift || true
+            [ -x "$R/$n.sh" ] || { echo "no runner $R/$n.sh; have:" >&2; ls "$R" >&2; exit 2; }
+            ts="$(date -u +%Y-%m-%d_%H%M%SZ)"
+            log="$ALICE_REPO/docs/hardware_logs/${n}_${ts}.log"
+            exec python3 "$T/runcard.py" capture --runner "$n" --log "$log" \
+                 --bin "$ALICE_REPO/aegis-linux/target/release/examples/inproc_variance" \
+                 --artifact "$ALICE_REPO/aegis_pruned_model.safetensors" \
+                 -- bash "$R/$n.sh" "$@" ;;
+  runcard)  exec python3 "$T/runcard.py" "$@" ;;
+  metric)   exec python3 "$T/runcard.py" metric "$@" ;;
+
+  # ---- bind numbers to evidence --------------------------------------------
+  claim)    exec python3 "$T/ledger.py" "$@" ;;
+  check)    exec python3 "$T/evidence_check.py" "$ALICE_REPO" "$@" ;;   # claim -> source
+  lint)     exec python3 "$T/claimlint.py" "$@" ;;                       # document -> claim
+  gate)     # everything a document must pass before it leaves the house
+            f="${1:?usage: ev gate <file...>}"
+            echo "=== 1/4 runcards still valid ==="
+            python3 "$T/runcard.py" validate "$ALICE_REPO"/docs/hardware_logs/runcards/*.json 2>/dev/null || true
+            echo; echo "=== 2/4 every live measured claim still finds its value in its log ==="
+            python3 "$T/ledger.py" verify; a=$?
+            echo; echo "=== 3/4 no dead number appears in the document ==="
+            python3 "$T/claimlint.py" "$@"; b=$?
+            echo; echo "=== 4/4 strict: every bold/table number maps to a live claim ==="
+            python3 "$T/claimlint.py" --strict "$@"; c=$?
+            echo; [ $a -eq 0 ] && [ $b -eq 0 ] && [ $c -eq 0 ] \
+              && echo "GATE: PASS (mechanical checks only — a PASS is not a review)" \
+              || echo "GATE: BLOCK"
+            [ $a -eq 0 ] && [ $b -eq 0 ] && [ $c -eq 0 ] ;;
+
+  # ---- experiment state (survives crashes and 529s) ------------------------
+  start|set|verify|park|accept|resume|status|runs) exec python3 "$T/runq.py" "$v" "$@" ;;
+  review-queue) exec python3 "$T/runq.py" review-queue "$@" ;;
+
+  # ---- pre-registration ----------------------------------------------------
+  prereg)   exec python3 "$T/prereg.py" "$@" ;;
+
+  # ---- bare metal ----------------------------------------------------------
+  collect)  exec bash "$ALICE_REPO/collect_gauntlet.sh" "$@" ;;
+
+  help|-h|--help)
+    cat <<'EOF'
+ev — on-device experiment loop for ALICE/Aegis. No cloud, no GPU, no model.
+
+MEASURE (offline, always available)
+  ev env                              environment fingerprint + env_hash
+  ev run thread_sweep                 run a registered runner under a runcard
+  ev runcard validate <cards...>      re-verify receipts against the filesystem
+  ev metric <runid> --set k=v         attach a parsed metric to its runcard
+
+BIND
+  ev claim add --id ... --value ...   enter a number (refuses if not in its log)
+  ev claim retract --id ... --reason  append a retraction (never an edit)
+  ev claim list [--status live]       what the ledger currently holds
+  ev claim verify                     evidence_check every live measured claim
+  ev check --value 8.25 --source 'docs/hardware_logs/*.log'
+  ev lint docs/TECHNICAL_REPORT.md    tier 1: no dead number anywhere
+  ev lint --strict <file>             tier 2: bold/table numbers must be claims
+  ev gate docs/TECHNICAL_REPORT.md    all four checks; exit 0 = mechanically clean
+
+RUN STATE (crash- and outage-proof)
+  ev start m7lr --phase measure --phase interpret:interpretive --prereg <md>
+  ev set   m7lr measure done --artifact <log>
+  ev verify m7lr measure -- python3 program/loop/runners/thread_sweep_parse.py <log>
+  ev park  m7lr interpret --question "..."     writes a zero-context packet
+  ev accept m7lr interpret --reviewer opus --verdict-id <thread>
+  ev resume m7lr                      first NON-TERMINAL phase (not first non-done)
+  ev review-queue                     everything owed a verdict, across all runs
+
+PRE-REGISTRATION
+  ev prereg lock  <PREREG.md>          tracked+unmodified in git, bands parse
+  ev prereg bands <PREREG.md> <res.json>   pick the band mechanically
+  ev prereg banned <PREREG.md> <files...>  the §8 banned-sentence list, enforced
+
+BARE METAL
+  ev collect /dev/sda <nickname>       harvest BOOTLOG.TXT from the stick
+EOF
+    ;;
+  *) echo "ev: unknown verb '$v' (try: ev help)" >&2; exit 2 ;;
+esac

@@ -1,0 +1,29 @@
+== Provable AI Kit: UEFI verifier mode, first end-to-end QEMU runs (identity/correctness ONLY - Rule A: no perf) ==
+2026-08-08T07:55:46Z
+penguin
+model name	: Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
+virt: kvm
+qemu: QEMU emulator version 10.0.8 (Debian 1:10.0.8+ds-0+deb13u1+b2), KVM enabled, OVMF_CODE_4M
+efi: 6be0e2fe01153d664faeac5311af1c82  /home/killboxincorporated/aegis-uefi/target/x86_64-unknown-uefi/release/aegis-uefi.efi (stock target + qemu-test feature - CORRECTNESS BUILD, never staged to hardware)
+image: 52d6a0905d97f5fead58274e06448b43  /tmp/claude-1000/-home-killboxincorporated/ad50ab91-2261-42c1-b8df-49afc75a7e2e/scratchpad/aegis-kit-test.img
+receipt: 87c45bdd34f4f2bf56ec77c68c6dbadb  /home/killboxincorporated/tests/golden/witness_v1_m7_once64.receipt (minted in Linux userspace on this same box, witness_v1_m7_i5-10210U_2026-08-08.log)
+
+-- run 1: honest receipt --
+[AEGIS] RECEIPT.TXT found — witness verifier mode (CIS-1 FullInt)
+artifacts: 3/3 hashes match the receipt
+receipt cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e..
+local   cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e..
+VERIFY PASS — this machine reproduced all 64 decode steps' full logit vectors bit-for-bit, with no OS underneath
+qemu exit=33 (isa-debug-exit success: verifier wrote 0x10)
+
+-- run 2: tampered receipt (token id index 0 incremented) --
+[AEGIS] RECEIPT.TXT found — witness verifier mode (CIS-1 FullInt)
+artifacts: 3/3 hashes match the receipt
+receipt cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e..
+local   cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e..
+token divergence at generated index Some(0)
+VERIFY FAIL — replay diverged from the receipt
+qemu exit=35 (isa-debug-exit failure: verifier wrote 0x11)
+
+claim: a witness v1 receipt minted in Linux userspace verifies inside the OS-free UEFI unikernel (QEMU/KVM leg);
+tampering one token id flips the verdict and is localized to generated index 0. Physical-iron legs pending (Dell/HP).

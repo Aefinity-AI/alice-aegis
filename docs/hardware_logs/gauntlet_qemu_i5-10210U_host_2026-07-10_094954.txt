@@ -1,0 +1,23 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831576 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=AVX2+FMA
+==== GAUNTLET ====
+GAUNTLET CPU: Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz | base=0MHz max=0MHz bus=0MHz | simd=AVX2+FMA hwp=false turbo=false baremetal=false
+GAUNTLET SIMD_scalar: 31 tok, path=scalar, 6581086737 ticks/tok, wall 97.000s, 0.31 tok/s, clock ?
+GAUNTLET SIMD_native: 31 tok, path=AVX2+FMA, 832697212 ticks/tok, wall 12.000s, 2.58 tok/s, clock ?
+GAUNTLET PREFILL_pertoken: 2 tok, path=AVX2+FMA, 10946573075 ticks/tok, wall 11.000s, 0.18 tok/s, clock ?
+GAUNTLET PREFILL_batched: 2 tok, path=AVX2+FMA, 6309038265 ticks/tok, wall 5.000s, 0.40 tok/s, clock ?
+GAUNTLET PSTATE_run1: 31 tok, path=AVX2+FMA, 1121756711 ticks/tok, wall 16.000s, 1.93 tok/s, clock ?
+GAUNTLET PSTATE_run2_control: 31 tok, path=AVX2+FMA, 940859121 ticks/tok, wall 14.000s, 2.21 tok/s, clock ?
+GAUNTLET TURBO FAILED: not a bare-metal Intel CPU (hypervisor or non-Intel)
+GAUNTLET PSTATE_run3_turbo: 31 tok, path=AVX2+FMA, 869191134 ticks/tok, wall 13.000s, 2.38 tok/s, clock ?
+GAUNTLET CTX_20: 21 tok, path=AVX2+FMA, 1151946506 ticks/tok, wall 11.000s, 1.90 tok/s, clock ?
+GAUNTLET CTX_100: 101 tok, path=AVX2+FMA, 874533233 ticks/tok, wall 42.000s, 2.40 tok/s, clock ?
+GAUNTLET CTX_400: 401 tok, path=AVX2+FMA, 770583111 ticks/tok, wall 146.000s, 2.74 tok/s, clock ?
+GAUNTLET DONE

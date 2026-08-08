@@ -1,0 +1,50 @@
+== witness v1 (CIS full-integer, chained logit receipts) — identity only, never perf ==
+2026-08-08T06:46:14Z
+penguin
+model name	: Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
+virt: kvm
+binary: 23cce4141975378514ab848da89b54dc  /home/killboxincorporated/aegis-linux/target/release/examples/cis_witness
+artifacts: M7 (model-lab/tinybit/m7_final_gate_work/artifacts)
+
+-- receipt (gen, 64 tokens, prompt 'Once upon a time') --
+AEGIS-WITNESS v1-CIS
+model 23cfad0a3c7de2b676e176755f0848cd2cad8e71e2cdffea3d903a232c96e973
+embed 3752cd5ca2e39593cdf0910968f8ff629d79417f253e33e1a1c4faa0ce33848e
+vocab 5a1d79caf517084a73de5e5379d2995e61f23afaada91822da12ecb4ad7fcd8a
+maxtok 64
+prompt-hex 4f6e63652075706f6e20612074696d65
+prompt-toks 4
+gen-toks 64
+token-ids 12,407,283,259,397,484,408,411,14,341,366,259,347,12,678,483,388,398,510,266,326,331,14,535,329,12,398,389,259,567,12,1070,835,354,338,483,14,285,835,283,386,567,267,366,670,2284,14,411,589,263,835,283,3071,12,404,398,719,266,326,331,311,14,199,674
+cis-digest 67e8c0a96abc04e1
+chain aee25b770bd7b22eea2ea8476bbd949881d58a98d6dc3085c7cc94d322b1961b
+
+-- cross-check: cis-digest vs CI-pinned token-level constant --
+cis-digest 67e8c0a96abc04e1
+pinned (arm-digest.yml, produced x86 2026-08-07): 67e8c0a96abc04e1 -> MATCH
+
+-- 1. honest verify --
+receipt cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e
+local   cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e
+VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain bit-for-bit
+exit=0
+
+-- 2. tampered chain (last hex digit) --
+receipt cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e
+local   cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e
+VERIFY FAIL — replay diverged from the receipt
+exit=1
+
+-- 3. tampered token id (index 0, +1) --
+receipt cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e
+local   cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e
+token divergence at generated index Some(0) (local len 64, receipt len 64)
+VERIFY FAIL — replay diverged from the receipt
+exit=1
+
+-- 4. wrong model artifact (EMBED.BIN passed as model) --
+FAIL artifact: MODEL hash mismatch (receipt 23cfad0a3c7de2b6 vs local 3752cd5ca2e39593)
+exit=1
+
+golden receipt banked: tests/golden/witness_v1_m7_once64.receipt md5=87c45bdd34f4f2bf56ec77c68c6dbadb
+aegis-core witness_contract tests: 11/11 (SHA-256 FIPS 180-4 incl. 1M-'a'; chain sensitivity)

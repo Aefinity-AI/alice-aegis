@@ -1,0 +1,10 @@
+{
+  "id": "aefinityaiinc/m5b-bitnet-qat-smoke",
+  "title": "m5b-bitnet-qat-smoke",
+  "code_file": "smoke.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_internet": true,
+  "machine_shape": "NvidiaTeslaT4"
+}

@@ -1,0 +1,13 @@
+=== act_capture: real down_proj input vectors ===
+machine: i5-10210U Chromebook (crosvm, CONTENDED dev box — data capture only) (data capture only — values, not timing)
+model: /home/killboxincorporated/aegis_pruned_model.safetensors (522831576 bytes)
+embed: /home/killboxincorporated/aegis-forge/embed.bin (257310720 bytes)
+vocab: /home/killboxincorporated/aegis-forge/vocab.bin (1759936 bytes)
+config: layers=30 hidden=2560 intermediate=6912 vocab=50256 hidden_act=Relu2
+prompts: 4, max_new_tokens: 8 (decode records = prompts x tokens x layers)
+prompt 1: "The capital of France is" -> 150 decode records, mean z = 0.7794; response: "The capital of France is"
+prompt 2: "Water boils at a temperature of" -> 210 decode records, mean z = 0.7853; response: "Water is a liquid at room temperature"
+prompt 3: "In 1969, the first humans landed on" -> 240 decode records, mean z = 0.7951; response: "In 1969, the first humans landed"
+prompt 4: "A ternary computer represents numbers using" -> 150 decode records, mean z = 0.7920; response: "a three-digit binary number"
+captured 750 decode vectors, dim 6912, pooled mean z = 0.7886, bitwise -0.0 elements = 1926255
+wrote 20742016 bytes to artifacts/relu2_down_in_bitnet2b_2026-08-01.av1

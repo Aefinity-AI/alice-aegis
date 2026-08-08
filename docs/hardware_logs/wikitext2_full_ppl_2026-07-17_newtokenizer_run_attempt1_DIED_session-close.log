@@ -1,0 +1,17 @@
+=== WikiText-2 FULL test-set PPL — post-tokenizer-fix re-run ===
+date: 2026-07-17T04:12:43Z
+binary: aegis-eval/target/release/aegis-eval (built 2026-07-16 22:57, includes whitespace-run pre-tokenizer + id-0 merge guard, commit 5989c32)
+cmd: aegis-eval aegis_pruned_model.safetensors aegis-forge/embed.bin aegis-forge/vocab.bin test.txt (flagless = chunked full-text)
+prior full-set anchor: 15.825 (old tokenizer, wikitext2_full_ppl_2026-07-12_run.log); sample anchors: old 10.348 / new 10.758
+NOTE: cross-tokenizer PPLs not directly comparable — tokenization is denser now; expect a different token count than 313,479
+---
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: /home/killboxincorporated/test.txt | total chars: 1254250
+Progress: 5000/1254250 chars | chunk: 1346 tok (3.7 c/t) PPL 8.700 | overall: 1345 tok PPL 8.700
+Progress: 10000/1254250 chars | chunk: 1155 tok (4.3 c/t) PPL 18.961 | overall: 2499 tok PPL 12.467
+Progress: 15000/1254250 chars | chunk: 1224 tok (4.1 c/t) PPL 19.592 | overall: 3722 tok PPL 14.463
+Progress: 20000/1254250 chars | chunk: 1178 tok (4.2 c/t) PPL 22.908 | overall: 4899 tok PPL 16.153
+Progress: 25000/1254250 chars | chunk: 1162 tok (4.3 c/t) PPL 18.567 | overall: 6060 tok PPL 16.590

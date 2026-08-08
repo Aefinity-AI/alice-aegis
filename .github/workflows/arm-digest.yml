@@ -1,0 +1,159 @@
+name: arm-digest
+
+# CIS-1 cross-ISA identity, second architecture. Ledger A25 established one
+# digest across four x86 codegen paths (SSE2-scalar iron, AVX2 iron, KVM, TCG).
+# This job runs the same selftest on a real aarch64 host (GitHub's Cobalt ARM
+# runners) and FAILS unless it prints the identical line:
+#
+#   CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+#
+# A match upgrades the portability claim from "four x86 implementations" to
+# "two ISAs". A mismatch falsifies CIS-1's central axiom and must fail loudly —
+# do not weaken this gate to make CI green; a red run here is a publishable
+# negative finding, not a flake.
+#
+# CLAUDE.md Rule A: identity/correctness artifact ONLY. No timing figure from
+# this job may ever be recorded or quoted; CI hardware is shared and unnamed.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  digest:
+    name: aarch64 — CIS-1 selftest digest
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm this is really aarch64 (the whole point)
+        run: |
+          uname -m
+          test "$(uname -m)" = "aarch64"
+          grep -m1 -E 'model name|CPU part' /proc/cpuinfo || true
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-arm-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-arm-cargo-
+
+      # No root Cargo.toml by design; build the one example this job needs.
+      # On non-x86 aegis-core compiles only the `cis` module — which is the
+      # portability claim under test.
+      - name: Build the selftest
+        run: cargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml
+
+      - name: Run and pin the digest
+        run: |
+          set -euo pipefail
+          OUT=$(./aegis-linux/target/release/examples/cis_selftest)
+          echo "$OUT"
+          LINE=$(echo "$OUT" | grep '^CIS_SELFTEST ')
+          echo "$LINE" | grep -q 'ALL_PASS=true' || { echo '::error::a selftest section FAILED on aarch64'; exit 1; }
+          echo "$LINE" | grep -q 'digest=76985613c965f643' || {
+            echo '::error::DIGEST MISMATCH — aarch64 does not reproduce the x86 digest. This falsifies the cross-ISA identity claim and is a finding: capture this log verbatim.';
+            exit 1;
+          }
+          echo "aarch64 reproduces the x86 digest: cross-ISA identity holds on a second ISA."
+
+      # The NEON kernel's entire deliverable is bit-identity (no ARM perf
+      # exists yet — Rule A needs named physical hardware, and this runner is
+      # neither). Equivalence + contract + exhaustive mechanism proofs, on
+      # real Neoverse silicon. Explicit --test targets keep the job focused;
+      # note `cargo test` still auto-builds every bin target so tests can
+      # exec them, which is why the x86-only bench bins carry non-x86 stub
+      # mains.
+      - name: NEON kernel — bit-identity, contract, and mechanism proofs
+        run: |
+          cargo test --release --manifest-path aegis-core/Cargo.toml \
+            --test cis_neon_equivalence \
+            --test cis_neon_contract \
+            --test cis_neon_mechanism
+
+      # Token-level: a COMPLETE greedy decode of the in-repo M7 model through
+      # the full-integer engine. Op-level identity (above) is necessary; this
+      # is the sufficient artifact — same prompt, same 64 tokens, same bytes,
+      # regardless of ISA. Pinned constant produced on x86 2026-08-07.
+      - name: Build the token-level decode driver
+        run: cargo build --release --example cis_decode --manifest-path aegis-linux/Cargo.toml
+
+      - name: Token-level decode — pin the sequence digest
+        run: |
+          set -euo pipefail
+          M=model-lab/tinybit/m7_final_gate_work/artifacts
+          OUT=$(./aegis-linux/target/release/examples/cis_decode "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" 64 "Once upon a time")
+          echo "$OUT"
+          LINE=$(echo "$OUT" | grep '^CIS_DECODE ')
+          echo "$LINE" | grep -q 'digest=67e8c0a96abc04e1' || {
+            echo '::error::TOKEN-LEVEL DIGEST MISMATCH — this host does not reproduce the pinned 68-token decode. This falsifies token-level cross-ISA identity and is a finding: capture this log verbatim.';
+            exit 1;
+          }
+          echo "token-level decode reproduces the pinned digest on $(uname -m)."
+
+      # Witness v1: the golden receipt was GENERATED on an x86 host
+      # (i5-10210U dev box, 2026-08-08). This aarch64 job replaying it to a
+      # PASS is the cross-ISA witness claim itself, re-proven every push:
+      # a receipt minted on one ISA verifies on another, logit chain and all.
+      - name: Witness v1 — verify the x86-minted golden receipt on ARM
+        run: |
+          set -euo pipefail
+          cargo build --release --example cis_witness --manifest-path aegis-linux/Cargo.toml
+          M=model-lab/tinybit/m7_final_gate_work/artifacts
+          ./aegis-linux/target/release/examples/cis_witness verify \
+            "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" \
+            tests/golden/witness_v1_m7_once64.receipt
+          echo "x86-minted witness receipt verifies on $(uname -m)."
+
+  digest-x86:
+    name: x86_64 — same pins, same binary sources
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-x86-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-x86-cargo-
+
+      - name: Build both drivers
+        run: |
+          cargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml
+          cargo build --release --example cis_decode  --manifest-path aegis-linux/Cargo.toml
+
+      - name: Pin both digests on x86
+        run: |
+          set -euo pipefail
+          ./aegis-linux/target/release/examples/cis_selftest | grep '^CIS_SELFTEST ' | tee /dev/stderr | grep -q 'digest=76985613c965f643 ALL_PASS=true' \
+            || { echo '::error::x86 selftest digest drifted'; exit 1; }
+          M=model-lab/tinybit/m7_final_gate_work/artifacts
+          ./aegis-linux/target/release/examples/cis_decode "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" 64 "Once upon a time" | grep '^CIS_DECODE ' | tee /dev/stderr | grep -q 'digest=67e8c0a96abc04e1' \
+            || { echo '::error::x86 token-level digest drifted'; exit 1; }
+          echo "both pins hold on x86_64: any ARM mismatch is the ISA, not the tree."
+
+      - name: Witness v1 — golden receipt verifies on x86 too
+        run: |
+          set -euo pipefail
+          cargo build --release --example cis_witness --manifest-path aegis-linux/Cargo.toml
+          M=model-lab/tinybit/m7_final_gate_work/artifacts
+          ./aegis-linux/target/release/examples/cis_witness verify \
+            "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" \
+            tests/golden/witness_v1_m7_once64.receipt

@@ -1,0 +1,29 @@
+MECH-A1 root-cause census v2 — 2026-08-01 ~05:20 CDT — SUPERSEDES mecha1_softfloat_census_2026-08-01.log
+Machine: dev Chromebook i5-10210U (Comet Lake) under crosvm — DISASSEMBLY CENSUS ONLY, no timing.
+Tool: objdump -d -M intel (binutils), grep -c.
+
+CORRECTION: in v1, the 'Binary 1' section accidentally measured a fresh stock-target rebuild
+(7007b9d282ca53ec53283056064aef83, 314880 B — a concurrent QEMU boot-test rebuilt release/aegis-uefi.efi
+between identification and logging). That rebuild is a VALID auxiliary datapoint (stock target still emits
+zero vector instructions on the current tree) but it is NOT the staged MECH binary. This file records the
+true staged binary from its preserved bit-identical copy.
+
+== Binary 1 (TRUE staged MECH stick binary): preserved copy
+path: artifacts/BOOTX64_MECH_softfloat_2026-08-01_431ff3a8.EFI
+  (source: aegis-uefi/target/x86_64-unknown-uefi/release/deps/aegis_uefi-adaa13aba47344ac.efi, the cargo deps
+   output whose md5 matches the binary staged to the MECH sticks and verified against them pre-extraction)
+size=453120 bytes
+431ff3a8246559a0b12e6f640dd86c0a  artifacts/BOOTX64_MECH_softfloat_2026-08-01_431ff3a8.EFI
+census: xmm=0 ymm=0 vfmadd=0
+target features (rustc --print target-spec-json, x86_64-unknown-uefi): "-mmx,-sse,+soft-float"
+
+== Binary 2 (hardfloat, current tree incl. H3 probe): aegis-uefi/build_hardfloat.sh output
+path: aegis-uefi/target/x86_64-uefi-hardfloat/release/aegis-uefi.efi (x86_64-uefi-hardfloat.json, features "-mmx")
+size=402432 bytes
+7ed77474a02a517e03cc26988b0a7f84  aegis-uefi/target/x86_64-uefi-hardfloat/release/aegis-uefi.efi
+census: xmm=6855 ymm=433 vfmadd=210
+
+Interpretation: the staged MECH binary contains ZERO vector instructions — the +soft-float stock target
+scalarized every f32 op, including #[target_feature(enable="avx2")] kernel bodies, to library calls.
+This is the mechanism behind MECH-A1 (process_intent 119-250x slower than the harness on the same iron).
+Timing attribution lives in mech_U_BOOTLOG_2026-08-01.txt / mech_L_BOOTLOG_2026-08-01.txt.

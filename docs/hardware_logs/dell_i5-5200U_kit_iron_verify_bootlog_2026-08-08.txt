@@ -1,0 +1,22 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=2797632 embed=6291456 vocab=163954
+STAGE 3: tensor memory allocated
+H3 buffers: MODEL.SAF=0x100000+2797632 EMBED.BIN=0x1780000+6291456 VOCAB.BIN=0x3AC000+163954
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 4d: RECEIPT.TXT loaded — verifier mode armed
+STAGE 5: working heap online
+STAGE V: witness verify PASS — VERIFY PASS — this machine reproduced all 64 decode steps' full logit vectors bit-for-bit, with no OS underneath
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=2797632 embed=6291456 vocab=163954
+STAGE 3: tensor memory allocated
+H3 buffers: MODEL.SAF=0x100000+2797632 EMBED.BIN=0x3AC000+6291456 VOCAB.BIN=0x9AC000+163954
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 4d: RECEIPT.TXT loaded — verifier mode armed
+STAGE 5: working heap online
+STAGE V: witness verify PASS — VERIFY PASS — this machine reproduced all 64 decode steps' full logit vectors bit-for-bit, with no OS underneath

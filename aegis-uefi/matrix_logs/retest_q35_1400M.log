@@ -1,0 +1,47 @@
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0002 "EFI Internal Shell" from Fv(7CB8BDC9-F8EB-4F34-AAEA-3EE4AF6516A1)/FvFile(7C04A583-9E3E-4F1C-AD65-E05268D0B4D1)
+BdsDxe: starting Boot0002 "EFI Internal Shell" from Fv(7CB8BDC9-F8EB-4F34-AAEA-3EE4AF6516A1)/FvFile(7C04A583-9E3E-4F1C-AD65-E05268D0B4D1)
+[2J[01;01H[01;01HUEFI Interactive Shell v2.2
+EDK II
+UEFI v2.70 (Debian distribution of EDK II, 0x00010000)
+[1m[33m[40mMapping table[0m[37m[40m
+[1m[33m[40m      FS0:[0m[37m[40m [1m[37m[40mAlias(s):[0m[37m[40mF0a65535a:;BLK0:
+          PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+[1m[33m[40m     BLK1:[0m[37m[40m [1m[37m[40mAlias(s):[0m[37m[40m
+          PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+[09;01HPress [1m[37m[40mESC[0m[37m[40m in 5 seconds to skip [1m[33m[40mstartup.nsh[0m[37m[40m or any other key to continue.[09;01HPress [1m[37m[40mESC[0m[37m[40m in 4 seconds to skip [1m[33m[40mstartup.nsh[0m[37m[40m or any other key to continue.[09;01HPress [1m[37m[40mESC[0m[37m[40m in 3 seconds to skip [1m[33m[40mstartup.nsh[0m[37m[40m or any other key to continue.[09;01HPress [1m[37m[40mESC[0m[37m[40m in 2 seconds to skip [1m[33m[40mstartup.nsh[0m[37m[40m or any other key to continue.[09;01HPress [1m[37m[40mESC[0m[37m[40m in 1 seconds to skip [1m[33m[40mstartup.nsh[0m[37m[40m or any other key to continue.
+'[1m[33m[40mrem[0m[37m[40m' is not recognized as an internal or external command, operable program, or script file.
+'[1m[33m[40mrem[0m[37m[40m' is not recognized as an internal or external command, operable program, or script file.
+'[1m[33m[40mrem[0m[37m[40m' is not recognized as an internal or external command, operable program, or script file.
+'[1m[33m[40mrem[0m[37m[40m' is not recognized as an internal or external command, operable program, or script file.
+'[1m[33m[40mrem[0m[37m[40m' is not recognized as an internal or external command, operable program, or script file.
+'[1m[33m[40mrem[0m[37m[40m' is not recognized as an internal or external command, operable program, or script file.
+A.L.I.C.E. fallback loader: searching for BOOTX64.EFI...
+[SYS] Tactically Questioning Silicon...
+[SYS] -> Model: Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
+[SYS] -> SSE4.1: [ DETECTED ]
+[SYS] -> AVX:    [ DETECTED ]
+[SYS] -> AVX2:   [ DETECTED ]
+[SYS] -> FMA3:   [ DETECTED ]
+[SYS] Locking inference kernel to native AVX2+FMA.
+[2J[01;01H
+==================================================
+ A.L.I.C.E. UNIKERNEL INFERENCE ENGINE (UEFI APP)
+==================================================
+
+[SYSTEM] Pre-allocating DMA Bounce Buffer...
+[SYSTEM] Pre-allocating Tensor Space...
+[SYSTEM] Locating weights on USB FAT32 Partition...
+[2J[01;01H  -> Reading MODEL.SAF (522831576 bytes) [  -> Reading MODEL.SAF [>                   ] 2% (10 MB/498 MB)     -> Reading MODEL.SAF [>                   ] 4% (20 MB/498 MB)     -> Reading MODEL.SAF [=>                  ] 6% (30 MB/498 MB)     -> Reading MODEL.SAF [=>                  ] 8% (40 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 10% (50 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 12% (60 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 14% (70 MB/498 MB)     -> Reading MODEL.SAF [===>                ] 16% (80 MB/498 MB)     -> Reading MODEL.SAF [===>                ] 18% (90 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 20% (100 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 22% (110 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 24% (120 MB/498 MB)     -> Reading MODEL.SAF [=====>              ] 26% (130 MB/498 MB)     -> Reading MODEL.SAF [=====>              ] 28% (140 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 30% (150 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 32% (160 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 34% (170 MB/498 MB)     -> Reading MODEL.SAF [=======>            ] 36% (180 MB/498 MB)     -> Reading MODEL.SAF [=======>            ] 38% (190 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 40% (200 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 42% (210 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 44% (220 MB/498 MB)     -> Reading MODEL.SAF [=========>          ] 46% (230 MB/498 MB)     -> Reading MODEL.SAF [=========>          ] 48% (240 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 50% (250 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 52% (260 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 54% (270 MB/498 MB)     -> Reading MODEL.SAF [===========>        ] 56% (280 MB/498 MB)     -> Reading MODEL.SAF [===========>        ] 58% (290 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 60% (300 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 62% (310 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 64% (320 MB/498 MB)     -> Reading MODEL.SAF [=============>      ] 66% (330 MB/498 MB)     -> Reading MODEL.SAF [=============>      ] 68% (340 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 70% (350 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 72% (360 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 74% (370 MB/498 MB)     -> Reading MODEL.SAF [===============>    ] 76% (380 MB/498 MB)     -> Reading MODEL.SAF [===============>    ] 78% (390 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 80% (400 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 82% (410 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 84% (420 MB/498 MB)     -> Reading MODEL.SAF [=================>  ] 86% (430 MB/498 MB)     -> Reading MODEL.SAF [=================>  ] 88% (440 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 90% (450 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 92% (460 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 94% (470 MB/498 MB)     -> Reading MODEL.SAF [===================>] 96% (480 MB/498 MB)     -> Reading MODEL.SAF [===================>] 98% (490 MB/498 MB)   OK]
+[2J[01;01H  -> Reading EMBED.BIN (257310720 bytes) [  -> Reading EMBED.BIN [>                   ] 4% (10 MB/245 MB)     -> Reading EMBED.BIN [=>                  ] 8% (20 MB/245 MB)     -> Reading EMBED.BIN [==>                 ] 12% (30 MB/245 MB)     -> Reading EMBED.BIN [===>                ] 16% (40 MB/245 MB)     -> Reading EMBED.BIN [====>               ] 20% (50 MB/245 MB)     -> Reading EMBED.BIN [====>               ] 24% (60 MB/245 MB)     -> Reading EMBED.BIN [=====>              ] 28% (70 MB/245 MB)     -> Reading EMBED.BIN [======>             ] 32% (80 MB/245 MB)     -> Reading EMBED.BIN [=======>            ] 36% (90 MB/245 MB)     -> Reading EMBED.BIN [========>           ] 40% (100 MB/245 MB)     -> Reading EMBED.BIN [========>           ] 44% (110 MB/245 MB)     -> Reading EMBED.BIN [=========>          ] 48% (120 MB/245 MB)     -> Reading EMBED.BIN [==========>         ] 52% (130 MB/245 MB)     -> Reading EMBED.BIN [===========>        ] 57% (140 MB/245 MB)     -> Reading EMBED.BIN [============>       ] 61% (150 MB/245 MB)     -> Reading EMBED.BIN [=============>      ] 65% (160 MB/245 MB)     -> Reading EMBED.BIN [=============>      ] 69% (170 MB/245 MB)     -> Reading EMBED.BIN [==============>     ] 73% (180 MB/245 MB)     -> Reading EMBED.BIN [===============>    ] 77% (190 MB/245 MB)     -> Reading EMBED.BIN [================>   ] 81% (200 MB/245 MB)     -> Reading EMBED.BIN [=================>  ] 85% (210 MB/245 MB)     -> Reading EMBED.BIN [=================>  ] 89% (220 MB/245 MB)     -> Reading EMBED.BIN [==================> ] 93% (230 MB/245 MB)     -> Reading EMBED.BIN [===================>] 97% (240 MB/245 MB)   OK]
+[2J[01;01H  -> Reading VOCAB.BIN (1759936 bytes) [OK]
+  -> [SYS] Claiming physical memory: 0x000000002FF81000 -> 0x0000000045D81000... [OK]
+  -> [SYS] Claiming physical memory: 0x0000000045D81000 -> 0x0000000050C81000... [OK]
+  -> [SYS] Claiming physical memory: 0x0000000050C81000 -> 0x0000000052261000... [OK]
+  -> [SYS] Claiming physical memory: 0x0000000052261000 -> 0x0000000052D51000... [OK]
+  -> [SYS] Claiming physical memory: 0x000000005378D000 -> 0x000000005427D000... [OK]
+  -> [SYS] Claiming physical memory: 0x0000000052D51000 -> 0x00000000532C9000... [OK]
+
+
+*** KERNEL PANIC ***
+panicked at src/allocator.rs:155:21:
+FATAL: Large OS Heap fragmented memory allocation failed (OOM)

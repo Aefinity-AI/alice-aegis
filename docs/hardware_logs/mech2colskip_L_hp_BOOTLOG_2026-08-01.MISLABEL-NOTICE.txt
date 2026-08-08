@@ -1,0 +1,8 @@
+NOTICE (2026-08-01): mech2colskip_L_hp_BOOTLOG_2026-08-01.txt is a MISLABELED file.
+Its content is a byte-identical duplicate (same md5) of mech2colskip_L_dell2_BOOTLOG_2026-08-01.txt:
+the boot intended for the HP Stream ran on the Dell i5-5200U again (see the machine-detect line
+inside it). It was named before the machine line was read, and is kept unmodified per Rule C.
+NEVER cite the _hp_ file. The HP Stream leg of the cross-ISA digest claim is PENDING as of this
+notice. Canonical citation for this content: mech2colskip_L_dell2_BOOTLOG_2026-08-01.txt.
+c9990e04f90760f3829692d5cd40659a  docs/hardware_logs/mech2colskip_L_hp_BOOTLOG_2026-08-01.txt
+c9990e04f90760f3829692d5cd40659a  docs/hardware_logs/mech2colskip_L_dell2_BOOTLOG_2026-08-01.txt

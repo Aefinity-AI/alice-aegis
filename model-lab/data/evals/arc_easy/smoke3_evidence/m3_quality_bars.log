@@ -1,0 +1,9 @@
+=== M3 quality bars: aegis-eval crate (2026-07-18T08:08:51Z) ===
+$ cargo fmt --check
+fmt: PASS
+$ cargo clippy -j 4 -- -D warnings
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+clippy_rc=0

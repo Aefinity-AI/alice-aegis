@@ -1,0 +1,42 @@
+M7a fp32 TWIN — FINAL RECORD (run 2026-07-19 07:55Z -> 2026-07-21 ~01:44Z... unit m7a-twin)
+config: configs/m7a_twin.json (6,529,920 params, fp32 nn.Linear, two-stage sched, seed 1337)
+budget: 122,071 steps x 8 x 512 = 500,002,816 tokens (0.93 epoch of train_8k.bin)
+wall-clock: 236,949 s = 65.82 h @ 4 threads -> avg 2,110 tok/s
+final train loss (last 2 logged): 1.3519 / 1.4914
+FINAL VAL PPL: 5.513 (step 122000; series min ~5.447 @ 116000)
+val trajectory (every 500 steps in run log): plateau 7.8-8.7 @ steps 19.5k-26.5k at peak LR,
+monotone-ish improvement through cosine decay: 7.02@66k, 6.06@83k, 5.45@116k, 5.51 final.
+checkpoint: checkpoints/m7a_twin.pt (78,457,401 B, atomic save)
+run log: model-lab/tinybit/logs/m7a_twin_full_2026-07-18.log (full step + val series)
+
+--- last 30 val checks ---
+  [val] step 107500 | val_ppl 5.878 (prev 5.888)
+  [val] step 108000 | val_ppl 5.877 (prev 5.878)
+  [val] step 108500 | val_ppl 6.085 (prev 5.877)
+  [val] step 109000 | val_ppl 6.043 (prev 6.085)
+  [val] step 109500 | val_ppl 5.692 (prev 6.043)
+  [val] step 110000 | val_ppl 5.628 (prev 5.692)
+  [val] step 110500 | val_ppl 5.671 (prev 5.628)
+  [val] step 111000 | val_ppl 5.549 (prev 5.671)
+  [val] step 111500 | val_ppl 5.659 (prev 5.549)
+  [val] step 112000 | val_ppl 5.591 (prev 5.659)
+  [val] step 112500 | val_ppl 5.548 (prev 5.591)
+  [val] step 113000 | val_ppl 5.568 (prev 5.548)
+  [val] step 113500 | val_ppl 5.530 (prev 5.568)
+  [val] step 114000 | val_ppl 5.597 (prev 5.530)
+  [val] step 114500 | val_ppl 5.462 (prev 5.597)
+  [val] step 115000 | val_ppl 5.556 (prev 5.462)
+  [val] step 115500 | val_ppl 5.640 (prev 5.556)  [TRIPWIRE] val PPL rose 2 consecutive checks
+  [val] step 116000 | val_ppl 5.447 (prev 5.640)
+  [val] step 116500 | val_ppl 5.275 (prev 5.447)
+  [val] step 117000 | val_ppl 5.491 (prev 5.275)
+  [val] step 117500 | val_ppl 5.391 (prev 5.491)
+  [val] step 118000 | val_ppl 5.269 (prev 5.391)
+  [val] step 118500 | val_ppl 5.402 (prev 5.269)
+  [val] step 119000 | val_ppl 5.345 (prev 5.402)
+  [val] step 119500 | val_ppl 5.557 (prev 5.345)
+  [val] step 120000 | val_ppl 5.483 (prev 5.557)
+  [val] step 120500 | val_ppl 5.579 (prev 5.483)
+  [val] step 121000 | val_ppl 5.645 (prev 5.579)  [TRIPWIRE] val PPL rose 2 consecutive checks
+  [val] step 121500 | val_ppl 5.529 (prev 5.645)
+  [val] step 122000 | val_ppl 5.513 (prev 5.529)

@@ -1,0 +1,56 @@
+CIS-1 E2 — BitNet-2B leg: integer vs float teacher-forced PPL — 2026-08-01
+Machine: dev Chromebook i5-10210U (Comet Lake) under crosvm — QUALITY NUMBERS ONLY.
+Rule A: no timing in this file is a result; bracketed wall-times are incidental.
+Binary: aegis-eval --cis built at worktree commit b53286f (branch worktree-wf_bca6e090-de7-2,
+  E2-7 on-the-fly Q.20 tables + per-vector block exponent at the hybrid boundary),
+  run by the integrator after the build agent was interrupted; two sequential runs below.
+Command: aegis-eval <MODEL> <EMBED> <VOCAB> /home/killboxincorporated/test.txt 200 --cis
+
+== artifact identities ==
+53586af0856e141e8abb93fd434a9dc28932dfd77181eed44ec6ad3f0c689053  /home/killboxincorporated/aegis_pruned_model.safetensors
+e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077  /home/killboxincorporated/aegis-forge/embed.bin
+5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae  /home/killboxincorporated/aegis-forge/vocab.bin
+d790b833ef8cf03a90db7bf1271b7520b83c45ce07ba3c1a9699df81e239eca0  /home/killboxincorporated/test.txt
+
+== verdict ==
+float PPL 30.706665 / integer PPL 30.934140 -> +0.7408% vs the +5% kill line: PASS.
+Runs 1 and 2 bit-identical (PPL bits and digest 0x24C4E510A86659D6).
+Caveats: pruned-vocab model (50,256/128,256, ASCII-oriented) — do not compare this PPL
+cross-tokenizer; 200-token window on the wikitext-2 test head (an <unk>-dense region) —
+NOT comparable to the 1898-token 10.758 anchor window; the same-run float is the base.
+
+== raw transcripts (both runs) ==
+=================== RUN 1 ===================
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: /home/killboxincorporated/test.txt | sample: 200 tokens
+--------------------------------------------------
+CIS-1 E2 — integer vs float, teacher-forced
+float   PPL (199 scored tokens): 30.706665   [62.9s]
+integer PPL (199 scored tokens): 30.934140   [370.1s]
+relative delta: +0.7408%  (kill line: +5.0%)
+E2 VERDICT: PASS (within the +5% line)
+integer argmax digest (FNV-1a 64): 0x24C4E510A86659D6
+--------------------------------------------------
+NOTE: pruned-vocab model (50,256 of 128,256 tokens; ASCII-oriented).
+Report this number only alongside that caveat.
+run1 exit=0
+=================== RUN 2 ===================
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: /home/killboxincorporated/test.txt | sample: 200 tokens
+--------------------------------------------------
+CIS-1 E2 — integer vs float, teacher-forced
+float   PPL (199 scored tokens): 30.706665   [52.8s]
+integer PPL (199 scored tokens): 30.934140   [348.9s]
+relative delta: +0.7408%  (kill line: +5.0%)
+E2 VERDICT: PASS (within the +5% line)
+integer argmax digest (FNV-1a 64): 0x24C4E510A86659D6
+--------------------------------------------------
+NOTE: pruned-vocab model (50,256 of 128,256 tokens; ASCII-oriented).
+Report this number only alongside that caveat.
+run2 exit=0

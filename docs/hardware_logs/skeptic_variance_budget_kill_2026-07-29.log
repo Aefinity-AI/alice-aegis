@@ -1,0 +1,117 @@
+SKEPTIC REVIEW RAW DATA — "variance-and-bias budget" candidate
+Date: 2026-07-29
+Reviewer lens: self-deception
+Box: dev Chromebook, Intel i5-10210U under crosvm (HYPERVISOR flag set),
+     8 vCPU, no /sys/devices/system/cpu/cpu0/cpufreq (guest cannot see or set
+     a governor), no aperfmperf, constant_tsc + nonstop_tsc.
+     /proc/stat steal = 450,236 jiffies (= 3.0% of all non-idle time). MEASURED.
+Binary: ./aegis-linux/target/release/aegis-linux (built 2026-07-16 22:58, unmodified)
+Model:  model-lab/tinybit/m7_final_gate_work/artifacts/{MODEL.SAF,EMBED.BIN,VOCAB.BIN}
+Prompt: "Once upon a time"
+Metric: aegis-core/src/inference.rs:894 "[PERFORMANCE] Average Cycles/Token"
+        = TSC ticks per decode step, averaged over all emitted steps.
+
+--------------------------------------------------------------------
+ARM 1 — QUIESCED, UNPINNED, 64 max_new_tokens (65 emitted), n=20 launches
+load avg at start 0.81-0.83 (scout's original run was at load 9.30)
+4275045 4175712 4300969 4319539 4019159 4295896 4195383 4235828 4316688 4219311
+4271103 4135704 4510413 4181522 4317990 4692761 4771524 6852384 5383439 5267084
+mean 4,536,873  sd 652,196  CV 14.375%  range 62.45%
+
+Per-launch prefill cycles/token (4-token prefill), same 20 launches:
+2606431 1955861 2066692 2016827 1974744 2087191 2030225 2047427 2485495 2017219
+2104564 1971976 2566431 2447469 1928890 1938158 2083353 1953277 3027389 2193978
+mean 2,175,180  sd 294,872  CV 13.556%
+
+ARM 2 — QUIESCED, PINNED (taskset -c 2), 64 max_new_tokens (65 emitted), n=20
+load avg 1.14
+4721277 4879797 4562006 4626098 4729171 4812572 4749596 4842572 4772788 4609189
+4664377 4853178 4532175 4841230 5475108 4992456 4843906 4850830 5042830 4878120
+mean 4,813,964  sd 205,102  CV 4.261%  range 19.59%
+
+ARM 3 — QUIESCED, PINNED (taskset -c 2), 400 max_new_tokens (160 emitted, EOS), n=10
+5220398 5193834 5090431 5324969 5229074 5013312 5241100 5460354 5156700 5413660
+mean 5,234,383  sd 137,012  CV 2.618%
+
+--------------------------------------------------------------------
+DERIVED — variance components, CV^2 = B^2 + S^2/N
+  N=65  -> CV 4.261%
+  N=160 -> CV 2.618%
+  pure 1/sqrt(N) prediction for N=160 from the N=65 point: 2.716%
+  OBSERVED 2.618%  (0.1 pp below prediction)
+  solving both equations: per-step CV S = 35.2%,  B^2 = -0.881
+  => the BETWEEN-LAUNCH variance component is indistinguishable from ZERO on a
+     pinned quiesced box. Process launch, re-mmap of EMBED.BIN, page-cache state
+     and ASLR contribute NO measurable variance to decode cycles/token.
+  => residual variance is iid per-step jitter and averages down as 1/sqrt(N).
+
+DERIVED — required decode steps per arm, pinned quiesced Linux,
+two-sample 95% conf / 80% power, S = 34.3%/step:
+   1% effect -> 18,501 steps/arm  (~43 s of decode/arm)
+   3% effect ->  2,056 steps/arm  (~4.7 s/arm)
+  10% effect ->    185 steps/arm  (~0.4 s/arm)
+  16% effect ->     72 steps/arm  (~0.2 s/arm)
+
+DERIVED — MEAN shifts on ONE binary, ONE box, ONE prompt (this is the bias term):
+  load 9.30, unpinned (scout, 2026-07-29): 7,340,123
+  load 0.83, unpinned (this run):          4,536,873   -> load inflates mean 1.618x
+  load 1.14, pinned cpu2 (this run):       4,813,964   -> pinning shifts mean +6.11%
+  160-step run vs 65-step run, pinned:     5,234,383 vs 4,813,964 -> +8.73%
+                                            (real workload effect: KV cache growth)
+
+--------------------------------------------------------------------
+RECOMPUTED BARE-METAL COMPARATOR
+Source: docs/hardware_logs/m7_baremetal_prompts_postfix_2026-07-29.log
+
+(a) What the quoted "CV 0.0780% / 0.1048%, 7 repeats" actually is:
+    the 7 GAUNTLET segments SIMD_native, PSTATE_run1, PSTATE_run2_control,
+    PSTATE_run3_turbo, CTX_20, CTX_100, CTX_400 -- every one reports
+    "prefill 33 tok ~91.0Mt, decode 0 tok 0 ticks/tok".
+    Per aegis-uefi/src/main.rs:652-683 all seven call gbench! with the SAME
+    33-token ESSAY prompt and max_new_tokens 30/30/30/30/20/100/400.
+    DECODE EMITTED ZERO TOKENS IN ALL SEVEN, on both boots.
+    So the number is 7 replicates of ONE 33-token forward_batch prefill, and
+    the bare-metal arm contains NO decode measurement at all. The CTX_20/100/400
+    "context slope" experiment also silently measured nothing.
+      boot1 n=7: mean 91,090,788  CV 0.0780%
+      boot2 n=7: mean 91,004,024  CV 0.1048%
+      boot1 drop-first-as-cold n=6: CV 0.0062%
+      boot2 drop-first-as-cold n=6: CV 0.1123%   (does NOT tighten; consecutive
+        PSTATE_run1/run2 sit 0.2% low -> a real intra-boot drift exists)
+
+(b) The bare-metal DECODE replicates that DO exist in the same log:
+    prompt "continue" run three times, byte-identical 214-token output:
+      3,028,570,970 / 2,951,749,616 / 2,951,469,867 total ticks
+      = 14,152,200 / 13,793,222 / 13,791,915 ticks/token
+      n=3: CV 1.4924%   (run 1 is +2.6%, i.e. cold)
+      warm pair n=2: CV 0.0067%
+
+(c) The headline ratio under each pairing:
+      scout, Linux load9.3 launches vs BM prefill : 9.960 / 0.0780  = 128x
+      quiesced unpinned launches vs BM prefill    : 14.375 / 0.0780 = 184x
+      quiesced PINNED launches vs BM prefill      : 4.261 / 0.0780  = 55x
+      quiesced PINNED launches vs BM DECODE n=3   : 4.261 / 1.4924  = 3x
+      quiesced PINNED launches vs BM DECODE warm  : 4.261 / 0.0067  = 636x
+    The "100-200x" is not a property of the environments. It is a choice of
+    which two of these five pairings to quote.
+
+--------------------------------------------------------------------
+SOURCE VERIFICATION — "NO interrupts firing" is FALSE (scout's self-report CONFIRMED)
+  grep -rn "exit_boot_services|ExitBootServices|raise_tpl|Tpl::|disable_interrupt" aegis-uefi/src/
+  -> ZERO matches. UEFI Boot Services are never exited, TPL is never raised.
+  uefi::boot::stall is used at aegis-uefi/src/main.rs:79,158,245,398,406,414,675,766,824,881
+  -> the firmware timer interrupt is live throughout the measurement.
+  CONSEQUENCE: the bare-metal warm-pair 0.0067% was achieved WITH interrupts
+  enabled. "No interrupts" is therefore not the mechanism. The mechanism is
+  frequency pinned at ratio 25 + single-threaded + no other runnable task +
+  arena allocation (no faults) + no hypervisor.
+
+SOURCE VERIFICATION — the two settled negatives were NOT measured on the noisy arm
+  aegis-core/benches/lut_mpgemm.rs:238-244  -> warm call, then "best of 5"
+  aegis-core/benches/ctz_vs_simd.rs:161-185 -> warm calls, then INTERLEAVED
+    best-of-5, with the comment "Interleave and take best-of-N: this machine's
+    turbo state drifts."
+  Both are in-process, full-tensor, minimum-of-N estimators -- the standard
+  robust design against exactly the additive noise this candidate is about.
+  The claim that the 16% pshufb regression "may sit inside the noise band and
+  needs re-measuring" does not follow: it was never measured by launch loops.

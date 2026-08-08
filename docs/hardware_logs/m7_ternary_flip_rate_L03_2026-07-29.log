@@ -1,0 +1,216 @@
+L03 TERNARY FLIP-RATE PROBE + PARAMETER-GROUP FREEZE CONTROL  2026-07-29
+host: Linux 6.6.141-09471-g5c224965e126 x86_64 | python: /home/killboxincorporated/ranger-venv/bin/python3 | threads 4
+source ckpt: model-lab/tinybit/checkpoints/m7_ternary.pt md5 1af3b7b4ab003cad56a94b36760e2c97 (READ-ONLY, verified unchanged)
+scripts: probes/flip/flip_rate_probe.py, probes/flip/freeze_control.py, probes/flip/analyze.py
+
+########## PART 1: LR SWEEP, per-step Hamming distance of snap_ternary ##########
+===== LR 1e-5 ====== 2026-07-29T12:09:25-05:00
+               total        used        free      shared  buff/cache   available
+Mem:            6570        5139         895           0         624        1430
+[flip] lr 1.0e-05 | ternary weights 11,010,048 | src_step 122071 | moments_restored True
+[flip] fragility surface: rel10pct 2,209,978 (20.072%)  abs0.10 3,054,777 (27.745%) | code==0 4,033,746 (36.637%) | clamped(r>=1.5) 2,438,752 (22.150%)
+[flip] domain_ppl@0 607.2116
+  losses.append(float(loss))
+  step    0 loss 6.0305 flips    21,980 (1.996e-03) 3s
+  step   10 loss 6.1428 flips     4,953 (4.499e-04) 26s
+  step   20 loss 6.0279 flips     3,927 (3.567e-04) 50s
+  step   30 loss 5.9556 flips     3,756 (3.411e-04) 78s
+  step   40 loss 5.9003 flips     3,674 (3.337e-04) 105s
+  step   50 loss 5.7568 flips     3,758 (3.413e-04) 128s
+  step   60 loss 5.5169 flips     3,956 (3.593e-04) 153s
+  step   70 loss 5.3437 flips     3,515 (3.193e-04) 178s
+  step   80 loss 4.9417 flips     3,690 (3.351e-04) 202s
+  step   90 loss 5.6808 flips     3,456 (3.139e-04) 227s
+  step   99 loss 5.3754 flips     3,266 (2.966e-04) 248s
+[flip] lr 1.0e-05 DONE mean_flip_rate 3.8431e-04 net 1.5581e-02 domain_ppl 607.212->326.847 (+0.6194 nats) -> /home/killboxincorporated/model-lab/tinybit/probes/flip/flip_lr_1e-5.json
+exit=0
+===== LR 1e-4 ====== 2026-07-29T12:13:42-05:00
+               total        used        free      shared  buff/cache   available
+Mem:            6570        4361        1402           1         896        2208
+[flip] lr 1.0e-04 | ternary weights 11,010,048 | src_step 122071 | moments_restored True
+[flip] fragility surface: rel10pct 2,209,978 (20.072%)  abs0.10 3,054,777 (27.745%) | code==0 4,033,746 (36.637%) | clamped(r>=1.5) 2,438,752 (22.150%)
+[flip] domain_ppl@0 607.2116
+  losses.append(float(loss))
+  step    0 loss 6.0305 flips    82,191 (7.465e-03) 3s
+  step   10 loss 6.3365 flips    14,163 (1.286e-03) 25s
+  step   20 loss 5.9197 flips    10,175 (9.242e-04) 47s
+  step   30 loss 5.4500 flips     9,744 (8.850e-04) 68s
+  step   40 loss 5.0290 flips    11,580 (1.052e-03) 93s
+  step   50 loss 5.2721 flips    11,659 (1.059e-03) 117s
+  step   60 loss 4.9927 flips    12,379 (1.124e-03) 140s
+  step   70 loss 4.3908 flips    11,047 (1.003e-03) 162s
+  step   80 loss 4.2720 flips    12,466 (1.132e-03) 185s
+  step   90 loss 4.9015 flips    11,298 (1.026e-03) 207s
+  step   99 loss 4.5971 flips    10,846 (9.851e-04) 227s
+[flip] lr 1.0e-04 DONE mean_flip_rate 1.1721e-03 net 4.1747e-02 domain_ppl 607.212->195.888 (+1.1313 nats) -> /home/killboxincorporated/model-lab/tinybit/probes/flip/flip_lr_1e-4.json
+exit=0
+===== LR 1e-3 ====== 2026-07-29T12:17:37-05:00
+               total        used        free      shared  buff/cache   available
+Mem:            6570        4298        1529           2         837        2272
+[flip] lr 1.0e-03 | ternary weights 11,010,048 | src_step 122071 | moments_restored True
+[flip] fragility surface: rel10pct 2,209,978 (20.072%)  abs0.10 3,054,777 (27.745%) | code==0 4,033,746 (36.637%) | clamped(r>=1.5) 2,438,752 (22.150%)
+[flip] domain_ppl@0 607.2116
+  losses.append(float(loss))
+  step    0 loss 6.0305 flips   264,019 (2.398e-02) 3s
+  step   10 loss 6.7423 flips    30,635 (2.782e-03) 24s
+  step   20 loss 6.2406 flips    22,186 (2.015e-03) 47s
+  step   30 loss 5.2957 flips    27,052 (2.457e-03) 68s
+  step   40 loss 4.9224 flips    29,779 (2.705e-03) 91s
+  step   50 loss 5.3645 flips    33,301 (3.025e-03) 113s
+  step   60 loss 4.8830 flips    36,251 (3.293e-03) 133s
+  step   70 loss 4.3369 flips    35,584 (3.232e-03) 155s
+  step   80 loss 4.4209 flips    36,735 (3.336e-03) 177s
+  step   90 loss 4.8581 flips    33,897 (3.079e-03) 198s
+  step   99 loss 4.4696 flips    34,613 (3.144e-03) 218s
+[flip] lr 1.0e-03 DONE mean_flip_rate 3.3263e-03 net 1.1556e-01 domain_ppl 607.212->191.037 (+1.1564 nats) -> /home/killboxincorporated/model-lab/tinybit/probes/flip/flip_lr_1e-3.json
+exit=0
+SWEEP DONE 2026-07-29T12:21:23-05:00
+               total        used        free      shared  buff/cache   available
+Mem:            6570        4315        1516           3         826        2255
+
+########## PART 1 ANALYSIS ##########
+================================================================================================
+L03 TERNARY FLIP-RATE PROBE — 100 steps, B2 T512, smoltalk, wd0, AdamW moments restored
+================================================================================================
+ternary weights (BitLinear.weight only) : 11,010,048
+step-0 code histogram: code==0 36.64%  code==+-1 63.36%  (of which r>=1.5 'deep' 22.15%)
+FRAGILITY SURFACE  |w|/gamma in [0.45,0.55] (within 10% of 0.5): 20.072%
+                   |w|/gamma in [0.40,0.60] (abs +-0.10 band)  : 27.745%
+
+     lr  lr/gamma(med)    flip/step  flip/step %    net@100    net %   churn  dom nats  nats/flip%
+   1e-5        0.00014        4,231      0.0384%    171,544   1.558%    2.47   +0.6194      16.117
+   1e-4        0.00140       12,905      0.1172%    459,637   4.175%    2.81   +1.1313       9.652
+   1e-3        0.01397       36,623      0.3326%  1,272,320  11.556%    2.88   +1.1564       3.477
+
+SCALING (is flip rate linear in lr?)
+  lr x10 (1e-5 -> 1e-4): flip-rate x3.050   domain-nats +0.6194 -> +1.1313
+  lr x10 (1e-4 -> 1e-3): flip-rate x2.838   domain-nats +1.1313 -> +1.1564
+
+PER-PROJECTION-TYPE flip rate (fraction of that tensor's weights flipped per step)
+  lr 1e-5:
+          proj  flip/step%    frag%     gamma  lr/gamma
+        v_proj     0.1074%  22.290%  0.095753   0.00010
+        o_proj     0.0629%  22.676%  0.077509   0.00013
+        k_proj     0.0498%  22.034%  0.077328   0.00013
+     down_proj     0.0446%  22.166%  0.073547   0.00014
+     gate_proj     0.0334%  20.123%  0.069545   0.00014
+       up_proj     0.0244%  17.332%  0.064600   0.00015
+        q_proj     0.0216%  17.667%  0.063970   0.00016
+  lr 1e-4:
+          proj  flip/step%    frag%     gamma  lr/gamma
+        v_proj     0.2085%  22.290%  0.095753   0.00104
+        o_proj     0.1626%  22.676%  0.077509   0.00129
+        k_proj     0.1413%  22.034%  0.077328   0.00129
+     down_proj     0.1319%  22.166%  0.073547   0.00136
+     gate_proj     0.1114%  20.123%  0.069545   0.00144
+       up_proj     0.0889%  17.332%  0.064600   0.00155
+        q_proj     0.0851%  17.667%  0.063970   0.00156
+  lr 1e-3:
+          proj  flip/step%    frag%     gamma  lr/gamma
+        o_proj     0.3872%  22.676%  0.077509   0.01290
+        v_proj     0.3796%  22.290%  0.095753   0.01044
+        k_proj     0.3543%  22.034%  0.077328   0.01293
+     down_proj     0.3474%  22.166%  0.073547   0.01360
+     gate_proj     0.3287%  20.123%  0.069545   0.01438
+        q_proj     0.3075%  17.667%  0.063970   0.01563
+       up_proj     0.3022%  17.332%  0.064600   0.01548
+
+PER-LAYER flip rate (mean over that layer's 7 projections)
+  lr 1e-5: L0:0.043%  L1:0.026%  L2:0.032%  L3:0.048%  L4:0.074%  L5:0.051%  L6:0.071%
+  lr 1e-4: L0:0.099%  L1:0.092%  L2:0.108%  L3:0.137%  L4:0.181%  L5:0.143%  L6:0.169%
+  lr 1e-3: L0:0.282%  L1:0.310%  L2:0.324%  L3:0.350%  L4:0.405%  L5:0.352%  L6:0.384%
+
+FLIP RATE OVER TIME (mean flips/step, in 20-step blocks, as % of ternary weights)
+  lr 1e-5: 0.0587%  0.0346%  0.0339%  0.0328%  0.0321%   | step0=0.1996%
+  lr 1e-4: 0.1780%  0.0961%  0.1036%  0.1035%  0.1049%   | step0=0.7465%
+  lr 1e-3: 0.4764%  0.2515%  0.2927%  0.3227%  0.3198%   | step0=2.3980%
+
+GAMMA range across the 49 ternary tensors
+  min 0.056551  median 0.071598  max 0.120479
+  (earlier analysis assumed init-time gamma 0.015965)
+  lr 1e-5: lr/gamma min 0.00008  median 0.00014  max 0.00018
+  lr 1e-4: lr/gamma min 0.00083  median 0.00140  max 0.00177
+  lr 1e-3: lr/gamma min 0.00830  median 0.01397  max 0.01768
+
+########## PART 2: PARAMETER-GROUP FREEZE CONTROL (lr 1e-4, 100 steps) ##########
+===== freeze=ternary
+[ctl freeze=ternary] ternary 11,010,048 fp 3,161,344 | frozen 11,010,048 | lr 1.0e-04
+[ctl] BEFORE domain 607.2116 general 5.1395
+  step    0 loss 6.0305 2s
+  step   20 loss 6.2236 47s
+  step   40 loss 6.1769 92s
+  step   60 loss 5.5553 139s
+  step   80 loss 5.0561 183s
+  step   99 loss 5.1458 222s
+[ctl freeze=ternary] domain 607.2116->280.1353 (+0.7736 nats) | general 5.1395->5.2525 (-0.0217 nats) | net_flips 0 (0.000%)
+===== freeze=fp
+[ctl freeze=fp] ternary 11,010,048 fp 3,161,344 | frozen 3,161,344 | lr 1.0e-04
+[ctl] BEFORE domain 607.2116 general 5.1395
+  step    0 loss 6.0305 2s
+  step   20 loss 6.1783 44s
+  step   40 loss 6.0842 84s
+  step   60 loss 5.5534 128s
+  step   80 loss 4.9641 172s
+  step   99 loss 5.5269 212s
+[ctl freeze=fp] domain 607.2116->339.6468 (+0.5810 nats) | general 5.1395->6.8615 (-0.2890 nats) | net_flips 462,566 (4.201%)
+===== freeze=none
+[ctl freeze=none] ternary 11,010,048 fp 3,161,344 | frozen 0 | lr 1.0e-04
+[ctl] BEFORE domain 607.2116 general 5.1395
+  step    0 loss 6.0305 3s
+  step   20 loss 5.9197 47s
+  step   40 loss 5.0290 95s
+  step   60 loss 4.9927 137s
+  step   80 loss 4.2720 180s
+  step   99 loss 4.5971 221s
+[ctl freeze=none] domain 607.2116->195.8885 (+1.1313 nats) | general 5.1395->7.0009 (-0.3091 nats) | net_flips 459,637 (4.175%)
+===== paired freeze=ternary
+[pair freeze=ternary] windows 48x512 | domain stride 29,568 general stride 112,799 | frozen 11,010,048/14,171,392
+  step    0 loss 6.0305 3s
+  step   25 loss 5.8721 57s
+  step   50 loss 5.8459 111s
+  step   75 loss 5.7006 163s
+  step   99 loss 5.1458 215s
+[pair freeze=ternary] net_flips 0 (0.000%)
+  DOMAIN : mean_nll_diff +1.5834 nats (+ = gained) | boot95 [+1.3814,+1.7868] | sign-flip p 5.00e-05 | windows won 48/48
+  GENERAL: mean_nll_diff -0.0148 nats (+ = gained; negative = FORGETTING) | boot95 [-0.0178,-0.0120] | sign-flip p 5.00e-05 | windows won 5/48
+===== paired freeze=fp
+[pair freeze=fp] windows 48x512 | domain stride 29,568 general stride 112,799 | frozen 3,161,344/14,171,392
+  step    0 loss 6.0305 3s
+  step   25 loss 5.5285 61s
+  step   50 loss 5.7910 120s
+  step   75 loss 5.7561 189s
+  step   99 loss 5.5269 249s
+[pair freeze=fp] net_flips 462,566 (4.201%)
+  DOMAIN : mean_nll_diff +1.3800 nats (+ = gained) | boot95 [+1.1933,+1.5730] | sign-flip p 5.00e-05 | windows won 48/48
+  GENERAL: mean_nll_diff -0.2520 nats (+ = gained; negative = FORGETTING) | boot95 [-0.2649,-0.2392] | sign-flip p 5.00e-05 | windows won 0/48
+===== paired freeze=none
+[pair freeze=none] windows 48x512 | domain stride 29,568 general stride 112,799 | frozen 0/14,171,392
+  step    0 loss 6.0305 3s
+  step   25 loss 5.2228 68s
+  step   50 loss 5.2721 130s
+  step   75 loss 5.2782 190s
+  step   99 loss 4.5971 245s
+[pair freeze=none] net_flips 459,637 (4.175%)
+  DOMAIN : mean_nll_diff +2.2722 nats (+ = gained) | boot95 [+1.9934,+2.5542] | sign-flip p 5.00e-05 | windows won 48/48
+  GENERAL: mean_nll_diff -0.2731 nats (+ = gained; negative = FORGETTING) | boot95 [-0.2863,-0.2604] | sign-flip p 5.00e-05 | windows won 0/48
+===== paired lr=1e-5 freeze=none
+[pair freeze=none] windows 48x512 | domain stride 29,568 general stride 112,799 | frozen 0/14,171,392
+  step    0 loss 6.0305 3s
+  step   25 loss 5.4205 69s
+  step   50 loss 5.7568 131s
+  step   75 loss 5.7060 206s
+  step   99 loss 5.3754 277s
+[pair freeze=none] net_flips 171,544 (1.558%)
+  DOMAIN : mean_nll_diff +1.4823 nats (+ = gained) | boot95 [+1.2823,+1.6856] | sign-flip p 5.00e-05 | windows won 48/48
+  GENERAL: mean_nll_diff -0.0778 nats (+ = gained; negative = FORGETTING) | boot95 [-0.0843,-0.0713] | sign-flip p 5.00e-05 | windows won 0/48
+===== paired lr=1e-3 freeze=none
+[pair freeze=none] windows 48x512 | domain stride 29,568 general stride 112,799 | frozen 0/14,171,392
+  step    0 loss 6.0305 6s
+  step   25 loss 5.7105 89s
+  step   50 loss 5.3645 169s
+  step   75 loss 5.4927 250s
+  step   99 loss 4.4696 325s
+[pair freeze=none] net_flips 1,272,320 (11.556%)
+  DOMAIN : mean_nll_diff +2.2628 nats (+ = gained) | boot95 [+1.9549,+2.5662] | sign-flip p 5.00e-05 | windows won 47/48
+  GENERAL: mean_nll_diff -1.7005 nats (+ = gained; negative = FORGETTING) | boot95 [-1.7413,-1.6599] | sign-flip p 5.00e-05 | windows won 0/48
+

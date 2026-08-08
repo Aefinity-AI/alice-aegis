@@ -1,0 +1,35 @@
+== witness v0 demo session (identity only, never perf) ==
+2026-08-01T04:17:56Z
+penguin
+model name	: Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
+virt: kvm
+binary: 1b25dcc1af135fcd6f41618f6810a738  /home/killboxincorporated/aegis-linux/target/release/examples/witness
+
+-- witness file --
+AEGIS-WITNESS v0-float-DEMO
+model 23cfad0a3c7de2b676e176755f0848cd2cad8e71e2cdffea3d903a232c96e973
+embed 3752cd5ca2e39593cdf0910968f8ff629d79417f253e33e1a1c4faa0ce33848e
+vocab 5a1d79caf517084a73de5e5379d2995e61f23afaada91822da12ecb4ad7fcd8a
+arith AVX2+FMA
+maxtok 128
+prompt-hex 68656c6c6f20616c696365
+ntok 85
+chain 9e25c82990bca33025d19e7f73985ca2bfa1034d1b97562ca5e4d4c4bc2b6000
+
+-- 1. same-arith verify --
+witness arith: AVX2+FMA | verifier arith: AVX2+FMA
+witness ntok 85 chain 9e25c82990bca330
+local   ntok 85 chain 9e25c82990bca330
+VERIFY PASS — re-execution reproduced the chain bit-for-bit
+exit=0
+
+-- 2. cross-arith verify (--scalar) --
+witness arith: AVX2+FMA | verifier arith: scalar
+witness ntok 85 chain 9e25c82990bca330
+local   ntok 74 chain c860c0e1945b69eb
+VERIFY FAIL — re-execution diverged from the witness
+exit=1
+
+-- 3. tampered-model verify (1 byte @1500000) --
+FAIL artifact: MODEL hash mismatch (witness 23cfad0a3c7de2b6 vs local cd0d8a1547f2a377)
+exit=1

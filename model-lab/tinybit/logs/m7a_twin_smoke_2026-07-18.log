@@ -1,0 +1,323 @@
+=== M7a twin smoke test — 2026-07-18 ===
+host: Crostini VM i5-10210U 4C/8T AVX2, 6.4GB RAM; aegis-ppl-rerun ACTIVE (~1GB RSS) throughout
+config: configs/m7a_twin.json overrides: --steps 200 --warmup 20 --eval-every 100 --save-every 100 --log-every 1 --threads 4
+env: OMP_NUM_THREADS=4 MKL_NUM_THREADS=4
+plan: run to ~step 105-115, SIGKILL (crash sim) after step-100 ckpt saved, then --resume to 200
+
+--- RUN 1 (fresh, target kill after step-100 checkpoint) ---
+[train] model params: 6529920 (6.53M) | linear=fp | sched=cosine | B=8 T=512 threads=4
+step     0/200 | loss 9.0418 | lr 0.00e+00 | wd 0.100 | gnorm 5.12 | 5.6s
+step     1/200 | loss 9.0566 | lr 5.00e-05 | wd 0.100 | gnorm 4.76 | 9.7s
+step     2/200 | loss 8.9557 | lr 1.00e-04 | wd 0.100 | gnorm 4.58 | 13.5s
+step     3/200 | loss 8.8110 | lr 1.50e-04 | wd 0.100 | gnorm 3.86 | 16.7s
+step     4/200 | loss 8.6861 | lr 2.00e-04 | wd 0.100 | gnorm 3.68 | 19.8s
+step     5/200 | loss 8.5239 | lr 2.50e-04 | wd 0.100 | gnorm 2.56 | 23.0s
+step     6/200 | loss 8.4144 | lr 3.00e-04 | wd 0.100 | gnorm 2.14 | 26.1s
+step     7/200 | loss 8.3030 | lr 3.50e-04 | wd 0.100 | gnorm 2.02 | 29.7s
+step     8/200 | loss 8.2142 | lr 4.00e-04 | wd 0.100 | gnorm 1.98 | 32.7s
+step     9/200 | loss 8.1087 | lr 4.50e-04 | wd 0.100 | gnorm 1.96 | 35.6s
+step    10/200 | loss 8.0167 | lr 5.00e-04 | wd 0.100 | gnorm 1.93 | 38.6s
+step    11/200 | loss 7.8811 | lr 5.50e-04 | wd 0.100 | gnorm 1.95 | 41.6s
+step    12/200 | loss 7.7633 | lr 6.00e-04 | wd 0.100 | gnorm 1.81 | 44.7s
+step    13/200 | loss 7.5659 | lr 6.50e-04 | wd 0.100 | gnorm 1.86 | 49.7s
+step    14/200 | loss 7.3701 | lr 7.00e-04 | wd 0.100 | gnorm 1.86 | 53.1s
+step    15/200 | loss 7.2070 | lr 7.50e-04 | wd 0.100 | gnorm 1.82 | 56.4s
+step    16/200 | loss 7.0351 | lr 8.00e-04 | wd 0.100 | gnorm 1.79 | 59.5s
+step    17/200 | loss 6.8331 | lr 8.50e-04 | wd 0.100 | gnorm 1.73 | 62.5s
+step    18/200 | loss 6.6654 | lr 9.00e-04 | wd 0.100 | gnorm 1.64 | 65.4s
+step    19/200 | loss 6.5536 | lr 9.50e-04 | wd 0.100 | gnorm 1.49 | 68.6s
+step    20/200 | loss 6.3638 | lr 1.00e-03 | wd 0.100 | gnorm 1.41 | 72.4s
+step    21/200 | loss 6.2500 | lr 1.00e-03 | wd 0.100 | gnorm 1.26 | 76.5s
+step    22/200 | loss 6.1254 | lr 1.00e-03 | wd 0.100 | gnorm 1.09 | 79.9s
+step    23/200 | loss 5.9529 | lr 9.99e-04 | wd 0.100 | gnorm 1.03 | 83.2s
+step    24/200 | loss 5.9322 | lr 9.99e-04 | wd 0.100 | gnorm 0.79 | 86.4s
+step    25/200 | loss 5.9515 | lr 9.98e-04 | wd 0.100 | gnorm 0.65 | 89.8s
+step    26/200 | loss 5.8294 | lr 9.98e-04 | wd 0.100 | gnorm 0.47 | 93.1s
+step    27/200 | loss 5.8731 | lr 9.97e-04 | wd 0.100 | gnorm 0.43 | 96.3s
+step    28/200 | loss 5.8826 | lr 9.96e-04 | wd 0.100 | gnorm 0.37 | 99.6s
+step    29/200 | loss 5.9042 | lr 9.94e-04 | wd 0.100 | gnorm 0.51 | 102.8s
+step    30/200 | loss 5.9247 | lr 9.93e-04 | wd 0.100 | gnorm 0.56 | 106.0s
+step    31/200 | loss 5.8445 | lr 9.92e-04 | wd 0.100 | gnorm 0.62 | 109.0s
+step    32/200 | loss 5.9043 | lr 9.90e-04 | wd 0.100 | gnorm 0.66 | 112.1s
+step    33/200 | loss 5.8495 | lr 9.88e-04 | wd 0.100 | gnorm 0.53 | 115.1s
+step    34/200 | loss 5.8968 | lr 9.87e-04 | wd 0.100 | gnorm 0.45 | 118.3s
+step    35/200 | loss 5.8299 | lr 9.85e-04 | wd 0.100 | gnorm 0.50 | 121.5s
+step    36/200 | loss 6.0439 | lr 9.83e-04 | wd 0.100 | gnorm 0.48 | 124.6s
+step    37/200 | loss 5.8600 | lr 9.80e-04 | wd 0.100 | gnorm 0.45 | 127.6s
+step    38/200 | loss 5.9142 | lr 9.78e-04 | wd 0.100 | gnorm 0.46 | 130.7s
+step    39/200 | loss 5.9269 | lr 9.75e-04 | wd 0.100 | gnorm 0.62 | 133.9s
+step    40/200 | loss 5.8387 | lr 9.73e-04 | wd 0.100 | gnorm 0.47 | 137.0s
+step    41/200 | loss 5.8050 | lr 9.70e-04 | wd 0.100 | gnorm 0.47 | 140.4s
+step    42/200 | loss 5.8404 | lr 9.67e-04 | wd 0.100 | gnorm 0.46 | 143.9s
+step    43/200 | loss 5.7519 | lr 9.64e-04 | wd 0.100 | gnorm 0.45 | 147.5s
+step    44/200 | loss 5.9223 | lr 9.61e-04 | wd 0.100 | gnorm 0.51 | 150.9s
+step    45/200 | loss 5.9857 | lr 9.58e-04 | wd 0.100 | gnorm 0.46 | 154.3s
+step    46/200 | loss 5.8627 | lr 9.54e-04 | wd 0.100 | gnorm 0.41 | 157.7s
+step    47/200 | loss 5.8566 | lr 9.51e-04 | wd 0.100 | gnorm 0.47 | 160.8s
+step    48/200 | loss 5.8261 | lr 9.47e-04 | wd 0.100 | gnorm 0.52 | 164.0s
+step    49/200 | loss 5.8384 | lr 9.44e-04 | wd 0.100 | gnorm 0.48 | 167.2s
+step    50/200 | loss 5.8697 | lr 9.40e-04 | wd 0.100 | gnorm 0.84 | 170.6s
+step    51/200 | loss 5.8642 | lr 9.36e-04 | wd 0.100 | gnorm 1.11 | 173.6s
+step    52/200 | loss 5.7223 | lr 9.32e-04 | wd 0.100 | gnorm 0.64 | 176.6s
+step    53/200 | loss 5.7837 | lr 9.27e-04 | wd 0.100 | gnorm 0.63 | 179.6s
+step    54/200 | loss 5.6578 | lr 9.23e-04 | wd 0.100 | gnorm 0.46 | 182.7s
+step    55/200 | loss 5.6689 | lr 9.19e-04 | wd 0.100 | gnorm 0.70 | 185.9s
+step    56/200 | loss 5.8030 | lr 9.14e-04 | wd 0.100 | gnorm 0.67 | 188.9s
+step    57/200 | loss 5.6254 | lr 9.09e-04 | wd 0.100 | gnorm 0.68 | 192.0s
+step    58/200 | loss 5.6588 | lr 9.05e-04 | wd 0.100 | gnorm 0.68 | 195.1s
+step    59/200 | loss 5.6381 | lr 9.00e-04 | wd 0.100 | gnorm 0.59 | 198.1s
+step    60/200 | loss 5.6518 | lr 8.95e-04 | wd 0.100 | gnorm 0.72 | 201.0s
+step    61/200 | loss 5.4623 | lr 8.90e-04 | wd 0.100 | gnorm 0.80 | 204.1s
+step    62/200 | loss 5.4574 | lr 8.84e-04 | wd 0.100 | gnorm 0.74 | 207.2s
+step    63/200 | loss 5.4148 | lr 8.79e-04 | wd 0.100 | gnorm 0.67 | 210.1s
+step    64/200 | loss 5.3830 | lr 8.74e-04 | wd 0.100 | gnorm 0.59 | 213.3s
+step    65/200 | loss 5.4337 | lr 8.68e-04 | wd 0.100 | gnorm 0.97 | 216.8s
+step    66/200 | loss 5.4178 | lr 8.63e-04 | wd 0.100 | gnorm 0.80 | 219.9s
+step    67/200 | loss 5.3759 | lr 8.57e-04 | wd 0.100 | gnorm 0.67 | 222.9s
+step    68/200 | loss 5.3347 | lr 8.51e-04 | wd 0.100 | gnorm 0.73 | 226.1s
+step    69/200 | loss 5.3082 | lr 8.45e-04 | wd 0.100 | gnorm 0.75 | 229.3s
+step    70/200 | loss 5.3469 | lr 8.39e-04 | wd 0.100 | gnorm 0.70 | 232.3s
+step    71/200 | loss 5.3855 | lr 8.33e-04 | wd 0.100 | gnorm 1.14 | 235.2s
+step    72/200 | loss 5.4653 | lr 8.27e-04 | wd 0.100 | gnorm 0.85 | 238.3s
+step    73/200 | loss 5.3814 | lr 8.21e-04 | wd 0.100 | gnorm 1.07 | 241.3s
+step    74/200 | loss 5.4035 | lr 8.15e-04 | wd 0.100 | gnorm 0.59 | 244.3s
+step    75/200 | loss 5.3035 | lr 8.08e-04 | wd 0.100 | gnorm 0.73 | 247.4s
+step    76/200 | loss 5.4288 | lr 8.02e-04 | wd 0.100 | gnorm 0.67 | 250.4s
+step    77/200 | loss 5.1054 | lr 7.95e-04 | wd 0.100 | gnorm 0.83 | 253.6s
+step    78/200 | loss 5.2631 | lr 7.88e-04 | wd 0.100 | gnorm 0.68 | 256.7s
+step    79/200 | loss 5.1787 | lr 7.82e-04 | wd 0.100 | gnorm 0.58 | 259.7s
+step    80/200 | loss 5.1393 | lr 7.75e-04 | wd 0.100 | gnorm 0.69 | 262.6s
+step    81/200 | loss 5.1200 | lr 7.68e-04 | wd 0.100 | gnorm 0.72 | 265.7s
+step    82/200 | loss 5.3452 | lr 7.61e-04 | wd 0.100 | gnorm 0.75 | 268.9s
+step    83/200 | loss 5.0511 | lr 7.54e-04 | wd 0.100 | gnorm 0.70 | 272.0s
+step    84/200 | loss 5.0953 | lr 7.47e-04 | wd 0.100 | gnorm 0.80 | 275.1s
+step    85/200 | loss 5.0027 | lr 7.40e-04 | wd 0.100 | gnorm 0.73 | 277.9s
+step    86/200 | loss 4.9644 | lr 7.33e-04 | wd 0.100 | gnorm 0.65 | 281.0s
+step    87/200 | loss 5.0139 | lr 7.26e-04 | wd 0.100 | gnorm 0.62 | 283.7s
+step    88/200 | loss 5.2173 | lr 7.19e-04 | wd 0.100 | gnorm 0.61 | 286.7s
+step    89/200 | loss 5.2102 | lr 7.11e-04 | wd 0.100 | gnorm 0.69 | 289.9s
+step    90/200 | loss 5.1267 | lr 7.04e-04 | wd 0.100 | gnorm 0.83 | 292.8s
+step    91/200 | loss 4.9536 | lr 6.97e-04 | wd 0.100 | gnorm 0.69 | 295.6s
+step    92/200 | loss 5.0330 | lr 6.89e-04 | wd 0.100 | gnorm 0.72 | 298.5s
+step    93/200 | loss 5.0575 | lr 6.82e-04 | wd 0.100 | gnorm 0.77 | 301.3s
+step    94/200 | loss 5.0376 | lr 6.74e-04 | wd 0.100 | gnorm 0.78 | 304.2s
+step    95/200 | loss 4.9326 | lr 6.66e-04 | wd 0.100 | gnorm 0.74 | 307.0s
+step    96/200 | loss 5.0193 | lr 6.59e-04 | wd 0.100 | gnorm 0.71 | 310.0s
+step    97/200 | loss 4.9840 | lr 6.51e-04 | wd 0.100 | gnorm 0.76 | 312.8s
+step    98/200 | loss 4.8056 | lr 6.44e-04 | wd 0.100 | gnorm 0.92 | 315.8s
+step    99/200 | loss 4.9858 | lr 6.36e-04 | wd 0.100 | gnorm 0.78 | 318.8s
+  [val] step 100 | val_ppl 192.215
+step   100/200 | loss 4.8728 | lr 6.28e-04 | wd 0.100 | gnorm 0.81 | 322.8s
+step   101/200 | loss 4.7700 | lr 6.20e-04 | wd 0.100 | gnorm 0.72 | 325.7s
+step   102/200 | loss 4.7870 | lr 6.13e-04 | wd 0.100 | gnorm 0.82 | 328.7s
+step   103/200 | loss 4.9228 | lr 6.05e-04 | wd 0.100 | gnorm 0.86 | 331.8s
+step   104/200 | loss 4.7873 | lr 5.97e-04 | wd 0.100 | gnorm 0.79 | 334.8s
+step   105/200 | loss 4.9017 | lr 5.89e-04 | wd 0.100 | gnorm 0.66 | 337.7s
+--- RUN 1 KILLED (SIGKILL, crash simulation) after step-100 ckpt; sampled RSS at kill: 1680 kB, VmSwap: 440 kB, sampled max RSS during run: 2172 kB ---
+step   106/200 | loss 4.9425 | lr 5.81e-04 | wd 0.100 | gnorm 0.89 | 340.7s
+step   107/200 | loss 4.8239 | lr 5.74e-04 | wd 0.100 | gnorm 0.93 | 343.8s
+--- RUN 1 KILLED (SIGKILL to python pid 8619, crash simulation) after step-100 ckpt saved; VmRSS at kill: 1625296 kB, VmSwap: 185652 kB ---
+NOTE: the first "RUN 1 KILLED" line above (1680 kB) was an automation artifact: it killed and measured the bash wrapper (pid 8617), not the trainer. The authoritative kill is the second line: python pid 8619, VmRSS 1,625,296 kB (~1.55 GB) + VmSwap 185,652 kB at kill.
+
+--- RUN 2 (resume from step-100 checkpoint after SIGKILL) ---
+[train] model params: 6529920 (6.53M) | linear=fp | sched=cosine | B=8 T=512 threads=4
+[train] resumed from step 100
+step   100/200 | loss 4.9254 | lr 6.28e-04 | wd 0.100 | gnorm 0.77 | 3.9s
+step   101/200 | loss 4.8440 | lr 6.20e-04 | wd 0.100 | gnorm 0.95 | 7.5s
+step   102/200 | loss 4.9276 | lr 6.13e-04 | wd 0.100 | gnorm 0.73 | 10.7s
+step   103/200 | loss 4.8700 | lr 6.05e-04 | wd 0.100 | gnorm 0.91 | 13.5s
+step   104/200 | loss 4.8620 | lr 5.97e-04 | wd 0.100 | gnorm 0.99 | 16.4s
+step   105/200 | loss 4.9948 | lr 5.89e-04 | wd 0.100 | gnorm 0.79 | 19.1s
+step   106/200 | loss 4.8140 | lr 5.81e-04 | wd 0.100 | gnorm 0.94 | 21.6s
+step   107/200 | loss 4.8868 | lr 5.74e-04 | wd 0.100 | gnorm 0.91 | 24.3s
+step   108/200 | loss 4.8217 | lr 5.66e-04 | wd 0.100 | gnorm 0.78 | 27.1s
+step   109/200 | loss 4.7884 | lr 5.58e-04 | wd 0.100 | gnorm 0.80 | 29.8s
+step   110/200 | loss 4.6715 | lr 5.50e-04 | wd 0.100 | gnorm 0.90 | 32.6s
+step   111/200 | loss 4.5695 | lr 5.42e-04 | wd 0.100 | gnorm 0.93 | 35.3s
+step   112/200 | loss 4.7316 | lr 5.34e-04 | wd 0.100 | gnorm 1.01 | 37.9s
+step   113/200 | loss 4.6150 | lr 5.26e-04 | wd 0.100 | gnorm 0.92 | 40.4s
+step   114/200 | loss 4.7627 | lr 5.19e-04 | wd 0.100 | gnorm 1.02 | 43.0s
+step   115/200 | loss 4.7484 | lr 5.11e-04 | wd 0.100 | gnorm 0.90 | 45.6s
+step   116/200 | loss 4.6132 | lr 5.03e-04 | wd 0.100 | gnorm 0.88 | 48.4s
+step   117/200 | loss 4.6357 | lr 4.95e-04 | wd 0.100 | gnorm 1.05 | 51.0s
+step   118/200 | loss 4.9190 | lr 4.87e-04 | wd 0.100 | gnorm 0.92 | 53.6s
+step   119/200 | loss 4.8611 | lr 4.80e-04 | wd 0.100 | gnorm 1.05 | 56.3s
+step   120/200 | loss 4.6737 | lr 4.72e-04 | wd 0.100 | gnorm 1.02 | 58.7s
+step   121/200 | loss 4.8220 | lr 4.64e-04 | wd 0.100 | gnorm 0.91 | 61.4s
+step   122/200 | loss 4.5162 | lr 4.56e-04 | wd 0.100 | gnorm 0.89 | 64.2s
+step   123/200 | loss 4.5784 | lr 4.49e-04 | wd 0.100 | gnorm 1.17 | 66.9s
+step   124/200 | loss 4.6665 | lr 4.41e-04 | wd 0.100 | gnorm 0.98 | 69.5s
+step   125/200 | loss 4.7528 | lr 4.34e-04 | wd 0.100 | gnorm 1.16 | 72.5s
+step   126/200 | loss 4.6540 | lr 4.26e-04 | wd 0.100 | gnorm 0.81 | 75.2s
+step   127/200 | loss 4.6522 | lr 4.18e-04 | wd 0.100 | gnorm 0.84 | 77.7s
+step   128/200 | loss 4.8008 | lr 4.11e-04 | wd 0.100 | gnorm 0.97 | 80.4s
+step   129/200 | loss 4.7148 | lr 4.03e-04 | wd 0.100 | gnorm 0.94 | 83.0s
+step   130/200 | loss 4.6041 | lr 3.96e-04 | wd 0.100 | gnorm 0.77 | 85.7s
+step   131/200 | loss 4.6353 | lr 3.89e-04 | wd 0.100 | gnorm 0.86 | 88.3s
+step   132/200 | loss 4.6575 | lr 3.81e-04 | wd 0.100 | gnorm 0.80 | 91.0s
+step   133/200 | loss 4.5763 | lr 3.74e-04 | wd 0.100 | gnorm 0.75 | 93.5s
+step   134/200 | loss 4.4865 | lr 3.67e-04 | wd 0.100 | gnorm 0.92 | 96.1s
+step   135/200 | loss 4.5814 | lr 3.60e-04 | wd 0.100 | gnorm 0.79 | 98.8s
+step   136/200 | loss 4.6417 | lr 3.53e-04 | wd 0.100 | gnorm 1.04 | 101.6s
+step   137/200 | loss 4.5436 | lr 3.46e-04 | wd 0.100 | gnorm 0.95 | 104.3s
+step   138/200 | loss 4.5305 | lr 3.39e-04 | wd 0.100 | gnorm 0.86 | 107.1s
+step   139/200 | loss 4.4568 | lr 3.32e-04 | wd 0.100 | gnorm 0.88 | 109.8s
+step   140/200 | loss 4.5477 | lr 3.25e-04 | wd 0.100 | gnorm 0.97 | 112.5s
+step   141/200 | loss 4.5474 | lr 3.18e-04 | wd 0.100 | gnorm 0.82 | 115.1s
+step   142/200 | loss 4.4501 | lr 3.12e-04 | wd 0.100 | gnorm 0.76 | 117.7s
+step   143/200 | loss 4.5679 | lr 3.05e-04 | wd 0.100 | gnorm 0.93 | 120.4s
+step   144/200 | loss 4.4973 | lr 2.98e-04 | wd 0.100 | gnorm 0.88 | 123.3s
+step   145/200 | loss 4.6017 | lr 2.92e-04 | wd 0.100 | gnorm 0.99 | 126.0s
+step   146/200 | loss 4.6020 | lr 2.85e-04 | wd 0.100 | gnorm 0.99 | 128.7s
+step   147/200 | loss 4.4996 | lr 2.79e-04 | wd 0.100 | gnorm 0.83 | 132.0s
+step   148/200 | loss 4.4964 | lr 2.73e-04 | wd 0.100 | gnorm 0.99 | 135.0s
+step   149/200 | loss 4.5710 | lr 2.67e-04 | wd 0.100 | gnorm 0.91 | 137.9s
+step   150/200 | loss 4.3674 | lr 2.61e-04 | wd 0.100 | gnorm 1.15 | 140.8s
+step   151/200 | loss 4.6146 | lr 2.55e-04 | wd 0.100 | gnorm 1.29 | 143.7s
+step   152/200 | loss 4.3919 | lr 2.49e-04 | wd 0.100 | gnorm 0.94 | 146.6s
+step   153/200 | loss 4.5526 | lr 2.43e-04 | wd 0.100 | gnorm 0.93 | 149.5s
+step   154/200 | loss 4.3845 | lr 2.37e-04 | wd 0.100 | gnorm 1.14 | 152.6s
+step   155/200 | loss 4.5309 | lr 2.32e-04 | wd 0.100 | gnorm 1.07 | 155.7s
+step   156/200 | loss 4.2531 | lr 2.26e-04 | wd 0.100 | gnorm 1.23 | 158.7s
+step   157/200 | loss 4.4346 | lr 2.21e-04 | wd 0.100 | gnorm 1.22 | 161.6s
+step   158/200 | loss 4.3726 | lr 2.16e-04 | wd 0.100 | gnorm 0.85 | 164.6s
+step   159/200 | loss 4.3991 | lr 2.10e-04 | wd 0.100 | gnorm 1.04 | 167.8s
+step   160/200 | loss 4.3382 | lr 2.05e-04 | wd 0.100 | gnorm 0.91 | 170.8s
+step   161/200 | loss 4.4829 | lr 2.00e-04 | wd 0.100 | gnorm 0.89 | 173.8s
+step   162/200 | loss 4.2630 | lr 1.95e-04 | wd 0.100 | gnorm 0.82 | 176.7s
+step   163/200 | loss 4.5024 | lr 1.91e-04 | wd 0.100 | gnorm 0.93 | 179.7s
+step   164/200 | loss 4.4286 | lr 1.86e-04 | wd 0.100 | gnorm 1.00 | 182.7s
+step   165/200 | loss 4.3440 | lr 1.81e-04 | wd 0.100 | gnorm 0.94 | 186.1s
+step   166/200 | loss 4.4919 | lr 1.77e-04 | wd 0.100 | gnorm 0.96 | 189.5s
+step   167/200 | loss 4.4780 | lr 1.73e-04 | wd 0.100 | gnorm 0.82 | 192.9s
+step   168/200 | loss 4.6136 | lr 1.68e-04 | wd 0.100 | gnorm 0.88 | 196.1s
+step   169/200 | loss 4.3311 | lr 1.64e-04 | wd 0.100 | gnorm 1.05 | 200.5s
+step   170/200 | loss 4.5008 | lr 1.60e-04 | wd 0.100 | gnorm 0.95 | 205.5s
+step   171/200 | loss 4.3665 | lr 1.56e-04 | wd 0.100 | gnorm 0.80 | 210.7s
+step   172/200 | loss 4.4442 | lr 1.53e-04 | wd 0.100 | gnorm 1.00 | 215.3s
+step   173/200 | loss 4.4789 | lr 1.49e-04 | wd 0.100 | gnorm 1.07 | 220.4s
+step   174/200 | loss 4.3487 | lr 1.46e-04 | wd 0.100 | gnorm 1.22 | 225.9s
+step   175/200 | loss 4.3732 | lr 1.42e-04 | wd 0.100 | gnorm 1.01 | 230.6s
+step   176/200 | loss 4.4117 | lr 1.39e-04 | wd 0.100 | gnorm 0.84 | 236.3s
+step   177/200 | loss 4.4740 | lr 1.36e-04 | wd 0.100 | gnorm 0.96 | 241.2s
+step   178/200 | loss 4.2846 | lr 1.33e-04 | wd 0.100 | gnorm 1.11 | 245.7s
+step   179/200 | loss 4.4089 | lr 1.30e-04 | wd 0.100 | gnorm 0.87 | 250.7s
+step   180/200 | loss 4.3836 | lr 1.27e-04 | wd 0.100 | gnorm 0.84 | 256.5s
+step   181/200 | loss 4.1560 | lr 1.25e-04 | wd 0.100 | gnorm 1.05 | 261.7s
+step   182/200 | loss 4.3002 | lr 1.22e-04 | wd 0.100 | gnorm 0.97 | 267.4s
+step   183/200 | loss 4.4488 | lr 1.20e-04 | wd 0.100 | gnorm 0.82 | 272.7s
+step   184/200 | loss 4.4526 | lr 1.17e-04 | wd 0.100 | gnorm 1.05 | 277.3s
+step   185/200 | loss 4.3545 | lr 1.15e-04 | wd 0.100 | gnorm 0.96 | 282.0s
+step   186/200 | loss 4.0477 | lr 1.13e-04 | wd 0.100 | gnorm 1.01 | 286.8s
+step   187/200 | loss 4.1408 | lr 1.12e-04 | wd 0.100 | gnorm 0.94 | 291.6s
+step   188/200 | loss 4.2554 | lr 1.10e-04 | wd 0.100 | gnorm 0.88 | 296.1s
+step   189/200 | loss 4.3876 | lr 1.08e-04 | wd 0.100 | gnorm 1.02 | 300.6s
+step   190/200 | loss 4.3550 | lr 1.07e-04 | wd 0.100 | gnorm 1.08 | 305.6s
+step   191/200 | loss 4.5389 | lr 1.06e-04 | wd 0.100 | gnorm 0.81 | 310.0s
+step   192/200 | loss 4.3874 | lr 1.04e-04 | wd 0.100 | gnorm 1.01 | 314.6s
+step   193/200 | loss 4.4727 | lr 1.03e-04 | wd 0.100 | gnorm 1.08 | 319.2s
+step   194/200 | loss 4.2869 | lr 1.02e-04 | wd 0.100 | gnorm 1.02 | 324.1s
+step   195/200 | loss 4.3038 | lr 1.02e-04 | wd 0.100 | gnorm 1.01 | 329.1s
+step   196/200 | loss 4.1621 | lr 1.01e-04 | wd 0.100 | gnorm 0.91 | 334.1s
+step   197/200 | loss 4.2127 | lr 1.01e-04 | wd 0.100 | gnorm 0.98 | 339.2s
+step   198/200 | loss 4.2014 | lr 1.00e-04 | wd 0.100 | gnorm 0.90 | 343.9s
+step   199/200 | loss 4.3099 | lr 1.00e-04 | wd 0.100 | gnorm 1.14 | 348.8s
+  [val] step 200 | val_ppl 114.810 (prev 192.215)
+[train] done
+
+--- 8-THREAD BURST (~2 min, throughput measurement only; fresh model, no eval/ckpt cadence) ---
+env: OMP_NUM_THREADS=8 MKL_NUM_THREADS=8, --threads 8, 55 steps
+[train] model params: 6529920 (6.53M) | linear=fp | sched=cosine | B=8 T=512 threads=8
+step     0/55 | loss 9.0418 | lr 0.00e+00 | wd 0.100 | gnorm 5.12 | 8.8s
+step     1/55 | loss 9.0566 | lr 1.00e-04 | wd 0.100 | gnorm 4.76 | 16.9s
+step     2/55 | loss 8.8867 | lr 2.00e-04 | wd 0.100 | gnorm 4.50 | 22.3s
+step     3/55 | loss 8.6738 | lr 3.00e-04 | wd 0.100 | gnorm 3.34 | 29.4s
+step     4/55 | loss 8.5096 | lr 4.00e-04 | wd 0.100 | gnorm 2.33 | 37.1s
+step     5/55 | loss 8.3396 | lr 5.00e-04 | wd 0.100 | gnorm 2.08 | 43.2s
+step     6/55 | loss 8.2166 | lr 6.00e-04 | wd 0.100 | gnorm 1.95 | 50.5s
+step     7/55 | loss 8.0686 | lr 7.00e-04 | wd 0.100 | gnorm 1.95 | 58.8s
+step     8/55 | loss 7.8990 | lr 8.00e-04 | wd 0.100 | gnorm 1.93 | 66.8s
+step     9/55 | loss 7.6817 | lr 9.00e-04 | wd 0.100 | gnorm 1.90 | 73.2s
+step    10/55 | loss 7.4691 | lr 1.00e-03 | wd 0.100 | gnorm 1.85 | 81.9s
+step    11/55 | loss 7.2415 | lr 9.99e-04 | wd 0.100 | gnorm 1.84 | 88.9s
+step    12/55 | loss 7.0359 | lr 9.96e-04 | wd 0.100 | gnorm 1.66 | 96.4s
+step    13/55 | loss 6.7738 | lr 9.90e-04 | wd 0.100 | gnorm 1.66 | 104.3s
+step    14/55 | loss 6.5427 | lr 9.83e-04 | wd 0.100 | gnorm 1.59 | 112.9s
+step    15/55 | loss 6.4047 | lr 9.73e-04 | wd 0.100 | gnorm 1.48 | 122.9s
+step    16/55 | loss 6.2801 | lr 9.61e-04 | wd 0.100 | gnorm 1.37 | 133.1s
+step    17/55 | loss 6.1353 | lr 9.47e-04 | wd 0.100 | gnorm 1.22 | 139.9s
+step    18/55 | loss 6.0549 | lr 9.32e-04 | wd 0.100 | gnorm 1.05 | 146.3s
+step    19/55 | loss 6.0547 | lr 9.14e-04 | wd 0.100 | gnorm 0.88 | 152.4s
+step    20/55 | loss 5.9657 | lr 8.95e-04 | wd 0.100 | gnorm 0.74 | 159.3s
+step    21/55 | loss 5.9496 | lr 8.74e-04 | wd 0.100 | gnorm 0.70 | 165.0s
+step    22/55 | loss 5.9144 | lr 8.51e-04 | wd 0.100 | gnorm 0.47 | 172.6s
+step    23/55 | loss 5.7873 | lr 8.27e-04 | wd 0.100 | gnorm 0.42 | 178.5s
+step    24/55 | loss 5.8558 | lr 8.02e-04 | wd 0.100 | gnorm 0.36 | 184.2s
+step    25/55 | loss 5.9189 | lr 7.75e-04 | wd 0.100 | gnorm 0.44 | 189.7s
+step    26/55 | loss 5.8185 | lr 7.47e-04 | wd 0.100 | gnorm 0.54 | 197.3s
+step    27/55 | loss 5.8877 | lr 7.19e-04 | wd 0.100 | gnorm 0.58 | 203.0s
+step    28/55 | loss 5.9011 | lr 6.89e-04 | wd 0.100 | gnorm 0.58 | 210.2s
+step    29/55 | loss 5.9188 | lr 6.59e-04 | wd 0.100 | gnorm 0.70 | 217.9s
+step    30/55 | loss 5.9229 | lr 6.28e-04 | wd 0.100 | gnorm 0.60 | 225.2s
+step    31/55 | loss 5.8306 | lr 5.97e-04 | wd 0.100 | gnorm 0.53 | 230.3s
+step    32/55 | loss 5.8885 | lr 5.66e-04 | wd 0.100 | gnorm 0.50 | 236.7s
+step    33/55 | loss 5.8330 | lr 5.34e-04 | wd 0.100 | gnorm 0.37 | 242.7s
+step    34/55 | loss 5.8859 | lr 5.03e-04 | wd 0.100 | gnorm 0.40 | 249.1s
+step    35/55 | loss 5.8178 | lr 4.72e-04 | wd 0.100 | gnorm 0.46 | 254.8s
+step    36/55 | loss 6.0294 | lr 4.41e-04 | wd 0.100 | gnorm 0.49 | 260.0s
+step    37/55 | loss 5.8469 | lr 4.11e-04 | wd 0.100 | gnorm 0.44 | 265.7s
+step    38/55 | loss 5.8975 | lr 3.81e-04 | wd 0.100 | gnorm 0.37 | 270.3s
+step    39/55 | loss 5.9093 | lr 3.53e-04 | wd 0.100 | gnorm 0.42 | 276.6s
+step    40/55 | loss 5.8256 | lr 3.25e-04 | wd 0.100 | gnorm 0.41 | 283.2s
+step    41/55 | loss 5.8025 | lr 2.98e-04 | wd 0.100 | gnorm 0.42 | 288.2s
+step    42/55 | loss 5.8345 | lr 2.73e-04 | wd 0.100 | gnorm 0.46 | 293.4s
+
+--- M7 TERNARY CRASH TEST (10 steps only; constructs+trains proof; tok/s is a 10-STEP SAMPLE, not a claim) ---
+env: OMP_NUM_THREADS=4 MKL_NUM_THREADS=4, --threads 4; run in systemd scope MemoryMax=3400M MemorySwapMax=3G to protect aegis-ppl-rerun
+Running as unit: run-r0a3cd5dc63e2467c94de737f875df63b.scope; invocation ID: c7b6c618cbe1408e9d141fbde06466be
+[train] model params: 14171392 (14.17M) | linear=bitlinear | sched=two_stage | B=8 T=512 threads=4
+step     0/10 | loss 9.1242 | lr 0.00e+00 | wd 0.100 | gnorm 7.82 | 22.1s
+step     1/10 | loss 9.1107 | lr 1.00e-03 | wd 0.100 | gnorm 7.81 | 43.8s
+step     2/10 | loss 8.6493 | lr 2.00e-03 | wd 0.100 | gnorm 7.87 | 51.1s
+step     3/10 | loss 7.9126 | lr 1.55e-03 | wd 0.100 | gnorm 2.65 | 57.8s
+step     4/10 | loss 7.4020 | lr 6.50e-04 | wd 0.100 | gnorm 2.13 | 64.0s
+step     5/10 | loss 7.1688 | lr 2.00e-04 | wd 0.000 | gnorm 2.14 | 70.8s
+step     6/10 | loss 7.1068 | lr 1.81e-04 | wd 0.000 | gnorm 2.08 | 78.8s
+step     7/10 | loss 7.0539 | lr 1.31e-04 | wd 0.000 | gnorm 2.08 | 86.9s
+step     8/10 | loss 6.9907 | lr 6.91e-05 | wd 0.000 | gnorm 2.06 | 98.4s
+step     9/10 | loss 6.9618 | lr 1.91e-05 | wd 0.000 | gnorm 2.27 | 111.8s
+[train] done
+=== COMPUTED STATS (parsed from step lines in this log) ===
+run1: 106 step lines, steps 0..105
+first-10-step mean loss (steps 0-9):   8.6115
+pre-stop mean loss (steps 90-99):      4.9936
+4T steady tok/s, run1 steps 20->95:    1309.5 tok/s (75 steps in 234.6s)
+run2: 100 step lines, steps 100..199
+post-resume mean loss (steps 100-109): 4.8735
+resume continuity: post-resume minus pre-stop = -0.1201
+last-10-step mean loss (steps 190-199): 4.3231
+4T steady tok/s, run2 steps 110->195: 1174.2 tok/s (85 steps in 296.5s)
+loss fell: first-10 8.6115 -> last-10 4.3231 (delta -4.2885)
+8T burst tok/s, steps 10->42:      619.7 tok/s (32 steps in 211.5s; total wall 293.4s)
+M7 ternary 4T tok/s (10-STEP SAMPLE, steps 2->9): 472.4 tok/s (7 steps in 60.7s) — rough datapoint, not a claim
+
+=== ETA PROJECTIONS (computed from the MEASURED tok/s above; projections, not measurements) ===
+full-run token budget: 122071 steps * 4096 tok = 500,002,816 tokens
+  twin @ 8T (burst rate 619.7 tok/s, measured WHILE aegis-ppl-rerun ran; real run starts only after it exits, so this is likely a floor): 806,847 s = 9.34 days
+  twin @ 4T (run2 steady 1174.2 tok/s, slower bound): 425,824 s = 4.93 days
+  twin @ 4T (run1 steady 1309.5 tok/s, faster bound): 381,827 s = 4.42 days
+  M7 ternary @ 4T (10-STEP SAMPLE 472.4 tok/s — rough): 1,058,431 s = 12.25 days
+twin @ 8T ETA range (measured-throughput projection): 4.4-9.3 days
+  (9.3 d if the contended 8T burst rate holds; 4.4-4.9 d if the run only matches today's 4T rates.
+   NEGATIVE FINDING, reported plainly: at 2026-07-18 conditions 8 threads were SLOWER than 4
+   (619.7 vs 1174-1310 tok/s) — HT oversubscription against the active eval + ~0.5-1GB swap traffic.
+   Re-check 8T vs 4T for ~50 steps after aegis-ppl-rerun exits before the multi-day commit.)
+M7 ternary @ 4T ETA (projection from a 10-step sample only): ~12.3 days; no 8T sample was measured for M7.
+checkpoint cadence for launch_m7a_twin.sh: 1800 s * 619.7 tok/s / 4096 tok/step = 272.3 -> save-every 272 steps (~30 min at the measured 8T rate; more frequent if the run goes faster)
+
+=== guard evidence (orchestrator, 2026-07-18T08:21:02Z): real ./launch_m7a_twin.sh invoked while aegis-ppl-rerun active — expect refusal, no unit started ===
+REFUSING: user unit 'aegis-ppl-rerun' is still active. The twin run
+wants 8 threads and must not contend with the eval. Try again after
+it finishes (systemctl --user status aegis-ppl-rerun).
+launcher exit code: 1 (expected 1)
+inactive

@@ -1,0 +1,34 @@
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+BdsDxe: starting Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+[SYS] Tactically Questioning Silicon...
+[SYS] -> Model: Intel Xeon E312xx (Sandy Bridge)
+[SYS] -> SSE4.1: [ DETECTED ]
+[SYS] -> AVX:    [ DETECTED ]
+[SYS] -> AVX2:   [ MISSING  ]
+[SYS] -> FMA3:   [ MISSING  ]
+[SYS] Locking inference kernel to native SSE2 (scalar fallback).
+[2J[01;01H
+==================================================
+ A.L.I.C.E. UNIKERNEL INFERENCE ENGINE (UEFI APP)
+==================================================
+
+[SYSTEM] Pre-allocating DMA Bounce Buffer...
+[SYSTEM] Pre-allocating Tensor Space...
+[SYSTEM] Locating weights on USB FAT32 Partition...
+[2J[01;01H  -> Reading MODEL.SAF (522831576 bytes) [  -> Reading MODEL.SAF [>                   ] 2% (10 MB/498 MB)     -> Reading MODEL.SAF [>                   ] 4% (20 MB/498 MB)     -> Reading MODEL.SAF [=>                  ] 6% (30 MB/498 MB)     -> Reading MODEL.SAF [=>                  ] 8% (40 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 10% (50 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 12% (60 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 14% (70 MB/498 MB)     -> Reading MODEL.SAF [===>                ] 16% (80 MB/498 MB)     -> Reading MODEL.SAF [===>                ] 18% (90 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 20% (100 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 22% (110 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 24% (120 MB/498 MB)     -> Reading MODEL.SAF [=====>              ] 26% (130 MB/498 MB)     -> Reading MODEL.SAF [=====>              ] 28% (140 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 30% (150 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 32% (160 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 34% (170 MB/498 MB)     -> Reading MODEL.SAF [=======>            ] 36% (180 MB/498 MB)     -> Reading MODEL.SAF [=======>            ] 38% (190 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 40% (200 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 42% (210 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 44% (220 MB/498 MB)     -> Reading MODEL.SAF [=========>          ] 46% (230 MB/498 MB)     -> Reading MODEL.SAF [=========>          ] 48% (240 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 50% (250 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 52% (260 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 54% (270 MB/498 MB)     -> Reading MODEL.SAF [===========>        ] 56% (280 MB/498 MB)     -> Reading MODEL.SAF [===========>        ] 58% (290 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 60% (300 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 62% (310 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 64% (320 MB/498 MB)     -> Reading MODEL.SAF [=============>      ] 66% (330 MB/498 MB)     -> Reading MODEL.SAF [=============>      ] 68% (340 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 70% (350 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 72% (360 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 74% (370 MB/498 MB)     -> Reading MODEL.SAF [===============>    ] 76% (380 MB/498 MB)     -> Reading MODEL.SAF [===============>    ] 78% (390 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 80% (400 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 82% (410 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 84% (420 MB/498 MB)     -> Reading MODEL.SAF [=================>  ] 86% (430 MB/498 MB)     -> Reading MODEL.SAF [=================>  ] 88% (440 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 90% (450 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 92% (460 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 94% (470 MB/498 MB)     -> Reading MODEL.SAF [===================>] 96% (480 MB/498 MB)     -> Reading MODEL.SAF [===================>] 98% (490 MB/498 MB)   OK]
+[2J[01;01H  -> Reading EMBED.BIN (257310720 bytes) [  -> Reading EMBED.BIN [>                   ] 4% (10 MB/245 MB)     -> Reading EMBED.BIN [=>                  ] 8% (20 MB/245 MB)     -> Reading EMBED.BIN [==>                 ] 12% (30 MB/245 MB)     -> Reading EMBED.BIN [===>                ] 16% (40 MB/245 MB)     -> Reading EMBED.BIN [====>               ] 20% (50 MB/245 MB)     -> Reading EMBED.BIN [====>               ] 24% (60 MB/245 MB)     -> Reading EMBED.BIN [=====>              ] 28% (70 MB/245 MB)     -> Reading EMBED.BIN [======>             ] 32% (80 MB/245 MB)     -> Reading EMBED.BIN [=======>            ] 36% (90 MB/245 MB)     -> Reading EMBED.BIN [========>           ] 40% (100 MB/245 MB)     -> Reading EMBED.BIN [========>           ] 44% (110 MB/245 MB)     -> Reading EMBED.BIN [=========>          ] 48% (120 MB/245 MB)     -> Reading EMBED.BIN [==========>         ] 52% (130 MB/245 MB)     -> Reading EMBED.BIN [===========>        ] 57% (140 MB/245 MB)     -> Reading EMBED.BIN [============>       ] 61% (150 MB/245 MB)     -> Reading EMBED.BIN [=============>      ] 65% (160 MB/245 MB)     -> Reading EMBED.BIN [=============>      ] 69% (170 MB/245 MB)     -> Reading EMBED.BIN [==============>     ] 73% (180 MB/245 MB)     -> Reading EMBED.BIN [===============>    ] 77% (190 MB/245 MB)     -> Reading EMBED.BIN [================>   ] 81% (200 MB/245 MB)     -> Reading EMBED.BIN [=================>  ] 85% (210 MB/245 MB)     -> Reading EMBED.BIN [=================>  ] 89% (220 MB/245 MB)     -> Reading EMBED.BIN [==================> ] 93% (230 MB/245 MB)     -> Reading EMBED.BIN [===================>] 97% (240 MB/245 MB)   OK]
+[2J[01;01H  -> Reading VOCAB.BIN (1759936 bytes) [OK]
+  -> [SYS] Claiming physical memory: 0x000000002FF81000 -> 0x000000005BB81000... [OK]
+
+[SYSTEM] Files loaded to RAM. Initializing Tensor Arena...
+[SYSTEM] Engine Online.
+
+[TEST] Prompt: What is the capital of France?
+[TEST] Response: [SYSTEM] Analyzing 18 tokens...
+The capital of France is Paris.
+
+[PERFORMANCE] Average Cycles/Token: 3693617441
+
+
+[TEST] Generated 9 tokens.
+[TEST SUCCESS] Autonomous Inference Completed.

@@ -1,0 +1,23 @@
+MECH-A1 root-cause census — 2026-08-01 05:1x CDT
+Machine: dev Chromebook i5-10210U (Comet Lake) under crosvm — DISASSEMBLY CENSUS ONLY, no timing.
+Tool: objdump -d -M intel (binutils), grep -c. Counts are instruction-substring hits in the disassembly.
+
+== Binary 1: the staged MECH stick binary (reproduced bit-identical by stock-target rebuild, 0.08s no-op build)
+path: aegis-uefi/target/x86_64-unknown-uefi/release/aegis-uefi.efi
+size=314880 bytes
+7007b9d282ca53ec53283056064aef83  aegis-uefi/target/x86_64-unknown-uefi/release/aegis-uefi.efi
+census: xmm=0 ymm=0 vfmadd=0
+target features (rustc --print target-spec-json, x86_64-unknown-uefi): "-mmx,-sse,+soft-float"
+
+== Binary 2: hardfloat rebuild of the SAME tree state, via aegis-uefi/build_hardfloat.sh (x86_64-uefi-hardfloat.json, features "-mmx")
+path: aegis-uefi/target/x86_64-uefi-hardfloat/release/aegis-uefi.efi
+size=402432 bytes
+7ed77474a02a517e03cc26988b0a7f84  aegis-uefi/target/x86_64-uefi-hardfloat/release/aegis-uefi.efi
+census: xmm=6855 ymm=433 vfmadd=210
+
+NOTE: Binary 2 additionally contains the H3 MTRR/PAT probe and STAGE-6 codegen banner (uncommitted at census time);
+the census claim (0 vector instructions in the staged binary vs >0 in hardfloat) is unaffected by those additions.
+Interpretation: every f32 op in Binary 1 — including #[target_feature(enable="avx2")] kernel bodies — was scalarized
+to soft-float library calls by the +soft-float target feature. This is the mechanism behind ledger A14 (MECH-A1):
+the MECH sticks' process_intent decode ran on a zero-SIMD binary.
+Timing attribution (119-250x) lives in the MECH bootlogs: mech_U_BOOTLOG_2026-08-01.txt / mech_L_BOOTLOG_2026-08-01.txt.

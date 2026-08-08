@@ -1,0 +1,26 @@
+[2026-07-18T08:21:22Z] queue armed: waiting for user unit 'aegis-ppl-rerun' to exit
+[2026-07-18T11:01:17Z] queue armed: waiting for aegis-ppl-rerun AND any m3-mc-*-full runs to exit
+[2026-07-19T07:51:20Z] eval + MC baselines all done; starting 4T-vs-8T re-bench (50 steps each)
+[train] model params: 6529920 (6.53M) | linear=fp | sched=cosine | B=8 T=512 threads=4
+step     0/50 | loss 9.0418 | lr 0.00e+00 | wd 0.100 | gnorm 5.12 | 2.3s
+step    10/50 | loss 6.9612 | lr 9.73e-04 | wd 0.100 | gnorm 1.73 | 20.8s
+step    20/50 | loss 5.9188 | lr 7.75e-04 | wd 0.100 | gnorm 0.51 | 41.0s
+step    30/50 | loss 5.9150 | lr 4.72e-04 | wd 0.100 | gnorm 0.55 | 62.2s
+step    40/50 | loss 5.8194 | lr 2.05e-04 | wd 0.100 | gnorm 0.43 | 82.3s
+step    49/50 | loss 5.9058 | lr 1.01e-04 | wd 0.100 | gnorm 0.44 | 101.2s
+[train] done
+[2026-07-19T07:53:07Z] bench 4T: 107 s for 50 steps
+[train] model params: 6529920 (6.53M) | linear=fp | sched=cosine | B=8 T=512 threads=8
+step     0/50 | loss 9.0418 | lr 0.00e+00 | wd 0.100 | gnorm 5.12 | 4.2s
+step    10/50 | loss 6.9612 | lr 9.73e-04 | wd 0.100 | gnorm 1.73 | 27.2s
+step    20/50 | loss 5.9188 | lr 7.75e-04 | wd 0.100 | gnorm 0.51 | 49.5s
+step    30/50 | loss 5.9150 | lr 4.72e-04 | wd 0.100 | gnorm 0.55 | 71.5s
+step    40/50 | loss 5.8194 | lr 2.05e-04 | wd 0.100 | gnorm 0.43 | 95.5s
+step    49/50 | loss 5.9058 | lr 1.01e-04 | wd 0.100 | gnorm 0.44 | 118.1s
+[train] done
+[2026-07-19T07:55:12Z] bench 8T: 125 s for 50 steps
+[2026-07-19T07:55:12Z] re-bench result: 4T=107s 8T=125s for 50 steps -> launching twin with 4 threads
+launching unit 'm7a-twin' (4 threads, save every 272 steps ~= 30 min, val every 500 steps); log: /home/killboxincorporated/model-lab/tinybit/logs/m7a_twin_full_2026-07-18.log
+Running as unit: m7a-twin.service; invocation ID: eefaa038df5f4d52a2b3fc30a33f42d6
+started. follow with: journalctl --user -u m7a-twin -f   (or tail -f /home/killboxincorporated/model-lab/tinybit/logs/m7a_twin_full_2026-07-18.log)
+[2026-07-19T07:55:12Z] launcher exited rc=0

@@ -1,0 +1,21 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831576 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=SSE2 (scalar fallback)
+PROMPT: "hello alice"
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831576 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 5: working heap online
+STAGE 6: engine online, SIMD=SSE2 (scalar fallback)
+==== GAUNTLET ====
+GAUNTLET CPU: Intel(R) Celeron(R) N4020 CPU @ 1.10GHz | base=0MHz max=0MHz bus=0MHz | simd=SSE2 (scalar fallback) hwp=false turbo=true baremetal=true

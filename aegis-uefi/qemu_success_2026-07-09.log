@@ -1,0 +1,26 @@
+[=3h[=3h[=3hBdsDxe: loading Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+BdsDxe: starting Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+
+==================================================
+ A.L.I.C.E. UNIKERNEL INFERENCE ENGINE (UEFI APP)
+==================================================
+
+[SYSTEM] Pre-allocating DMA Bounce Buffer...
+[SYSTEM] Pre-allocating Tensor Space...
+[SYSTEM] Locating weights on USB FAT32 Partition...
+  -> Reading MODEL.SAF (522831576 bytes) [.................................................OK]
+  -> Reading EMBED.BIN (257310720 bytes) [........................OK]
+  -> Reading VOCAB.BIN (1759936 bytes) [OK]
+
+[SYSTEM] Files loaded to RAM. Initializing Tensor Arena...
+[SYSTEM] Hardware AVX-2 Active. Engine Online.
+
+[TEST] Prompt: What is the capital of France?
+[TEST] Response: [SYSTEM] Analyzing 18 tokens...
+The capital of France is Paris.
+
+[PERFORMANCE] Average Cycles/Token: 598921319
+
+
+[TEST] Generated 9 tokens.
+[TEST SUCCESS] Autonomous Inference Completed.

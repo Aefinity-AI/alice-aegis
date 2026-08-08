@@ -1,0 +1,203 @@
+SKEPTIC REVIEW RAW DATA — candidate: "cross-microarchitecture reproducibility of a
+published greedy-decoding eval score" (INSTRUMENT angle)
+Date: 2026-07-29   Lens: feasibility (this exact hardware)
+Box: dev Chromebook, Intel i5-10210U (Comet Lake) under crosvm. NO bare metal used,
+     no reboot, no USB. Everything below ran hosted in ~1 hour.
+Probe crate: path-dependency on /home/killboxincorporated/aegis-core (repo UNMODIFIED).
+     Sources archived alongside this log: divprobe_4arm.rs nllprobe.rs nllctl.rs
+Model A: model-lab/tinybit/m7_final_gate_work/artifacts/{MODEL.SAF,EMBED.BIN,VOCAB.BIN}
+         (M7: 7 layers, hidden 384, vocab 8192, window 512 — export/config.json)
+Model B: falcon-e-artifacts/{MODEL.SAF,EMBED.BIN,VOCAB.BIN} (Falcon-E-1B)
+Features: aegis-core DEFAULT, i.e. int8_act ON (aegis-core/Cargo.toml:24).
+
+====================================================================
+PROBE 1 — kill conditions (i)/(ii): does reduction order alone change a greedy
+token stream? {AVX2, scalar} x {MXCSR inherited, MXCSR|=FTZ|DAZ} + same-arm repeat.
+30 TinyStories-style prompts, 200 max_new_tokens, M7.
+====================================================================
+inherited MXCSR = 0x1F80  (FTZ=false DAZ=false RC=0)   <-- architectural default
+simd capability = AVX2+FMA
+objdump aegis-linux/target/release/aegis-linux:
+  ldmxcsr/stmxcsr occurrences ............................ 0
+  rcpps/rcpss/rsqrtps/rsqrtss/vrcp14*/vrsqrt14*/vrcp28* .. 0
+  x87 arithmetic (f{add,mul,div,sub,ld,st} %st) .......... 0
+  => every FP op in the shipped binary is an IEEE-754 correctly-rounded SSE/AVX
+     instruction or a pure-software libm sequence. No implementation-defined
+     approximation instruction exists anywhere in the engine.
+
+first divergent token index vs the AVX2/no-FTZ baseline (-1 = byte-identical):
+ idx lenA | A-vs-Arepeat | A-vs-scalar | A-vs-A+FTZ/DAZ | scalar-vs-scalar+FTZ/DAZ
+   0  160 |          -1  |         53  |            -1  |          -1
+   1  201 |          -1  |         30  |            -1  |          -1
+   2   43 |          -1  |         -1  |            -1  |          -1
+   3  178 |          -1  |         68  |            -1  |          -1
+   4  161 |          -1  |         -1  |            -1  |          -1
+   5  201 |          -1  |         13  |            -1  |          -1
+   6   58 |          -1  |         -1  |            -1  |          -1
+   7  201 |          -1  |         14  |            -1  |          -1
+   8  145 |          -1  |         34  |            -1  |          -1
+   9  176 |          -1  |        122  |            -1  |          -1
+  10   52 |          -1  |         17  |            -1  |          -1
+  11   88 |          -1  |         25  |            -1  |          -1
+  12   73 |          -1  |         15  |            -1  |          -1
+  13   65 |          -1  |         -1  |            -1  |          -1
+  14   28 |          -1  |          6  |            -1  |          -1
+  15  201 |          -1  |         25  |            -1  |          -1
+  16   27 |          -1  |         -1  |            -1  |          -1
+  17   88 |          -1  |         23  |            -1  |          -1
+  18   90 |          -1  |         -1  |            -1  |          -1
+  19  119 |          -1  |         43  |            -1  |          -1
+  20  114 |          -1  |         68  |            -1  |          -1
+  21  136 |          -1  |         35  |            -1  |          -1
+  22   49 |          -1  |         -1  |            -1  |          -1
+  23  112 |          -1  |         85  |            -1  |          -1
+  24   33 |          -1  |         -1  |            -1  |          -1
+  25  148 |          -1  |         -1  |            -1  |          -1
+  26  162 |          -1  |         12  |            -1  |          -1
+  27  116 |          -1  |         -1  |            -1  |          -1
+  28  178 |          -1  |        158  |            -1  |          -1
+  29   94 |          -1  |         14  |            -1  |          -1
+
+SUMMARY over 30 prompts, 200 tokens:
+  same arm repeated (determinism control) differed .. 0/30   <- control PASSES
+  reduction order changed (AVX2 -> scalar) differed . 20/30  = 66.7%
+  MXCSR FTZ|DAZ set, AVX2 path, differed ........... 0/30    <- MEASURED NULL
+  MXCSR FTZ|DAZ set, scalar path, differed ......... 0/30    <- MEASURED NULL
+  divergence index over the 20 divergent prompts: min=6 median=30 max=158
+
+Semantic scale (prompt "Ben and his sister found a map"):
+  avx2 [9..16] = [" tree"," with"," many"," birds","."," The"," bird"]  (len 162)
+  scal [9..16] = [" tree"," with"," many"," leaves","."," Ben"," said"] (len  85)
+
+FINDING 1: kill conditions (i) and (ii) DO NOT FIRE.
+FINDING 2: the candidate's "MXCSR costs almost nothing" side deliverable is a
+  MEASURED NULL. Mechanism: int8_act (ops.rs:122) re-quantizes activations to a
+  255-level grid before every BitLinear, annihilating subnormal-magnitude values
+  before FTZ could act. Log MXCSR for hygiene; it is not a deliverable.
+
+====================================================================
+PROBE 2 — kill condition (iii): does reduction order move a TEACHER-FORCED
+continuation NLL (what aegis-eval --mc scores)? Falcon-E-1B, 8 ARC-shaped strings.
+====================================================================
+DETERMINISM CONTROL (nllctl.rs), one string, 5 sequential runs:
+  force_scalar=false  ppl bits=0x402d50eb980abdb4  ppl=14.658047438918
+  force_scalar=false  ppl bits=0x402d50eb980abdb4  ppl=14.658047438918
+  force_scalar=true   ppl bits=0x402d1c57dd6fc439  ppl=14.555357856649
+  force_scalar=true   ppl bits=0x402d1c57dd6fc439  ppl=14.555357856649
+  force_scalar=false  ppl bits=0x402d50eb980abdb4  ppl=14.658047438918
+  A==A2 true | B==B2 true | A==A3 after B ran true | A==B false
+  => no harness nondeterminism, no state leakage across the toggle. Valid.
+
+total NLL under the two reduction orders (same machine, same weights):
+   i   ntok           nll_avx2         nll_scalar      abs_delta          rel
+   0     15       37.589852970       37.491428288       9.842e-2     2.618e-3
+   1     15       33.204064366       33.034479690       1.696e-1     5.107e-3
+   2     16       37.954471843       37.576474338       3.780e-1     9.959e-3
+   3     16       36.260709384       35.887430859       3.733e-1     1.029e-2
+   4     14       39.072827567       38.722428249       3.504e-1     8.968e-3
+   5     13       34.586046994       34.077962800       5.081e-1     1.469e-2
+   6     13       33.746348832       34.097395619       3.510e-1     1.040e-2
+   7     12       35.267123751       35.318158053       5.103e-2     1.447e-3
+  worst |delta total-NLL| = 5.0808e-01 nats   worst relative = 1.469e-02
+
+NOTE: two orders of magnitude LARGER than the 1e-4 per-element tolerance asserted
+in aegis-core/tests/gemm_equivalence.rs:151. int8_act is the likely amplifier: a
+last-ulp change flips a libm::roundf int8 level = a ~1/127 relative activation jump.
+
+====================================================================
+PROBE 3 — flip budget, from data ALREADY ON DISK (no new inference).
+Source: model-lab/data/evals/arc_easy/m3_1b_results_n570.jsonl (Falcon-E-1B n=570)
+====================================================================
+mean choice byte length: 22.35
+acc (raw, nats):      min 1.5362e-2 | 5th 2.0757e-2 | 10th 4.4686e-2
+                      | 20th 1.5419e-1 | 50th 3.6631e-1 | median 2.4840
+acc_norm (nats/byte): min 4.4956e-4 | 5th 1.2919e-3 | 10th 2.9710e-3
+                      | 20th 7.0352e-3 | 50th 1.9786e-2 | median 1.3323e-1
+
+items at risk vs MEASURED perturbation (acc raw / acc_norm):
+  0.05 nats -> 10 /  7  of 570 = up to 1.75 pts
+  0.10 nats -> 13 / 15  of 570 = up to 2.28 pts
+  0.17 nats -> 23 / 22  of 570 = up to 4.04 pts
+  0.35 nats -> 48 / 42  of 570 = up to 8.42 pts   <- median perturbation
+  0.51 nats -> 67 / 59  of 570 = up to 11.75 pts  <- worst measured
+
+Reference effect size ALREADY measured on the same benchmark by this program:
+  Falcon-E 1B -> 3B ARC-Easy acc delta = +2.28 pts, McNemar exact two-sided
+  p=0.2414, NOT significant at n=570
+  (docs/hardware_logs/m3_mc_full570_falcon_e_1b_2026-07-18.log, paired verdict)
+
+FINDING 3: kill condition (iii) is UNLIKELY TO FIRE. At the median measured
+  perturbation 48/570 items sit inside the decision boundary -> expected movement
+  ~2-4 pts, LARGER than a 3x model-size increase produced on the same benchmark,
+  caused by nothing but the order of a floating-point summation. Strongest
+  available result, and it needs no bare metal.
+
+====================================================================
+PROBE 4 — FEASIBILITY OF THE BARE-METAL ARMS ON THE ACTUAL FLEET
+====================================================================
+B1. NO CROSS-SILICON MECHANISM EXISTS. Same EFI + same dispatched kernel + same
+    MXCSR => bit-identical on any IEEE-754-compliant x86_64. Verified by
+    exhaustion: PROBE 1 objdump (zero implementation-defined FP instructions) plus
+    PROBE 1 FTZ/DAZ null. The "silicon alone diverges" arm is predicted NULL.
+
+B2. THE "SAME KERNEL, TWO SILICONS, BARE METAL" CELL IS NOT BUILDABLE.
+    Bare-metal AVX2 machines available: exactly one (Dell i5-5200U).
+    N4020 is Goldmont Plus, no AVX — MEASURED, not assumed:
+      "GAUNTLET CPU: Intel(R) Celeron(R) N4020 ... simd=SSE2 (scalar fallback)"
+      (docs/hardware_logs/gauntlet_hp_stream_n4020_2026-07-14_141531.txt)
+    The i5-10210U is the only dev box and does not boot the unikernel.
+    Buildable silicon-isolation test: Dell force-scalar vs N4020 native-scalar —
+    realizable, and by B1 it returns a null.
+
+B3. NO ARC-EASY SCORER EXISTS ON THE UNIKERNEL.
+    grep -in "mc|perplexity|nll|arc_easy|jsonl" aegis-uefi/src/main.rs -> NO MATCHES.
+    aegis-eval is hosted-only (std:: in src/main.rs and src/mc.rs).
+
+B4. RUNTIME ON THE N4020 ARM IS DAYS, NOT HOURS.
+    MEASURED ARC-Easy n=570 Falcon-E-1B dev box = 23,373.8 s (6.5 h), 92,923
+    tokens, 3.98 tok/s (m3_mc_full570_falcon_e_1b_2026-07-18.log).
+    MEASURED scalar penalty same silicon (Dell, M7 prefill): 571,637,622 vs
+    91,251,533 ticks = 6.27x (m7_baremetal_prompts_postfix_2026-07-29.log).
+    MEASURED N4020 vs Dell, identical BitNet gauntlet prefill: 190.5 s firmware /
+    55.5 s post-turbo vs Dell 28.3 s. Composed => multiple days of uninterrupted
+    UEFI boot on a fanless Celeron, no checkpoint/resume in any code path.
+
+B5. THE ONLY MODEL FAST ENOUGH FOR IRON CANNOT CARRY THE HEADLINE.
+    M7 runs 13.8M ticks/token, 214 tok/s on the post-fix Dell (same log as B4), but
+    vocab 8192 / window 512 (m7_final_gate_work/export/config.json) is not the
+    Falcon-E tokenizer the n=570 items file uses, so the transformers parity gate
+    (m3_mc_parity_arc_easy_2026-07-18.log) does not transfer; and a 14.17M-param
+    TinyStories model sits at chance on ARC-Easy where binomial SE at n=570,
+    p=0.25 is 1.81 pts, so a 1-point delta is 0.55 sigma.
+
+B6. UEFI PROMPT BATCHING DOES NOT EXIST. Interactive read_key loop
+    (aegis-uefi/src/main.rs:534), 512-byte line buffer. /gauntlet and /autotest use
+    hardcoded prompts and the gauntlet callback discards text (main.rs:601-603).
+    Free-prompt path does log full text ("RESPONSE: {}", main.rs:976). A 100-prompt
+    cross-machine sweep needs a new no_std PROMPTS.TXT driver + reflash of 2 sticks.
+
+====================================================================
+VERDICT / CHEAPEST DECISIVE ORDERING
+====================================================================
+Invert the candidate. Publish "reduction order, not silicon, is the uncontrolled
+variable" — 100% hosted. Use the unikernel for the cheap complementary POSITIVE
+claim: a bit-exactness certificate (identical token-stream hash for the same EFI on
+Broadwell-U and Goldmont Plus with reduction order pinned to scalar). Minutes of M7
+runtime, and it doubles as a memory-map-dependent-UB detector, the highest-value
+thing that arm can actually find.
+
+Cheapest decisive ordering (all three done this session, ~1 h):
+  1. margin distribution from m3_1b_results_n570.jsonl        (30 s, no inference)
+  2. reduction-order perturbation on teacher-forced NLL + A-vs-A bitwise control
+                                                              (~20 min, 8 strings)
+  3. compare 2 vs 1 -> decide whether the 13 h ARC-Easy sweep is worth it
+Result: perturbation 0.05-0.51 nats vs 5th-percentile margin 0.021 nats
+        => the sweep IS worth it, expected 2-4 pts, and no iron is required.
+
+CAVEAT THE CANDIDATE MUST CARRY: int8_act is a DEFAULT feature
+(aegis-core/Cargo.toml:24). The 1.5e-2 relative NLL perturbation is far above the
+1e-4 the kernels agree to, so the headline effect size is probably a property of
+the ACTIVATION QUANTIZER, not of reduction order in isolation. Re-run every arm
+with --no-default-features before publishing a number. Relatedly the doctrine line
+"Activations are f32" is stale: the default build quantizes activations to int8 and
+back before every BitLinear.

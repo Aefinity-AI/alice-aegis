@@ -1,0 +1,460 @@
+aarch64 — CIS-1 selftest digest	Set up job	﻿2026-08-07T14:02:24.5184697Z Current runner version: '2.336.0'
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5218427Z ##[group]Runner Image Provisioner
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5219528Z Hosted Compute Agent
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5220156Z Version: 20260707.563
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5220775Z Commit: 02667638d2b423fbc733a8e32a88b44996a3ba6e
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5221607Z Build Date: 2026-07-07T19:33:50Z
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5222589Z Worker ID: {2bce0a23-b4bd-4977-9290-363b2aa526cb}
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5223444Z Azure Region: northcentralus
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5224155Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5226364Z ##[group]Operating System
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5227224Z Ubuntu
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5227800Z 24.04.4
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5228274Z LTS
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5228908Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5229496Z ##[group]Runner Image
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5230523Z Image: ubuntu-24.04-arm
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5231136Z Version: 20260719.67.1
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5232168Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24-arm64/20260719.67/images/ubuntu/Ubuntu2404-Arm64-Readme.md
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5234441Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24-arm64%2F20260719.67
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5235490Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5236678Z ##[group]GITHUB_TOKEN Permissions
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5239910Z Contents: read
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5240737Z Metadata: read
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5241278Z Packages: read
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5241879Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5245130Z Secret source: Actions
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5246848Z Prepare workflow directory
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5737160Z Prepare all required actions
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.5789998Z Getting action download info
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:24.8936108Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:25.2300837Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+aarch64 — CIS-1 selftest digest	Set up job	2026-08-07T14:02:25.4771252Z Complete job name: aarch64 — CIS-1 selftest digest
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	﻿2026-08-07T14:02:25.5746297Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5757708Z ##[group]Run actions/checkout@v4
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5759020Z with:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5759903Z   repository: Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5764772Z   token: ***
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5765450Z   ssh-strict: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5766181Z   ssh-user: git
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5766840Z   persist-credentials: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5767493Z   clean: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5768205Z   sparse-checkout-cone-mode: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5769012Z   fetch-depth: 1
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5769770Z   fetch-tags: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5770488Z   show-progress: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5771126Z   lfs: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5771794Z   submodules: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5772847Z   set-safe-directory: true
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5774552Z   allow-unsafe-pr-checkout: false
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5776081Z env:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5776715Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.5777605Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6700267Z Syncing repository: Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6703305Z ##[group]Getting Git version info
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6704583Z Working directory is '/home/runner/work/alice-aegis/alice-aegis'
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6706156Z [command]/usr/bin/git version
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6761305Z git version 2.54.0
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6781105Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6793929Z Temporarily overriding HOME='/home/runner/work/_temp/1ea7c0a2-c85e-4f5e-b0ce-59cb5f4e38cb' before making global git config changes
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6796062Z Adding repository directory to the temporary git global config as a safe directory
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6798746Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/alice-aegis/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6833417Z Deleting the contents of '/home/runner/work/alice-aegis/alice-aegis'
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6838393Z ##[group]Initializing the repository
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6843152Z [command]/usr/bin/git init /home/runner/work/alice-aegis/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6934226Z hint: Using 'master' as the name for the initial branch. This default branch name
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6944050Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6963478Z hint: to use in all of your new repositories, which will suppress this warning,
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6964815Z hint: call:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6965493Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6966310Z hint: 	git config --global init.defaultBranch <name>
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6967209Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6968312Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6969799Z hint: 'development'. The just-created branch can be renamed via this command:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6970912Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6971616Z hint: 	git branch -m <name>
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6972532Z hint:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6973539Z hint: Disable this message with "git config set advice.defaultBranchName false"
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6974831Z Initialized empty Git repository in /home/runner/work/alice-aegis/alice-aegis/.git/
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6977293Z [command]/usr/bin/git remote add origin https://github.com/Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6979756Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6980949Z ##[group]Disabling automatic garbage collection
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.6981892Z [command]/usr/bin/git config --local gc.auto 0
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7014898Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7016077Z ##[group]Setting up auth
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7020350Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7052750Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7365861Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7399932Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7607901Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7640979Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7853921Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7889475Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7890962Z ##[group]Fetching the repository
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:25.7899015Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +3209813d77aadb6f94d6480a781e6d688e04f368:refs/remotes/origin/neon-dev
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.0584888Z From https://github.com/Aefinity-AI/alice-aegis
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.0588021Z  * [new ref]         3209813d77aadb6f94d6480a781e6d688e04f368 -> origin/neon-dev
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.0609712Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.0611266Z ##[group]Determining the checkout info
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.0613172Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.0616394Z [command]/usr/bin/git sparse-checkout disable
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.0653969Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.0684526Z ##[group]Checking out the ref
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.0688243Z [command]/usr/bin/git checkout --progress --force -B neon-dev refs/remotes/origin/neon-dev
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.2419248Z Switched to a new branch 'neon-dev'
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.2421218Z branch 'neon-dev' set up to track 'origin/neon-dev'.
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.2435585Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.2484068Z [command]/usr/bin/git log -1 --format=%H
+aarch64 — CIS-1 selftest digest	Run actions/checkout@v4	2026-08-07T14:02:27.2509420Z 3209813d77aadb6f94d6480a781e6d688e04f368
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	﻿2026-08-07T14:02:27.2769753Z ##[group]Run uname -m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T14:02:27.2771057Z [36;1muname -m[0m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T14:02:27.2771880Z [36;1mtest "$(uname -m)" = "aarch64"[0m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T14:02:27.2773427Z [36;1mgrep -m1 -E 'model name|CPU part' /proc/cpuinfo || true[0m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T14:02:27.2821407Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T14:02:27.2822872Z env:
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T14:02:27.2823618Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T14:02:27.2824510Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T14:02:27.2929170Z aarch64
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-07T14:02:27.2953055Z CPU part	: 0xd49
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	﻿2026-08-07T14:02:27.3028558Z ##[group]Run rustup toolchain install stable --profile minimal
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T14:02:27.3030070Z [36;1mrustup toolchain install stable --profile minimal[0m
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T14:02:27.3072522Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T14:02:27.3073651Z env:
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T14:02:27.3074355Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T14:02:27.3075146Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T14:02:27.4768901Z info: syncing channel updates for stable-aarch64-unknown-linux-gnu
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T14:02:27.5862528Z 
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T14:02:27.5928238Z   stable-aarch64-unknown-linux-gnu unchanged - rustc 1.97.1 (8bab26f4f 2026-07-14)
+aarch64 — CIS-1 selftest digest	Install Rust toolchain	2026-08-07T14:02:27.5929420Z 
+aarch64 — CIS-1 selftest digest	Cache cargo	﻿2026-08-07T14:02:27.7164798Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7169601Z ##[group]Run actions/cache@v4
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7170427Z with:
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7171162Z   path: ~/.cargo/registry
+aarch64 — CIS-1 selftest digest	Cache cargo	~/.cargo/git
+aarch64 — CIS-1 selftest digest	Cache cargo	
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7172750Z   key: Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7174180Z   restore-keys: Linux-arm-cargo-
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7175082Z   enableCrossOsArchive: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7175874Z   fail-on-cache-miss: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7176653Z   lookup-only: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7177411Z   save-always: false
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7178107Z env:
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7178765Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.7179734Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.8110241Z (node:2384) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.8112766Z (Use `node --trace-deprecation ...` to show where the warning was created)
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.9360156Z Cache hit for: Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:27.9450845Z (node:2384) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:28.2542662Z Received 339857 of 339857 (100.0%), 1.7 MBs/sec
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:28.2544387Z Cache Size: ~0 MB (339857 B)
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:28.2567463Z [command]/usr/bin/tar -xf /home/runner/work/_temp/6d678789-5428-4538-812c-fbbdd990908e/cache.tzst -P -C /home/runner/work/alice-aegis/alice-aegis --use-compress-program unzstd
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:28.2645459Z Cache restored successfully
+aarch64 — CIS-1 selftest digest	Cache cargo	2026-08-07T14:02:28.2730749Z Cache restored from key: Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468
+aarch64 — CIS-1 selftest digest	Build the selftest	﻿2026-08-07T14:02:28.2820362Z ##[group]Run cargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:28.2821451Z [36;1mcargo build --release --example cis_selftest --manifest-path aegis-linux/Cargo.toml[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:28.2860441Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:28.2860852Z env:
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:28.2861133Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:28.2861526Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:28.4136510Z [1m[92m   Compiling[0m libm v0.2.16
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:29.8419568Z [1m[92m   Compiling[0m aegis-core v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-core)
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5454091Z [1m[33mwarning[0m[1m: function `fix_f32_vec` is never used[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5455495Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:385:4
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5456438Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5457214Z [1m[94m385[0m [1m[94m|[0m fn fix_f32_vec(out: &mut [i64], src: &[f32]) -> u32 {
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5457913Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5458784Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5459446Z     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5460054Z 
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5461133Z [1m[33mwarning[0m[1m: function `dequant_scale_f64` is never used[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5462038Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:465:4
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5463106Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5464389Z [1m[94m465[0m [1m[94m|[0m fn dequant_scale_f64(w: &FRatio, s: &ActScale) -> f64 {
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5465009Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5465321Z 
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5465622Z [1m[33mwarning[0m[1m: multiple fields are never read[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5467570Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:747:5
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5468299Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5468794Z [1m[94m743[0m [1m[94m|[0m pub struct CisEngine<'m, 'a> {
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5469493Z     [1m[94m|[0m            [1m[94m---------[0m [1m[94mfields in this struct[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5469984Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5470415Z [1m[94m747[0m [1m[94m|[0m     rope: RopeCache,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5471100Z     [1m[94m|[0m     [1m[33m^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5471475Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5471925Z [1m[94m756[0m [1m[94m|[0m     qf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5472630Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5473144Z [1m[94m757[0m [1m[94m|[0m     kf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5473621Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5474034Z [1m[94m758[0m [1m[94m|[0m     vf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5474542Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5474986Z [1m[94m759[0m [1m[94m|[0m     attn_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5475504Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5476116Z [1m[94m760[0m [1m[94m|[0m     scores: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5476548Z     [1m[94m|[0m     [1m[33m^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5477032Z [1m[94m761[0m [1m[94m|[0m     head_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5477498Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5477944Z [1m[94m762[0m [1m[94m|[0m     upf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5478494Z     [1m[94m|[0m     [1m[33m^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5478983Z [1m[94m763[0m [1m[94m|[0m     gatef: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5479501Z     [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5479714Z 
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5479995Z [1m[33mwarning[0m[1m: field `top_p` is never read[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5480606Z  [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/sampler.rs:3:5
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5481229Z   [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5481656Z [1m[94m1[0m [1m[94m|[0m pub struct Sampler {
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5482407Z   [1m[94m|[0m            [1m[94m-------[0m [1m[94mfield in this struct[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5483336Z [1m[94m2[0m [1m[94m|[0m     temperature: f32,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5483784Z [1m[94m3[0m [1m[94m|[0m     top_p: f32,
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5484273Z   [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:30.5484473Z 
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:31.3209752Z [1m[33mwarning[0m: `aegis-core` (lib) generated 4 warnings
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:31.3210649Z [1m[92m   Compiling[0m aegis-linux v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-linux)
+aarch64 — CIS-1 selftest digest	Build the selftest	2026-08-07T14:02:31.6960149Z [1m[92m    Finished[0m `release` profile [optimized] target(s) in 3.38s
+aarch64 — CIS-1 selftest digest	Run and pin the digest	﻿2026-08-07T14:02:31.7019273Z ##[group]Run set -euo pipefail
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7019762Z [36;1mset -euo pipefail[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7020210Z [36;1mOUT=$(./aegis-linux/target/release/examples/cis_selftest)[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7020612Z [36;1mecho "$OUT"[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7020884Z [36;1mLINE=$(echo "$OUT" | grep '^CIS_SELFTEST ')[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7021467Z [36;1mecho "$LINE" | grep -q 'ALL_PASS=true' || { echo '::error::a selftest section FAILED on aarch64'; exit 1; }[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7022022Z [36;1mecho "$LINE" | grep -q 'digest=76985613c965f643' || {[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7023430Z [36;1m  echo '::error::DIGEST MISMATCH — aarch64 does not reproduce the x86 digest. This falsifies the cross-ISA identity claim and is a finding: capture this log verbatim.';[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7024206Z [36;1m  exit 1;[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7024467Z [36;1m}[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7024890Z [36;1mecho "aarch64 reproduces the x86 digest: cross-ISA identity holds on a second ISA."[0m
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7050448Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7050843Z env:
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7051623Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7051903Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7114270Z CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7114754Z [A1 golden_tmv_8x32] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7115213Z [A2 tmv_undefined_code_11] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7115497Z [A3 golden_requant_table] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7115820Z [A4 golden_quantize_activations_16] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7116174Z [A5 quantize_ties_and_zero] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7116443Z [A6 golden_rmsnorm_16] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7116783Z [A7 argmax_ties_break_low] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7117062Z [A8 from_ratio_goldens] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7117347Z [B1 rne_div sweep (512)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7117630Z [B2 requant sweep (512+512)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7117920Z [B3 tmv shapes sweep (10 shapes)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7118317Z [B4 quantize sweep (8x33)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7118592Z [B5 rmsnorm sweep (8x24)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7118891Z [B6 argmax sweep (64x17)] PASS
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7119203Z CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+aarch64 — CIS-1 selftest digest	Run and pin the digest	2026-08-07T14:02:31.7150358Z aarch64 reproduces the x86 digest: cross-ISA identity holds on a second ISA.
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	﻿2026-08-07T14:02:31.7185149Z ##[group]Run cargo test --release --manifest-path aegis-core/Cargo.toml \
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7185951Z [36;1mcargo test --release --manifest-path aegis-core/Cargo.toml \[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7186373Z [36;1m  --test cis_neon_equivalence \[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7186708Z [36;1m  --test cis_neon_contract \[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7187064Z [36;1m  --test cis_neon_mechanism[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7211528Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7211839Z env:
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7212658Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7213015Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7384079Z [1m[33mwarning[0m: file `/home/runner/work/alice-aegis/alice-aegis/aegis-core/benches/fused_vs_sequential.rs` found to be present in multiple build targets:
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7385234Z   * `bin` target `fused_vs_sequential`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7385577Z   * `bench` target `fused_vs_sequential`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7386496Z [1m[33mwarning[0m: file `/home/runner/work/alice-aegis/alice-aegis/aegis-core/benches/cis_vs_float.rs` found to be present in multiple build targets:
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7387324Z   * `bin` target `cis_vs_float`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7387594Z   * `bench` target `cis_vs_float`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7388427Z [1m[33mwarning[0m: file `/home/runner/work/alice-aegis/alice-aegis/aegis-core/benches/ctz_vs_simd.rs` found to be present in multiple build targets:
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7389096Z   * `bin` target `ctz_vs_simd`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7389392Z   * `bench` target `ctz_vs_simd`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7390188Z [1m[33mwarning[0m: file `/home/runner/work/alice-aegis/alice-aegis/aegis-core/benches/lut_mpgemm.rs` found to be present in multiple build targets:
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7391351Z   * `bin` target `lut_mpgemm`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7391718Z   * `bench` target `lut_mpgemm`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7392876Z [1m[33mwarning[0m: file `/home/runner/work/alice-aegis/alice-aegis/aegis-core/benches/bitplane_vs_lut.rs` found to be present in multiple build targets:
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7393639Z   * `bin` target `bitplane_vs_lut`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7393963Z   * `bench` target `bitplane_vs_lut`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7394832Z [1m[33mwarning[0m: file `/home/runner/work/alice-aegis/alice-aegis/aegis-core/benches/colskip_vs_incumbent.rs` found to be present in multiple build targets:
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7395585Z   * `bin` target `colskip_vs_incumbent`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7395932Z   * `bench` target `colskip_vs_incumbent`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7396773Z [1m[33mwarning[0m: file `/home/runner/work/alice-aegis/alice-aegis/aegis-core/benches/gemm_tile.rs` found to be present in multiple build targets:
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7397430Z   * `bin` target `gemm_tile`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7397716Z   * `bench` target `gemm_tile`
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:31.7758361Z [1m[92m   Compiling[0m libm v0.2.16
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.5686402Z [1m[92m   Compiling[0m aegis-core v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-core)
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.7839430Z [1m[33mwarning[0m[1m: function `fix_f32_vec` is never used[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.7893863Z    [1m[94m--> [0msrc/cis_infer.rs:385:4
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.7894453Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.7895141Z [1m[94m385[0m [1m[94m|[0m fn fix_f32_vec(out: &mut [i64], src: &[f32]) -> u32 {
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.7895727Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.7896092Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.7896730Z     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.7897242Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.7983776Z [1m[33mwarning[0m[1m: function `dequant_scale_f64` is never used[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8044105Z    [1m[94m--> [0msrc/cis_infer.rs:465:4
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8073289Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8103421Z [1m[94m465[0m [1m[94m|[0m fn dequant_scale_f64(w: &FRatio, s: &ActScale) -> f64 {
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8154316Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8154644Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8154927Z [1m[33mwarning[0m[1m: multiple fields are never read[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8156155Z    [1m[94m--> [0msrc/cis_infer.rs:747:5
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8156570Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8156997Z [1m[94m743[0m [1m[94m|[0m pub struct CisEngine<'m, 'a> {
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8157547Z     [1m[94m|[0m            [1m[94m---------[0m [1m[94mfields in this struct[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8157975Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8158364Z [1m[94m747[0m [1m[94m|[0m     rope: RopeCache,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8158767Z     [1m[94m|[0m     [1m[33m^^^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8159171Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8159555Z [1m[94m756[0m [1m[94m|[0m     qf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8159962Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8160389Z [1m[94m757[0m [1m[94m|[0m     kf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8160803Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8161184Z [1m[94m758[0m [1m[94m|[0m     vf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8161642Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8162056Z [1m[94m759[0m [1m[94m|[0m     attn_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8162864Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8163292Z [1m[94m760[0m [1m[94m|[0m     scores: Vec<f32>,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8163714Z     [1m[94m|[0m     [1m[33m^^^^^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8164259Z [1m[94m761[0m [1m[94m|[0m     head_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8164729Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8165185Z [1m[94m762[0m [1m[94m|[0m     upf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8165612Z     [1m[94m|[0m     [1m[33m^^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8166003Z [1m[94m763[0m [1m[94m|[0m     gatef: Vec<f32>,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8166823Z     [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8167034Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8167385Z [1m[33mwarning[0m[1m: field `top_p` is never read[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8167961Z  [1m[94m--> [0msrc/sampler.rs:3:5
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8168340Z   [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8168702Z [1m[94m1[0m [1m[94m|[0m pub struct Sampler {
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8169269Z   [1m[94m|[0m            [1m[94m-------[0m [1m[94mfield in this struct[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8169757Z [1m[94m2[0m [1m[94m|[0m     temperature: f32,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8170228Z [1m[94m3[0m [1m[94m|[0m     top_p: f32,
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8170710Z   [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:32.8170897Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.4814695Z [1m[33mwarning[0m: `aegis-core` (lib) generated 4 warnings
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9069039Z [1m[92m    Finished[0m `release` profile [optimized] target(s) in 2.17s
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9075610Z [1m[92m     Running[0m tests/cis_neon_contract.rs (aegis-core/target/release/deps/cis_neon_contract-641c79761a395d64)
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9084752Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9085461Z running 6 tests
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9088897Z test force_scalar_reaches_this_kernel_too ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9089510Z test same_violation_behaves_the_same_either_side_of_the_block_threshold ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9090176Z test short_weights_are_rejected_before_anything_is_written ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9090614Z test dim_in_not_multiple_of_four_is_rejected_by_both ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9097449Z test short_output_slice_is_rejected_by_both ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9147643Z test headroom_ceiling_is_enforced_by_both ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9147969Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9148246Z test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9148833Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9150162Z [1m[92m     Running[0m tests/cis_neon_equivalence.rs (aegis-core/target/release/deps/cis_neon_equivalence-f79ce456b63da560)
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9165995Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9175821Z [1m[92m     Running[0m tests/cis_neon_mechanism.rs (aegis-core/target/release/deps/cis_neon_mechanism-e961b3a93a8aab6a)
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9176750Z running 5 tests
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9177013Z test code_eleven_is_zero_in_both_paths ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9177385Z test row_independence_holds ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9178227Z test activation_minus_128_routes_to_scalar_and_stays_exact ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9178654Z test random_shapes_are_bit_identical ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9179091Z test saturating_extremes_are_bit_identical ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9179316Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9179588Z test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9179928Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9179933Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9180073Z running 3 tests
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9180379Z test widening_chain_is_exact_at_its_stated_extremes ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9184741Z test bit_pair_extraction_through_the_lut_is_exhaustively_correct ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9185418Z test vmulq_s8_is_ternary_multiply_for_every_activation ... ok
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9203213Z 
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9203816Z test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+aarch64 — CIS-1 selftest digest	NEON kernel — bit-identity, contract, and mechanism proofs	2026-08-07T14:02:33.9204198Z 
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	﻿2026-08-07T14:02:33.9247383Z ##[group]Run cargo build --release --example cis_decode --manifest-path aegis-linux/Cargo.toml
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9248345Z [36;1mcargo build --release --example cis_decode --manifest-path aegis-linux/Cargo.toml[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9274219Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9274531Z env:
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9274756Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9275076Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9474138Z [1m[33mwarning[0m[1m: function `fix_f32_vec` is never used[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9474999Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:385:4
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9475722Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9476660Z [1m[94m385[0m [1m[94m|[0m fn fix_f32_vec(out: &mut [i64], src: &[f32]) -> u32 {
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9477182Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9477635Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9478146Z     [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9478662Z 
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9478998Z [1m[33mwarning[0m[1m: function `dequant_scale_f64` is never used[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9479711Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:465:4
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9480291Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9480785Z [1m[94m465[0m [1m[94m|[0m fn dequant_scale_f64(w: &FRatio, s: &ActScale) -> f64 {
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9481334Z     [1m[94m|[0m    [1m[33m^^^^^^^^^^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9481653Z 
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9481932Z [1m[33mwarning[0m[1m: multiple fields are never read[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9482983Z    [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/cis_infer.rs:747:5
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9483653Z     [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9484075Z [1m[94m743[0m [1m[94m|[0m pub struct CisEngine<'m, 'a> {
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9484633Z     [1m[94m|[0m            [1m[94m---------[0m [1m[94mfields in this struct[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9485166Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9485531Z [1m[94m747[0m [1m[94m|[0m     rope: RopeCache,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9486044Z     [1m[94m|[0m     [1m[33m^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9486433Z [1m[94m...[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9486862Z [1m[94m756[0m [1m[94m|[0m     qf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9487375Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9487797Z [1m[94m757[0m [1m[94m|[0m     kf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9488189Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9488684Z [1m[94m758[0m [1m[94m|[0m     vf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9489176Z     [1m[94m|[0m     [1m[33m^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9489678Z [1m[94m759[0m [1m[94m|[0m     attn_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9490099Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9490503Z [1m[94m760[0m [1m[94m|[0m     scores: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9491011Z     [1m[94m|[0m     [1m[33m^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9491510Z [1m[94m761[0m [1m[94m|[0m     head_out: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9492834Z     [1m[94m|[0m     [1m[33m^^^^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9493326Z [1m[94m762[0m [1m[94m|[0m     upf: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9493770Z     [1m[94m|[0m     [1m[33m^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9494461Z [1m[94m763[0m [1m[94m|[0m     gatef: Vec<f32>,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9495015Z     [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9495195Z 
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9495548Z [1m[33mwarning[0m[1m: field `top_p` is never read[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9496187Z  [1m[94m--> [0m/home/runner/work/alice-aegis/alice-aegis/aegis-core/src/sampler.rs:3:5
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9496691Z   [1m[94m|[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9497119Z [1m[94m1[0m [1m[94m|[0m pub struct Sampler {
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9497683Z   [1m[94m|[0m            [1m[94m-------[0m [1m[94mfield in this struct[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9498281Z [1m[94m2[0m [1m[94m|[0m     temperature: f32,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9498740Z [1m[94m3[0m [1m[94m|[0m     top_p: f32,
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9499544Z   [1m[94m|[0m     [1m[33m^^^^^[0m
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9499849Z 
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9500187Z [1m[33mwarning[0m: `aegis-core` (lib) generated 4 warnings
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:33.9500863Z [1m[92m   Compiling[0m aegis-linux v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/aegis-linux)
+aarch64 — CIS-1 selftest digest	Build the token-level decode driver	2026-08-07T14:02:34.2687715Z [1m[92m    Finished[0m `release` profile [optimized] target(s) in 0.33s
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	﻿2026-08-07T14:02:34.2742648Z ##[group]Run set -euo pipefail
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2743216Z [36;1mset -euo pipefail[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2743664Z [36;1mM=model-lab/tinybit/m7_final_gate_work/artifacts[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2744623Z [36;1mOUT=$(./aegis-linux/target/release/examples/cis_decode "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" 64 "Once upon a time")[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2745198Z [36;1mecho "$OUT"[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2745530Z [36;1mLINE=$(echo "$OUT" | grep '^CIS_DECODE ')[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2745922Z [36;1mecho "$LINE" | grep -q 'digest=67e8c0a96abc04e1' || {[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2746856Z [36;1m  echo '::error::TOKEN-LEVEL DIGEST MISMATCH — this host does not reproduce the pinned 68-token decode. This falsifies token-level cross-ISA identity and is a finding: capture this log verbatim.';[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2747715Z [36;1m  exit 1;[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2747946Z [36;1m}[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2748330Z [36;1mecho "token-level decode reproduces the pinned digest on $(uname -m)."[0m
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2774019Z shell: /usr/bin/bash -e {0}
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2774342Z env:
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2774654Z   CARGO_TERM_COLOR: always
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.2774913Z ##[endgroup]
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.9964630Z model : 7 layers, hidden 384, vocab 8192
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.9965387Z prompt: "Once upon a time" -> 4 tokens
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.9966283Z token ids: [12, 407, 283, 259, 397, 484, 408, 411, 14, 341, 366, 259, 347, 12, 678, 483, 388, 398, 510, 266, 326, 331, 14, 535, 329, 12, 398, 389, 259, 567, 12, 1070, 835, 354, 338, 483, 14, 285, 835, 283, 386, 567, 267, 366, 670, 2284, 14, 411, 589, 263, 835, 283, 3071, 12, 404, 398, 719, 266, 326, 331, 311, 14, 199, 674]
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.9967894Z text     : ", there was a little girl named Lily. She had a big, red ball that she loved to play with. One day, she saw a small, green bug on her ball. The bug was very small and had many legs. Lily thought the bug was disgusting, so she decided to play with it.\nLily"
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:34.9969023Z CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint
+aarch64 — CIS-1 selftest digest	Token-level decode — pin the sequence digest	2026-08-07T14:02:35.0006261Z token-level decode reproduces the pinned digest on aarch64.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	﻿2026-08-07T14:02:35.1277263Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T14:02:35.1278770Z Post job cleanup.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T14:02:35.2239891Z Cache hit occurred on the primary key Linux-arm-cargo-11720ad713ede53f01380f5e156cdeb0bbfdde04e5d1c556b3bfd4c589586468, not saving cache.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T14:02:35.2241561Z (node:2758) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+aarch64 — CIS-1 selftest digest	Post Cache cargo	2026-08-07T14:02:35.2242394Z (Use `node --trace-deprecation ...` to show where the warning was created)
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	﻿2026-08-07T14:02:35.2378011Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.2379379Z Post job cleanup.
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3121695Z [command]/usr/bin/git version
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3159108Z git version 2.54.0
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3196800Z Temporarily overriding HOME='/home/runner/work/_temp/86dbff50-6a8c-44d0-8641-d52dd7c6572f' before making global git config changes
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3197635Z Adding repository directory to the temporary git global config as a safe directory
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3202643Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/alice-aegis/alice-aegis
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3244383Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3277031Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3486638Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3518641Z http.https://github.com/.extraheader
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3526127Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3569953Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3781838Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+aarch64 — CIS-1 selftest digest	Post Run actions/checkout@v4	2026-08-07T14:02:35.3819351Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+aarch64 — CIS-1 selftest digest	Complete job	﻿2026-08-07T14:02:35.4170495Z Cleaning up orphan processes
+aarch64 — CIS-1 selftest digest	Complete job	2026-08-07T14:02:35.4500982Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

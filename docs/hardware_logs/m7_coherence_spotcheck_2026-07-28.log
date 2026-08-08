@@ -1,0 +1,32 @@
+M7 ternary sovereignty model — engine coherence spot-check 2026-07-28T21:56:20Z
+artifacts: m7_final_gate_work/artifacts (MODEL.SAF 2.8MB), aegis-linux generation
+
+=== PROMPT: Once upon a time, there was a little robot who
+
+
+Final Full Response:  lived in a big house. The robot was very happy and loved to play with his friends, the cat and the dog. They would run around all day long, laughing and having fun together.
+One sunny day, the little girl came home from school. She saw the robot playing with her friend, the bird, flying high up into the sky. "Look at me!" she said as she waved
+Generated 81 tokens
+Wall time 0.171 s (473.41 tok/s incl. prefill)
+Prefill 11 tokens in 22109736 cycles (2009976 cycles/token)
+Decode 80 tokens in 0.160 s (499.28 tok/s decode-only)
+
+=== PROMPT: Tom and his dog went to the park.
+
+
+Final Full Response:  They saw a big tree with many leaves. Tom wanted to climb the tree, but he was scared. He thought it might be difficult for him to reach the top.
+Tom's friend, Sam, came over and said, "Don't worry, I will help you." Sam held Tom's hand as they climbed up the tree together. When they reached the top of the tree, they were very
+Generated 81 tokens
+Wall time 0.167 s (484.29 tok/s incl. prefill)
+Prefill 9 tokens in 19238918 cycles (2137657 cycles/token)
+Decode 80 tokens in 0.158 s (507.12 tok/s decode-only)
+
+=== PROMPT: The little girl found a shiny key in the garden.
+
+Final Full Response:  She was so excited!
+The little girl ran to her mom and said, "Mom, look what I found!" Her mom smiled and replied, "That's a special key. It can open something very special." 
+So the two of them went outside together to find out what the secret door opened. They looked around until they saw a big tree with lots of leaves on it. The birds
+Generated 81 tokens
+Wall time 0.172 s (470.05 tok/s incl. prefill)
+Prefill 11 tokens in 19489242 cycles (1771749 cycles/token)
+Decode 80 tokens in 0.163 s (492.12 tok/s decode-only)

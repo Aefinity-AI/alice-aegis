@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# A.L.I.C.E. pre-commit gate — blocks any commit with P0 integrity findings
+# (fabricated metrics, unconditional verdicts, embedding-stride splits).
+#
+# Install (from the repo root):
+#   cp pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# The checker itself lives in-repo at scripts/integrity_check.py.
+#
+# This runs with no Claude in the loop at all: it gates *every* commit,
+# whether it came from Claude Code, you at 2am, or a collaborator.
+
+set -u
+repo_root="$(git rev-parse --show-toplevel)"
+checker="$repo_root/scripts/integrity_check.py"
+
+if [ ! -f "$checker" ]; then
+    echo "pre-commit: scripts/integrity_check.py missing — restore it from" >&2
+    echo "git history (or the alice-unikernel skill) and commit it." >&2
+    exit 1
+fi
+
+if ! out="$(python3 "$checker" "$repo_root" 2>&1)"; then
+    echo "$out" >&2
+    echo "" >&2
+    echo "COMMIT BLOCKED: P0 integrity findings above." >&2
+    echo "Fix them, or if a finding is a confirmed false positive, refine the" >&2
+    echo "pattern in scripts/integrity_check.py in the same commit — never bypass" >&2
+    echo "with --no-verify for anything review-facing." >&2
+    exit 1
+fi
+exit 0

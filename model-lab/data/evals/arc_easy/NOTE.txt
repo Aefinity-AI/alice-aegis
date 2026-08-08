@@ -1,0 +1,4 @@
+NOTE: ARC-Easy (AI2 Reasoning Challenge, allenai/ai2_arc) is licensed CC BY-SA 4.0.
+Source file: ARC-Easy/validation-00000-of-00001.parquet from allenai/ai2_arc (validation split ONLY), sha256=ed890ff1e4cef7a7140d3a30dcea3ed2c9d467c6458f447ad9ef0176d8dcbb74, 86080 bytes.
+Items file: arc_easy_val_n570_seed42.jsonl = n=570 seed=42 random.Random(seed).sample over 570 validation rows, sorted by row index.
+Tokenizer: Falcon-E-1B-Instruct local snapshot, plain encode, no BOS (G4a convention).

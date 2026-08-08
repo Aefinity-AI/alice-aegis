@@ -1,0 +1,122 @@
+SKEPTIC REVIEW RAW DATA — "retired-instruction count as bit-exact measure of
+inference work" candidate (INSTRUMENT angle)
+Date: 2026-07-29
+Reviewer lens: so-who-cares
+Box: dev Chromebook, Intel i5-10210U (Comet Lake) under crosvm, 8 vCPU.
+     /sys/devices/cpu/caps/pmu_name = skylake
+Binary: ./aegis-linux/target/release/aegis-linux (built 2026-07-16 22:58, UNMODIFIED)
+Model:  model-lab/tinybit/m7_final_gate_work/artifacts/{MODEL.SAF,EMBED.BIN,VOCAB.BIN}
+Prompt: "Once upon a time", max_new_tokens 16
+Tool:   valgrind-3.24.0, installed from Debian archive this session (apt candidate
+        1:3.24.0-3). NO PMU, NO MSR access, NO privileges, NO bare metal used.
+
+CLAIM UNDER TEST (candidate's "WHY ONLY HERE" pillar, quoted verbatim):
+  "The bit-exactness is the whole claim and it is structurally unavailable under
+   an OS: a hosted process accrues a variable number of retired instructions from
+   context switches, page faults, ASLR-dependent code paths, dynamic-loader work
+   and syscall entry, so INST_RETIRED for a fixed workload is a distribution, not
+   a constant."
+VERDICT: MEASURED FALSE. See below.
+
+--------------------------------------------------------------------
+ARM A — cachegrind, WHOLE PROCESS (loader + startup + file I/O included)
+  valgrind --tool=cachegrind --cache-sim=no --branch-sim=no
+  run1 (load ~1):     322,008,993 Ir
+  run2 (load 7.38):   322,024,728 Ir
+  run3 (load ~10):    322,024,475 Ir
+  run4 (load 12.80):  322,028,480 Ir
+  n=4  range 19,487 Ir = 0.0061% of total   CV 0.0027%
+  Residual is process startup (loader/env/argv), NOT the compute region.
+
+ARM B — callgrind, BRACKETED to the compute region only
+  valgrind --tool=callgrind --collect-atstart=no
+           --toggle-collect='*forward_step*' --cache-sim=no --branch-sim=no
+  (this is exactly the "bracket only the pure compute region" the candidate
+   states is a hard requirement for its own bare-metal measurement)
+  run1 (load 11.17):  243,199,887 Ir
+  run2 (load 11.17):  243,199,887 Ir
+  run3 (load 11.17):  243,199,887 Ir
+  run4 (later, idle): 243,199,887 Ir
+  n=4  range 0 Ir.  BIT-EXACT, TO THE UNIT, 4/4.
+  Achieved under load average 11.17 on 8 vCPU, inside a crosvm guest, with
+  ASLR on, page cache cold/warm mixed, 12 competing spinner processes.
+
+COST — callgrind wall 1.88 s vs native wall 0.06 s = 31.9x slowdown.
+  Total engineering to obtain the above: one apt install + two CLI flags.
+
+--------------------------------------------------------------------
+WHY THE CANDIDATE'S PREMISE FAILS
+  The candidate conflates "PMU instruction counts are nondeterministic under an
+  OS" (TRUE, and the rr project's documented battle) with "instruction counts are
+  nondeterministic under an OS" (FALSE). You do not need the PMU to count
+  instructions. Valgrind counts them in software by simulation, which is
+  deterministic by construction and immune to every noise source the candidate
+  lists: context switches, page faults, ASLR, loader work and syscall entry all
+  occur OUTSIDE the bracketed region and are simply not counted.
+
+PRIOR ART THIS PUTS THE CANDIDATE BEHIND (all pre-existing, all mature)
+  - Valgrind cachegrind/callgrind: bit-exact instruction counts since 2002.
+  - rust-lang/rustc-perf uses instruction counts as its PRIMARY metric precisely
+    because they are noise-resistant; cachegrind is configured there with
+    --cache-sim=no because "99% of the time instruction counts are all you need."
+  - iai-callgrind: a Rust bench harness whose stated purpose is "accurate
+    measurements even in virtualized CI environments, completely negating the
+    noise of the environment." Drops into aegis-core/benches/ next to the
+    existing Criterion benches.
+
+--------------------------------------------------------------------
+COROLLARY CLAIM ("SMM instruction tax needs no OS") — ALSO FAILS
+  /sys/devices/cpu/freeze_on_smi  EXISTS on this box and READS 1.
+  i.e. Linux perf exposes IA32_DEBUGCTL[14] FREEZE_WHILE_SMM as a supported
+  sysfs knob, and the kernel already defaults it ON for Comet Lake and later
+  (upstream patch: "x86/perf: Default freeze_on_smi on for Comet Lake and later").
+  The bit the candidate proposes to reach via a hand-rolled IDT + ring-0 MSR
+  write on a 2015 Dell is already flipped, by the OS, on the dev box.
+  Availability gate is ALSO mis-specified by the candidate: FREEZE_WHILE_SMM is
+  supported only if IA32_PERF_CAPABILITIES(0x345)[12] == 1. The proposed Stage-0
+  CPUID.0AH probe does not test for it at all.
+  Metric is the wrong one: SMM steals TIME (plus a cache flush). Instruction
+  count of the SMI handler measures firmware code volume, not workload cost.
+  Delgado & Karavanic, "Performance Implications of System Management Mode,"
+  IISWC 2013 — the candidate's own named venue — already characterized SMM
+  performance impact at application/system/hypervisor level using TSC deltas
+  and controlled SMI injection.
+  Candidate's own confound (3) is a documented real failure:
+  microsoft/WSL issue #7951 "IA32_DEBUGCTL.FREEZE_WHILE_SMM does not appear to
+  be honored."
+
+--------------------------------------------------------------------
+PAYOFF ARTIFACT IS ALSO UNREACHABLE AS SCOPED
+  Promised artifact: "pshufb executes 0.71x the instructions at 0.61x the IPC;
+  the loss is entirely a port-pressure/latency effect on Broadwell."
+  Instructions + IPC CANNOT establish port pressure. That requires per-port uop
+  distribution (UOPS_DISPATCHED_PORT.PORT_n across 8 ports = 4 GP counters +
+  event multiplexing + IA32_PERFEVTSELx programming), which the candidate does
+  not scope — it scopes FIXED_CTR0 = INST_RETIRED only.
+  The quantity is instead obtainable STATICALLY and FREE: llvm-mca reports
+  per-port resource pressure and bottlenecks for Broadwell/Skylake from the
+  assembly; uiCA (Abel & Reineke, 2022) and uops.info are the accepted method.
+  Neither needs hardware, an IDT, or a boot.
+  And the promised inversion ("would win on a machine with a wider shuffle port")
+  cannot be DEMONSTRATED on this program's fleet: Broadwell-U and Goldmont Plus
+  only. No Ice Lake, no Zen, no wider-shuffle machine exists to test on.
+
+--------------------------------------------------------------------
+CROSS-REFERENCE — the premise was already dead from the other side
+  docs/hardware_logs/skeptic_variance_budget_kill_2026-07-29.log establishes,
+  from the same program's own data:
+   - between-launch variance on pinned quiesced Linux is indistinguishable from
+     ZERO (B^2 = -0.881); residual is iid per-step jitter averaging as 1/sqrt(N).
+   - resolving a 16% effect at 95%/80% needs 72 decode steps = ~0.2 s/arm.
+   - resolving a 3% effect needs ~4.7 s/arm.
+   - the bare-metal "CV 0.078%, 7 repeats" is 7 replicates of ONE 33-token
+     prefill in which DECODE EMITTED ZERO TOKENS; the honest pinned-Linux vs
+     bare-metal-decode ratio is 3x, not 100-200x.
+  So the OS noise floor is not larger than the effects to be explained. It is
+  ~100x smaller after 0.2 seconds of averaging.
+
+BOTTOM LINE: the candidate spends a multi-day IDT + ring-0 MSR budget, on a
+machine cpu.rs:163-165 warns can be bricked by exactly those writes, to obtain
+a number this log obtained in 15 minutes with `apt install valgrind`, at higher
+precision (0 Ir range vs the bare-metal arm's 0.078-0.105% TSC CV and 0.2%
+cross-boot drift), on the noisiest box the program owns.

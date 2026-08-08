@@ -1,0 +1,36 @@
+=== LUT-mpGEMM same-binary A/B, run 3 of 3 (variance characterization) — instrument capture ===
+date_utc          : 2026-07-30T14:06:50Z
+machine           : dev box, crosvm guest (Chromebook)
+cpu               : Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz
+cores_online      : 8
+loadavg           : 0.66 0.52 0.24
+binary            : aegis-core/target/release/lut_mpgemm (release, default features)
+git_head          : a249b2c (hybrid-engine)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1120 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          75524278        120000000     3.3557     1.589x
+    1          75481076        120000000     3.3576     1.590x
+    2          75287718        120000000     3.3663     1.594x
+    3          75568456        120000000     3.3537     1.588x
+    4          75571450        120000000     3.3536     1.588x
+  
+    mean 3.3574 GHz | min 3.3536 | max 3.3663 | spread 0.376%
+    EFFECTIVE / NOMINAL = 1.590  <-- the factor that rescales every derived figure
+
+--- BENCH RUN 1 ---
+LUT mpGEMM throughput probe (2560x6912 ternary)
+
+repack (one-time, at model load): 13.7 ms for this tensor
+  layout memory: 8 MB (vs 4 MB packed) -- 4 bits/weight
+
+scalar reference :    11.1 ms (1.60 GMAC/s)
+LUT pshufb kernel:     1.6 ms (11.34 GMAC/s)  [best of 5]
+  + table build  :   0.031 ms once per activation vector (2.0% of kernel)
+  effective      : 11.12 GMAC/s including table build
+f32 LUT+FMA matvec:    1.9 ms (9.30 GMAC/s)  = 0.84x pshufb-effective  [engine decode kernel]
+f32 batched GEMM :    0.8 ms (21.03 GMAC/s)  = 1.89x pshufb-effective  (per token, batch 8) [engine prefill kernel]
+f32 matvec agrees with scalar reference: true

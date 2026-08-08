@@ -1,0 +1,445 @@
+[cooldown] source      : /home/killboxincorporated/model-lab/tinybit/checkpoints/m7a_twin.pt
+[cooldown] source step : 122071
+[cooldown] params      : 6529920 (6.530M) linear=fp
+[cooldown] arch        : layers=6 hidden=256 inter=704 heads=4 kv=2 vocab=8192
+[cooldown] val_hist    : 244 entries, last 5.5130
+[cooldown] PLAN        : 4000 steps, lr 1.000e-04 -> 0 (cosine), wd 0.0 (was 0.1), B=8 T=512 threads=4
+[cooldown] extra tokens: 16,384,000 (CONSERVATIVE: favours the twin)
+[cooldown] output      : /home/killboxincorporated/model-lab/tinybit/checkpoints/m7a_twin_cooled.pt
+[cooldown] first LRs   : 1.0000e-04, 1.0000e-04, 1.0000e-04, 1.0000e-04, 1.0000e-04
+[cooldown] final LR    : 1.5421e-11
+[cooldown] copied source -> output (original untouched)
+[cooldown] optimizer moments restored from checkpoint
+[cooldown] RNG state restored
+[cooldown] BASELINE val_ppl (before any cooldown step): 5.5558
+cool     0/4000 | loss 1.4533 | lr 1.000e-04 | wd 0.000 | gnorm 2.09 | 4.4s
+cool    10/4000 | loss 1.4436 | lr 1.000e-04 | wd 0.000 | gnorm 2.09 | 37.1s
+cool    20/4000 | loss 1.4041 | lr 9.999e-05 | wd 0.000 | gnorm 2.10 | 87.1s
+cool    30/4000 | loss 1.3360 | lr 9.999e-05 | wd 0.000 | gnorm 2.15 | 116.4s
+cool    40/4000 | loss 1.3950 | lr 9.998e-05 | wd 0.000 | gnorm 2.10 | 145.7s
+cool    50/4000 | loss 1.4781 | lr 9.996e-05 | wd 0.000 | gnorm 2.20 | 174.8s
+cool    60/4000 | loss 1.3616 | lr 9.994e-05 | wd 0.000 | gnorm 2.02 | 206.0s
+cool    70/4000 | loss 1.3466 | lr 9.992e-05 | wd 0.000 | gnorm 2.15 | 235.7s
+cool    80/4000 | loss 1.4269 | lr 9.990e-05 | wd 0.000 | gnorm 2.19 | 266.8s
+cool    90/4000 | loss 1.4460 | lr 9.988e-05 | wd 0.000 | gnorm 2.31 | 298.2s
+cool   100/4000 | loss 1.6449 | lr 9.985e-05 | wd 0.000 | gnorm 2.51 | 330.1s
+cool   110/4000 | loss 1.5238 | lr 9.981e-05 | wd 0.000 | gnorm 2.25 | 360.1s
+cool   120/4000 | loss 1.3533 | lr 9.978e-05 | wd 0.000 | gnorm 2.22 | 391.4s
+cool   130/4000 | loss 1.4004 | lr 9.974e-05 | wd 0.000 | gnorm 2.50 | 422.1s
+cool   140/4000 | loss 1.4612 | lr 9.970e-05 | wd 0.000 | gnorm 2.08 | 453.1s
+cool   150/4000 | loss 1.5751 | lr 9.965e-05 | wd 0.000 | gnorm 2.43 | 484.1s
+cool   160/4000 | loss 1.3380 | lr 9.961e-05 | wd 0.000 | gnorm 1.99 | 514.5s
+cool   170/4000 | loss 1.4341 | lr 9.955e-05 | wd 0.000 | gnorm 2.29 | 548.0s
+cool   180/4000 | loss 1.6160 | lr 9.950e-05 | wd 0.000 | gnorm 2.31 | 578.3s
+cool   190/4000 | loss 1.4909 | lr 9.944e-05 | wd 0.000 | gnorm 2.11 | 607.9s
+cool   200/4000 | loss 1.5528 | lr 9.938e-05 | wd 0.000 | gnorm 2.18 | 636.7s
+cool   210/4000 | loss 1.4649 | lr 9.932e-05 | wd 0.000 | gnorm 2.10 | 665.6s
+cool   220/4000 | loss 1.3424 | lr 9.926e-05 | wd 0.000 | gnorm 2.16 | 695.6s
+cool   230/4000 | loss 1.5512 | lr 9.919e-05 | wd 0.000 | gnorm 2.25 | 725.0s
+cool   240/4000 | loss 1.4661 | lr 9.911e-05 | wd 0.000 | gnorm 2.12 | 755.3s
+  [val] cool 250 | val_ppl 5.3917 | baseline 5.5558 | delta -0.1642
+cool   250/4000 | loss 1.4937 | lr 9.904e-05 | wd 0.000 | gnorm 2.13 | 784.3s
+cool   260/4000 | loss 1.7327 | lr 9.896e-05 | wd 0.000 | gnorm 2.47 | 814.1s
+cool   270/4000 | loss 1.5541 | lr 9.888e-05 | wd 0.000 | gnorm 2.29 | 842.9s
+cool   280/4000 | loss 1.5412 | lr 9.880e-05 | wd 0.000 | gnorm 2.22 | 867.1s
+cool   290/4000 | loss 1.5764 | lr 9.871e-05 | wd 0.000 | gnorm 2.19 | 889.8s
+cool   300/4000 | loss 1.3103 | lr 9.862e-05 | wd 0.000 | gnorm 2.13 | 912.1s
+cool   310/4000 | loss 1.4234 | lr 9.853e-05 | wd 0.000 | gnorm 2.13 | 934.3s
+cool   320/4000 | loss 1.5475 | lr 9.843e-05 | wd 0.000 | gnorm 2.15 | 957.2s
+cool   330/4000 | loss 1.5187 | lr 9.833e-05 | wd 0.000 | gnorm 2.26 | 980.1s
+cool   340/4000 | loss 1.6471 | lr 9.823e-05 | wd 0.000 | gnorm 2.80 | 1003.1s
+cool   350/4000 | loss 1.4350 | lr 9.812e-05 | wd 0.000 | gnorm 2.15 | 1026.3s
+cool   360/4000 | loss 1.4031 | lr 9.801e-05 | wd 0.000 | gnorm 2.11 | 1049.1s
+cool   370/4000 | loss 1.3795 | lr 9.790e-05 | wd 0.000 | gnorm 2.11 | 1072.4s
+cool   380/4000 | loss 1.6017 | lr 9.779e-05 | wd 0.000 | gnorm 2.31 | 1094.5s
+cool   390/4000 | loss 1.5449 | lr 9.767e-05 | wd 0.000 | gnorm 2.11 | 1116.6s
+cool   400/4000 | loss 1.4772 | lr 9.755e-05 | wd 0.000 | gnorm 2.16 | 1138.8s
+cool   410/4000 | loss 1.3864 | lr 9.743e-05 | wd 0.000 | gnorm 2.15 | 1161.4s
+cool   420/4000 | loss 1.3415 | lr 9.730e-05 | wd 0.000 | gnorm 2.10 | 1183.3s
+cool   430/4000 | loss 1.3321 | lr 9.718e-05 | wd 0.000 | gnorm 2.11 | 1205.2s
+cool   440/4000 | loss 1.5813 | lr 9.704e-05 | wd 0.000 | gnorm 2.18 | 1227.5s
+cool   450/4000 | loss 1.4991 | lr 9.691e-05 | wd 0.000 | gnorm 2.04 | 1250.8s
+cool   460/4000 | loss 1.5098 | lr 9.677e-05 | wd 0.000 | gnorm 2.31 | 1273.7s
+cool   470/4000 | loss 1.4603 | lr 9.663e-05 | wd 0.000 | gnorm 2.13 | 1297.5s
+cool   480/4000 | loss 1.5345 | lr 9.649e-05 | wd 0.000 | gnorm 2.15 | 1320.0s
+cool   490/4000 | loss 1.4762 | lr 9.634e-05 | wd 0.000 | gnorm 2.07 | 1341.3s
+  [val] cool 500 | val_ppl 5.4419 | baseline 5.5558 | delta -0.1140
+cool   500/4000 | loss 1.4009 | lr 9.619e-05 | wd 0.000 | gnorm 2.11 | 1364.2s
+cool   510/4000 | loss 1.2978 | lr 9.604e-05 | wd 0.000 | gnorm 2.12 | 1385.9s
+cool   520/4000 | loss 1.5306 | lr 9.589e-05 | wd 0.000 | gnorm 2.32 | 1413.3s
+cool   530/4000 | loss 1.3950 | lr 9.573e-05 | wd 0.000 | gnorm 2.12 | 1442.7s
+cool   540/4000 | loss 1.5699 | lr 9.557e-05 | wd 0.000 | gnorm 2.21 | 1466.2s
+cool   550/4000 | loss 1.3971 | lr 9.541e-05 | wd 0.000 | gnorm 2.13 | 1494.4s
+cool   560/4000 | loss 1.4277 | lr 9.524e-05 | wd 0.000 | gnorm 2.15 | 1518.3s
+cool   570/4000 | loss 1.3954 | lr 9.507e-05 | wd 0.000 | gnorm 2.04 | 1542.7s
+cool   580/4000 | loss 1.4195 | lr 9.490e-05 | wd 0.000 | gnorm 2.04 | 1566.4s
+cool   590/4000 | loss 1.3751 | lr 9.473e-05 | wd 0.000 | gnorm 2.35 | 1589.0s
+cool   600/4000 | loss 1.6787 | lr 9.455e-05 | wd 0.000 | gnorm 2.29 | 1612.9s
+cool   610/4000 | loss 1.4830 | lr 9.437e-05 | wd 0.000 | gnorm 2.21 | 1635.0s
+cool   620/4000 | loss 1.5547 | lr 9.419e-05 | wd 0.000 | gnorm 2.25 | 1657.1s
+cool   630/4000 | loss 1.5074 | lr 9.400e-05 | wd 0.000 | gnorm 2.09 | 1679.2s
+cool   640/4000 | loss 1.5025 | lr 9.382e-05 | wd 0.000 | gnorm 2.12 | 1701.4s
+cool   650/4000 | loss 1.3256 | lr 9.362e-05 | wd 0.000 | gnorm 2.55 | 1722.9s
+cool   660/4000 | loss 1.3928 | lr 9.343e-05 | wd 0.000 | gnorm 2.01 | 1744.5s
+cool   670/4000 | loss 1.4416 | lr 9.324e-05 | wd 0.000 | gnorm 2.10 | 1766.1s
+cool   680/4000 | loss 1.3551 | lr 9.304e-05 | wd 0.000 | gnorm 2.14 | 1790.3s
+cool   690/4000 | loss 1.2981 | lr 9.284e-05 | wd 0.000 | gnorm 1.99 | 1816.2s
+cool   700/4000 | loss 1.4802 | lr 9.263e-05 | wd 0.000 | gnorm 2.13 | 1844.0s
+cool   710/4000 | loss 1.3755 | lr 9.243e-05 | wd 0.000 | gnorm 2.24 | 1868.4s
+cool   720/4000 | loss 1.4630 | lr 9.222e-05 | wd 0.000 | gnorm 2.18 | 1891.7s
+cool   730/4000 | loss 1.6074 | lr 9.200e-05 | wd 0.000 | gnorm 2.33 | 1915.4s
+cool   740/4000 | loss 1.4185 | lr 9.179e-05 | wd 0.000 | gnorm 2.12 | 1937.7s
+  [val] cool 750 | val_ppl 5.5567 | baseline 5.5558 | delta +0.0009
+cool   750/4000 | loss 1.2510 | lr 9.157e-05 | wd 0.000 | gnorm 1.92 | 1960.5s
+cool   760/4000 | loss 1.4982 | lr 9.135e-05 | wd 0.000 | gnorm 2.10 | 1983.1s
+cool   770/4000 | loss 1.5077 | lr 9.113e-05 | wd 0.000 | gnorm 2.26 | 2005.4s
+cool   780/4000 | loss 1.4941 | lr 9.091e-05 | wd 0.000 | gnorm 2.29 | 2028.7s
+cool   790/4000 | loss 1.4768 | lr 9.068e-05 | wd 0.000 | gnorm 2.24 | 2051.6s
+cool   800/4000 | loss 1.3321 | lr 9.045e-05 | wd 0.000 | gnorm 2.03 | 2074.5s
+cool   810/4000 | loss 1.5187 | lr 9.022e-05 | wd 0.000 | gnorm 2.17 | 2097.9s
+cool   820/4000 | loss 1.4257 | lr 8.998e-05 | wd 0.000 | gnorm 2.15 | 2120.8s
+cool   830/4000 | loss 1.6304 | lr 8.975e-05 | wd 0.000 | gnorm 2.31 | 2143.3s
+cool   840/4000 | loss 1.4494 | lr 8.951e-05 | wd 0.000 | gnorm 2.13 | 2165.6s
+cool   850/4000 | loss 1.4167 | lr 8.927e-05 | wd 0.000 | gnorm 2.04 | 2187.4s
+cool   860/4000 | loss 1.6016 | lr 8.902e-05 | wd 0.000 | gnorm 2.24 | 2210.3s
+cool   870/4000 | loss 1.4594 | lr 8.877e-05 | wd 0.000 | gnorm 2.10 | 2233.7s
+cool   880/4000 | loss 1.6511 | lr 8.853e-05 | wd 0.000 | gnorm 2.30 | 2257.9s
+cool   890/4000 | loss 1.5537 | lr 8.827e-05 | wd 0.000 | gnorm 2.49 | 2280.6s
+cool   900/4000 | loss 1.3905 | lr 8.802e-05 | wd 0.000 | gnorm 2.11 | 2304.1s
+cool   910/4000 | loss 1.4300 | lr 8.776e-05 | wd 0.000 | gnorm 2.12 | 2326.9s
+cool   920/4000 | loss 1.4198 | lr 8.751e-05 | wd 0.000 | gnorm 1.99 | 2350.1s
+cool   930/4000 | loss 1.4803 | lr 8.724e-05 | wd 0.000 | gnorm 2.15 | 2373.6s
+cool   940/4000 | loss 1.4239 | lr 8.698e-05 | wd 0.000 | gnorm 2.09 | 2396.8s
+cool   950/4000 | loss 1.3469 | lr 8.672e-05 | wd 0.000 | gnorm 2.11 | 2419.4s
+cool   960/4000 | loss 1.5161 | lr 8.645e-05 | wd 0.000 | gnorm 2.23 | 2443.5s
+cool   970/4000 | loss 1.5100 | lr 8.618e-05 | wd 0.000 | gnorm 2.17 | 2465.2s
+cool   980/4000 | loss 1.6003 | lr 8.591e-05 | wd 0.000 | gnorm 2.14 | 2490.3s
+cool   990/4000 | loss 1.5072 | lr 8.563e-05 | wd 0.000 | gnorm 2.21 | 2513.7s
+  [val] cool 1000 | val_ppl 5.4581 | baseline 5.5558 | delta -0.0977
+cool  1000/4000 | loss 1.4765 | lr 8.536e-05 | wd 0.000 | gnorm 2.18 | 2536.9s
+cool  1010/4000 | loss 1.5134 | lr 8.508e-05 | wd 0.000 | gnorm 2.13 | 2560.1s
+cool  1020/4000 | loss 1.5047 | lr 8.480e-05 | wd 0.000 | gnorm 2.15 | 2584.0s
+cool  1030/4000 | loss 1.4204 | lr 8.451e-05 | wd 0.000 | gnorm 2.07 | 2608.1s
+cool  1040/4000 | loss 1.3520 | lr 8.423e-05 | wd 0.000 | gnorm 2.06 | 2632.8s
+cool  1050/4000 | loss 1.6382 | lr 8.394e-05 | wd 0.000 | gnorm 2.35 | 2655.9s
+cool  1060/4000 | loss 1.4896 | lr 8.365e-05 | wd 0.000 | gnorm 2.10 | 2679.3s
+cool  1070/4000 | loss 1.3937 | lr 8.336e-05 | wd 0.000 | gnorm 2.23 | 2703.4s
+cool  1080/4000 | loss 1.5361 | lr 8.307e-05 | wd 0.000 | gnorm 2.31 | 2726.6s
+cool  1090/4000 | loss 1.4556 | lr 8.277e-05 | wd 0.000 | gnorm 1.96 | 2750.8s
+cool  1100/4000 | loss 1.3725 | lr 8.247e-05 | wd 0.000 | gnorm 2.17 | 2775.3s
+cool  1110/4000 | loss 1.5171 | lr 8.217e-05 | wd 0.000 | gnorm 2.32 | 2800.1s
+cool  1120/4000 | loss 1.5319 | lr 8.187e-05 | wd 0.000 | gnorm 2.41 | 2823.7s
+cool  1130/4000 | loss 1.4897 | lr 8.157e-05 | wd 0.000 | gnorm 2.10 | 2848.8s
+cool  1140/4000 | loss 1.4451 | lr 8.126e-05 | wd 0.000 | gnorm 2.05 | 2873.6s
+cool  1150/4000 | loss 1.2337 | lr 8.095e-05 | wd 0.000 | gnorm 2.04 | 2897.2s
+cool  1160/4000 | loss 1.3878 | lr 8.065e-05 | wd 0.000 | gnorm 2.10 | 2920.3s
+cool  1170/4000 | loss 1.3845 | lr 8.033e-05 | wd 0.000 | gnorm 2.14 | 2943.3s
+cool  1180/4000 | loss 1.4549 | lr 8.002e-05 | wd 0.000 | gnorm 2.37 | 2968.1s
+cool  1190/4000 | loss 1.3475 | lr 7.971e-05 | wd 0.000 | gnorm 2.08 | 2992.2s
+cool  1200/4000 | loss 1.3287 | lr 7.939e-05 | wd 0.000 | gnorm 2.00 | 3014.8s
+cool  1210/4000 | loss 1.3469 | lr 7.907e-05 | wd 0.000 | gnorm 2.02 | 3037.0s
+cool  1220/4000 | loss 1.4023 | lr 7.875e-05 | wd 0.000 | gnorm 2.17 | 3060.3s
+cool  1230/4000 | loss 1.3325 | lr 7.843e-05 | wd 0.000 | gnorm 2.02 | 3083.6s
+cool  1240/4000 | loss 1.5205 | lr 7.810e-05 | wd 0.000 | gnorm 2.21 | 3107.4s
+  [val] cool 1250 | val_ppl 5.4334 | baseline 5.5558 | delta -0.1224
+cool  1250/4000 | loss 1.5077 | lr 7.778e-05 | wd 0.000 | gnorm 2.07 | 3130.7s
+cool  1260/4000 | loss 1.4679 | lr 7.745e-05 | wd 0.000 | gnorm 2.13 | 3153.6s
+cool  1270/4000 | loss 1.4383 | lr 7.712e-05 | wd 0.000 | gnorm 2.09 | 3176.8s
+cool  1280/4000 | loss 1.4792 | lr 7.679e-05 | wd 0.000 | gnorm 2.12 | 3200.7s
+cool  1290/4000 | loss 1.2681 | lr 7.646e-05 | wd 0.000 | gnorm 1.93 | 3223.4s
+cool  1300/4000 | loss 1.3754 | lr 7.612e-05 | wd 0.000 | gnorm 2.18 | 3246.6s
+cool  1310/4000 | loss 1.3874 | lr 7.579e-05 | wd 0.000 | gnorm 2.03 | 3269.8s
+cool  1320/4000 | loss 1.5408 | lr 7.545e-05 | wd 0.000 | gnorm 2.16 | 3293.2s
+cool  1330/4000 | loss 1.5324 | lr 7.511e-05 | wd 0.000 | gnorm 2.18 | 3316.2s
+cool  1340/4000 | loss 1.4534 | lr 7.477e-05 | wd 0.000 | gnorm 2.00 | 3339.5s
+cool  1350/4000 | loss 1.4783 | lr 7.443e-05 | wd 0.000 | gnorm 2.17 | 3361.7s
+cool  1360/4000 | loss 1.4239 | lr 7.409e-05 | wd 0.000 | gnorm 2.19 | 3384.6s
+cool  1370/4000 | loss 1.4759 | lr 7.374e-05 | wd 0.000 | gnorm 2.15 | 3408.2s
+cool  1380/4000 | loss 1.5447 | lr 7.340e-05 | wd 0.000 | gnorm 2.20 | 3431.4s
+cool  1390/4000 | loss 1.3798 | lr 7.305e-05 | wd 0.000 | gnorm 2.06 | 3453.2s
+cool  1400/4000 | loss 1.4080 | lr 7.270e-05 | wd 0.000 | gnorm 2.17 | 3476.7s
+cool  1410/4000 | loss 1.6360 | lr 7.235e-05 | wd 0.000 | gnorm 2.32 | 3501.0s
+cool  1420/4000 | loss 1.4626 | lr 7.200e-05 | wd 0.000 | gnorm 2.08 | 3523.3s
+cool  1430/4000 | loss 1.4362 | lr 7.164e-05 | wd 0.000 | gnorm 2.13 | 3547.1s
+cool  1440/4000 | loss 1.3794 | lr 7.129e-05 | wd 0.000 | gnorm 2.01 | 3570.9s
+cool  1450/4000 | loss 1.5581 | lr 7.093e-05 | wd 0.000 | gnorm 2.20 | 3593.7s
+cool  1460/4000 | loss 1.3609 | lr 7.058e-05 | wd 0.000 | gnorm 2.13 | 3616.5s
+cool  1470/4000 | loss 1.3585 | lr 7.022e-05 | wd 0.000 | gnorm 2.16 | 3642.1s
+cool  1480/4000 | loss 1.4836 | lr 6.986e-05 | wd 0.000 | gnorm 2.11 | 3665.9s
+cool  1490/4000 | loss 1.3165 | lr 6.950e-05 | wd 0.000 | gnorm 2.06 | 3689.9s
+  [val] cool 1500 | val_ppl 5.3198 | baseline 5.5558 | delta -0.2361
+cool  1500/4000 | loss 1.3927 | lr 6.913e-05 | wd 0.000 | gnorm 2.08 | 3715.1s
+cool  1510/4000 | loss 1.7250 | lr 6.877e-05 | wd 0.000 | gnorm 2.32 | 3738.5s
+cool  1520/4000 | loss 1.4231 | lr 6.841e-05 | wd 0.000 | gnorm 2.08 | 3761.5s
+cool  1530/4000 | loss 1.3956 | lr 6.804e-05 | wd 0.000 | gnorm 2.09 | 3785.1s
+cool  1540/4000 | loss 1.2838 | lr 6.767e-05 | wd 0.000 | gnorm 1.94 | 3808.3s
+cool  1550/4000 | loss 1.4561 | lr 6.731e-05 | wd 0.000 | gnorm 2.30 | 3831.4s
+cool  1560/4000 | loss 1.6196 | lr 6.694e-05 | wd 0.000 | gnorm 2.27 | 3854.8s
+cool  1570/4000 | loss 1.5138 | lr 6.657e-05 | wd 0.000 | gnorm 2.18 | 3879.1s
+cool  1580/4000 | loss 1.4848 | lr 6.620e-05 | wd 0.000 | gnorm 2.19 | 3902.1s
+cool  1590/4000 | loss 1.4450 | lr 6.582e-05 | wd 0.000 | gnorm 2.13 | 3924.5s
+cool  1600/4000 | loss 1.6459 | lr 6.545e-05 | wd 0.000 | gnorm 2.41 | 3947.4s
+cool  1610/4000 | loss 1.3944 | lr 6.508e-05 | wd 0.000 | gnorm 2.27 | 3970.4s
+cool  1620/4000 | loss 1.4334 | lr 6.470e-05 | wd 0.000 | gnorm 2.14 | 3993.5s
+cool  1630/4000 | loss 1.5202 | lr 6.433e-05 | wd 0.000 | gnorm 2.14 | 4016.7s
+cool  1640/4000 | loss 1.2861 | lr 6.395e-05 | wd 0.000 | gnorm 2.31 | 4039.8s
+cool  1650/4000 | loss 1.2891 | lr 6.357e-05 | wd 0.000 | gnorm 2.13 | 4062.5s
+cool  1660/4000 | loss 1.4552 | lr 6.319e-05 | wd 0.000 | gnorm 2.08 | 4084.5s
+cool  1670/4000 | loss 1.5483 | lr 6.281e-05 | wd 0.000 | gnorm 2.25 | 4106.7s
+cool  1680/4000 | loss 1.4701 | lr 6.243e-05 | wd 0.000 | gnorm 2.16 | 4129.4s
+cool  1690/4000 | loss 1.6243 | lr 6.205e-05 | wd 0.000 | gnorm 2.14 | 4151.0s
+cool  1700/4000 | loss 1.6564 | lr 6.167e-05 | wd 0.000 | gnorm 2.37 | 4173.5s
+cool  1710/4000 | loss 1.3708 | lr 6.129e-05 | wd 0.000 | gnorm 2.05 | 4196.8s
+cool  1720/4000 | loss 1.6056 | lr 6.091e-05 | wd 0.000 | gnorm 2.27 | 4220.2s
+cool  1730/4000 | loss 1.5726 | lr 6.052e-05 | wd 0.000 | gnorm 2.17 | 4243.7s
+cool  1740/4000 | loss 1.3366 | lr 6.014e-05 | wd 0.000 | gnorm 2.11 | 4266.7s
+  [val] cool 1750 | val_ppl 5.3828 | baseline 5.5558 | delta -0.1730
+cool  1750/4000 | loss 1.3287 | lr 5.975e-05 | wd 0.000 | gnorm 2.15 | 4288.9s
+cool  1760/4000 | loss 1.6408 | lr 5.937e-05 | wd 0.000 | gnorm 2.36 | 4312.1s
+cool  1770/4000 | loss 1.5339 | lr 5.898e-05 | wd 0.000 | gnorm 2.20 | 4335.2s
+cool  1780/4000 | loss 1.4179 | lr 5.860e-05 | wd 0.000 | gnorm 2.14 | 4360.0s
+cool  1790/4000 | loss 1.4293 | lr 5.821e-05 | wd 0.000 | gnorm 2.13 | 4382.3s
+cool  1800/4000 | loss 1.4694 | lr 5.782e-05 | wd 0.000 | gnorm 2.17 | 4405.5s
+cool  1810/4000 | loss 1.5368 | lr 5.743e-05 | wd 0.000 | gnorm 2.15 | 4428.4s
+cool  1820/4000 | loss 1.4449 | lr 5.705e-05 | wd 0.000 | gnorm 2.16 | 4452.1s
+cool  1830/4000 | loss 1.3717 | lr 5.666e-05 | wd 0.000 | gnorm 2.09 | 4475.2s
+cool  1840/4000 | loss 1.5038 | lr 5.627e-05 | wd 0.000 | gnorm 2.19 | 4499.3s
+cool  1850/4000 | loss 1.6339 | lr 5.588e-05 | wd 0.000 | gnorm 2.31 | 4524.6s
+cool  1860/4000 | loss 1.6026 | lr 5.549e-05 | wd 0.000 | gnorm 2.27 | 4552.1s
+cool  1870/4000 | loss 1.5515 | lr 5.510e-05 | wd 0.000 | gnorm 2.31 | 4577.9s
+cool  1880/4000 | loss 1.4332 | lr 5.471e-05 | wd 0.000 | gnorm 2.21 | 4603.5s
+cool  1890/4000 | loss 1.5991 | lr 5.431e-05 | wd 0.000 | gnorm 2.23 | 4630.1s
+cool  1900/4000 | loss 1.3043 | lr 5.392e-05 | wd 0.000 | gnorm 1.96 | 4654.6s
+cool  1910/4000 | loss 1.5517 | lr 5.353e-05 | wd 0.000 | gnorm 2.11 | 4681.5s
+cool  1920/4000 | loss 1.4293 | lr 5.314e-05 | wd 0.000 | gnorm 2.30 | 4701.9s
+cool  1930/4000 | loss 1.4830 | lr 5.275e-05 | wd 0.000 | gnorm 2.07 | 4724.2s
+cool  1940/4000 | loss 1.3481 | lr 5.236e-05 | wd 0.000 | gnorm 2.32 | 4745.7s
+cool  1950/4000 | loss 1.4836 | lr 5.196e-05 | wd 0.000 | gnorm 2.18 | 4764.5s
+cool  1960/4000 | loss 1.4458 | lr 5.157e-05 | wd 0.000 | gnorm 2.36 | 4783.1s
+cool  1970/4000 | loss 1.4810 | lr 5.118e-05 | wd 0.000 | gnorm 2.14 | 4801.6s
+cool  1980/4000 | loss 1.5959 | lr 5.079e-05 | wd 0.000 | gnorm 2.18 | 4820.1s
+cool  1990/4000 | loss 1.5398 | lr 5.039e-05 | wd 0.000 | gnorm 2.25 | 4838.8s
+  [val] cool 2000 | val_ppl 5.3416 | baseline 5.5558 | delta -0.2142
+cool  2000/4000 | loss 1.3565 | lr 5.000e-05 | wd 0.000 | gnorm 2.00 | 4857.8s
+cool  2010/4000 | loss 1.5049 | lr 4.961e-05 | wd 0.000 | gnorm 2.24 | 4876.6s
+cool  2020/4000 | loss 1.5424 | lr 4.921e-05 | wd 0.000 | gnorm 2.14 | 4895.0s
+cool  2030/4000 | loss 1.4526 | lr 4.882e-05 | wd 0.000 | gnorm 2.02 | 4913.3s
+cool  2040/4000 | loss 1.3794 | lr 4.843e-05 | wd 0.000 | gnorm 2.09 | 4932.0s
+cool  2050/4000 | loss 1.4835 | lr 4.804e-05 | wd 0.000 | gnorm 2.17 | 4951.4s
+cool  2060/4000 | loss 1.4263 | lr 4.764e-05 | wd 0.000 | gnorm 2.03 | 4971.2s
+cool  2070/4000 | loss 1.5025 | lr 4.725e-05 | wd 0.000 | gnorm 2.08 | 4991.8s
+cool  2080/4000 | loss 1.4809 | lr 4.686e-05 | wd 0.000 | gnorm 2.22 | 5012.3s
+cool  2090/4000 | loss 1.4754 | lr 4.647e-05 | wd 0.000 | gnorm 2.14 | 5032.2s
+cool  2100/4000 | loss 1.3550 | lr 4.608e-05 | wd 0.000 | gnorm 2.00 | 5052.2s
+cool  2110/4000 | loss 1.5012 | lr 4.569e-05 | wd 0.000 | gnorm 2.29 | 5071.4s
+cool  2120/4000 | loss 1.2767 | lr 4.529e-05 | wd 0.000 | gnorm 1.91 | 5089.9s
+cool  2130/4000 | loss 1.6632 | lr 4.490e-05 | wd 0.000 | gnorm 2.43 | 5108.4s
+cool  2140/4000 | loss 1.3722 | lr 4.451e-05 | wd 0.000 | gnorm 2.02 | 5127.4s
+cool  2150/4000 | loss 1.2341 | lr 4.412e-05 | wd 0.000 | gnorm 2.06 | 5146.4s
+cool  2160/4000 | loss 1.4538 | lr 4.373e-05 | wd 0.000 | gnorm 2.11 | 5165.4s
+cool  2170/4000 | loss 1.3122 | lr 4.334e-05 | wd 0.000 | gnorm 1.98 | 5183.9s
+cool  2180/4000 | loss 1.4697 | lr 4.295e-05 | wd 0.000 | gnorm 2.28 | 5202.4s
+cool  2190/4000 | loss 1.3502 | lr 4.257e-05 | wd 0.000 | gnorm 2.04 | 5221.3s
+cool  2200/4000 | loss 1.4999 | lr 4.218e-05 | wd 0.000 | gnorm 2.13 | 5240.2s
+cool  2210/4000 | loss 1.3034 | lr 4.179e-05 | wd 0.000 | gnorm 2.20 | 5258.6s
+cool  2220/4000 | loss 1.4871 | lr 4.140e-05 | wd 0.000 | gnorm 2.08 | 5277.5s
+cool  2230/4000 | loss 1.3751 | lr 4.102e-05 | wd 0.000 | gnorm 2.11 | 5296.0s
+cool  2240/4000 | loss 1.2886 | lr 4.063e-05 | wd 0.000 | gnorm 2.01 | 5314.6s
+  [val] cool 2250 | val_ppl 5.2865 | baseline 5.5558 | delta -0.2693
+cool  2250/4000 | loss 1.4931 | lr 4.025e-05 | wd 0.000 | gnorm 2.07 | 5332.8s
+cool  2260/4000 | loss 1.3248 | lr 3.986e-05 | wd 0.000 | gnorm 2.11 | 5351.2s
+cool  2270/4000 | loss 1.2665 | lr 3.948e-05 | wd 0.000 | gnorm 1.95 | 5369.4s
+cool  2280/4000 | loss 1.4504 | lr 3.909e-05 | wd 0.000 | gnorm 2.18 | 5388.1s
+cool  2290/4000 | loss 1.4623 | lr 3.871e-05 | wd 0.000 | gnorm 2.09 | 5406.9s
+cool  2300/4000 | loss 1.3839 | lr 3.833e-05 | wd 0.000 | gnorm 2.04 | 5426.6s
+cool  2310/4000 | loss 1.4195 | lr 3.795e-05 | wd 0.000 | gnorm 2.12 | 5445.8s
+cool  2320/4000 | loss 1.4287 | lr 3.757e-05 | wd 0.000 | gnorm 2.11 | 5464.7s
+cool  2330/4000 | loss 1.3777 | lr 3.719e-05 | wd 0.000 | gnorm 2.10 | 5483.3s
+cool  2340/4000 | loss 1.2974 | lr 3.681e-05 | wd 0.000 | gnorm 2.02 | 5502.6s
+cool  2350/4000 | loss 1.4035 | lr 3.643e-05 | wd 0.000 | gnorm 2.06 | 5521.8s
+cool  2360/4000 | loss 1.4634 | lr 3.605e-05 | wd 0.000 | gnorm 2.10 | 5541.0s
+cool  2370/4000 | loss 1.5849 | lr 3.567e-05 | wd 0.000 | gnorm 2.15 | 5559.9s
+cool  2380/4000 | loss 1.4440 | lr 3.530e-05 | wd 0.000 | gnorm 2.09 | 5579.4s
+cool  2390/4000 | loss 1.5779 | lr 3.492e-05 | wd 0.000 | gnorm 2.29 | 5598.2s
+cool  2400/4000 | loss 1.3657 | lr 3.455e-05 | wd 0.000 | gnorm 2.08 | 5616.8s
+cool  2410/4000 | loss 1.3847 | lr 3.418e-05 | wd 0.000 | gnorm 1.99 | 5635.9s
+cool  2420/4000 | loss 1.2503 | lr 3.380e-05 | wd 0.000 | gnorm 1.93 | 5655.3s
+cool  2430/4000 | loss 1.5113 | lr 3.343e-05 | wd 0.000 | gnorm 2.27 | 5673.8s
+cool  2440/4000 | loss 1.3442 | lr 3.306e-05 | wd 0.000 | gnorm 1.99 | 5692.0s
+cool  2450/4000 | loss 1.4531 | lr 3.269e-05 | wd 0.000 | gnorm 2.07 | 5710.7s
+cool  2460/4000 | loss 1.3999 | lr 3.233e-05 | wd 0.000 | gnorm 1.96 | 5729.5s
+cool  2470/4000 | loss 1.5287 | lr 3.196e-05 | wd 0.000 | gnorm 2.08 | 5747.9s
+cool  2480/4000 | loss 1.3116 | lr 3.159e-05 | wd 0.000 | gnorm 2.08 | 5766.4s
+cool  2490/4000 | loss 1.3977 | lr 3.123e-05 | wd 0.000 | gnorm 2.11 | 5785.7s
+  [val] cool 2500 | val_ppl 5.3086 | baseline 5.5558 | delta -0.2472
+cool  2500/4000 | loss 1.4740 | lr 3.087e-05 | wd 0.000 | gnorm 2.33 | 5804.5s
+cool  2510/4000 | loss 1.4654 | lr 3.050e-05 | wd 0.000 | gnorm 2.14 | 5822.8s
+cool  2520/4000 | loss 1.4361 | lr 3.014e-05 | wd 0.000 | gnorm 2.17 | 5841.4s
+cool  2530/4000 | loss 1.5310 | lr 2.978e-05 | wd 0.000 | gnorm 2.09 | 5860.3s
+cool  2540/4000 | loss 1.5801 | lr 2.942e-05 | wd 0.000 | gnorm 2.25 | 5879.7s
+cool  2550/4000 | loss 1.4736 | lr 2.907e-05 | wd 0.000 | gnorm 2.08 | 5898.5s
+cool  2560/4000 | loss 1.5418 | lr 2.871e-05 | wd 0.000 | gnorm 2.30 | 5917.4s
+cool  2570/4000 | loss 1.2838 | lr 2.836e-05 | wd 0.000 | gnorm 2.01 | 5936.9s
+cool  2580/4000 | loss 1.3437 | lr 2.800e-05 | wd 0.000 | gnorm 2.02 | 5955.4s
+cool  2590/4000 | loss 1.4200 | lr 2.765e-05 | wd 0.000 | gnorm 1.98 | 5973.8s
+cool  2600/4000 | loss 1.3599 | lr 2.730e-05 | wd 0.000 | gnorm 2.13 | 5992.5s
+cool  2610/4000 | loss 1.4692 | lr 2.695e-05 | wd 0.000 | gnorm 2.05 | 6011.2s
+cool  2620/4000 | loss 1.4586 | lr 2.660e-05 | wd 0.000 | gnorm 2.15 | 6029.5s
+cool  2630/4000 | loss 1.3948 | lr 2.626e-05 | wd 0.000 | gnorm 1.95 | 6048.5s
+cool  2640/4000 | loss 1.3971 | lr 2.591e-05 | wd 0.000 | gnorm 1.94 | 6068.4s
+cool  2650/4000 | loss 1.3589 | lr 2.557e-05 | wd 0.000 | gnorm 2.10 | 6087.6s
+cool  2660/4000 | loss 1.3907 | lr 2.523e-05 | wd 0.000 | gnorm 2.06 | 6106.7s
+cool  2670/4000 | loss 1.4128 | lr 2.489e-05 | wd 0.000 | gnorm 2.13 | 6125.7s
+cool  2680/4000 | loss 1.4741 | lr 2.455e-05 | wd 0.000 | gnorm 2.29 | 6145.2s
+cool  2690/4000 | loss 1.5603 | lr 2.421e-05 | wd 0.000 | gnorm 2.06 | 6164.0s
+cool  2700/4000 | loss 1.3206 | lr 2.388e-05 | wd 0.000 | gnorm 1.99 | 6183.7s
+cool  2710/4000 | loss 1.3366 | lr 2.354e-05 | wd 0.000 | gnorm 2.14 | 6202.3s
+cool  2720/4000 | loss 1.3863 | lr 2.321e-05 | wd 0.000 | gnorm 2.04 | 6220.7s
+cool  2730/4000 | loss 1.6233 | lr 2.288e-05 | wd 0.000 | gnorm 2.43 | 6239.5s
+cool  2740/4000 | loss 1.3833 | lr 2.255e-05 | wd 0.000 | gnorm 2.13 | 6257.6s
+  [val] cool 2750 | val_ppl 5.2809 | baseline 5.5558 | delta -0.2750
+cool  2750/4000 | loss 1.2886 | lr 2.222e-05 | wd 0.000 | gnorm 2.07 | 6275.9s
+cool  2760/4000 | loss 1.4764 | lr 2.190e-05 | wd 0.000 | gnorm 2.15 | 6294.5s
+cool  2770/4000 | loss 1.4279 | lr 2.157e-05 | wd 0.000 | gnorm 2.11 | 6313.1s
+cool  2780/4000 | loss 1.3244 | lr 2.125e-05 | wd 0.000 | gnorm 2.00 | 6332.0s
+cool  2790/4000 | loss 1.4009 | lr 2.093e-05 | wd 0.000 | gnorm 2.24 | 6350.3s
+cool  2800/4000 | loss 1.4869 | lr 2.061e-05 | wd 0.000 | gnorm 2.14 | 6369.0s
+cool  2810/4000 | loss 1.5154 | lr 2.029e-05 | wd 0.000 | gnorm 2.23 | 6387.7s
+cool  2820/4000 | loss 1.5347 | lr 1.998e-05 | wd 0.000 | gnorm 2.14 | 6406.3s
+cool  2830/4000 | loss 1.5099 | lr 1.967e-05 | wd 0.000 | gnorm 2.08 | 6424.8s
+cool  2840/4000 | loss 1.5738 | lr 1.935e-05 | wd 0.000 | gnorm 2.28 | 6443.6s
+cool  2850/4000 | loss 1.4783 | lr 1.905e-05 | wd 0.000 | gnorm 2.15 | 6462.7s
+cool  2860/4000 | loss 1.4577 | lr 1.874e-05 | wd 0.000 | gnorm 2.11 | 6481.5s
+cool  2870/4000 | loss 1.3864 | lr 1.843e-05 | wd 0.000 | gnorm 1.97 | 6499.8s
+cool  2880/4000 | loss 1.3995 | lr 1.813e-05 | wd 0.000 | gnorm 2.06 | 6517.9s
+cool  2890/4000 | loss 1.4444 | lr 1.783e-05 | wd 0.000 | gnorm 2.07 | 6536.6s
+cool  2900/4000 | loss 1.3283 | lr 1.753e-05 | wd 0.000 | gnorm 2.04 | 6556.1s
+cool  2910/4000 | loss 1.4814 | lr 1.723e-05 | wd 0.000 | gnorm 2.23 | 6576.6s
+cool  2920/4000 | loss 1.5929 | lr 1.693e-05 | wd 0.000 | gnorm 2.22 | 6595.9s
+cool  2930/4000 | loss 1.4465 | lr 1.664e-05 | wd 0.000 | gnorm 2.15 | 6615.3s
+cool  2940/4000 | loss 1.4700 | lr 1.635e-05 | wd 0.000 | gnorm 2.26 | 6635.3s
+cool  2950/4000 | loss 1.4110 | lr 1.606e-05 | wd 0.000 | gnorm 2.06 | 6654.8s
+cool  2960/4000 | loss 1.3227 | lr 1.577e-05 | wd 0.000 | gnorm 2.11 | 6673.3s
+cool  2970/4000 | loss 1.4687 | lr 1.549e-05 | wd 0.000 | gnorm 2.18 | 6692.3s
+cool  2980/4000 | loss 1.2111 | lr 1.520e-05 | wd 0.000 | gnorm 1.97 | 6711.4s
+cool  2990/4000 | loss 1.4732 | lr 1.492e-05 | wd 0.000 | gnorm 2.05 | 6730.4s
+  [val] cool 3000 | val_ppl 5.2271 | baseline 5.5558 | delta -0.3287
+cool  3000/4000 | loss 1.4561 | lr 1.464e-05 | wd 0.000 | gnorm 2.08 | 6750.1s
+cool  3010/4000 | loss 1.4093 | lr 1.437e-05 | wd 0.000 | gnorm 2.07 | 6769.5s
+cool  3020/4000 | loss 1.3901 | lr 1.409e-05 | wd 0.000 | gnorm 2.11 | 6788.9s
+cool  3030/4000 | loss 1.3417 | lr 1.382e-05 | wd 0.000 | gnorm 2.05 | 6807.6s
+cool  3040/4000 | loss 1.4043 | lr 1.355e-05 | wd 0.000 | gnorm 2.13 | 6826.6s
+cool  3050/4000 | loss 1.2051 | lr 1.328e-05 | wd 0.000 | gnorm 1.89 | 6845.8s
+cool  3060/4000 | loss 1.6336 | lr 1.302e-05 | wd 0.000 | gnorm 2.24 | 6864.3s
+cool  3070/4000 | loss 1.3261 | lr 1.276e-05 | wd 0.000 | gnorm 1.96 | 6882.6s
+cool  3080/4000 | loss 1.3355 | lr 1.249e-05 | wd 0.000 | gnorm 2.03 | 6901.0s
+cool  3090/4000 | loss 1.2744 | lr 1.224e-05 | wd 0.000 | gnorm 1.93 | 6919.1s
+cool  3100/4000 | loss 1.4680 | lr 1.198e-05 | wd 0.000 | gnorm 2.16 | 6937.7s
+cool  3110/4000 | loss 1.4087 | lr 1.173e-05 | wd 0.000 | gnorm 2.18 | 6956.6s
+cool  3120/4000 | loss 1.4668 | lr 1.147e-05 | wd 0.000 | gnorm 2.14 | 6975.7s
+cool  3130/4000 | loss 1.4054 | lr 1.123e-05 | wd 0.000 | gnorm 2.06 | 6994.4s
+cool  3140/4000 | loss 1.4166 | lr 1.098e-05 | wd 0.000 | gnorm 2.19 | 7012.9s
+cool  3150/4000 | loss 1.4635 | lr 1.073e-05 | wd 0.000 | gnorm 1.97 | 7031.8s
+cool  3160/4000 | loss 1.3627 | lr 1.049e-05 | wd 0.000 | gnorm 2.41 | 7050.3s
+cool  3170/4000 | loss 1.2812 | lr 1.025e-05 | wd 0.000 | gnorm 2.04 | 7068.4s
+cool  3180/4000 | loss 1.4674 | lr 1.002e-05 | wd 0.000 | gnorm 2.24 | 7086.5s
+cool  3190/4000 | loss 1.4443 | lr 9.781e-06 | wd 0.000 | gnorm 2.14 | 7104.9s
+cool  3200/4000 | loss 1.3676 | lr 9.549e-06 | wd 0.000 | gnorm 2.10 | 7123.9s
+cool  3210/4000 | loss 1.3688 | lr 9.320e-06 | wd 0.000 | gnorm 2.03 | 7142.3s
+cool  3220/4000 | loss 1.3554 | lr 9.093e-06 | wd 0.000 | gnorm 2.08 | 7160.8s
+cool  3230/4000 | loss 1.4687 | lr 8.868e-06 | wd 0.000 | gnorm 2.06 | 7179.9s
+cool  3240/4000 | loss 1.4061 | lr 8.646e-06 | wd 0.000 | gnorm 2.05 | 7199.2s
+  [val] cool 3250 | val_ppl 5.2291 | baseline 5.5558 | delta -0.3267
+cool  3250/4000 | loss 1.3047 | lr 8.427e-06 | wd 0.000 | gnorm 2.05 | 7218.3s
+cool  3260/4000 | loss 1.3374 | lr 8.210e-06 | wd 0.000 | gnorm 2.08 | 7237.7s
+cool  3270/4000 | loss 1.3762 | lr 7.995e-06 | wd 0.000 | gnorm 2.08 | 7257.0s
+cool  3280/4000 | loss 1.4289 | lr 7.784e-06 | wd 0.000 | gnorm 2.00 | 7276.5s
+cool  3290/4000 | loss 1.5014 | lr 7.574e-06 | wd 0.000 | gnorm 2.02 | 7296.0s
+cool  3300/4000 | loss 1.3947 | lr 7.368e-06 | wd 0.000 | gnorm 2.17 | 7315.5s
+cool  3310/4000 | loss 1.5211 | lr 7.164e-06 | wd 0.000 | gnorm 2.13 | 7334.7s
+cool  3320/4000 | loss 1.3308 | lr 6.963e-06 | wd 0.000 | gnorm 2.29 | 7353.4s
+cool  3330/4000 | loss 1.4559 | lr 6.764e-06 | wd 0.000 | gnorm 2.16 | 7372.3s
+cool  3340/4000 | loss 1.3157 | lr 6.568e-06 | wd 0.000 | gnorm 2.02 | 7390.8s
+cool  3350/4000 | loss 1.3541 | lr 6.375e-06 | wd 0.000 | gnorm 1.96 | 7409.7s
+cool  3360/4000 | loss 1.3087 | lr 6.185e-06 | wd 0.000 | gnorm 1.99 | 7427.8s
+cool  3370/4000 | loss 1.5823 | lr 5.997e-06 | wd 0.000 | gnorm 2.19 | 7446.8s
+cool  3380/4000 | loss 1.3029 | lr 5.812e-06 | wd 0.000 | gnorm 2.19 | 7465.3s
+cool  3390/4000 | loss 1.4005 | lr 5.629e-06 | wd 0.000 | gnorm 2.03 | 7483.8s
+cool  3400/4000 | loss 1.3733 | lr 5.450e-06 | wd 0.000 | gnorm 2.11 | 7502.7s
+cool  3410/4000 | loss 1.3759 | lr 5.273e-06 | wd 0.000 | gnorm 2.04 | 7522.0s
+cool  3420/4000 | loss 1.2992 | lr 5.099e-06 | wd 0.000 | gnorm 1.99 | 7540.9s
+cool  3430/4000 | loss 1.3956 | lr 4.927e-06 | wd 0.000 | gnorm 2.07 | 7559.4s
+cool  3440/4000 | loss 1.2716 | lr 4.759e-06 | wd 0.000 | gnorm 1.92 | 7578.0s
+cool  3450/4000 | loss 1.3818 | lr 4.593e-06 | wd 0.000 | gnorm 2.07 | 7596.7s
+cool  3460/4000 | loss 1.3579 | lr 4.430e-06 | wd 0.000 | gnorm 1.92 | 7615.7s
+cool  3470/4000 | loss 1.5356 | lr 4.270e-06 | wd 0.000 | gnorm 2.32 | 7634.6s
+cool  3480/4000 | loss 1.5773 | lr 4.112e-06 | wd 0.000 | gnorm 2.17 | 7653.2s
+cool  3490/4000 | loss 1.3244 | lr 3.958e-06 | wd 0.000 | gnorm 2.00 | 7672.3s
+  [val] cool 3500 | val_ppl 5.2207 | baseline 5.5558 | delta -0.3351
+cool  3500/4000 | loss 1.4408 | lr 3.806e-06 | wd 0.000 | gnorm 2.08 | 7691.9s
+cool  3510/4000 | loss 1.4436 | lr 3.657e-06 | wd 0.000 | gnorm 2.07 | 7710.9s
+cool  3520/4000 | loss 1.3996 | lr 3.511e-06 | wd 0.000 | gnorm 2.06 | 7730.4s
+cool  3530/4000 | loss 1.4658 | lr 3.368e-06 | wd 0.000 | gnorm 2.12 | 7749.2s
+cool  3540/4000 | loss 1.5049 | lr 3.228e-06 | wd 0.000 | gnorm 2.14 | 7768.7s
+cool  3550/4000 | loss 1.5213 | lr 3.090e-06 | wd 0.000 | gnorm 2.29 | 7787.8s
+cool  3560/4000 | loss 1.4058 | lr 2.956e-06 | wd 0.000 | gnorm 2.23 | 7806.8s
+cool  3570/4000 | loss 1.4127 | lr 2.824e-06 | wd 0.000 | gnorm 2.00 | 7825.8s
+cool  3580/4000 | loss 1.2472 | lr 2.696e-06 | wd 0.000 | gnorm 2.03 | 7844.9s
+cool  3590/4000 | loss 1.5250 | lr 2.570e-06 | wd 0.000 | gnorm 2.18 | 7864.4s
+cool  3600/4000 | loss 1.2733 | lr 2.447e-06 | wd 0.000 | gnorm 1.91 | 7883.0s
+cool  3610/4000 | loss 1.4071 | lr 2.327e-06 | wd 0.000 | gnorm 2.14 | 7901.5s
+cool  3620/4000 | loss 1.3267 | lr 2.210e-06 | wd 0.000 | gnorm 2.00 | 7919.7s
+cool  3630/4000 | loss 1.3862 | lr 2.096e-06 | wd 0.000 | gnorm 2.10 | 7937.9s
+cool  3640/4000 | loss 1.4092 | lr 1.985e-06 | wd 0.000 | gnorm 2.11 | 7957.0s
+cool  3650/4000 | loss 1.3201 | lr 1.877e-06 | wd 0.000 | gnorm 1.96 | 7976.1s
+cool  3660/4000 | loss 1.4617 | lr 1.772e-06 | wd 0.000 | gnorm 2.12 | 7995.5s
+cool  3670/4000 | loss 1.3956 | lr 1.670e-06 | wd 0.000 | gnorm 2.16 | 8014.0s
+cool  3680/4000 | loss 1.4586 | lr 1.571e-06 | wd 0.000 | gnorm 2.04 | 8033.7s
+cool  3690/4000 | loss 1.5561 | lr 1.475e-06 | wd 0.000 | gnorm 2.14 | 8053.2s
+cool  3700/4000 | loss 1.5797 | lr 1.382e-06 | wd 0.000 | gnorm 2.16 | 8073.0s
+cool  3710/4000 | loss 1.4064 | lr 1.291e-06 | wd 0.000 | gnorm 2.12 | 8091.7s
+cool  3720/4000 | loss 1.3779 | lr 1.204e-06 | wd 0.000 | gnorm 2.03 | 8110.3s
+cool  3730/4000 | loss 1.4151 | lr 1.120e-06 | wd 0.000 | gnorm 2.13 | 8129.2s
+cool  3740/4000 | loss 1.4240 | lr 1.039e-06 | wd 0.000 | gnorm 2.04 | 8147.8s
+  [val] cool 3750 | val_ppl 5.2287 | baseline 5.5558 | delta -0.3271
+cool  3750/4000 | loss 1.4178 | lr 9.607e-07 | wd 0.000 | gnorm 2.06 | 8167.2s
+cool  3760/4000 | loss 1.4371 | lr 8.856e-07 | wd 0.000 | gnorm 2.05 | 8186.2s
+cool  3770/4000 | loss 1.5543 | lr 8.136e-07 | wd 0.000 | gnorm 2.11 | 8204.6s
+cool  3780/4000 | loss 1.4998 | lr 7.445e-07 | wd 0.000 | gnorm 2.16 | 8223.6s
+cool  3790/4000 | loss 1.3833 | lr 6.785e-07 | wd 0.000 | gnorm 2.09 | 8242.8s
+cool  3800/4000 | loss 1.3208 | lr 6.156e-07 | wd 0.000 | gnorm 2.03 | 8261.3s
+cool  3810/4000 | loss 1.3065 | lr 5.557e-07 | wd 0.000 | gnorm 2.03 | 8281.4s
+cool  3820/4000 | loss 1.3832 | lr 4.988e-07 | wd 0.000 | gnorm 2.07 | 8300.8s
+cool  3830/4000 | loss 1.3678 | lr 4.450e-07 | wd 0.000 | gnorm 2.18 | 8319.3s
+cool  3840/4000 | loss 1.4313 | lr 3.943e-07 | wd 0.000 | gnorm 2.18 | 8337.4s
+cool  3850/4000 | loss 1.3512 | lr 3.466e-07 | wd 0.000 | gnorm 1.98 | 8356.2s
+cool  3860/4000 | loss 1.6027 | lr 3.020e-07 | wd 0.000 | gnorm 2.22 | 8375.2s
+cool  3870/4000 | loss 1.3469 | lr 2.604e-07 | wd 0.000 | gnorm 1.99 | 8394.0s
+cool  3880/4000 | loss 1.3396 | lr 2.219e-07 | wd 0.000 | gnorm 2.04 | 8413.3s
+cool  3890/4000 | loss 1.6177 | lr 1.865e-07 | wd 0.000 | gnorm 2.37 | 8431.9s
+cool  3900/4000 | loss 1.3924 | lr 1.541e-07 | wd 0.000 | gnorm 2.09 | 8450.5s
+cool  3910/4000 | loss 1.4992 | lr 1.249e-07 | wd 0.000 | gnorm 2.07 | 8469.1s
+cool  3920/4000 | loss 1.2767 | lr 9.866e-08 | wd 0.000 | gnorm 1.96 | 8487.5s
+cool  3930/4000 | loss 1.3313 | lr 7.555e-08 | wd 0.000 | gnorm 2.31 | 8506.2s
+cool  3940/4000 | loss 1.4436 | lr 5.551e-08 | wd 0.000 | gnorm 2.08 | 8524.6s
+cool  3950/4000 | loss 1.2863 | lr 3.855e-08 | wd 0.000 | gnorm 2.03 | 8543.6s
+cool  3960/4000 | loss 1.4839 | lr 2.467e-08 | wd 0.000 | gnorm 2.10 | 8562.7s
+cool  3970/4000 | loss 1.5877 | lr 1.388e-08 | wd 0.000 | gnorm 2.21 | 8581.4s
+cool  3980/4000 | loss 1.4701 | lr 6.168e-09 | wd 0.000 | gnorm 2.18 | 8604.3s
+cool  3990/4000 | loss 1.5298 | lr 1.542e-09 | wd 0.000 | gnorm 4.03 | 8622.7s
+cool  3999/4000 | loss 1.3091 | lr 1.542e-11 | wd 0.000 | gnorm 2.08 | 8639.6s
+  [val] cool 4000 | val_ppl 5.2297 | baseline 5.5558 | delta -0.3262
+
+==================================================================
+M7 LR-COOLDOWN CONTROL — RESULT (single 512-token probe)
+==================================================================
+  twin val_ppl BEFORE cooldown : 5.5558
+  twin val_ppl AFTER  cooldown : 5.2297
+  change                       : -0.3262 (+5.87% better)
+  wall clock                   : 8640.1s
+  checkpoint                   : /home/killboxincorporated/model-lab/tinybit/checkpoints/m7a_twin_cooled.pt
+
+  NOTE: this 512-token probe is the SAME underpowered metric the
+  original runs used. The decisive number comes from the paired
+  multi-window eval (m7_paired_eval.py). Do not conclude from this.
+[cooldown] done

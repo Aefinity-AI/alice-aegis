@@ -1,0 +1,1127 @@
+
+==== AEGIS MINIMAL-LINUX ARM ====
+boot_utc_unavailable_rtc: Wed Aug  5 14:26:21 UTC 2026
+kernel : Linux 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20)
+cmdline: console=ttyS0,115200 console=tty0 rdinit=/init mitigations=off quiet loglevel=4
+cpu    :  Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz
+machine: Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+cpus_on: 4
+governor: performance
+cur_freq: 2318559 kHz
+loadavg : 0.08 0.02 0.01 1/87 211
+cpu0 msr 0x1fc = 0x000000000004005c
+cpu1 msr 0x1fc = 0x000000000004005c
+cpu2 msr 0x1fc = 0x000000000004005c
+cpu3 msr 0x1fc = 0x000000000004005c
+cpu0 msr 0x198 = 0x00001dc700001600
+cpu1 msr 0x198 = 0x00001dd000001600
+cpu2 msr 0x198 = 0x00001dc700001600
+cpu3 msr 0x198 = 0x00001dd000001600
+==== GAUNTLET (Linux arm) ====
+--- L1 fresh-process run 1/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5819065
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (372.56 tok/s incl. prefill)
+Prefill 4 tokens in 8637835 cycles (2159458 cycles/token)
+Decode 64 tokens in 0.170 s (377.09 tok/s decode-only)
+--- L1 fresh-process run 2/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5799072
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (373.78 tok/s incl. prefill)
+Prefill 4 tokens in 8709230 cycles (2177307 cycles/token)
+Decode 64 tokens in 0.169 s (378.42 tok/s decode-only)
+--- L1 fresh-process run 3/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5809340
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.174 s (372.90 tok/s incl. prefill)
+Prefill 4 tokens in 8902138 cycles (2225534 cycles/token)
+Decode 64 tokens in 0.169 s (377.75 tok/s decode-only)
+--- L1 fresh-process run 4/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5838026
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (371.16 tok/s incl. prefill)
+Prefill 4 tokens in 8936979 cycles (2234244 cycles/token)
+Decode 64 tokens in 0.170 s (375.89 tok/s decode-only)
+--- L1 fresh-process run 5/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5826375
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (371.99 tok/s incl. prefill)
+Prefill 4 tokens in 8862945 cycles (2215736 cycles/token)
+Decode 64 tokens in 0.170 s (376.64 tok/s decode-only)
+--- L1 fresh-process run 6/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5838349
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (371.03 tok/s incl. prefill)
+Prefill 4 tokens in 9086752 cycles (2271688 cycles/token)
+Decode 64 tokens in 0.170 s (375.88 tok/s decode-only)
+--- L1 fresh-process run 7/7
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: Once upon a time
+[SYSTEM] Analyzing 4 tokens...
+, there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+
+[PERFORMANCE] Average Cycles/Token: 5820647
+
+
+Final Full Response: , there was a little girl named Lily. She had an adorable cat named Fluffy. They loved to play together all day long. One sunny day, they went outside to have fun in the sun.
+As they played, Fluffy saw something shiny on the ground. He wanted to pick it up and see what it could be
+Generated 65 tokens
+Wall time 0.175 s (372.35 tok/s incl. prefill)
+Prefill 4 tokens in 8791486 cycles (2197871 cycles/token)
+Decode 64 tokens in 0.170 s (377.02 tok/s decode-only)
+--- L2 in-process n=20
+iter,decode_cyc_per_tok,decode_total_cyc,decode_steps,prefill_cyc,out_hash
+0,5662143,362377192,64,8884501,7aed346907e42110
+1,6454164,413066509,64,8473547,7aed346907e42110
+2,7179930,459515560,64,10192880,7aed346907e42110
+3,6637721,424814160,64,10194320,7aed346907e42110
+4,6638485,424863072,64,10215204,7aed346907e42110
+5,6642312,425107988,64,10169196,7aed346907e42110
+6,6639459,424925408,64,10165448,7aed346907e42110
+7,6978661,446634324,64,10167500,7aed346907e42110
+8,6707633,429288516,64,10159760,7aed346907e42110
+9,6636813,424756044,64,10169492,7aed346907e42110
+10,6635541,424674664,64,10161268,7aed346907e42110
+11,6528139,417800914,64,10163672,7aed346907e42110
+12,5637698,360812698,64,8462696,7aed346907e42110
+13,5640256,360976428,64,8524123,7aed346907e42110
+14,5639562,360931979,64,8472449,7aed346907e42110
+15,5639370,360919724,64,8452285,7aed346907e42110
+16,5643402,361177749,64,8474121,7aed346907e42110
+17,5640362,360983229,64,8437352,7aed346907e42110
+18,5641483,361054974,64,8388078,7aed346907e42110
+19,5644940,361276197,64,8401096,7aed346907e42110
+--- L3 prompt: "hello alice"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: hello alice
+[SYSTEM] Analyzing 3 tokens...
+, and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+
+[PERFORMANCE] Average Cycles/Token: 5913625
+
+
+Final Full Response: , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+The boy smiled and asked, "What's your name?" The voice replied, "My name is Jack!" 
+Lily laughed and hugged Jack tightly. Then she gave him a big hug and he felt very happy. He had been playing with his new friend for a long time.
+Generated 85 tokens
+Wall time 0.234 s (363.75 tok/s incl. prefill)
+Prefill 3 tokens in 8095372 cycles (2698457 cycles/token)
+Decode 84 tokens in 0.229 s (366.46 tok/s decode-only)
+--- L3 prompt: "how are you today?"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: how are you today?
+[SYSTEM] Analyzing 6 tokens...
+ Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+
+[PERFORMANCE] Average Cycles/Token: 6817197
+
+
+Final Full Response:  Come with me."
+Lily and Ben are scared. They do not want to go on the slide. They say, "No, thank you. We like the park. It is fun. Please let us play."
+The man says, "OK, but be careful. The slide is very high. You have to hold my hand. I will watch over your legs." He walks to the top of the slide. Lily and Ben follow him. They climb up the ladder. They sit at the bottom. They look down. They see a big dog. The dog is barking loud. It has sharp teeth. It barks louder than them.
+"Wow!" Lily says. She sees a small cat in the tree. The cat is black and white. It looks friendly. Lily wants to pet it. She reaches out her hand. But she does not touch the cat's fur. She feels something hard. She tries again. She holds her hand. She smiles.
+But then, the wind blows harder. The branch breaks. The leaves fall off. The grass falls too. The flowers get wet. The water goes everywhere. Lily and Ben stop. They run away from the hill. They cry. They hug each other. They are sorry. They wish they did
+Generated 257 tokens
+Wall time 0.801 s (320.82 tok/s incl. prefill)
+Prefill 6 tokens in 11270727 cycles (1878454 cycles/token)
+Decode 256 tokens in 0.795 s (321.95 tok/s decode-only)
+--- L3 prompt: "continue"
+==================================================
+ A.L.I.C.E. Linux Evaluation Harness
+==================================================
+Initializing Ternary Inference Engine...
+Engine Online (7 layers, hidden 384, vocab 8192, None template). Evaluation Harness Ready.
+
+Prompt: continue
+[SYSTEM] Analyzing 4 tokens...
+.
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+
+[PERFORMANCE] Average Cycles/Token: 7079840
+
+
+Final Full Response: .
+"What is it?" Lily asks, pointing at the box.
+Ben shakes his head and says, "I don't know. Maybe a toy or candy."
+Lily laughs and says, "Let's open it!" She pulls the lid off of the ball and opens it. Inside, there are many toys inside! There are dolls, cars, blocks, books, puzzles, clothes, but no teddy bear. They look like real bears," Ben says, holding up a doll with a pink dress and long hair.
+They play with their new things for a while, until they hear a voice from behind them. It is Mom calling them to come home.
+Mom says, "Come on, kids, let me help you clean your room. You can have more fun later when we get home."
+She takes out her phone number and puts it in the car. Then she tells them to go back to their room and wash away all the mess.
+Anna and Ben say goodbye to each other and hug. They love playing together again.
+Generated 214 tokens
+Wall time 0.703 s (304.41 tok/s incl. prefill)
+Prefill 4 tokens in 8753681 cycles (2188420 cycles/token)
+Decode 213 tokens in 0.698 s (305.05 tok/s decode-only)
+==== GAUNTLET DONE ====
+final cur_freq: 2194955 kHz
+==== MECHV2L (n=10 per prompt; output buffered to tmpfs during runs) ====
+MECHV2L "hello alice" run 1/10
+[PERFORMANCE] Average Cycles/Token: 6840267
+Prefill 3 tokens in 9543300 cycles (3181100 cycles/token)
+Decode 84 tokens in 0.265 s (316.79 tok/s decode-only)
+MECHV2L RESPONSE "hello alice": , and the little girl was so excited to see him. She ran up to him and said, "Hi! I'm Lily."
+MECHV2L "hello alice" run 2/10
+[PERFORMANCE] Average Cycles/Token: 6818299
+Prefill 3 tokens in 9501592 cycles (3167197 cycles/token)
+Decode 84 tokens in 0.264 s (317.82 tok/s decode-only)
+MECHV2L "hello alice" run 3/10
+[PERFORMANCE] Average Cycles/Token: 6859422
+Prefill 3 tokens in 9511680 cycles (3170560 cycles/token)
+Decode 84 tokens in 0.266 s (315.93 tok/s decode-only)
+MECHV2L "hello alice" run 4/10
+[PERFORMANCE] Average Cycles/Token: 7157588
+Prefill 3 tokens in 9529900 cycles (3176633 cycles/token)
+Decode 84 tokens in 0.277 s (302.93 tok/s decode-only)
+MECHV2L "hello alice" run 5/10
+[PERFORMANCE] Average Cycles/Token: 6829229
+Prefill 3 tokens in 9544736 cycles (3181578 cycles/token)
+Decode 84 tokens in 0.265 s (317.30 tok/s decode-only)
+MECHV2L "hello alice" run 6/10
+[PERFORMANCE] Average Cycles/Token: 6830352
+Prefill 3 tokens in 9531228 cycles (3177076 cycles/token)
+Decode 84 tokens in 0.265 s (317.24 tok/s decode-only)
+MECHV2L "hello alice" run 7/10
+[PERFORMANCE] Average Cycles/Token: 6152202
+Prefill 3 tokens in 9514576 cycles (3171525 cycles/token)
+Decode 84 tokens in 0.238 s (352.47 tok/s decode-only)
+MECHV2L "hello alice" run 8/10
+[PERFORMANCE] Average Cycles/Token: 5864173
+Prefill 3 tokens in 7802168 cycles (2600722 cycles/token)
+Decode 84 tokens in 0.227 s (369.53 tok/s decode-only)
+MECHV2L "hello alice" run 9/10
+[PERFORMANCE] Average Cycles/Token: 5807651
+Prefill 3 tokens in 7751343 cycles (2583781 cycles/token)
+Decode 84 tokens in 0.225 s (373.08 tok/s decode-only)
+MECHV2L "hello alice" run 10/10
+[PERFORMANCE] Average Cycles/Token: 5824986
+Prefill 3 tokens in 7798187 cycles (2599395 cycles/token)
+Decode 84 tokens in 0.226 s (372.01 tok/s decode-only)
+MECHV2L "how are you today?" run 1/10
+[PERFORMANCE] Average Cycles/Token: 6730819
+Prefill 6 tokens in 11124772 cycles (1854128 cycles/token)
+Decode 256 tokens in 0.785 s (326.08 tok/s decode-only)
+MECHV2L RESPONSE "how are you today?":  Come with me."
+MECHV2L "how are you today?" run 2/10
+[PERFORMANCE] Average Cycles/Token: 6710719
+Prefill 6 tokens in 11163631 cycles (1860605 cycles/token)
+Decode 256 tokens in 0.783 s (327.06 tok/s decode-only)
+MECHV2L "how are you today?" run 3/10
+[PERFORMANCE] Average Cycles/Token: 7084911
+Prefill 6 tokens in 10985410 cycles (1830901 cycles/token)
+Decode 256 tokens in 0.826 s (309.79 tok/s decode-only)
+MECHV2L "how are you today?" run 4/10
+[PERFORMANCE] Average Cycles/Token: 6907292
+Prefill 6 tokens in 11183480 cycles (1863913 cycles/token)
+Decode 256 tokens in 0.806 s (317.75 tok/s decode-only)
+MECHV2L "how are you today?" run 5/10
+[PERFORMANCE] Average Cycles/Token: 7883360
+Prefill 6 tokens in 13520048 cycles (2253341 cycles/token)
+Decode 256 tokens in 0.920 s (278.41 tok/s decode-only)
+MECHV2L "how are you today?" run 6/10
+[PERFORMANCE] Average Cycles/Token: 6712377
+Prefill 6 tokens in 11193906 cycles (1865651 cycles/token)
+Decode 256 tokens in 0.783 s (326.98 tok/s decode-only)
+MECHV2L "how are you today?" run 7/10
+[PERFORMANCE] Average Cycles/Token: 6709937
+Prefill 6 tokens in 11246051 cycles (1874341 cycles/token)
+Decode 256 tokens in 0.783 s (327.10 tok/s decode-only)
+MECHV2L "how are you today?" run 8/10
+[PERFORMANCE] Average Cycles/Token: 6724820
+Prefill 6 tokens in 11103937 cycles (1850656 cycles/token)
+Decode 256 tokens in 0.784 s (326.37 tok/s decode-only)
+MECHV2L "how are you today?" run 9/10
+[PERFORMANCE] Average Cycles/Token: 7034715
+Prefill 6 tokens in 11151736 cycles (1858622 cycles/token)
+Decode 256 tokens in 0.821 s (312.00 tok/s decode-only)
+MECHV2L "how are you today?" run 10/10
+[PERFORMANCE] Average Cycles/Token: 7100373
+Prefill 6 tokens in 11664643 cycles (1944107 cycles/token)
+Decode 256 tokens in 0.828 s (309.11 tok/s decode-only)
+MECHV2L "continue" run 1/10
+[PERFORMANCE] Average Cycles/Token: 7772985
+Prefill 4 tokens in 10299108 cycles (2574777 cycles/token)
+Decode 213 tokens in 0.758 s (280.84 tok/s decode-only)
+MECHV2L RESPONSE "continue": .
+MECHV2L "continue" run 2/10
+[PERFORMANCE] Average Cycles/Token: 6578218
+Prefill 4 tokens in 10349976 cycles (2587494 cycles/token)
+Decode 213 tokens in 0.642 s (331.86 tok/s decode-only)
+MECHV2L "continue" run 3/10
+[PERFORMANCE] Average Cycles/Token: 6480698
+Prefill 4 tokens in 9184548 cycles (2296137 cycles/token)
+Decode 213 tokens in 0.632 s (336.82 tok/s decode-only)
+MECHV2L "continue" run 4/10
+[PERFORMANCE] Average Cycles/Token: 6550859
+Prefill 4 tokens in 8459513 cycles (2114878 cycles/token)
+Decode 213 tokens in 0.639 s (333.24 tok/s decode-only)
+MECHV2L "continue" run 5/10
+[PERFORMANCE] Average Cycles/Token: 6537135
+Prefill 4 tokens in 8427973 cycles (2106993 cycles/token)
+Decode 213 tokens in 0.638 s (333.92 tok/s decode-only)
+MECHV2L "continue" run 6/10
+[PERFORMANCE] Average Cycles/Token: 6540151
+Prefill 4 tokens in 8432731 cycles (2108182 cycles/token)
+Decode 213 tokens in 0.638 s (333.78 tok/s decode-only)
+MECHV2L "continue" run 7/10
+[PERFORMANCE] Average Cycles/Token: 6954764
+Prefill 4 tokens in 8438387 cycles (2109596 cycles/token)
+Decode 213 tokens in 0.678 s (313.97 tok/s decode-only)
+MECHV2L "continue" run 8/10
+[PERFORMANCE] Average Cycles/Token: 7793416
+Prefill 4 tokens in 8488259 cycles (2122064 cycles/token)
+Decode 213 tokens in 0.760 s (280.12 tok/s decode-only)
+MECHV2L "continue" run 9/10
+[PERFORMANCE] Average Cycles/Token: 6898180
+Prefill 4 tokens in 10270856 cycles (2567714 cycles/token)
+Decode 213 tokens in 0.673 s (316.54 tok/s decode-only)
+MECHV2L "continue" run 10/10
+[PERFORMANCE] Average Cycles/Token: 6490598
+Prefill 4 tokens in 8404398 cycles (2101099 cycles/token)
+Decode 213 tokens in 0.633 s (336.32 tok/s decode-only)
+==== MECHV2L DONE ====
+==== CIS_SELFTEST (integer semantics identity) ====
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+==== WITNESS v0 gen (hash-chain identity artifact) ====
+AEGIS-WITNESS v0-float-DEMO
+model 23cfad0a3c7de2b676e176755f0848cd2cad8e71e2cdffea3d903a232c96e973
+embed 3752cd5ca2e39593cdf0910968f8ff629d79417f253e33e1a1c4faa0ce33848e
+vocab 5a1d79caf517084a73de5e5379d2995e61f23afaada91822da12ecb4ad7fcd8a
+arith AVX2+FMA
+maxtok 32
+prompt-hex 68656c6c6f20616c696365
+ntok 33
+chain 68ea29e30f5e981381387dc1a530de416816e689aeedf3cfaf4c0db40bc9b5f6
+==== MEMBW PROBE (FABLE-0 G1) ====
+# membw: buffer 512 MB, 5 passes, up to 4 threads
+# method: 4 independent accumulators (a dependent chain measures LATENCY,
+#         not bandwidth); buffer pre-faulted; wall clock via Instant.
+# NOTE: a single-thread figure is NOT the machine ceiling. Both are printed.
+
+label,threads,pass,bytes_read,secs,GB_per_s,checksum
+seq_read,1,0,536870912,0.048462,11.078,6da96b07d6000001
+seq_read,1,1,536870912,0.047970,11.192,6da96b07d6000001
+seq_read,1,2,536870912,0.047974,11.191,6da96b07d6000001
+seq_read,1,3,536870912,0.047957,11.195,6da96b07d6000001
+seq_read,1,4,536870912,0.047917,11.204,6da96b07d6000001
+seq_read,4,0,536870912,0.045906,11.695,6da96b07d6000001
+seq_read,4,1,536870912,0.045859,11.707,6da96b07d6000001
+seq_read,4,2,536870912,0.045857,11.707,6da96b07d6000001
+seq_read,4,3,536870912,0.045960,11.681,6da96b07d6000001
+seq_read,4,4,536870912,0.045954,11.683,6da96b07d6000001
+ternary_stream,1,0,536870912,0.873390,0.615,2e1
+ternary_stream,1,1,536870912,0.873103,0.615,2e1
+ternary_stream,1,2,536870912,0.910871,0.589,2e1
+ternary_stream,1,3,536870912,1.022148,0.525,2e1
+ternary_stream,1,4,536870912,0.917564,0.585,2e1
+
+==== SUMMARY (best of 5 passes; report ALL THREE or none) ====
+  peak sequential read, 1 thread     : 11.20 GB/s
+  peak sequential read, 4 threads    : 11.71 GB/s
+  ternary weight-stream, 1 thread    : 0.61 GB/s
+
+  CAVEAT ON ARM 3: this is a SCALAR LUT walk, not the AVX2 kernel
+  (aegis_core::ops::ternary_matvec_serial). It is therefore a LOWER
+  BOUND on the engine's streaming rate, not the engine's rate. Compare
+  it to the technical report's 'achieved' bandwidth row, which is itself
+  a derivation from a cycle count and an unstated nominal clock.
+
+  The decode roofline must divide by the TERNARY figure, not the peak.
+  Quoting a single-thread peak as 'the machine bandwidth ceiling' both
+  understates the machine and overstates the kernel's share of it.
+  This run is one machine, one buffer size, one pattern. It replaces an
+  unsourced number with a measured one; it does not make it a ceiling.
+==== KERNEL A/B: fused_vs_sequential + bitplane_vs_lut (reps=default) ====
+--- fused_vs_sequential capture 1/3
+Fused dual/tri matvec vs sequential incumbent — same-binary interleaved A/B
+NOT A RESULT unless captured via scripts/capture-bench.sh on an idle, named machine.
+machine: Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+
+--- CLOCK STATE (bound to this run; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98297812        120000000     2.6795     1.221x
+    1          98090911        120000000     2.6852     1.223x
+    2          97988968        120000000     2.6880     1.225x
+    3          98043389        120000000     2.6865     1.224x
+    4          98091439        120000000     2.6851     1.223x
+    mean 2.6848 GHz | EFFECTIVE / NOMINAL = 1.223  <-- rescales every tick-derived figure
+
+--- DUAL BitNet-2B SwiGLU gate+up: outs [6912, 6912] x in 2560  (35.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           5.257      8.895      1.692
+    1   fused-first          5.105      8.977      1.758
+    2   seq-first           5.181      8.957      1.729
+    3   fused-first          5.117      8.983      1.756
+    4   seq-first           5.189      8.939      1.723
+    5   fused-first          5.125      8.981      1.752
+    6   seq-first           5.202      8.894      1.710
+  best: sequential 5.105 ms (6.93 GMAC/s) | fused 8.894 ms (3.98 GMAC/s) | fused/seq 1.742
+
+--- TRI  BitNet-2B Q/K/V (GQA): outs [2560, 640, 640] x in 2560  (9.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           1.469      1.956      1.332
+    1   fused-first          1.360      2.030      1.493
+    2   seq-first           1.415      1.943      1.373
+    3   fused-first          1.353      1.994      1.474
+    4   seq-first           1.405      1.938      1.380
+    5   fused-first          1.351      1.989      1.473
+    6   seq-first           1.411      1.957      1.387
+  best: sequential 1.351 ms (7.28 GMAC/s) | fused 1.938 ms (5.07 GMAC/s) | fused/seq 1.435
+
+--- DUAL M7 SwiGLU gate+up: outs [1024, 1024] x in 384  (0.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.116      0.201      1.736
+    1   fused-first          0.116      0.201      1.734
+    2   seq-first           0.116      0.201      1.732
+    3   fused-first          0.116      0.201      1.735
+    4   seq-first           0.116      0.201      1.735
+    5   fused-first          0.116      0.201      1.735
+    6   seq-first           0.120      0.201      1.684
+  best: sequential 0.116 ms (6.79 GMAC/s) | fused 0.201 ms (3.91 GMAC/s) | fused/seq 1.735
+
+--- TRI  M7 Q/K/V: outs [384, 384, 384] x in 384  (0.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.065      0.125      1.913
+    1   fused-first          0.065      0.125      1.914
+    2   seq-first           0.065      0.125      1.914
+    3   fused-first          0.065      0.125      1.911
+    4   seq-first           0.065      0.125      1.914
+    5   fused-first          0.065      0.125      1.912
+    6   seq-first           0.065      0.125      1.912
+  best: sequential 0.065 ms (6.78 GMAC/s) | fused 0.125 ms (3.54 GMAC/s) | fused/seq 1.912
+
+Reminder: single-thread kernel A/B; pool-split fusion is a separate question.
+--- fused_vs_sequential capture 2/3
+Fused dual/tri matvec vs sequential incumbent — same-binary interleaved A/B
+NOT A RESULT unless captured via scripts/capture-bench.sh on an idle, named machine.
+machine: Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+
+--- CLOCK STATE (bound to this run; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98248147        120000000     2.6809     1.221x
+    1          98194408        120000000     2.6823     1.222x
+    2          98031111        120000000     2.6868     1.224x
+    3          98087513        120000000     2.6853     1.223x
+    4          98005655        120000000     2.6875     1.224x
+    mean 2.6846 GHz | EFFECTIVE / NOMINAL = 1.223  <-- rescales every tick-derived figure
+
+--- DUAL BitNet-2B SwiGLU gate+up: outs [6912, 6912] x in 2560  (35.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           5.216      8.882      1.703
+    1   fused-first          5.097      8.974      1.761
+    2   seq-first           5.193      8.873      1.709
+    3   fused-first          5.133      8.981      1.750
+    4   seq-first           5.184      8.873      1.712
+    5   fused-first          5.109      8.967      1.755
+    6   seq-first           5.182      8.903      1.718
+  best: sequential 5.097 ms (6.94 GMAC/s) | fused 8.873 ms (3.99 GMAC/s) | fused/seq 1.741
+
+--- TRI  BitNet-2B Q/K/V (GQA): outs [2560, 640, 640] x in 2560  (9.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           1.456      1.957      1.344
+    1   fused-first          1.359      2.006      1.476
+    2   seq-first           1.409      1.956      1.388
+    3   fused-first          1.372      1.997      1.455
+    4   seq-first           1.409      1.936      1.374
+    5   fused-first          1.341      2.021      1.507
+    6   seq-first           1.399      1.962      1.402
+  best: sequential 1.341 ms (7.33 GMAC/s) | fused 1.936 ms (5.08 GMAC/s) | fused/seq 1.444
+
+--- DUAL M7 SwiGLU gate+up: outs [1024, 1024] x in 384  (0.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.116      0.201      1.735
+    1   fused-first          0.116      0.201      1.734
+    2   seq-first           0.116      0.201      1.735
+    3   fused-first          0.116      0.201      1.736
+    4   seq-first           0.116      0.201      1.735
+    5   fused-first          0.116      0.201      1.735
+    6   seq-first           0.116      0.201      1.737
+  best: sequential 0.116 ms (6.79 GMAC/s) | fused 0.201 ms (3.91 GMAC/s) | fused/seq 1.735
+
+--- TRI  M7 Q/K/V: outs [384, 384, 384] x in 384  (0.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.065      0.125      1.915
+    1   fused-first          0.065      0.125      1.915
+    2   seq-first           0.065      0.129      1.972
+    3   fused-first          0.065      0.125      1.914
+    4   seq-first           0.065      0.125      1.909
+    5   fused-first          0.065      0.125      1.914
+    6   seq-first           0.065      0.125      1.910
+  best: sequential 0.065 ms (6.78 GMAC/s) | fused 0.125 ms (3.54 GMAC/s) | fused/seq 1.914
+
+Reminder: single-thread kernel A/B; pool-split fusion is a separate question.
+--- fused_vs_sequential capture 3/3
+Fused dual/tri matvec vs sequential incumbent — same-binary interleaved A/B
+NOT A RESULT unless captured via scripts/capture-bench.sh on an idle, named machine.
+machine: Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+
+--- CLOCK STATE (bound to this run; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98180693        120000000     2.6827     1.222x
+    1          98071812        120000000     2.6857     1.224x
+    2          98025634        120000000     2.6870     1.224x
+    3          98080591        120000000     2.6854     1.223x
+    4          98035884        120000000     2.6867     1.224x
+    mean 2.6855 GHz | EFFECTIVE / NOMINAL = 1.224  <-- rescales every tick-derived figure
+
+--- DUAL BitNet-2B SwiGLU gate+up: outs [6912, 6912] x in 2560  (35.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first          12.350      9.500      0.769
+    1   fused-first          5.131      9.063      1.766
+    2   seq-first           5.214      8.924      1.712
+    3   fused-first          5.151      8.980      1.743
+    4   seq-first           5.176      8.936      1.727
+    5   fused-first          5.149      8.983      1.745
+    6   seq-first           5.180      8.946      1.727
+  best: sequential 5.131 ms (6.90 GMAC/s) | fused 8.924 ms (3.97 GMAC/s) | fused/seq 1.739
+
+--- TRI  BitNet-2B Q/K/V (GQA): outs [2560, 640, 640] x in 2560  (9.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           1.467      1.950      1.329
+    1   fused-first          1.355      2.004      1.479
+    2   seq-first           1.409      1.939      1.376
+    3   fused-first          1.354      1.995      1.473
+    4   seq-first           1.405      1.971      1.403
+    5   fused-first          1.347      1.997      1.483
+    6   seq-first           1.427      1.931      1.353
+  best: sequential 1.347 ms (7.30 GMAC/s) | fused 1.931 ms (5.09 GMAC/s) | fused/seq 1.434
+
+--- DUAL M7 SwiGLU gate+up: outs [1024, 1024] x in 384  (0.8 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.116      0.201      1.735
+    1   fused-first          0.116      0.201      1.736
+    2   seq-first           0.116      0.201      1.734
+    3   fused-first          0.116      0.201      1.735
+    4   seq-first           0.116      0.201      1.734
+    5   fused-first          0.116      0.201      1.737
+    6   seq-first           0.116      0.201      1.735
+  best: sequential 0.116 ms (6.79 GMAC/s) | fused 0.201 ms (3.91 GMAC/s) | fused/seq 1.735
+
+--- TRI  M7 Q/K/V: outs [384, 384, 384] x in 384  (0.4 MMAC/pass)
+  outputs byte-identical: true
+  rep   order        sequential_ms   fused_ms   fused/seq
+    0   seq-first           0.065      0.125      1.917
+    1   fused-first          0.065      0.125      1.915
+    2   seq-first           0.065      0.125      1.915
+    3   fused-first          0.065      0.125      1.915
+    4   seq-first           0.065      0.125      1.918
+    5   fused-first          0.065      0.125      1.912
+    6   seq-first           0.065      0.125      1.917
+  best: sequential 0.065 ms (6.78 GMAC/s) | fused 0.125 ms (3.54 GMAC/s) | fused/seq 1.914
+
+Reminder: single-thread kernel A/B; pool-split fusion is a separate question.
+--- bitplane_vs_lut capture 1/3
+Bitplane-dense tri-matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98468301        120000000     2.6749     1.219x
+    1          98076665        120000000     2.6856     1.224x
+    2          98083025        120000000     2.6854     1.223x
+    3         109765542        120000000     2.3996     1.093x
+    4         120065516        120000000     2.1937     0.999x
+  
+    mean 2.5278 GHz | min 2.1937 | max 2.6856 | spread 19.457%
+    EFFECTIVE / NOMINAL = 1.152  <-- the factor that rescales every derived figure
+
+pack_bitplanes (one-time, at model load): 142.4 ms for this tensor
+  layout memory: 2211840 bytes/plane x 2 = 4423680 bytes (vs 4423680 packed) -- both 2 bits/weight
+
+gate: variant(i) byte-identical to incumbent ........ true
+gate: variant(ii) byte-identical to scalar-dual ref .. true
+
+incumbent LUT+FMA matvec :    2.88 ms  ( 6.15 GMAC/s)  [engine decode kernel]
+bitplane (i) ordered     :    7.29 ms  ( 2.43 GMAC/s)  = 0.39x incumbent
+bitplane (ii) dual-acc   :    7.02 ms  ( 2.52 GMAC/s)  = 0.41x incumbent
+post-timing gates hold: true
+--- bitplane_vs_lut capture 2/3
+Bitplane-dense tri-matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0         120051488        120000000     2.1940     1.000x
+    1         120121928        120000000     2.1927     0.999x
+    2         108657399        120000000     2.4240     1.104x
+    3          97989782        120000000     2.6879     1.225x
+    4          98092523        120000000     2.6851     1.223x
+  
+    mean 2.4368 GHz | min 2.1927 | max 2.6879 | spread 20.324%
+    EFFECTIVE / NOMINAL = 1.110  <-- the factor that rescales every derived figure
+
+pack_bitplanes (one-time, at model load): 108.8 ms for this tensor
+  layout memory: 2211840 bytes/plane x 2 = 4423680 bytes (vs 4423680 packed) -- both 2 bits/weight
+
+gate: variant(i) byte-identical to incumbent ........ true
+gate: variant(ii) byte-identical to scalar-dual ref .. true
+
+incumbent LUT+FMA matvec :    2.36 ms  ( 7.49 GMAC/s)  [engine decode kernel]
+bitplane (i) ordered     :    6.58 ms  ( 2.69 GMAC/s)  = 0.36x incumbent
+bitplane (ii) dual-acc   :    6.09 ms  ( 2.90 GMAC/s)  = 0.39x incumbent
+post-timing gates hold: true
+--- bitplane_vs_lut capture 3/3
+Bitplane-dense tri-matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98364470        120000000     2.6777     1.220x
+    1          98183226        120000000     2.6826     1.222x
+    2          98130700        120000000     2.6841     1.223x
+    3          98075099        120000000     2.6856     1.224x
+    4          98181488        120000000     2.6827     1.222x
+  
+    mean 2.6825 GHz | min 2.6777 | max 2.6856 | spread 0.295%
+    EFFECTIVE / NOMINAL = 1.222  <-- the factor that rescales every derived figure
+
+pack_bitplanes (one-time, at model load): 108.9 ms for this tensor
+  layout memory: 2211840 bytes/plane x 2 = 4423680 bytes (vs 4423680 packed) -- both 2 bits/weight
+
+gate: variant(i) byte-identical to incumbent ........ true
+gate: variant(ii) byte-identical to scalar-dual ref .. true
+
+incumbent LUT+FMA matvec :    2.36 ms  ( 7.50 GMAC/s)  [engine decode kernel]
+bitplane (i) ordered     :    6.00 ms  ( 2.95 GMAC/s)  = 0.39x incumbent
+bitplane (ii) dual-acc   :    5.76 ms  ( 3.07 GMAC/s)  = 0.41x incumbent
+post-timing gates hold: true
+--- colskip_vs_incumbent capture 1/3
+ReLU^2 column-skip matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary, down_proj shape)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98461990        120000000     2.6750     1.219x
+    1          98185189        120000000     2.6826     1.222x
+    2          98234376        120000000     2.6812     1.222x
+    3          98201907        120000000     2.6821     1.222x
+    4          98290835        120000000     2.6797     1.221x
+  
+    mean 2.6801 GHz | min 2.6750 | max 2.6826 | spread 0.281%
+    EFFECTIVE / NOMINAL = 1.221  <-- the factor that rescales every derived figure
+
+pack_colmajor (one-time, at model load): 73.6 ms for this tensor
+  layout memory: 4423680 bytes column-major (vs 4423680 row-major) -- both 2 bits/weight;
+  a skipped column skips 640 contiguous bytes of weight traffic
+
+=== REAL vectors: 94 captured down_proj inputs, mean z = 0.7927 (A15 pooled mean was 0.7888) ===
+gate: ordered==incumbent and chain==mirror on all 94 vectors .. true
+  (totals over 94 matvecs, best-of-5)
+  incumbent LUT+FMA        :   226.233 ms  ( 7.35 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :    78.491 ms  (21.19 GMAC/s nominal)  = 2.88x incumbent
+  colskip chain (mirror-pin):   81.394 ms  (20.44 GMAC/s nominal)  = 2.78x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.000 (actual 0.0000, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.421 ms  ( 7.31 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     3.477 ms  ( 5.09 GMAC/s nominal)  = 0.70x incumbent
+  colskip chain (mirror-pin):    3.723 ms  ( 4.75 GMAC/s nominal)  = 0.65x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.500 (actual 0.5111, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.405 ms  ( 7.36 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     1.826 ms  ( 9.69 GMAC/s nominal)  = 1.32x incumbent
+  colskip chain (mirror-pin):    1.918 ms  ( 9.22 GMAC/s nominal)  = 1.25x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.789 (actual 0.7863, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.392 ms  ( 7.40 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.851 ms  (20.80 GMAC/s nominal)  = 2.81x incumbent
+  colskip chain (mirror-pin):    0.841 ms  (21.04 GMAC/s nominal)  = 2.84x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.900 (actual 0.8990, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.422 ms  ( 7.31 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.433 ms  (40.83 GMAC/s nominal)  = 5.59x incumbent
+  colskip chain (mirror-pin):    0.406 ms  (43.62 GMAC/s nominal)  = 5.97x incumbent
+  post-timing gates hold: true
+
+--- colskip_vs_incumbent capture 2/3
+ReLU^2 column-skip matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary, down_proj shape)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98531294        120000000     2.6732     1.218x
+    1          98283592        120000000     2.6799     1.221x
+    2          98246547        120000000     2.6809     1.221x
+    3          98231617        120000000     2.6813     1.222x
+    4          98184896        120000000     2.6826     1.222x
+  
+    mean 2.6796 GHz | min 2.6732 | max 2.6826 | spread 0.352%
+    EFFECTIVE / NOMINAL = 1.221  <-- the factor that rescales every derived figure
+
+pack_colmajor (one-time, at model load): 73.9 ms for this tensor
+  layout memory: 4423680 bytes column-major (vs 4423680 row-major) -- both 2 bits/weight;
+  a skipped column skips 640 contiguous bytes of weight traffic
+
+=== REAL vectors: 94 captured down_proj inputs, mean z = 0.7927 (A15 pooled mean was 0.7888) ===
+gate: ordered==incumbent and chain==mirror on all 94 vectors .. true
+  (totals over 94 matvecs, best-of-5)
+  incumbent LUT+FMA        :   226.822 ms  ( 7.33 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :    78.439 ms  (21.21 GMAC/s nominal)  = 2.89x incumbent
+  colskip chain (mirror-pin):   81.358 ms  (20.44 GMAC/s nominal)  = 2.79x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.000 (actual 0.0000, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.409 ms  ( 7.35 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     3.471 ms  ( 5.10 GMAC/s nominal)  = 0.69x incumbent
+  colskip chain (mirror-pin):    3.736 ms  ( 4.74 GMAC/s nominal)  = 0.64x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.500 (actual 0.5111, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.407 ms  ( 7.35 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     1.833 ms  ( 9.65 GMAC/s nominal)  = 1.31x incumbent
+  colskip chain (mirror-pin):    1.932 ms  ( 9.16 GMAC/s nominal)  = 1.25x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.789 (actual 0.7863, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.432 ms  ( 7.28 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.845 ms  (20.93 GMAC/s nominal)  = 2.88x incumbent
+  colskip chain (mirror-pin):    0.840 ms  (21.06 GMAC/s nominal)  = 2.89x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.900 (actual 0.8990, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.411 ms  ( 7.34 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.409 ms  (43.23 GMAC/s nominal)  = 5.89x incumbent
+  colskip chain (mirror-pin):    0.405 ms  (43.73 GMAC/s nominal)  = 5.96x incumbent
+  post-timing gates hold: true
+
+--- colskip_vs_incumbent capture 3/3
+ReLU^2 column-skip matvec vs incumbent AVX2 LUT+FMA  (2560x6912 ternary, down_proj shape)
+machine           : Dell Inspiron 15 i5-5200U (Broadwell-U), minimal-Linux initramfs, bd-prochot cleared
+interleaved reps  : 5 (best-of; >= 3 logged runs required for a verdict)
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98591067        120000000     2.6715     1.217x
+    1          98191614        120000000     2.6824     1.222x
+    2          98130551        120000000     2.6841     1.223x
+    3          98187162        120000000     2.6825     1.222x
+    4          98195884        120000000     2.6823     1.222x
+  
+    mean 2.6806 GHz | min 2.6715 | max 2.6841 | spread 0.468%
+    EFFECTIVE / NOMINAL = 1.221  <-- the factor that rescales every derived figure
+
+pack_colmajor (one-time, at model load): 73.5 ms for this tensor
+  layout memory: 4423680 bytes column-major (vs 4423680 row-major) -- both 2 bits/weight;
+  a skipped column skips 640 contiguous bytes of weight traffic
+
+=== REAL vectors: 94 captured down_proj inputs, mean z = 0.7927 (A15 pooled mean was 0.7888) ===
+gate: ordered==incumbent and chain==mirror on all 94 vectors .. true
+  (totals over 94 matvecs, best-of-5)
+  incumbent LUT+FMA        :   226.430 ms  ( 7.35 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :    78.345 ms  (21.23 GMAC/s nominal)  = 2.89x incumbent
+  colskip chain (mirror-pin):   81.659 ms  (20.37 GMAC/s nominal)  = 2.77x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.000 (actual 0.0000, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.405 ms  ( 7.36 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     3.480 ms  ( 5.09 GMAC/s nominal)  = 0.69x incumbent
+  colskip chain (mirror-pin):    3.717 ms  ( 4.76 GMAC/s nominal)  = 0.65x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.500 (actual 0.5111, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.410 ms  ( 7.34 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     1.829 ms  ( 9.68 GMAC/s nominal)  = 1.32x incumbent
+  colskip chain (mirror-pin):    1.932 ms  ( 9.16 GMAC/s nominal)  = 1.25x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.789 (actual 0.7863, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.430 ms  ( 7.28 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.854 ms  (20.71 GMAC/s nominal)  = 2.84x incumbent
+  colskip chain (mirror-pin):    0.842 ms  (21.01 GMAC/s nominal)  = 2.89x incumbent
+  post-timing gates hold: true
+
+=== SYNTHETIC z = 0.900 (actual 0.8990, uniform placement — curve shape only) ===
+gate: ordered==incumbent and chain==mirror ........... true
+  incumbent LUT+FMA        :     2.412 ms  ( 7.34 GMAC/s nominal)  [engine decode kernel]
+  colskip ordered (=inc)   :     0.431 ms  (41.06 GMAC/s nominal)  = 5.60x incumbent
+  colskip chain (mirror-pin):    0.405 ms  (43.65 GMAC/s nominal)  = 5.95x incumbent
+  post-timing gates hold: true
+
+--- cis_vs_float capture 1/3
+=== CIS-1 INTEGER SEMANTICS: THROUGHPUT COST (same-binary interleaved A/B) ===
+
+  QUESTION: what does CIS-1 cost in throughput? Never measured before this run.
+  ARMS:  A float/AVX2 (incumbent)   B float/scalar   C int/scalar (CIS-1 ref)
+  C/B is the answer (SIMD held constant). A/B is the prize for an AVX2 int kernel.
+  C/A is NOT the determinism cost: it conflates scalar-vs-SIMD with int-vs-float.
+  reps (interleaved, best-of): 5
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98487928        120000000     2.6743     1.218x
+    1          98178614        120000000     2.6828     1.222x
+    2          98240111        120000000     2.6811     1.221x
+    3          98178857        120000000     2.6828     1.222x
+    4          98282342        120000000     2.6799     1.221x
+  
+    median core clock       : 2.6811 GHz   effective/nominal = 1.221x
+    (every tick-derived figure below must carry this ratio)
+
+  !! effective/nominal is 1.221x — the box is not at nominal clock. Every
+     tick-derived figure below is scaled by it. Re-read Rule A before quoting.
+
+--- PER-SHAPE RESULTS ---
+
+  down_proj  2560x6912   (17694720 nominal MACs)
+    A float/AVX2         5139619 ticks     3.443 MAC/tick
+    B float/scalar      23570894 ticks     0.751 MAC/tick
+    C int/scalar        29565539 ticks     0.598 MAC/tick
+    C/B = 1.254x  <== COST OF INTEGER SEMANTICS (SIMD held constant)
+    A/B = 0.218x      SIMD headroom on float (the prize for an AVX2 int kernel)
+    C/A = 5.752x      NOT the determinism cost — conflates two variables
+    bit-exact across reps: YES   |A-C| max = 0.0 (exact-int vs f32 accum)
+
+  gate/up    6912x2560   (17694720 nominal MACs)
+    A float/AVX2         5296210 ticks     3.341 MAC/tick
+    B float/scalar      23750623 ticks     0.745 MAC/tick
+    C int/scalar        29822077 ticks     0.593 MAC/tick
+    C/B = 1.256x  <== COST OF INTEGER SEMANTICS (SIMD held constant)
+    A/B = 0.223x      SIMD headroom on float (the prize for an AVX2 int kernel)
+    C/A = 5.631x      NOT the determinism cost — conflates two variables
+    bit-exact across reps: YES   |A-C| max = 0.0 (exact-int vs f32 accum)
+
+  attn qkv   2560x2560   (6553600 nominal MACs)
+    A float/AVX2         1868641 ticks     3.507 MAC/tick
+    B float/scalar       8764373 ticks     0.748 MAC/tick
+    C int/scalar        10935032 ticks     0.599 MAC/tick
+    C/B = 1.248x  <== COST OF INTEGER SEMANTICS (SIMD held constant)
+    A/B = 0.213x      SIMD headroom on float (the prize for an AVX2 int kernel)
+    C/A = 5.852x      NOT the determinism cost — conflates two variables
+    bit-exact across reps: YES   |A-C| max = 0.0 (exact-int vs f32 accum)
+
+--- VERDICT (this run; a ledger row needs >= 3 logged runs, Rule B) ---
+
+  Cost of CIS-1 integer semantics, SIMD held constant:  C/B median = 1.254x
+  SIMD headroom currently unrealised on the integer path: A/B median = 0.218x
+
+  READ: integer semantics are CHEAP at the kernel. Any larger end-to-end gap
+  measured elsewhere is therefore not attributable to determinism by this
+  result alone. An AVX2 integer ternary kernel is the open work item, and the
+  A/B figure above is its budget.
+
+  NOT ESTABLISHED by this bench: end-to-end decode tok/s, attention/softmax
+  integer cost (cis_attn), or any figure on a machine other than the one named
+  in this log's header. Kernel ratios are not token ratios.
+--- cis_vs_float capture 2/3
+=== CIS-1 INTEGER SEMANTICS: THROUGHPUT COST (same-binary interleaved A/B) ===
+
+  QUESTION: what does CIS-1 cost in throughput? Never measured before this run.
+  ARMS:  A float/AVX2 (incumbent)   B float/scalar   C int/scalar (CIS-1 ref)
+  C/B is the answer (SIMD held constant). A/B is the prize for an AVX2 int kernel.
+  C/A is NOT the determinism cost: it conflates scalar-vs-SIMD with int-vs-float.
+  reps (interleaved, best-of): 5
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0          98478327        120000000     2.6746     1.219x
+    1          98177540        120000000     2.6828     1.222x
+    2          98108114        120000000     2.6847     1.223x
+    3          98239650        120000000     2.6811     1.222x
+    4         145020180        120000000     1.8162     0.827x
+  
+    median core clock       : 2.6811 GHz   effective/nominal = 1.222x
+    (every tick-derived figure below must carry this ratio)
+
+  !! effective/nominal is 1.222x — the box is not at nominal clock. Every
+     tick-derived figure below is scaled by it. Re-read Rule A before quoting.
+
+--- PER-SHAPE RESULTS ---
+
+  down_proj  2560x6912   (17694720 nominal MACs)
+    A float/AVX2         6274564 ticks     2.820 MAC/tick
+    B float/scalar      28919264 ticks     0.612 MAC/tick
+    C int/scalar        35827000 ticks     0.494 MAC/tick
+    C/B = 1.239x  <== COST OF INTEGER SEMANTICS (SIMD held constant)
+    A/B = 0.217x      SIMD headroom on float (the prize for an AVX2 int kernel)
+    C/A = 5.710x      NOT the determinism cost — conflates two variables
+    bit-exact across reps: YES   |A-C| max = 0.0 (exact-int vs f32 accum)
+
+  gate/up    6912x2560   (17694720 nominal MACs)
+    A float/AVX2         6379964 ticks     2.773 MAC/tick
+    B float/scalar      29114124 ticks     0.608 MAC/tick
+    C int/scalar        36310580 ticks     0.487 MAC/tick
+    C/B = 1.247x  <== COST OF INTEGER SEMANTICS (SIMD held constant)
+    A/B = 0.219x      SIMD headroom on float (the prize for an AVX2 int kernel)
+    C/A = 5.691x      NOT the determinism cost — conflates two variables
+    bit-exact across reps: YES   |A-C| max = 0.0 (exact-int vs f32 accum)
+
+  attn qkv   2560x2560   (6553600 nominal MACs)
+    A float/AVX2         2290540 ticks     2.861 MAC/tick
+    B float/scalar      10766136 ticks     0.609 MAC/tick
+    C int/scalar        13418120 ticks     0.488 MAC/tick
+    C/B = 1.246x  <== COST OF INTEGER SEMANTICS (SIMD held constant)
+    A/B = 0.213x      SIMD headroom on float (the prize for an AVX2 int kernel)
+    C/A = 5.858x      NOT the determinism cost — conflates two variables
+    bit-exact across reps: YES   |A-C| max = 0.0 (exact-int vs f32 accum)
+
+--- VERDICT (this run; a ledger row needs >= 3 logged runs, Rule B) ---
+
+  Cost of CIS-1 integer semantics, SIMD held constant:  C/B median = 1.246x
+  SIMD headroom currently unrealised on the integer path: A/B median = 0.217x
+
+  READ: integer semantics are CHEAP at the kernel. Any larger end-to-end gap
+  measured elsewhere is therefore not attributable to determinism by this
+  result alone. An AVX2 integer ternary kernel is the open work item, and the
+  A/B figure above is its budget.
+
+  NOT ESTABLISHED by this bench: end-to-end decode tok/s, attention/softmax
+  integer cost (cis_attn), or any figure on a machine other than the one named
+  in this log's header. Kernel ratios are not token ratios.
+--- cis_vs_float capture 3/3
+=== CIS-1 INTEGER SEMANTICS: THROUGHPUT COST (same-binary interleaved A/B) ===
+
+  QUESTION: what does CIS-1 cost in throughput? Never measured before this run.
+  ARMS:  A float/AVX2 (incumbent)   B float/scalar   C int/scalar (CIS-1 ref)
+  C/B is the answer (SIMD held constant). A/B is the prize for an AVX2 int kernel.
+  C/A is NOT the determinism cost: it conflates scalar-vs-SIMD with int-vs-float.
+  reps (interleaved, best-of): 5
+
+--- CLOCK STATE (bound to this measurement; RDTSC ticks are NOT core cycles) ---
+    TSC nominal rate        : 2.1949 GHz  (calibrated vs CLOCK_MONOTONIC)
+    chain length            : 120000000 dependent adds x 5 reps
+  
+    rep       tsc_ticks              ops     core_GHz vs_nominal
+    0         120068380        120000000     2.1937     0.999x
+    1         140182252        120000000     1.8789     0.856x
+    2         120057556        120000000     2.1939     1.000x
+    3         122627084        120000000     2.1479     0.979x
+    4         120051540        120000000     2.1940     1.000x
+  
+    median core clock       : 2.1937 GHz   effective/nominal = 0.999x
+    (every tick-derived figure below must carry this ratio)
+
+--- PER-SHAPE RESULTS ---
+
+  down_proj  2560x6912   (17694720 nominal MACs)
+    A float/AVX2         6268136 ticks     2.823 MAC/tick
+    B float/scalar      28901824 ticks     0.612 MAC/tick
+    C int/scalar        36181076 ticks     0.489 MAC/tick
+    C/B = 1.252x  <== COST OF INTEGER SEMANTICS (SIMD held constant)
+    A/B = 0.217x      SIMD headroom on float (the prize for an AVX2 int kernel)
+    C/A = 5.772x      NOT the determinism cost — conflates two variables
+    bit-exact across reps: YES   |A-C| max = 0.0 (exact-int vs f32 accum)
+
+  gate/up    6912x2560   (17694720 nominal MACs)
+    A float/AVX2         5231157 ticks     3.383 MAC/tick
+    B float/scalar      23760482 ticks     0.745 MAC/tick
+    C int/scalar        29934547 ticks     0.591 MAC/tick
+    C/B = 1.260x  <== COST OF INTEGER SEMANTICS (SIMD held constant)
+    A/B = 0.220x      SIMD headroom on float (the prize for an AVX2 int kernel)
+    C/A = 5.722x      NOT the determinism cost — conflates two variables
+    bit-exact across reps: YES   |A-C| max = 0.0 (exact-int vs f32 accum)
+
+  attn qkv   2560x2560   (6553600 nominal MACs)
+    A float/AVX2         1869782 ticks     3.505 MAC/tick
+    B float/scalar       8764017 ticks     0.748 MAC/tick
+    C int/scalar        10936030 ticks     0.599 MAC/tick
+    C/B = 1.248x  <== COST OF INTEGER SEMANTICS (SIMD held constant)
+    A/B = 0.213x      SIMD headroom on float (the prize for an AVX2 int kernel)
+    C/A = 5.849x      NOT the determinism cost — conflates two variables
+    bit-exact across reps: YES   |A-C| max = 0.0 (exact-int vs f32 accum)
+
+--- VERDICT (this run; a ledger row needs >= 3 logged runs, Rule B) ---
+
+  Cost of CIS-1 integer semantics, SIMD held constant:  C/B median = 1.252x
+  SIMD headroom currently unrealised on the integer path: A/B median = 0.217x
+
+  READ: integer semantics are CHEAP at the kernel. Any larger end-to-end gap
+  measured elsewhere is therefore not attributable to determinism by this
+  result alone. An AVX2 integer ternary kernel is the open work item, and the
+  A/B figure above is its budget.
+
+  NOT ESTABLISHED by this bench: end-to-end decode tok/s, attention/softmax
+  integer cost (cis_attn), or any figure on a machine other than the one named
+  in this log's header. Kernel ratios are not token ratios.
+==== KERNEL A/B DONE ====

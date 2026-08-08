@@ -1,0 +1,24 @@
+=== paired-eval feasibility probe | 2026-07-29T02:18:56-05:00 ===
+awk: 1: unexpected character '\'
+awk: line 1: runaway string constant "MB\"} ...
+host: 8 cpus |  | torch threads=4, nice 10, contended with desktop
+script: /tmp/claude-1000/-home-killboxincorporated/d75b4760-6465-4d8e-bf5f-32d865609e80/scratchpad/probe_eval_timing.py (READ-ONLY: loads ckpts, writes nothing)
+valid_8k.bin tokens = 5414891
+stride for 48 windows = 112810
+
+=== m7a_twin | load 0.17s | linear=fp | L6 h256 i704 heads4 | params 6529920 | load_state_dict -> <All keys matched successfully>
+  win 0 @tok        0 | ppl   4.0041 | 0.154s
+  win 1 @tok   112810 | ppl   4.1314 | 0.125s
+  win 2 @tok   225620 | ppl   4.0066 | 0.137s
+  win 3 @tok   338430 | ppl   6.1427 | 0.139s
+  warm mean 0.134s/window -> 48 windows = 6.4s
+
+=== m7_ternary | load 0.24s | linear=bitlinear | L7 h384 i1024 heads6 | params 14171392 | load_state_dict -> <All keys matched successfully>
+  win 0 @tok        0 | ppl   3.6598 | 0.343s
+  win 1 @tok   112810 | ppl   4.0006 | 0.334s
+  win 2 @tok   225620 | ppl   3.4117 | 0.340s
+  win 3 @tok   338430 | ppl   5.4436 | 0.342s
+  warm mean 0.339s/window -> 48 windows = 16.3s
+=== silent-config trap check (fp ckpt loaded into linear='bitlinear' cfg) ===
+  linear=fp   (CORRECT): load_state_dict=<All keys matched successfully> ppl=4.1314
+  linear=bitlinear (TRAP): load_state_dict=<All keys matched successfully> ppl=4900.0547

@@ -1,0 +1,184 @@
+//! Rule D: the NEON CIS-1 matvec must be BYTE-IDENTICAL to the scalar
+//! reference, for every input, or it is worthless.
+//!
+//! The aarch64 mirror of `cis_avx2_equivalence.rs`, with the shapes rescaled
+//! to NEON's 16-byte (64-weight) block:
+//!
+//!   - `dim_in` not a multiple of the 64-weight block (exercises the tail)
+//!   - `dim_in` smaller than one block (exercises the fallback)
+//!   - the `11` code, which is defined-as-zero
+//!   - activation `-128`, which `vmulq_s8` cannot represent the negation of
+//!     within i8 and which therefore MUST route to the scalar path
+//!   - activation `+127` and `-127`, the live extremes
+//!   - all-zero weights, all-`+1`, all-`-1`
+#![cfg(target_arch = "aarch64")]
+
+use aegis_core::cis::ternary_matvec_i8;
+use aegis_core::cis_neon::ternary_matvec_i8_neon;
+
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+}
+
+/// Assert both kernels agree exactly, and report the first divergence usefully.
+fn assert_identical(input: &[i8], weights: &[u8], dim_out: usize, dim_in: usize, what: &str) {
+    let mut want = vec![0i32; dim_out];
+    let mut got = vec![0i32; dim_out];
+    ternary_matvec_i8(&mut want, input, weights, dim_out, dim_in);
+    ternary_matvec_i8_neon(&mut got, input, weights, dim_out, dim_in);
+    for j in 0..dim_out {
+        assert_eq!(
+            want[j], got[j],
+            "{what}: row {j} diverged (dim_out={dim_out}, dim_in={dim_in}): \
+             scalar={} neon={}",
+            want[j], got[j]
+        );
+    }
+}
+
+fn packed_len(dim_out: usize, dim_in: usize) -> usize {
+    dim_out * dim_in / 4
+}
+
+#[test]
+fn random_shapes_are_bit_identical() {
+    // Deliberately mixes block-aligned, tail-carrying, and sub-block shapes.
+    let shapes = [
+        (1, 64),    // exactly one block
+        (3, 68),    // one block + 1 tail byte
+        (5, 132),   // two blocks + tail
+        (7, 32),    // below one block -> fallback path
+        (2, 4),     // minimum legal dim_in
+        (16, 6912), // real down_proj width
+        (16, 2560), // real attn width
+        (4, 2564),  // real-ish width, deliberately unaligned
+    ];
+    for (dim_out, dim_in) in shapes {
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15 ^ (dim_in as u64));
+        let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+            .map(|_| (rng.next() & 0xFF) as u8)
+            .collect();
+        let input: Vec<i8> = (0..dim_in)
+            .map(|_| {
+                // full legal range, -128 excluded (covered by its own test)
+                ((rng.next() % 255) as i32 - 127) as i8
+            })
+            .collect();
+        assert_identical(
+            &input,
+            &weights,
+            dim_out,
+            dim_in,
+            &format!("random {dim_out}x{dim_in}"),
+        );
+    }
+}
+
+#[test]
+fn code_eleven_is_zero_in_both_paths() {
+    // 0xFF = four `11` codes. The spec pins `11` as defined-as-zero; if the
+    // vqtbl1q LUT ever disagreed with `wcode`, this is where it shows.
+    let (dim_out, dim_in) = (4, 512);
+    let weights = vec![0xFFu8; packed_len(dim_out, dim_in)];
+    let input: Vec<i8> = (0..dim_in)
+        .map(|i| ((i % 255) as i32 - 127) as i8)
+        .collect();
+    let mut got = vec![0i32; dim_out];
+    ternary_matvec_i8_neon(&mut got, &input, &weights, dim_out, dim_in);
+    assert!(
+        got.iter().all(|&v| v == 0),
+        "all-`11` weights must produce all-zero output, got {got:?}"
+    );
+    assert_identical(&input, &weights, dim_out, dim_in, "code 11");
+}
+
+#[test]
+fn activation_minus_128_routes_to_scalar_and_stays_exact() {
+    // vmulq_s8 multiplies within i8, so (-128)*(-1) wraps. The kernel must
+    // detect this and fall back, so the result stays identical to the
+    // reference.
+    let (dim_out, dim_in) = (4, 512);
+    let mut rng = Rng(0xDEAD_BEEF);
+    let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+        .map(|_| (rng.next() & 0xFF) as u8)
+        .collect();
+
+    // -128 in a few positions, including the first and last element.
+    let mut input: Vec<i8> = (0..dim_in)
+        .map(|i| ((i % 200) as i32 - 100) as i8)
+        .collect();
+    input[0] = i8::MIN;
+    input[dim_in / 2 + 1] = i8::MIN;
+    input[dim_in - 1] = i8::MIN;
+
+    assert_identical(&input, &weights, dim_out, dim_in, "activation -128");
+}
+
+#[test]
+fn saturating_extremes_are_bit_identical() {
+    // Every weight +1 against every activation +127 (and -127) drives the
+    // accumulator to its widest legal magnitude for the shape.
+    let (dim_out, dim_in) = (4, 6912);
+    let all_plus = vec![0b01_01_01_01u8; packed_len(dim_out, dim_in)];
+    let all_minus = vec![0b10_10_10_10u8; packed_len(dim_out, dim_in)];
+    let all_zero = vec![0u8; packed_len(dim_out, dim_in)];
+
+    for (w, name) in [
+        (&all_plus, "all +1"),
+        (&all_minus, "all -1"),
+        (&all_zero, "all 0"),
+    ] {
+        for v in [127i8, -127, 1, 0] {
+            let input = vec![v; dim_in];
+            assert_identical(&input, w, dim_out, dim_in, &format!("{name} x {v}"));
+        }
+    }
+
+    // The widest case must also be arithmetically what we expect, so a
+    // mutually-consistent-but-wrong pair cannot pass.
+    let input = vec![127i8; dim_in];
+    let mut got = vec![0i32; dim_out];
+    ternary_matvec_i8_neon(&mut got, &input, &all_plus, dim_out, dim_in);
+    assert!(
+        got.iter().all(|&v| v == 127 * dim_in as i32),
+        "all +1 weights x 127 must equal 127*dim_in = {}, got {got:?}",
+        127 * dim_in as i32
+    );
+}
+
+#[test]
+fn row_independence_holds() {
+    // Each output row must depend only on its own weight row. A blocked kernel
+    // that mis-strides would leak neighbouring rows; comparing a multi-row call
+    // against per-row single-row calls catches exactly that.
+    let (dim_out, dim_in) = (9, 1028); // rows odd, dim_in tail-carrying
+    let mut rng = Rng(0x0BAD_C0DE);
+    let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+        .map(|_| (rng.next() & 0xFF) as u8)
+        .collect();
+    let input: Vec<i8> = (0..dim_in)
+        .map(|_| ((rng.next() % 255) as i32 - 127) as i8)
+        .collect();
+
+    let mut all = vec![0i32; dim_out];
+    ternary_matvec_i8_neon(&mut all, &input, &weights, dim_out, dim_in);
+
+    let row_bytes = dim_in / 4;
+    for r in 0..dim_out {
+        let mut one = vec![0i32; 1];
+        ternary_matvec_i8_neon(
+            &mut one,
+            &input,
+            &weights[r * row_bytes..(r + 1) * row_bytes],
+            1,
+            dim_in,
+        );
+        assert_eq!(all[r], one[0], "row {r} is not independent");
+    }
+}

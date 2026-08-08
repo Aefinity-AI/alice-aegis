@@ -1,0 +1,42 @@
+M7 TERNARY RUN — FINAL RECORD + PAIRED VERDICT (unit m7-ternary, 2026-07-22 02:0xZ -> 2026-07-28 ~00:5xZ)
+config: configs/m7_ternary.json — 14,171,392 params, BitLinear ternary QAT (absmean+STE),
+  two_stage sched (knee@50%, wd 0.1->0), seed 1337, 4 threads
+budget: 122,071 steps x 8 x 512 = 500,002,816 tokens — IDENTICAL data file + order as twin
+wall-clock: 514,715 s = 142.98 h -> avg 971 tok/s
+final train loss (last 2): 1.2943 / 1.4063
+FINAL VAL PPL: 5.140 (step 122,000; last three checks 5.117 / 5.187 / 5.140)
+
+=== PAIRED VERDICT vs fp32 twin (m7a_twin_final_2026-07-21.log) ===
+twin  (6,529,920 params fp32, cosine wd 0.1):   FINAL VAL PPL 5.513
+ternary (14,171,392 params 1.58-bit, two-stage): FINAL VAL PPL 5.140  -> 6.8% BETTER
+Identical: data file, sample order (seed), token budget, batch/ctx, threads, eval slice.
+DISCLOSURE (recorded 2026-07-25 when caught): schedules differ — each arm ran its
+literature-standard recipe (twin: cosine+wd; ternary: BitNet two-stage). This is a
+recipe-vs-recipe comparison at the established 2x param handicap (BitNet-Reloaded
+floor-not-parity finding), NOT a single-variable ablation. Param handicap 2.17x;
+deployment bytes: ternary ~3.5MB packed vs twin ~13MB fp16 (~3.7x SMALLER despite more params).
+Val trajectory: ternary led early (18.5 vs 19.4 @1.5k), lockstep through plateau
+(synchronized tripwires @47k), broke ahead in stage 2 (5.86-6.14 vs 6.52-6.72 @74-75k),
+finished below twin's final with 10k steps to spare.
+
+--- last 20 val checks (ternary) ---
+  [val] step 112500 | val_ppl 5.402 (prev 5.458)
+  [val] step 113000 | val_ppl 5.412 (prev 5.402)
+  [val] step 113500 | val_ppl 5.378 (prev 5.412)
+  [val] step 114000 | val_ppl 5.399 (prev 5.378)
+  [val] step 114500 | val_ppl 5.224 (prev 5.399)
+  [val] step 115000 | val_ppl 5.369 (prev 5.224)
+  [val] step 115500 | val_ppl 5.304 (prev 5.369)
+  [val] step 116000 | val_ppl 5.233 (prev 5.304)
+  [val] step 116500 | val_ppl 5.114 (prev 5.233)
+  [val] step 117000 | val_ppl 5.273 (prev 5.114)
+  [val] step 117500 | val_ppl 5.284 (prev 5.273)  [TRIPWIRE] val PPL rose 2 consecutive checks
+  [val] step 118000 | val_ppl 5.128 (prev 5.284)
+  [val] step 118500 | val_ppl 5.238 (prev 5.128)
+  [val] step 119000 | val_ppl 5.205 (prev 5.238)
+  [val] step 119500 | val_ppl 5.280 (prev 5.205)
+  [val] step 120000 | val_ppl 5.192 (prev 5.280)
+  [val] step 120500 | val_ppl 5.180 (prev 5.192)
+  [val] step 121000 | val_ppl 5.117 (prev 5.180)
+  [val] step 121500 | val_ppl 5.187 (prev 5.117)
+  [val] step 122000 | val_ppl 5.140 (prev 5.187)

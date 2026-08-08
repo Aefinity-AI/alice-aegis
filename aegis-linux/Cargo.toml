@@ -1,0 +1,24 @@
+[package]
+name = "aegis-linux"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["Justin B. Thompson (Aefinity AI)"]
+repository = "https://github.com/Aefinity-AI/alice-aegis"
+
+[dependencies]
+aegis-core = { path = "../aegis-core" }
+
+[features]
+legacy_matmul = ["aegis-core/legacy_matmul"]
+parallel = ["aegis-core/parallel"]
+int8_act = ["aegis-core/int8_act"]
+act_stats = ["aegis-core/act_stats"]
+
+[[example]]
+name = "act_sparsity"
+required-features = ["act_stats"]
+
+[[example]]
+name = "act_capture"
+required-features = ["act_stats"]

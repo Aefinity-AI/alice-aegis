@@ -1,0 +1,39 @@
+M7 PAIRED BASELINE EVAL — pre-cooldown, 2026-07-29
+Purpose: establish the twin-vs-ternary gap on a properly powered eval
+before the LR-cooldown control runs. 400 disjoint windows vs the
+original single 511-token probe.
+
+==========================================================================
+M7 PAIRED MULTI-WINDOW EVAL
+==========================================================================
+  val file        : /home/killboxincorporated/model-lab/tinybit/valid_8k.bin
+  file tokens     : 5,414,891
+  windows         : 400 disjoint, stride 13,535
+  scored tokens   : 204,800  (401x the original 511-token probe)
+  threads         : 4
+
+  [twin]
+     6,529,920 params | linear=fp | L6 h256 i704 heads4 | step 122071
+     corpus PPL (token-weighted) : 4.4816
+     per-window PPL mean/median  : 4.7464 / 4.3669
+     per-window PPL min/max      : 2.5583 / 58.3213
+     eval wall                   : 54.0s
+
+  [ternary]
+     14,171,392 params | linear=bitlinear | L7 h384 i1024 heads6 | step 122071
+     corpus PPL (token-weighted) : 4.1664
+     per-window PPL mean/median  : 4.4149 / 4.0639
+     per-window PPL min/max      : 2.5093 / 58.9220
+     eval wall                   : 138.3s
+
+==========================================================================
+PAIRED COMPARISONS (baseline = twin)
+==========================================================================
+  ternary vs twin
+     corpus PPL       : 4.1664 vs 4.4816  => +7.03% (better)
+     paired mean ΔNLL : +0.07294 nats (95% CI +0.06943 .. +0.07645)
+     paired t         : +40.69 over 400 windows
+     windows won      : 396/400
+     verdict          : SIGNIFICANT at |t|>2
+
+  wrote /home/killboxincorporated/docs/hardware_logs/m7_paired_eval_baseline_2026-07-29.json

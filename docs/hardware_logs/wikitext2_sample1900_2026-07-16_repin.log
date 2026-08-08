@@ -1,0 +1,19 @@
+=== BitNet-2B T0a anchor RE-PIN after pre-tokenizer + merge-guard fixes ===
+date: 2026-07-17T03:57:51Z
+binary: aegis-eval/target/release/aegis-eval (rebuilt 2026-07-16 22:57:34)
+cmd: aegis-eval aegis_pruned_model.safetensors aegis-forge/embed.bin aegis-forge/vocab.bin test.txt 1900 --sample
+prior anchor: 10.348 (reproduced tonight, wikitext2_sample1900_2026-07-16_rerun.log)
+changes under test: whitespace-run pre-tokenization (T2d now passes vs Falcon reference 2410/2410) + id-0 merge guard fix (117 Llama-3 merges restored)
+---
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: test.txt | sample: 7401 chars -> 1898 tokens
+--------------------------------------------------
+Perplexity (teacher-forced, 1898 tokens): 10.758
+Eval wall time: 663.1s (2.86 tok/s)
+--------------------------------------------------
+NOTE: pruned-vocab model (50,256 of 128,256 tokens; ASCII-oriented).
+Report this number only alongside that caveat.
+exit=0

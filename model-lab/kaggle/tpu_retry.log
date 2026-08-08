@@ -1,0 +1,10 @@
+[2026-07-29T09:11:11Z] no TPU (downgraded again, status=KernelWorkerStatus.COMPLETE)
+[2026-07-30T09:11:09Z] no TPU (downgraded again, status=KernelWorkerStatus.COMPLETE)
+[2026-07-31T09:11:10Z] no TPU (downgraded again, status=KernelWorkerStatus.COMPLETE)
+[2026-08-01T09:11:11Z] no TPU (downgraded again, status=KernelWorkerStatus.COMPLETE)
+[2026-08-02T09:11:08Z] no TPU (downgraded again, status=KernelWorkerStatus.COMPLETE)
+[2026-08-05T03:52:58Z] no TPU (downgraded again, status=KernelWorkerStatus.COMPLETE)
+[2026-08-05T09:11:06Z] no TPU (downgraded again, status=KernelWorkerStatus.COMPLETE)
+[2026-08-06T09:11:05Z] no TPU (downgraded again, status=KernelWorkerStatus.COMPLETE)
+[2026-08-07T09:11:05Z] no TPU (downgraded again, status=KernelWorkerStatus.COMPLETE)
+[2026-08-08T09:12:06Z] TPU GRANTED — smoke results in kernel output

@@ -1,0 +1,36 @@
+M5c smoke iteration finding (2026-07-19/20, kernel aefinityaiinc/m5c-onebitllms-smoke v4):
+NEW negative finding beyond the original research kill: even the PINNED env
+(torch 2.6.0 + triton 3.2, correctly targeting sm_75) cannot run stock
+onebitllms on Kaggle T4 - the BitLinear Triton kernels HARDCODE bf16 ops:
+  ptxas: Feature '.bf16' requires .target sm_80 or higher (cvt.bf16.f32 etc.)
+T4=sm_75, P100=sm_60: NO free Kaggle GPU has bf16 silicon. The 'Triton>=3.3
+dropped Turing' kill was necessary but NOT sufficient. v5 attempts in-place
+bf16->fp16 kernel patch; if numerics fail, onebitllms is DEAD on free Kaggle
+GPUs and the M6 vehicle defaults to the BitNet transformers-native path.
+
+M5B SMOKE PASS (2026-07-20, kernel aefinityaiinc/m5b-bitnet-qat-smoke v6, 2xT4):
+- Winning config on FIRST attempt: fp32 weights + fp16 AMP, seq 1024, lr 1e-4,
+  paged_adamw_8bit, grad ckpt, device_map=auto across 2xT4 -> FITS. No fallback needed.
+- transformers 5.14.1 NATIVE BitNet support (bf16 master repo advertises remote code
+  that does not exist -> trust_remote_code must be OFF), plain transformers Trainer
+  (trl 1.8.x incompatible with BitNet 3 distinct ways: chunked-CE patch on partial
+  forward, num_valid_tokens loss contract; documented in iterations above).
+- Loss 150 steps smoltalk slice: head5 0.9350 -> tail5 0.7371, zero NaN/inf.
+- Gate criteria met: loss falls, no NaNs => BitNet online-QAT SFT vehicle VIABLE
+  on free Kaggle GPUs. Evidence: m5b_smoke_result_2026-07-19.json (full loss curve),
+  m5b_smoke_kernel_stdout_2026-07-19.log.
+
+M5C FINAL VERDICT (2026-07-20, kernel v5, fp16-patched onebitllms, T4):
+- Env assembled correctly: torch 2.6.0+cu124, triton 3.2.0, transformers 4.52.4,
+  trl 0.18.2, onebitllms 0.0.4; bf16->fp16 patch applied to utils/quantization_utils.py;
+  replace_linear_with_bitnet_linear ran; kernels compiled for sm_75 (no ptxas error).
+- BUT the numerics are DEGENERATE: loss 9.678 at step 5 (random-init level ~ln|V|,
+  NOT the ~2 expected from a pretrained 1B being SFT'd -> fp16 quantization path
+  destroyed the pretrained weights at step ~0), then EXACTLY 0.0000 for steps 10-100
+  (impossible on real data = training collapse).
+- The kernel's printed "M5C_SMOKE_PASS" is a FALSE POSITIVE of the naive
+  tail<head criterion. Real verdict: FAIL.
+=> KILL CONFIRMED (ledger M18): onebitllms requires bf16 silicon (sm_80+) as an
+   ESSENTIAL property, not cosmetic. No free Kaggle GPU qualifies. Falcon-E QAT
+   SFT on free tier would need a pure-PyTorch STE BitLinear reimplementation
+   (untested) or paid/Colab A100. M6 VEHICLE = BitNet path (M5b, ledger M17).

@@ -1,0 +1,68 @@
+# Figure manifest for scripts/verify-figures.sh
+#
+# A bare number cannot be verified. "0.19" appears inside a thousand NLL values;
+# "6.6" appears inside "PPL 26.655". A figure is only checkable if we also say
+# WHAT QUANTITY it is. Each row therefore declares the unit that must sit
+# adjacent to the number and the keywords that must appear on the same line (or
+# in the filename) for a hit to count.
+#
+# Columns are TAB-separated:
+#   id            short slug, used in output
+#   value         the number as published (printed precision sets the tolerance)
+#   unit          unit that must immediately follow the number; "-" for none
+#   keywords      pipe-separated; at least one must appear on the matching line
+#                 or in the matching file's name
+#   description   what the figure actually claims
+#
+# Tolerance is derived from printed precision: 5.140 admits [5.1395, 5.1405);
+# 0.19 admits [0.185, 0.195). Rounding is legitimate, drift is not.
+#
+id	value	unit	keywords	description
+ppl_5140	5.140	-	ppl|perplexity|eval|loss	Perplexity 5.140
+ppl_5513	5.513	-	ppl|perplexity|eval|loss	Perplexity 5.513
+var_019	0.19	%	variance|std|stddev|drift|flip|spread|noise	Run-to-run variance 0.19%
+size_28mb	2.8	MB	size|bytes|model|checkpoint|safetensors|ternary	Deployed model size 2.8 MB
+thr_500	~500	tok/s	tok/s|throughput|decode|generate	Throughput ~500 tok/s
+mcnemar_024	0.24	-	mcnemar|p=|p_value|pvalue|paired|significan	McNemar p = 0.24
+ctz_66	6.6	x	ctz|matvec|faster|speedup|simd|kernel	CTZ kernel 6.6x slower than AVX2 matvec
+recovery_92	92	%	recovery|recover|roundtrip|round-trip|retarget|match	Recovery 92%
+smollm_59	59	%	smollm|smollm2|acc|accuracy|census|activation	SmolLM2 result 59%
+throttle_22	22	%	nominal|throttle|ratio|clock|pstate|prochot|aperf|mperf	Firmware throttle: 22% of nominal clock
+train_500m	500	M	token|step|train|corpus|dataset	Training corpus 500M tokens
+params_1417	14.17	M	param|params|weights|model	Model size 14.17M parameters
+ctz_gemm_1174	11.74	x	ctz|gemm|batched|faster|speedup|kernel	CTZ kernel 11.74x slower than AVX2 batched GEMM
+zeros_4221	42.21	%	zero|zeros|sparsity|sparse|ternary|density	Real BitNet weight zero fraction 42.21%
+lutab_pshufb_824	8.24	GMAC/s	pshufb|effective|lut	pshufb effective throughput, low mode (run 1)
+lutab_pshufb_1129	11.29	GMAC/s	pshufb|effective|lut	pshufb effective throughput, high mode (run 2)
+lutab_f32_894	8.94	GMAC/s	f32|matvec|fma	f32 LUT+FMA matvec, low (run 1)
+lutab_f32_936	9.36	GMAC/s	f32|matvec|fma	f32 LUT+FMA matvec, high (run 2)
+lutab_gemm_2068	20.68	GMAC/s	gemm|batched	f32 batched GEMM per token, low (run 1)
+lutab_gemm_2367	23.67	GMAC/s	gemm|batched	f32 batched GEMM per token, high (run 2)
+e2_m7_float_ppl	5.639491	-	ppl|perplexity	M7 float PPL, E2 same-run base (A19/A20)
+e2_m7_hybrid_ppl	5.657126	-	ppl|perplexity	M7 hybrid-integer PPL (A19)
+e2_m7_fullint_ppl	5.643085	-	ppl|perplexity	M7 full-integer PPL (A20)
+e2_2b_float_ppl	30.706665	-	ppl|perplexity	BitNet-2B pruned-vocab float PPL, E2 base (A21)
+e2_2b_int_ppl	30.934140	-	ppl|perplexity	BitNet-2B pruned-vocab integer PPL (A21)
+e2_m7_hybrid_delta	0.3127	%	delta|relative	M7 hybrid integer-vs-float delta (A19)
+e2_m7_fullint_delta	0.0637	%	delta|relative	M7 full-integer delta (A20)
+e2_2b_delta	0.7408	%	delta|relative	BitNet-2B integer delta (A21)
+mech2_u_med_hello	386.4	tok/s	tok/s|median	MECH v2 U median, hello alice (A22; derived ticks/2.1975GHz)
+mech2_u_med_how	342.4	tok/s	tok/s|median	MECH v2 U median, how-are-you (A22)
+mech2_u_med_cont	352.7	tok/s	tok/s|median	MECH v2 U median, continue (A22)
+mech2_l_med_hello	372.560	tok/s	tok/s|decode-only	MECH v2 L median, hello alice (A22)
+mech2_l_med_how	310.09	tok/s	tok/s|decode-only	MECH v2 L median, how-are-you (A22)
+mech2_l_med_cont	334.705	tok/s	tok/s|decode-only	MECH v2 L median, continue (A22)
+colskip_real_hi	2.89	x	x incumbent|colskip ordered	colskip ordered real-vector ratio, high (A23)
+colskip_real_lo	2.88	x	x incumbent|colskip ordered	colskip ordered real-vector ratio, low (A23)
+colskip_z0	0.69	x	x incumbent|colskip	colskip z=0 overhead point (A23)
+g1_seq1t_boot1	11.19	GB/s	peak sequential	Dell 1T sequential read, boot 1 (A24)
+g1_seq1t_boot2	10.95	GB/s	peak sequential	Dell 1T sequential read, boot 2 (A24)
+g1_seq4t_boot1	11.63	GB/s	peak sequential	Dell 4T sequential read, boot 1 (A24)
+g1_seq4t_boot2	11.70	GB/s	peak sequential	Dell 4T sequential read, boot 2 (A24)
+g1_ternary_stream	0.62	GB/s	ternary weight-stream	Dell scalar ternary-stream lower bound, both boots (A24)
+cis_cb_dell	1.248	x	C/B|integer semantics|cis_vs_float	CIS-1 integer semantics cost vs scalar float, Dell i5-5200U median of 9 (A26)
+cis_cb_hp	0.961	x	C/B|integer semantics|cis_vs_float	CIS-1 integer semantics cost vs scalar float, HP N4020 median of 9 - integer FASTER (A26)
+cis_ab_dell	0.217	x	A/B|SIMD headroom|cis_vs_float	AVX2-vs-scalar float headroom on the integer path, Dell i5-5200U median of 9 (A26)
+cis_ab_hp_ctrl	1.000	x	A/B|SIMD headroom|cis_vs_float	Methodology control: HP has no AVX2 so arm A must equal arm B, median of 9 (A26)
+cis_da_dell	0.340	x	D/A|parity SIMD|cis_vs_float	CIS-1 int-AVX2 vs float-AVX2 at parity SIMD, Dell i5-5200U median of 9, order control clean (A27)
+cis_oe_dell	1.000	x	order effect|order control	Order control A-prime/A on the Dell arm-D run - arms do not perturb each other (A27)
