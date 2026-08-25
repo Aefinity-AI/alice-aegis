@@ -1611,9 +1611,20 @@ unsafe fn ternary_matmul_avx2_rows(
 /// activations (8 x 2560 x 4 B = 80 KB) stay resident in L2.
 ///
 /// Measured ~1.8x over the per-token path. Not the 8x the traffic reduction
-/// suggests, because the engine is compute-bound, not bandwidth-bound: it
-/// achieves ~2 GB/s against a 17.3 GB/s ceiling, so removing memory traffic
-/// alone buys little. The win here is the amortized unpack.
+/// suggests. The previous explanation here — "~2 GB/s against a 17.3 GB/s
+/// ceiling" — is RETRACTED/superseded (A13.bw: that ceiling had no source
+/// anywhere in this repo).
+///
+/// Measured on this host instead (membw_2026-08-25_162849Z.log):
+///   A13.bw.seq1t   10.57 GB/s  peak sequential read, 1 thread
+///   A13.bw.seq8t   25.28 GB/s  peak sequential read, 8 threads
+///   A13.bw.tern1t   0.80 GB/s  ternary weight-stream, scalar LUT walk
+///
+/// The weight-streaming roofline divides by the TERNARY figure, not a
+/// sequential peak. The compute-bound-vs-bandwidth-bound conclusion therefore
+/// needs re-deriving against A13.bw.tern1t (itself a scalar LOWER BOUND, not
+/// the AVX2 kernel's rate) and is deliberately NOT restated here.
+/// The win here is the amortized unpack.
 pub fn ternary_matmul(
     output: &mut [f32],
     input: &[f32],
