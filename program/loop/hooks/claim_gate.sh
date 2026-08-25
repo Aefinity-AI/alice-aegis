@@ -39,8 +39,15 @@ case "$FILE" in
   */docs/hardware_logs/*|*/runcards/*|*/state/*|*claims.jsonl) exit 0 ;;
 esac
 
-LINT="$HOME/program/loop/tools/claimlint.py"
-[ -x "$LINT" ] || exit 0
+# Resolve relative to this script, not $HOME: the repo used to live AT $HOME on
+# the previous machine, and an absolute path here makes the gate fail OPEN (the
+# [ -x ] test exits 0) on any clone that lives anywhere else.
+LOOP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LINT="$LOOP_DIR/tools/claimlint.py"
+if [ ! -f "$LINT" ]; then
+    echo "CLAIM GATE: claimlint.py not found at $LINT — refusing to fail open." >&2
+    exit 2
+fi
 
 # Tier 1 only in the hook. Tier 2 (--strict) is a submission-time gate run by
 # hand via `ev gate`; making it blocking on every edit would demand a fully
