@@ -11,6 +11,9 @@ mod cpu;
 mod h3;
 mod mtrr_decode;
 mod verifier;
+// Provides `wcslen`, which LLVM emits for the uefi crate's UTF-16 scans once
+// SSE is on (hard-float target). No UEFI sysroot defines it. See wcs.rs.
+mod wcs;
 
 // Deleted load_file to eliminate dynamic allocations
 

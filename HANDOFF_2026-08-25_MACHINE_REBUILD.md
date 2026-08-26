@@ -18,6 +18,17 @@ gitignored artifact, including the model weights.
   `A13.bw.seq1t 10.57 GB/s` · `A13.bw.seq8t 25.28 GB/s` · `A13.bw.tern1t 0.80 GB/s`.
   The retracted 17.3 GB/s matched **neither** figure it could have meant.
 - `ev lint`: `ops.rs` 1 → **0**, `RESEARCH_LEDGER.md` **0**.
+- **Hard-float build fixed (2026-08-26).** `build_hardfloat.sh` now links and passes
+  its own AVX2 gate (`fma=161 ymm=504`); `scripts/check-efi-simd.sh` returns
+  `PASS - safe to stage` (xmm=7905 ymm=504 vfmadd=210). Root cause: with SSE on,
+  LLVM's loop-idiom pass rewrites the `uefi` crate's UTF-16 scans into `wcslen`
+  libcalls, and no UEFI sysroot defines `wcslen` (absent from the precompiled
+  compiler_builtins AND from the -Zbuild-std sources). Added `aegis-uefi/src/wcs.rs`.
+  `read_volatile` is load-bearing there: a plain scan loop is itself the wcslen
+  idiom and gets rewritten into a call to itself. Verified by disassembly - the
+  emitted body is a `jne` loop with no `call`, and `nm -u` shows 0 undefined
+  `wcslen` refs. Stock+stable still links; clippy ratchet unchanged on every crate;
+  all tests pass.
 - Unikernel boot test: **functionally passed** — bootlog shows coherent generation
   and `MECHV2 EXACT … true` bit-exact repeats. The harness reported exit 124 only
   because of a 30-min timeout set by the operator, which cut it ~30 s short of
@@ -36,30 +47,36 @@ The repo used to live **at `$HOME`**; **109 files** still hardcode
 
 ## Open, in priority order
 
-1. **`aegis-uefi/build_hardfloat.sh` does not link.** `undefined symbol: wcslen`
-   (15 refs). The hard-float target enables SSE, so LLVM's loop-idiom pass rewrites
-   the `uefi` crate's UTF-16 scans into `wcslen` calls; the stock target is
-   `+soft-float` and does not. No UEFI sysroot provides `wcslen`. **This is the only
-   command whose output may be staged to a stick, and CI exercises only the
-   stock+stable path — CI is green while the shippable artifact cannot be built.**
-   Fix: a `wcslen` shim in `aegis-uefi` using `read_volatile`/`#[no_builtins]` (a
-   naive scan loop gets idiom-recognized into a call to itself). Then add the
-   hard-float build to CI.
-2. **`ev run thread_sweep` cannot run.** Needs `aegis_pruned_model.safetensors` and
+1. **`ev run thread_sweep` cannot run.** Needs `aegis_pruned_model.safetensors` and
    `aegis-forge/{embed,vocab}.bin` — gitignored, so lost in the reset. Rebuilding
    needs `microsoft/bitnet-b1.58-2B-4T-bf16` re-downloaded (**hours** at this box's
    ~141 KB/s) and `aegis-forge/regen_vocab_embed.py` de-hardcoded.
    `docs/TECHNICAL_REPORT.md`'s remaining **2** dead-number uses are A4.sweep2026
    and stay blocked until this runs.
-3. **The compute-bound argument in `ternary_matmul` needs re-deriving.** The old
-   doc comment used the RETRACTED 17.3 GB/s (A13.bw, superseded) to argue the engine
-   is compute-bound. The
-   number is now replaced, but the *conclusion was deliberately not restated*: the
-   weight-streaming roofline divides by `A13.bw.tern1t`, not a sequential peak, and
-   that figure is itself a scalar LOWER BOUND, not the AVX2 kernel's rate.
-4. `program/RESEARCH_LEDGER.md` and `program/ROADMAP.md` not yet updated with the
-   A13.bw.* figures — left for review since that file's wording is load-bearing.
-5. Nothing is pushed. Commits `05d1e67`, `0e95a92` are **local only**.
+
+2. **The hard-float build is still not in CI.** `.github/workflows/aefinity-ci.yml`
+   exercises only stock+stable, which is exactly why this break shipped green. The
+   `wcslen` regression would have been caught on the first push had CI built the
+   target whose output is the only one permitted to reach a stick.
+
+3. **The compute-bound argument in `ternary_matmul` needs re-deriving.** The doc
+   comment used the RETRACTED 17.3 GB/s (A13.bw, superseded) to argue the engine is
+   compute-bound. The number is replaced, but the *conclusion was deliberately not
+   restated*: the weight-streaming roofline divides by `A13.bw.tern1t`, not a
+   sequential peak, and that figure is itself a scalar LOWER BOUND rather than the
+   AVX2 kernel's rate.
+
+4. **`program/RESEARCH_LEDGER.md` and `program/ROADMAP.md` not yet updated** with the
+   A13.bw.* figures — left for review, since that prose is load-bearing.
+
+5. **Boot test never got a clean harness PASS.** It ran to completion functionally
+   but the operator's 30-min timeout killed it ~30 s early. Re-run with a longer
+   timeout, ideally against the hard-float artifact now that it builds.
+
+6. **109 files still hardcode `/home/killboxincorporated`.** Two failed silently and
+   are fixed; the rest are latent. A `sudo ln -s ~/projects/alice-aegis
+   /home/killboxincorporated` shim would resolve all of them at once but hides the
+   debt — a deliberate choice, not a default.
 
 ## Notes
 
