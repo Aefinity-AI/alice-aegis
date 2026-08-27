@@ -31,8 +31,9 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
   6. The cost, measured honestly: integer semantics cost 25% vs scalar float on Broadwell and are 4–14%
      *faster* on Goldmont Plus (A26); at parity SIMD the integer AVX2 kernel is 2.94× faster than the
      float AVX2 incumbent (A27) (§6).
-  7. Quality: the all-integer forward pass costs +0.0637% perplexity on M7 and +0.7408% on BitNet-2B
-     vs float, inside a preregistered +5% kill line (A19–A21) (§6).
+  7. Quality: the all-integer forward pass costs +0.0637% perplexity on M7 (A20); the integer-dominant
+     HYBRID path costs +0.7408% on BitNet-2B (A21) — 2B all-integer quality NOT yet measured (spec §9);
+     both inside a preregistered +5% kill line (§6).
 - What is **not** claimed (lift verbatim from spec §10 and the ledger caveats): see §8.
 
 ## 2. Background and related work (short, sourced)

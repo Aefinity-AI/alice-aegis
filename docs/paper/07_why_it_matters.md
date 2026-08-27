@@ -17,17 +17,22 @@ the exact tokens, and a commitment to every intermediate logit vector, replayabl
 on their own hardware. The receipt format is small, the verifier is the reference implementation,
 and the specification is public.
 
-**For research reproducibility.** Every result in this paper is a digest or a logged measurement
-on a named physical machine. A reader who obtains the artifacts does not have to trust our
+**For research reproducibility.** Every result in this paper is either a digest reproduced in
+public continuous integration or a measurement logged on a named physical machine, and Table 3 says
+which. A reader who obtains the artifacts does not have to trust our
 numbers; they can print the same 64-bit values. We believe this is the correct standard for
 inference-engine claims and that the industry's tolerance-based "matches within epsilon"
 reporting has hidden real divergence for years.
 
-**For the economics of edge AI.** The engine that produces these receipts runs a 2-billion-
-parameter ternary model on a decade-old laptop with no operating system, and the integer path is
-faster than the floating-point path on the hardware where it was measured. Verifiability did not
-cost performance; on commodity CPUs it improved it. That changes the calculus for organizations
-that assumed provable inference required specialized or trusted hardware.
+**For the economics of edge AI.** The engine that produces these receipts boots from firmware with
+no operating system on decade-old laptops and re-derives the receipt for the reference model there
+(A33, A34); the same engine runs a 2-billion-parameter ternary model in its Linux harness on the same
+class of hardware (A21), though the 2B model has not yet been booted on the unikernel and its
+all-integer quality is not yet measured. The cost of the integer semantics is a property of the
+microarchitecture, not of the semantics: 25% against scalar floating point on one core, 4–14% faster
+on another (A26), and at parity vector width the integer AVX2 kernel is 2.94× faster than the
+floating-point AVX2 kernel it replaces (A27). On the commodity CPUs where it was measured,
+verifiability did not require specialized or trusted hardware, and did not have to cost performance.
 
 **A standing invitation.** The project maintains a public falsification bounty: find any machine
 on which a conforming build fails to reproduce the digests and the author will pay and record the

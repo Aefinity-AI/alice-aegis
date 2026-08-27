@@ -2,7 +2,7 @@
 
 We state these as precisely as the ledger does, because each is where a careful reviewer should push.
 
-**Scope of the semantics (spec §10).** CIS-1 v1.0 covers the BitNet-b1.58-style decoder block
+**Scope of the semantics (spec §3 and §10; bounds as derived in ledger A20–A21).** CIS-1 v1.0 covers the BitNet-b1.58-style decoder block
 (ternary linear layers, RMSNorm, GQA attention with RoPE, squared-ReLU MLP) with hidden size
 384–2560, head dimension ≤128, and sequence length ≤512; headroom bounds are derived for these
 ranges only. Bit-identity across kernel paths is claimed for the full-integer pipeline (v0.3 and

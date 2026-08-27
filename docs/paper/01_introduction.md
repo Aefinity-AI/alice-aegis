@@ -6,8 +6,8 @@ Parallel reductions sum in different orders, dequantization paths differ between
 normalization layers stay in floating point, and vendor libraries choose algorithms at runtime.
 The disagreements are small — a few units in the last place — and they are also decisive: greedy
 decoding is a chain of argmax operations, and one flipped comparison changes every token that
-follows. In practice, "reproducible" means "statistically similar," and no one can say exactly
-what a deployed model computed on a given input.
+follows. In practice, "reproducible" means "statistically similar," and it is hard to say exactly
+what a deployed floating-point model computed on a given input.
 
 This paper makes reproducibility exact and then makes it *checkable*. We define **CIS-1**, a
 canonical integer semantics for transformer inference: a frozen specification in which every
@@ -30,12 +30,15 @@ claim about a computation, and it is checkable by anyone with the artifacts and 
 We demonstrate the following, each backed by an entry in the project's public research ledger
 with the raw log it was taken from (Table 3):
 
-1. **The specification is implementable from its text.** Two independent implementers, given
-   only the specification and denied access to the reference source, each wrote a from-scratch
-   implementation that reproduced the op-level digest on first execution (ledger A31).
-2. **One semantics, two instruction sets.** The op-level digest is identical on five x86
-   execution paths — two bare-metal machines spanning AVX2 and SSE2-class hardware, a virtualized
-   development host, and full-system emulation — and on an aarch64 Neoverse system (A25, A28).
+1. **The specification is implementable from its text.** Two implementers — language-model agents
+   run under distinct personas, given the specification text and the public conformance harness,
+   and denied access to the reference source — each wrote a from-scratch scalar implementation
+   that reproduced the op-level digest on first execution (ledger A31). This is evidence of
+   implementability from text, not a third-party audit (§8).
+2. **One semantics, two instruction sets.** The op-level digest is identical on four distinct x86
+   microarchitecture/codegen paths — two bare-metal machines spanning AVX2 and SSE2-class hardware,
+   a virtualized development host, and full-system emulation (A25) — and on an aarch64 Neoverse
+   system (A28).
    A NEON kernel is bit-identical to the reference on real ARM silicon (A30), and a complete
    greedy decode produces the same token digest on x86-64 and aarch64 (A29). Both digests are
    standing continuous-integration gates: a future divergence fails the build.
@@ -50,14 +53,16 @@ with the raw log it was taken from (Table 3):
    determinism" figures, including this project's own, decompose into the cost of missing SIMD,
    not of integer semantics.
 5. **The quality cost is small and was gated in advance.** Against a preregistered +5% perplexity
-   kill line, the all-integer forward pass costs +0.06% on a 384-hidden reference model and
-   +0.74% on a 2-billion-parameter ternary model (A19–A21).
+   kill line, the all-integer forward pass costs +0.06% on a 384-hidden reference model (A20), and
+   the integer-dominant hybrid path (attention still in floating point) costs +0.74% on a
+   2-billion-parameter ternary model (A21). The all-integer quality of the 2B model has not yet
+   been measured (spec §9).
 
 We are equally explicit about what is *not* shown (§8): the clean-room implementers were
 language-model agents rather than third-party engineers; the physical-machine attribution of one
 boot log rests on operator witness because the verifier prints no CPU identifier; the
 2B-parameter perplexity figure uses a pruned vocabulary and a short window and is not comparable
-to published numbers; and no token-level throughput figure for the integer path has yet been
+to published numbers or to this project's own longer-window anchors; and no token-level throughput figure for the integer path has yet been
 measured. The project publishes negative results and retractions in the same ledger as its
 claims, and a standing falsification bounty invites anyone to find a machine on which the digests
 diverge.

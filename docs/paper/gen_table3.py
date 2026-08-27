@@ -51,7 +51,7 @@ CLAIM_MAP = [
     ("5", "Physical iron verification, HP N4020 (SSE2 scalar path)", "VERIFY PASS, BOOTLOG md5 4fb5fc8b, one new BOOTLOG entry vs Dell", "A34"),
     ("6", "Quality cost, hybrid path, M7", "+0.3127% PPL (float 5.639491 vs int 5.657126), digest 0x42E820C2A8A59CD6", "A19"),
     ("6", "Quality cost, full-integer path, M7", "+0.0637% PPL (5.643085 vs 5.639491), digest 0xBED4A17A1A5EE296", "A20"),
-    ("6", "Quality cost, full-integer path, BitNet-2B", "+0.7408% PPL (30.934140 vs 30.706665), digest 0x24C4E510A86659D6", "A21"),
+    ("6", "Quality cost, integer-dominant HYBRID path (f32 attention), BitNet-2B — 2B all-integer not yet measured (spec §9)", "+0.7408% PPL (30.934140 vs 30.706665), digest 0x24C4E510A86659D6", "A21"),
     ("6", "Throughput cost by microarchitecture (C/B ratio)", "Dell (Broadwell-U) 1.248x slower; HP (Gemini Lake) 0.961x (faster)", "A26"),
     ("6", "AVX2 integer kernel vs float AVX2 kernel", "D/A 0.340x = 2.94x faster; D/C 0.061x = 16.4x over scalar", "A27"),
     ("6", "Ring-0 unikernel vs minimal Linux decode throughput", "+3.6% / +9.4% / +5.1% (prereg form); P-V2-2 FAIL spread 4.7-9.6%", "A22"),
