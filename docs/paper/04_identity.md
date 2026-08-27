@@ -51,7 +51,7 @@ implicit, its RNE-to-2³¹ renormalization at S>0 is unstated, and QUANT-ACT/RMS
 preconditions, empty-ARGMAX, and `rne_div` den≤0 behavior are unspecified. Identity artifact only;
 dev host (i5-10210U/crosvm) named, no performance figure exists or is claimed (A31).
 
-**A NEON kernel bit-identical on real ARM silicon (A30).** On the same date,
+**A NEON kernel bit-identical on real ARM silicon (A30).** On 2026-08-07, the same day as A28 and A29 and one day before the clean-room test,
 `cis_neon::ternary_matvec_i8_neon` — using `vmulq_s8` as the ternary multiply, per-byte bit-pair
 extraction through a `vqtbl1q_s8` code LUT, exact `vpaddlq`/`vpadalq` widening, the shared
 precondition check, and the same −128-wrap-to-scalar-fallback contract as the x86 kernel — was

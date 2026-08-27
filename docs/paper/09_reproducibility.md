@@ -19,7 +19,7 @@ CI (run 31249589879, snapshot `ce93bbb`, A32).
 - Op-level: `CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`
 - Token-level decode: `CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint`
 
-**Commands** (quoted verbatim from `.github/workflows/arm-digest.yml`, which
+**Commands** (the invocation cores of `.github/workflows/arm-digest.yml`; the workflow additionally pipes each output through `grep '^CIS_…' | tee /dev/stderr | grep -q <digest> || exit 1` so a mismatch fails the job, and re-declares the artifact directory `M` before the witness step — see the file for the exact wrappers — which
 runs them on every push on both `ubuntu-24.04` and `ubuntu-24.04-arm`):
 
 ```

@@ -101,7 +101,7 @@ digest, and Tier 3 the token-level digest. Tier 2 (`cis_selftest`) must print ex
 CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
 ```
 
-Tier 3 (`cis_decode`, prompt `"Once upon a time"`, 64 new tokens, greedy, `FullInt`) must print
+Tier 3 (`cis_decode`, prompt `"Once upon a time"`, 64 new tokens, greedy, EOS ignored, `FullInt`) must print
 exactly:
 
 ```
