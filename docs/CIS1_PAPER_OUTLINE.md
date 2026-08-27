@@ -123,6 +123,6 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
 
 ## Open decisions for Justin
 - Preprint first, or workshop deadline first? (arXiv is same-day; a workshop gives a review.)
-- License line on the paper vs the Apache-2.0/MIT discrepancy on the repo — resolve before submission.
+- License: DECIDED 2026-08-27 — Apache-2.0 (repo LICENSE, NOTICE, and all crate manifests already say so; the Aug 2 investor email saying MIT was the outlier and should be corrected in any follow-up).
 - Whether to run one more physical leg (a third machine) before submitting, to strengthen A33/A34
   attribution. Not required; would need you at the machine.
