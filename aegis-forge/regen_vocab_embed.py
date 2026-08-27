@@ -12,10 +12,17 @@ row order exactly matches vocab.bin id order. vocab.bin carries the filtered
 BPE merges section (ids remapped; only merges whose left/right/merged all
 survive are kept, original rank order preserved)."""
 import json, struct, shutil, os
+from pathlib import Path
 
-TOKENIZER_JSON = "/home/killboxincorporated/tokenizer.json"
-MODEL = "/home/killboxincorporated/model.safetensors"
-OUT_DIR = "/home/killboxincorporated/aegis-forge"
+# Paths are derived relative to this script's location so the tool works
+# regardless of which user/home checked out the repo. Override with env vars
+# if tokenizer.json / model.safetensors live elsewhere.
+SCRIPT_DIR = Path(__file__).resolve().parent      # .../alice-aegis/aegis-forge
+REPO_ROOT = SCRIPT_DIR.parent                     # .../alice-aegis
+
+TOKENIZER_JSON = os.environ.get("AEGIS_TOKENIZER_JSON", str(REPO_ROOT / "tokenizer.json"))
+MODEL = os.environ.get("AEGIS_MODEL_SAFETENSORS", str(REPO_ROOT / "model.safetensors"))
+OUT_DIR = os.environ.get("AEGIS_OUT_DIR", str(SCRIPT_DIR))
 MAGIC = 0x564F4341  # 'ACOV'
 HIDDEN = 2560
 ROW_BYTES = HIDDEN * 2  # BF16
