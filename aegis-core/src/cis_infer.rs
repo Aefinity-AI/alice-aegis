@@ -404,6 +404,46 @@ fn fix_f32_vec(out: &mut [i64], src: &[f32]) -> u32 {
     g as u32
 }
 
+/// FullInt's own hybrid-free boundary: the ACT-I MLP output (`relu2_q20` /
+/// `silu_q20`, already exact Q.20 i64 values, no float ever touched) can
+/// still exceed the normq/quantq `2^50` residual headroom at BitNet-2B scale
+/// — the same overflow `fix_f32_vec` escapes for Hybrid (spec §5.10 gap; E1b
+/// trace: `normq: residual out of range`). Mirrors `fix_f32_vec`'s
+/// block-exponent contract exactly, but derives `G` from the integer
+/// magnitude already in hand (`64 − leading_zeros`), never from a float
+/// exponent: the largest `G ≤ F` such that every element, after an exact RNE
+/// right-shift by `F − G` bits, is guaranteed `< 2^49` — one full bit under
+/// the `2^50` headroom bound, which absorbs the ±1 that RNE rounding can add
+/// at the shift boundary. Rescales `v` in place and returns `G`. M7-scale
+/// products never need more than 49 bits, so `shift = 0` and `G` degenerates
+/// to `F` with every element numerically untouched — bit-identical to the
+/// prior unconditional-`F` behavior.
+fn fix_q_vec(v: &mut [i64]) -> u32 {
+    let mut max_abs: u64 = 0;
+    for &x in v.iter() {
+        let a = x.unsigned_abs();
+        if a > max_abs {
+            max_abs = a;
+        }
+    }
+    if max_abs == 0 {
+        return F;
+    }
+    let bits = u64::BITS - max_abs.leading_zeros(); // bit length of max_abs
+    let shift = bits.saturating_sub(49);
+    assert!(
+        shift <= F,
+        "fix_q_vec: FullInt MLP product exceeds Q0 headroom — model divergence"
+    );
+    if shift > 0 {
+        let d = 1i128 << shift;
+        for x in v.iter_mut() {
+            *x = rne_div(*x as i128, d) as i64;
+        }
+    }
+    F - shift
+}
+
 /// Integer dot of i8 codes against a fixed-point table row (the LM head).
 /// Exact in i64: |a|·|e|·n ≤ 127·2^31·4096 < 2^51.
 pub fn dot_i8_i32(a: &[i8], e: &[i32]) -> i64 {
@@ -1150,8 +1190,15 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                             Activation::Silu => silu_q20(g, u, lut),
                         };
                     }
-                    // FullInt lands exactly on the Q.F grid.
-                    F
+                    // FullInt escape valve (spec §5.10 gap): the ACT-I output
+                    // above is exact Q.20 already, but at BitNet-2B scale its
+                    // magnitude can exceed the normq/quantq 2^50 residual
+                    // headroom. Re-fix onto a per-vector block exponent
+                    // G ≤ F, mirroring `fix_f32_vec`'s hybrid-boundary
+                    // contract but derived purely from the integer magnitude
+                    // (never a float). M7-scale products stay under the
+                    // headroom, so this degenerates to G = F, unshifted.
+                    fix_q_vec(&mut self.fixed[..inter])
                 }
             };
             let s_down = match &layer.ffn_sub {
