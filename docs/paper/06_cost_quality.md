@@ -42,10 +42,10 @@ binary panicked 2/2 runs (`normq: residual out of range`, `cis_infer.rs:313`).
 An env-gated trace (branch `cm/e1b-normq-trace`) localized the fault to the
 MLP, not attention — attention re-entry stayed exact at ≤38 bits on all 30
 layers, while the ACT-I (relu²) MLP output landed on Q.20 at 52–55 bits, a
-genuine spec gap: §5.10 lacked the §5.6 per-vector block exponent that the
+genuine spec gap: spec §5.10 lacked the spec §5.6 per-vector block exponent that the
 hybrid boundary already carried. The fix — an RNE-rounded block exponent on
 the ACT-I output, degenerating to the identity at M7 ranges — is ratified as
-spec erratum v1.0.3 (§11). It changes only that one op: `CIS_SELFTEST
+spec erratum v1.0.3 (spec §11). It changes only that one op: `CIS_SELFTEST
 76985613c965f643` and `CIS_DECODE 67e8c0a96abc04e1`, the M7 conformance
 digests reported throughout this paper, are unchanged. The A21 caveats
 (pruned vocabulary, 200-token window, not cross-comparable, no timing) apply

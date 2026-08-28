@@ -1,4 +1,4 @@
-## 2. Background and related work
+# 2. Background and related work
 
 **Ternary-weight and integer-only LLMs.** BitNet b1.58 quantizes every weight
 to {−1, 0, +1} (1.58 bits/parameter) and trains directly at that precision

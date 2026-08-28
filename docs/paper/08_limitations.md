@@ -2,7 +2,7 @@
 
 We state these as precisely as the ledger does, because each is where a careful reviewer should push.
 
-**Scope of the semantics.** The frozen v1.0 spec fixes the data types and grids (§3) and lists what is not claimed (§10); the numeric operating envelope below is the one the headroom derivations were carried out for, recorded in ledger rows A20–A21 and the v0.3 working notes (CIS-1_SPEC_DRAFT_v0.1.md), not in the frozen text itself. CIS-1 v1.0 covers the BitNet-b1.58-style decoder block
+**Scope of the semantics.** The frozen v1.0 spec fixes the data types and grids (spec §3) and lists what is not claimed (spec §10); the numeric operating envelope below is the one the headroom derivations were carried out for, recorded in ledger rows A20–A21 and the v0.3 working notes (CIS-1_SPEC_DRAFT_v0.1.md), not in the frozen text itself. CIS-1 v1.0 covers the BitNet-b1.58-style decoder block
 (ternary linear layers, RMSNorm, GQA attention with RoPE, squared-ReLU MLP) with hidden size
 384–2560, head dimension ≤128, and sequence length ≤512; headroom bounds are derived for these
 ranges only. Bit-identity across kernel paths is claimed for the full-integer pipeline (v0.3 and

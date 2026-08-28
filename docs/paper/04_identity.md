@@ -36,10 +36,10 @@ Table 2 collects the digest jury; every cell traces to A25 or A28.
 **The specification is implementable from its text (A31).** On 2026-08-08 two independent
 implementers — subagents under distinct personas — were given the v1.0.1 spec text as their sole
 source, with reference-source access forbidden and, as far as the harness can establish, not
-used. Each wrote a from-scratch scalar Rust implementation of the §5 operations (400 and 484
+used. Each wrote a from-scratch scalar Rust implementation of the spec §5 operations (400 and 484
 lines respectively, verified distinct by diff/md5). Both, linked against the verbatim-ported
 public conformance harness, printed exactly `CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`
-— all 14 sections, first run after their own cargo-check. The v1.0.1 §5.4 erratum to RMSNORM-I's
+— all 14 sections, first run after their own cargo-check. The v1.0.1 spec §5.4 erratum to RMSNORM-I's
 Q2.30/2¹⁵ grids is what made this possible: both implementers hit RMSNORM-I's golden on first
 attempt from the corrected prose. The ledger states the honest scope plainly, and we do not
 soften it: the public conformance suite's golden vectors were visible to the implementers, and

@@ -58,8 +58,8 @@ with the raw log it was taken from (Table 3):
    2-billion-parameter ternary model (A21), and the complete all-integer forward pass on the same
    2B model costs +0.1239% — closer to float than the hybrid figure, and 40× inside the kill line
    (A35). The first all-integer run at this scale panicked instead: a NORMQ precondition rejected
-   an out-of-range residual, tracing to a spec gap in §5.10, where the ACT-I MLP nonlinearity was
-   the one op not carrying the §5.6 per-vector block exponent that the hybrid boundary already
+   an out-of-range residual, tracing to a gap in spec §5.10, where the ACT-I MLP nonlinearity was
+   the one op not carrying the spec §5.6 per-vector block exponent that the hybrid boundary already
    applied. The fix — an RNE-rounded block exponent on the ACT-I output — is ratified as spec
    erratum v1.0.3; both pinned conformance digests are unchanged.
 
