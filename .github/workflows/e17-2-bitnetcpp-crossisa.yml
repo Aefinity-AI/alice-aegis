@@ -1,0 +1,217 @@
+name: e17-2-bitnetcpp-crossisa
+
+# E17.2: cross-ISA reproducibility test of the mainstream CPU ternary runtime
+# (bitnet.cpp / ggml) — the reviewer's "isn't this just ggml on two machines?"
+# question for the CIS-1 paper §2. IDENTITY ONLY — Rule A: no timing numbers
+# may ever be recorded or quoted from this job; CI hardware is shared/unnamed.
+#
+# Matrix: {x86_64, aarch64} x {threads=1, threads=4}. Builds bitnet.cpp
+# (microsoft/BitNet, pinned commit recorded in-job); the ISA-specific
+# codegen step (codegen_tl2.py on x86_64, codegen_tl1.py on arm64, same
+# invocation microsoft's own setup_env.py uses for this model name) only
+# generates a build-time LUT-kernel header the binary links against — the
+# *inference* below loads the officially published i2_s GGUF checkpoint
+# directly (microsoft/BitNet-b1.58-2B-4T-gguf on Hugging Face, not a
+# locally re-quantized artifact), so the op semantics under test are
+# ggml's native I2_S CPU kernel path on each ISA against one pinned,
+# externally-published set of weights. Downloads that official
+# microsoft/BitNet-b1.58-2B-4T-gguf i2_s checkpoint, runs greedy (temp 0,
+# top-k 1, fixed seed) decode of "Once upon a time" for 32 new tokens, and
+# records: the generated token ids, sha256 of the token-id sequence, and
+# (best-effort, see below) a digest of the llama.cpp *server*'s per-step
+# top-1 log-probability as reported via its completion API's `n_probs`
+# field. This is NOT the same object as a raw pre-softmax logit vector —
+# see the "no logits" finding in the job summary and the written report;
+# stock bitnet.cpp/llama.cpp exposes no CLI or server path to a raw logit
+# vector, which is itself part of what this test is here to document.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bitnetcpp-crossisa:
+    name: bitnet.cpp greedy decode identity (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm architecture
+        run: |
+          uname -m
+          test "$(uname -m)" = "${{ matrix.arch }}"
+          grep -m1 -E 'model name|CPU part' /proc/cpuinfo || true
+          nproc
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build clang python3-venv python3-pip
+
+      - name: Clone bitnet.cpp (pinned to HEAD at job time, commit recorded)
+        run: |
+          git clone --recursive https://github.com/microsoft/BitNet.git /tmp/bitnet-cpp
+          cd /tmp/bitnet-cpp
+          echo "BITNET_CPP_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "LLAMA_CPP_COMMIT=$(git -C 3rdparty/llama.cpp rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Set up venv (huggingface_hub + gguf-py)
+        run: |
+          python3 -m venv /tmp/bitnet-venv
+          . /tmp/bitnet-venv/bin/activate
+          pip install -U "huggingface_hub[cli]" 2>/dev/null || pip install -U huggingface_hub
+          pip install /tmp/bitnet-cpp/3rdparty/llama.cpp/gguf-py
+
+      - name: Codegen ISA-specific LUT kernel (same params microsoft's setup_env.py uses for this model)
+        run: |
+          . /tmp/bitnet-venv/bin/activate
+          cd /tmp/bitnet-cpp
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            python3 utils/codegen_tl2.py --model bitnet_b1_58-3B --BM 160,320,320 --BK 96,96,96 --bm 32,32,32
+          else
+            python3 utils/codegen_tl1.py --model bitnet_b1_58-3B --BM 160,320,320 --BK 64,128,64 --bm 32,64,32
+          fi
+
+      - name: Build (clang, ISA-specific TL flag)
+        run: |
+          cd /tmp/bitnet-cpp
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            EXTRA=-DBITNET_X86_TL2=OFF
+          else
+            EXTRA=-DBITNET_ARM_TL1=OFF
+          fi
+          cmake -B build "$EXTRA" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_EXAMPLES=ON -DLLAMA_BUILD_COMMON=ON -DLLAMA_BUILD_SERVER=ON
+          cmake --build build --config Release -j"$(nproc)"
+
+      - name: Download official GGUF (i2_s, published checkpoint — not locally re-quantized)
+        run: |
+          . /tmp/bitnet-venv/bin/activate
+          cd /tmp/bitnet-cpp
+          export HF_HUB_DISABLE_XET=1
+          mkdir -p models/BitNet-b1.58-2B-4T
+          hf download microsoft/BitNet-b1.58-2B-4T-gguf --local-dir models/BitNet-b1.58-2B-4T \
+            || huggingface-cli download microsoft/BitNet-b1.58-2B-4T-gguf --local-dir models/BitNet-b1.58-2B-4T
+          sha256sum models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf | tee /tmp/gguf.sha256
+
+      - name: Check for any logit-dumping interface (finding, not a build step)
+        run: |
+          cd /tmp/bitnet-cpp
+          echo "=== searching vendored llama.cpp for a CLI/server path to raw (pre-softmax) logits ===" | tee /tmp/logits_finding.txt
+          grep -n "n_probs\|logprobs" -r 3rdparty/llama.cpp/common 3rdparty/llama.cpp/examples/main 3rdparty/llama.cpp/examples/server 2>/dev/null | tee -a /tmp/logits_finding.txt || true
+          echo "---" | tee -a /tmp/logits_finding.txt
+          echo "llama-cli (examples/main/main.cpp) prints no per-step logit or logprob values in any mode; llama_get_logits() is called internally for sampling only and is never printed. The server's /completion endpoint with n_probs>0 returns POST-SOFTMAX log-probabilities of the top-n candidate tokens, not the raw logit vector, and only for as many candidates as n_probs requests, not the full vocab. No stock interface (CLI flag or server field) exports a raw pre-softmax logit vector." | tee -a /tmp/logits_finding.txt
+
+      - name: Greedy decode at threads=1 and threads=4 (llama-cli, token ids)
+        run: |
+          cd /tmp/bitnet-cpp
+          BIN=build/bin/llama-cli
+          PROMPT="Once upon a time"
+          echo "bitnet.cpp commit: $BITNET_CPP_COMMIT"
+          echo "llama.cpp (vendored) commit: $LLAMA_CPP_COMMIT"
+          cat /tmp/gguf.sha256
+          for T in 1 4; do
+            echo "=== threads=$T ==="
+            "$BIN" -m models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf \
+              -n 32 -t "$T" -p "$PROMPT" -ngl 0 -c 2048 --temp 0 --top-k 1 --seed 42 \
+              --verbose-prompt -no-cnv 2>&1 | tee "/tmp/run_t${T}.log"
+          done
+
+      - name: Best-effort per-step top-1 logprob capture via llama-server (n_probs=1)
+        run: |
+          cd /tmp/bitnet-cpp
+          BIN=build/bin/llama-server
+          if [ ! -x "$BIN" ]; then
+            echo "llama-server binary not built; skipping logprob capture (finding: server target not produced by this build config)" | tee /tmp/logprob_status.txt
+            exit 0
+          fi
+          for T in 1 4; do
+            "$BIN" -m models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf -t "$T" -c 2048 --port 8080 &
+            SERVER_PID=$!
+            for i in $(seq 1 60); do
+              curl -s http://127.0.0.1:8080/health | grep -q '"status":"ok"' && break
+              sleep 1
+            done
+            curl -s http://127.0.0.1:8080/completion \
+              -H "Content-Type: application/json" \
+              -d '{"prompt":"Once upon a time","n_predict":32,"temperature":0,"top_k":1,"seed":42,"n_probs":1}' \
+              -o "/tmp/server_t${T}.json" || echo "server request failed at t=${T}" | tee -a /tmp/logprob_status.txt
+            kill "$SERVER_PID" 2>/dev/null || true
+            wait "$SERVER_PID" 2>/dev/null || true
+          done
+          echo "server logprob JSON captured (see /tmp/server_t*.json); these are top-1 POST-softmax log-probabilities, NOT raw logits" | tee -a /tmp/logprob_status.txt
+
+      - name: Extract token ids and hash
+        run: |
+          cd /tmp/bitnet-cpp
+          for T in 1 4; do
+            grep -E "^\s*[0-9]+ ->" "/tmp/run_t${T}.log" > "/tmp/tokids_t${T}.txt" || true
+            echo "=== threads=$T token id lines (raw, see full log for context) ==="
+            cat "/tmp/tokids_t${T}.txt" || echo "(none matched; see full run log for token stream)"
+            echo "=== threads=$T SHA-256 of full stdout/stderr transcript ==="
+            sha256sum "/tmp/run_t${T}.log"
+            if [ -s "/tmp/server_t${T}.json" ]; then
+              echo "=== threads=$T SHA-256 of server logprob JSON (top-1 logprob per step) ==="
+              sha256sum "/tmp/server_t${T}.json"
+              python3 "$GITHUB_WORKSPACE/scripts/e17_2_logprob_digest.py" "$T" "/tmp/server_t${T}.json"
+            fi
+          done
+
+      - name: Assemble log artifact
+        run: |
+          mkdir -p docs/hardware_logs
+          {
+            echo "# E17.2 bitnet.cpp cross-ISA leg: ${{ matrix.arch }} (GitHub Actions ${{ matrix.runner }})"
+            echo "# generated by workflow e17-2-bitnetcpp-crossisa, run $GITHUB_RUN_ID, job ${{ matrix.arch }}"
+            echo "uname -m: $(uname -m)"
+            grep -m1 -E 'model name|CPU part' /proc/cpuinfo || true
+            echo "bitnet.cpp commit: $BITNET_CPP_COMMIT"
+            echo "llama.cpp (vendored) commit: $LLAMA_CPP_COMMIT"
+            cat /tmp/gguf.sha256
+            echo "--- logit-dumping-interface finding ---"
+            cat /tmp/logits_finding.txt
+            echo "--- server logprob capture status ---"
+            cat /tmp/logprob_status.txt 2>/dev/null || echo "(no status file)"
+            for T in 1 4; do
+              echo "--- threads=$T full llama-cli run log ---"
+              cat "/tmp/run_t${T}.log"
+              echo "--- threads=$T transcript sha256 ---"
+              sha256sum "/tmp/run_t${T}.log"
+              if [ -s "/tmp/server_t${T}.json" ]; then
+                echo "--- threads=$T server logprob JSON sha256 ---"
+                sha256sum "/tmp/server_t${T}.json"
+              fi
+            done
+          } > "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_github_ci_2026-08-28.log"
+          cat "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_github_ci_2026-08-28.log"
+
+      - name: Job summary
+        run: |
+          {
+            echo "### E17.2 — bitnet.cpp cross-ISA leg: ${{ matrix.arch }}"
+            echo ""
+            echo "| threads | token-transcript sha256 (first 16 hex) |"
+            echo "|---|---|"
+            for T in 1 4; do
+              H=$(sha256sum "/tmp/run_t${T}.log" | cut -c1-16)
+              echo "| $T | $H |"
+            done
+            echo ""
+            echo "No raw pre-softmax logit vector is available from stock bitnet.cpp/llama.cpp (see logit-dumping-interface finding in the uploaded log)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload log + server-json artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: e17-2-bitnetcpp-${{ matrix.arch }}-log
+          path: |
+            docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_github_ci_2026-08-28.log
+            /tmp/server_t*.json
+          if-no-files-found: warn
