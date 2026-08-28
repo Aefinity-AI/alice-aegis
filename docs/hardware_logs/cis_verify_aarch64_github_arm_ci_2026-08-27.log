@@ -1,0 +1,47 @@
+cis-verify (standalone verifier) on aarch64 AND x86_64 — GitHub hosted runners ubuntu-24.04-arm / ubuntu-24.04, workflow .github/workflows/arm-digest.yml run 33130091795 (branch cm/ci-cis-verify @9105821, merged to main) — 2026-08-27 (UTC 2026-08-28T00:33)
+IDENTITY EVIDENCE ONLY (Rule A): cloud runners, no timing is a result. Machine named as precisely as the platform allows (uname -m asserted in-job = aarch64).
+Captured with: gh run view 33130091795 --log; lines below are the verbatim job log lines for the cis-verify steps (ANSI stripped) plus the uname assertion; the complete log is retained by GitHub at https://github.com/Aefinity-AI/alice-aegis/actions/runs/33130091795
+
+== uname assertion (aarch64 job) ==
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	﻿2026-08-28T00:33:28.8256795Z ##[group]Run uname -m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-28T00:33:28.8258214Z uname -m
+aarch64 — CIS-1 selftest digest	Confirm this is really aarch64 (the whole point)	2026-08-28T00:33:28.8259134Z test "$(uname -m)" = "aarch64"
+
+== aarch64 job: cis-verify steps ==
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:45.5505250Z grep -q 'CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true' cis-verify-test.log || {
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9489790Z      Running unittests src/lib.rs (cis-verify/target/release/deps/cis_verify-d37489ae8575ebdb)
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9590897Z test result: ok. 81 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9592046Z      Running unittests src/bin/cis-verify.rs (cis-verify/target/release/deps/cis_verify-465a930983c7b2e0)
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9596664Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9598977Z      Running tests/artifact_hash_golden.rs (cis-verify/target/release/deps/artifact_hash_golden-f589121d6ff5d3ae)
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9971131Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9972353Z      Running tests/selftest.rs (cis-verify/target/release/deps/selftest-1ecc591786d4eb0e)
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9983783Z CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9984617Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:47.9985575Z      Running tests/verify_golden.rs (cis-verify/target/release/deps/verify_golden-1c363ac7423bc390)
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:48.7047849Z test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — run test suite on aarch64	2026-08-28T00:33:49.5994099Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — CLI verifies the golden receipt on aarch64	2026-08-28T00:33:49.6450067Z grep -q 'CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true' cis-verify-test.log && grep -q 'VERIFY PASS' cis-verify-
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — CLI verifies the golden receipt on aarch64	2026-08-28T00:33:49.6451265Z   echo '::error::cis-verify (standalone verifier) CLI did not print VERIFY PASS on the golden receipt on aarch64 — 
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — CLI verifies the golden receipt on aarch64	2026-08-28T00:33:49.6452660Z echo "standalone cis-verify CLI reproduces VERIFY PASS on $(uname -m)."
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — CLI verifies the golden receipt on aarch64	2026-08-28T00:33:49.6665500Z      Running `cis-verify/target/release/cis-verify tests/golden/witness_v1_m7_once64.receipt model-lab/tinybit/m7_fin
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — CLI verifies the golden receipt on aarch64	2026-08-28T00:33:50.3675873Z VERIFY PASS
+aarch64 — CIS-1 selftest digest	cis-verify (standalone verifier) — CLI verifies the golden receipt on aarch64	2026-08-28T00:33:50.3714393Z standalone cis-verify CLI reproduces VERIFY PASS on aarch64.
+
+== x86_64 job: cis-verify steps ==
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — run test suite on x86_64	2026-08-28T00:33:37.7547113Z grep -q 'CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true' cis-verify-test.log || {
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — run test suite on x86_64	2026-08-28T00:33:40.1006652Z test result: ok. 81 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — run test suite on x86_64	2026-08-28T00:33:40.1016255Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — run test suite on x86_64	2026-08-28T00:33:40.1407100Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — run test suite on x86_64	2026-08-28T00:33:40.1422150Z CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — run test suite on x86_64	2026-08-28T00:33:40.1422816Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — run test suite on x86_64	2026-08-28T00:33:41.2098252Z test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — run test suite on x86_64	2026-08-28T00:33:41.9358741Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — CLI verifies the golden receipt on x86_64	2026-08-28T00:33:41.9438731Z grep -q 'CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true' cis-verify-test.log && grep -q 'VERIFY PASS' cis-
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — CLI verifies the golden receipt on x86_64	2026-08-28T00:33:41.9439614Z   echo '::error::cis-verify (standalone verifier) CLI did not print VERIFY PASS on the golden receipt on x86_6
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — CLI verifies the golden receipt on x86_64	2026-08-28T00:33:41.9440982Z echo "standalone cis-verify CLI reproduces VERIFY PASS on $(uname -m)."
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — CLI verifies the golden receipt on x86_64	2026-08-28T00:33:42.6646665Z VERIFY PASS
+x86_64 — same pins, same binary sources	cis-verify (standalone verifier) — CLI verifies the golden receipt on x86_64	2026-08-28T00:33:42.6685922Z standalone cis-verify CLI reproduces VERIFY PASS on x86_64.
+
+== run conclusion ==
+completed success sha=9105821d90093cd8434d36829c923a86d14fda06 created=2026-08-28T00:33:20Z
