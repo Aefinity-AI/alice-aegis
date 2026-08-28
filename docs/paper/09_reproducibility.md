@@ -58,6 +58,34 @@ table digests, the token-level decode digest, and the golden-receipt verificatio
 tests. The second runs the CLI directly against the golden receipt and prints `VERIFY PASS` (or
 `VERIFY FAIL (<field>)`) in about 1.4 seconds.
 
+**BitNet-2B cross-ISA CI (`bitnet2b-receipt.yml`, A38, A39).** The BitNet-2B artifacts (~745 MB
+combined) are too large to commit; they are attached as release assets on tag
+`artifacts-bitnet2b-2026-08-27` and downloaded fresh by every job with
+`gh release download artifacts-bitnet2b-2026-08-27`, then hash-checked against the pinned
+SHA-256s before use. `.github/workflows/bitnet2b-receipt.yml` runs on every push to `main`, on
+both `ubuntu-24.04` and `ubuntu-24.04-arm`:
+
+```
+cargo build --release --example cis_decode  --manifest-path aegis-linux/Cargo.toml
+cargo build --release --example cis_witness --manifest-path aegis-linux/Cargo.toml
+M=2b-artifacts
+./aegis-linux/target/release/examples/cis_decode "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" 64 "Once upon a time"
+
+./aegis-linux/target/release/examples/cis_witness verify \
+  "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" \
+  tests/golden/witness_v1_bitnet2b_once64.receipt
+
+cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin cis-verify -- \
+  tests/golden/witness_v1_bitnet2b_once64.receipt \
+  "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin"
+```
+
+The first two lines build the reference drivers; `cis_decode` reproduces the BitNet-2B token-level
+digest (`cab11400d737ac4a`); `cis_witness verify` and the standalone `cis-verify` CLI each
+independently verify the same golden receipt. The aarch64 job running the same four commands is
+the source for A38 (the standalone verifier's aarch64 leg) and A39 (the receipt's cross-ISA
+verification at 2B scale); the x86-64 job in the same run prints the identical lines.
+
 **Append-only evidence (Rule C).** `tests/golden/` and `docs/hardware_logs/`
 are append-only: every figure in this paper traces to a file under one of
 these two paths, and no existing file under either is ever edited, only

@@ -71,6 +71,23 @@ transcribing the spec with the reference source visible, not a clean-room reimpl
 sense A31 uses that term — it is evidence that the spec and the receipt format are re-implementable
 without the engine's SIMD/dispatch code, not an independent third-party audit (§8, A37).
 
+**Both verifiers cross the ISA boundary, on both receipts (A38, A39).** `cis-verify`'s standalone
+verification (A37) now also runs on aarch64: built and run on the GitHub `ubuntu-24.04-arm`
+runner, it reproduces `CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`, passes its full suite
+(81 unit + integration tests), and prints `VERIFY PASS` on the x86-minted M7 golden receipt
+`tests/golden/witness_v1_m7_once64.receipt`; the x86-64 job in the same run prints the identical
+lines. Both are now standing CI gates in `arm-digest.yml` (A38). The same pattern holds at
+BitNet-2B production scale: the receipt minted on x86 (`tests/golden/witness_v1_bitnet2b_once64.receipt`,
+cis-digest `cab11400d737ac4a`, chain
+`917ddf5fea9a848876ddb527d5d5216607637201d6514b94563977009558af32`, bound to artifact
+`facb3597…`) verifies bit-for-bit on the GitHub `ubuntu-24.04-arm` runner by two independent
+implementations at once: the reference `cis_witness verify` prints `VERIFY PASS`, and the
+standalone `cis-verify` (A37/A38) independently prints `VERIFY PASS` on the same receipt; the
+x86-64 job prints the identical lines. This is a standing CI gate, `bitnet2b-receipt.yml`, on
+every push to `main` (A39). Together, A38 and A39 close the receipt-side counterpart of §4's A39
+digest result: the same receipt, at production scale, checked by two independent implementations,
+on both ISAs, on every push.
+
 **Where a reviewer should push.** Both physical legs share one structural gap: the verifier
 prints no CPU identifier, so the receipt proves what was computed, not unassisted which box
 computed it. For the Dell leg, a differing firmware memory map gives log-internal evidence; for

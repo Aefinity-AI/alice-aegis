@@ -20,7 +20,9 @@ and sign-flips: the integer path is 25% slower than scalar float on Broadwell-U 
 Goldmont Plus [A26]; at parity SIMD, the integer AVX2 kernel is 2.94× faster than the float AVX2
 kernel [A27]. Quality cost, gated
 in advance, closed last: the complete all-integer forward pass on a 2-billion-parameter ternary
-model costs +0.1239% perplexity against float — 40× inside a preregistered +5% kill line [A35].
+model costs +0.1239% perplexity against float — 40× inside a preregistered +5% kill line [A35]. At
+that same 2-billion-parameter scale, a full-integer decode receipt minted on x86 verifies
+bit-for-bit on aarch64 in public CI, checked by two independent verifiers [A39].
 
 ---
 
@@ -88,19 +90,24 @@ with the raw log it was taken from (Table 3):
    the one op not carrying the spec §5.6 per-vector block exponent that the hybrid boundary already
    applied. The fix — an RNE-rounded block exponent on the ACT-I output — is ratified as spec
    erratum v1.0.3; both pinned conformance digests are unchanged.
-6. **The token-level identity claim now reaches production scale, on one ISA.** A complete
+6. **The token-level identity claim now reaches production scale, across both ISAs.** A complete
    64-token greedy decode of the 2-billion-parameter BitNet-2B model, run in the FullInt
    configuration, prints one digest, reproduced identically across two sequential runs on x86-64:
    `CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint`, and the generated
    text is coherent English (A36). This is the x86 anchor for the BitNet-2B cross-ISA leg — the 2B
-   counterpart of A29 — but the aarch64 leg has not yet been run.
+   counterpart of A29 — and the same decode digest, the decode receipt built on it, and the
+   receipt's verification all reproduce bit-for-bit on the GitHub aarch64 runner in public CI (A39).
 7. **A third, independent implementation verifies the receipt without the engine.**
    `cis-verify`, a standalone crate with zero external runtime dependencies and no dependency on
    `aegis-core`, reproduces both pinned conformance digests and verifies the golden receipt — all
    six checks (parse, three artifact hashes, prompt tokenization, the 64-step token sequence, the
    cis-digest, and the witness chain) — in about 1.4 seconds, with tamper tests that fail by naming
-   the corrupted field (A37). Honest scope: this was an LM-agent transcription of the spec with the
-   reference source visible, not a clean-room audit (§8).
+   the corrupted field (A37). The verifier itself crosses the ISA boundary: built and run on the
+   GitHub `ubuntu-24.04-arm` runner, the same `cis-verify` prints
+   `CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`, passes its full suite (81 unit +
+   integration tests), and prints `VERIFY PASS` on the x86-minted golden receipt — both the x86-64
+   and aarch64 jobs are now standing CI gates (A38). Honest scope: this was an LM-agent
+   transcription of the spec with the reference source visible, not a clean-room audit (§8).
 
 We are equally explicit about what is *not* shown (§8): the clean-room implementers were
 language-model agents rather than third-party engineers; the physical-machine attribution of one
@@ -459,9 +466,17 @@ is byte-identical to the A21/A35 model, and the same log reproduces the A21/A35 
 full-integer perplexity figures exactly on this artifact, so the digest and those figures share one
 model. The generated text is coherent English ("…in a small town called Greenfield, there lived a
 young girl named Lily…"). This is the x86 anchor for the BitNet-2B cross-ISA leg — the 2B
-counterpart of A29 — but only the x86 leg exists so far: the aarch64 run has not been performed, so
-the cross-ISA claim A29 makes for the M7 model does not yet extend to BitNet-2B. Identity evidence
-only; no timing is quoted or quotable from it (A36).
+counterpart of A29. Identity evidence only; no timing is quoted or quotable from it (A36).
+
+**The BitNet-2B cross-ISA leg closes (A39).** The same `cis_decode` binary, run on the GitHub
+`ubuntu-24.04-arm` runner (`uname -m`=aarch64 asserted in-job, public run `33131590730`),
+reproduces the identical digest, `CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64
+mode=fullint`, against the same x86-minted BitNet-2B artifacts; the x86-64 job in the same run
+prints the identical line. This upgrades A36 from "x86 anchor, aarch64 leg open" to token-level
+identity confirmed on both ISAs — the cross-ISA claim A29 makes for the 7-layer M7 model now
+extends to the full 2-billion-parameter model. The digest is a standing CI gate
+(`bitnet2b-receipt.yml`, push to `main`): a future divergence on either ISA fails the build.
+Identity evidence only; no timing is quoted or quotable from it (A39).
 
 ---
 
@@ -537,6 +552,23 @@ receipt parse), not by silently passing. Honest scope, stated plainly: this was 
 transcribing the spec with the reference source visible, not a clean-room reimplementation in the
 sense A31 uses that term — it is evidence that the spec and the receipt format are re-implementable
 without the engine's SIMD/dispatch code, not an independent third-party audit (§8, A37).
+
+**Both verifiers cross the ISA boundary, on both receipts (A38, A39).** `cis-verify`'s standalone
+verification (A37) now also runs on aarch64: built and run on the GitHub `ubuntu-24.04-arm`
+runner, it reproduces `CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`, passes its full suite
+(81 unit + integration tests), and prints `VERIFY PASS` on the x86-minted M7 golden receipt
+`tests/golden/witness_v1_m7_once64.receipt`; the x86-64 job in the same run prints the identical
+lines. Both are now standing CI gates in `arm-digest.yml` (A38). The same pattern holds at
+BitNet-2B production scale: the receipt minted on x86 (`tests/golden/witness_v1_bitnet2b_once64.receipt`,
+cis-digest `cab11400d737ac4a`, chain
+`917ddf5fea9a848876ddb527d5d5216607637201d6514b94563977009558af32`, bound to artifact
+`facb3597…`) verifies bit-for-bit on the GitHub `ubuntu-24.04-arm` runner by two independent
+implementations at once: the reference `cis_witness verify` prints `VERIFY PASS`, and the
+standalone `cis-verify` (A37/A38) independently prints `VERIFY PASS` on the same receipt; the
+x86-64 job prints the identical lines. This is a standing CI gate, `bitnet2b-receipt.yml`, on
+every push to `main` (A39). Together, A38 and A39 close the receipt-side counterpart of §4's A39
+digest result: the same receipt, at production scale, checked by two independent implementations,
+on both ISAs, on every push.
 
 **Where a reviewer should push.** Both physical legs share one structural gap: the verifier
 prints no CPU identifier, so the receipt proves what was computed, not unassisted which box
@@ -781,10 +813,13 @@ integer path exists yet, and the README says so.
 obtained on hosted CI runners; the machine is named as precisely as the platform allows, and no
 timing is quoted or quotable from them.
 
-**BitNet-2B's token-level identity leg is x86-only.** A36 establishes the FullInt decode digest
-for BitNet-2B on x86-64, identical across two runs; the aarch64 leg that A29 provides for the
-smaller M7 model has not yet been run at 2B scale, so the cross-ISA claim in §4 does not yet
-extend to BitNet-2B.
+**BitNet-2B has not run on the unikernel or physical iron.** A38 and A39 close the gap the
+previous draft of this paper flagged here: the BitNet-2B decode digest (A36), the decode receipt
+built on it, and both independent verifiers (the reference `cis_witness` and the standalone
+`cis-verify`, A37/A38) now reproduce bit-for-bit on aarch64 in public CI, so the cross-ISA claim
+in §4 extends to BitNet-2B at production scale. What remains open is the boundary the M7 legs
+(A33, A34) already crossed: BitNet-2B has been run in the Linux userspace harness and in cloud CI,
+never on the bare-metal, no-OS unikernel or on physical iron (A39).
 
 **What the receipt does not do.** A receipt proves that a conforming computation over the bound
 artifacts produced the bound outputs. It does not prove which physical machine ran it (that is
@@ -859,6 +894,34 @@ table digests, the token-level decode digest, and the golden-receipt verificatio
 tests. The second runs the CLI directly against the golden receipt and prints `VERIFY PASS` (or
 `VERIFY FAIL (<field>)`) in about 1.4 seconds.
 
+**BitNet-2B cross-ISA CI (`bitnet2b-receipt.yml`, A38, A39).** The BitNet-2B artifacts (~745 MB
+combined) are too large to commit; they are attached as release assets on tag
+`artifacts-bitnet2b-2026-08-27` and downloaded fresh by every job with
+`gh release download artifacts-bitnet2b-2026-08-27`, then hash-checked against the pinned
+SHA-256s before use. `.github/workflows/bitnet2b-receipt.yml` runs on every push to `main`, on
+both `ubuntu-24.04` and `ubuntu-24.04-arm`:
+
+```
+cargo build --release --example cis_decode  --manifest-path aegis-linux/Cargo.toml
+cargo build --release --example cis_witness --manifest-path aegis-linux/Cargo.toml
+M=2b-artifacts
+./aegis-linux/target/release/examples/cis_decode "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" 64 "Once upon a time"
+
+./aegis-linux/target/release/examples/cis_witness verify \
+  "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" \
+  tests/golden/witness_v1_bitnet2b_once64.receipt
+
+cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin cis-verify -- \
+  tests/golden/witness_v1_bitnet2b_once64.receipt \
+  "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin"
+```
+
+The first two lines build the reference drivers; `cis_decode` reproduces the BitNet-2B token-level
+digest (`cab11400d737ac4a`); `cis_witness verify` and the standalone `cis-verify` CLI each
+independently verify the same golden receipt. The aarch64 job running the same four commands is
+the source for A38 (the standalone verifier's aarch64 leg) and A39 (the receipt's cross-ISA
+verification at 2B scale); the x86-64 job in the same run prints the identical lines.
+
 **Append-only evidence (Rule C).** `tests/golden/` and `docs/hardware_logs/`
 are append-only: every figure in this paper traces to a file under one of
 these two paths, and no existing file under either is ever edited, only
@@ -871,7 +934,7 @@ and can re-run the commands above to check it against live hardware anyway.
 # Table 3 — provenance
 
 Generated by `docs/paper/gen_table3.py` from `program/RESEARCH_LEDGER.md` rows
-A19-A37 and `docs/CIS1_PAPER_OUTLINE.md` §4-6. Do not hand-edit this file —
+A19-A39 and `docs/CIS1_PAPER_OUTLINE.md` §4-6. Do not hand-edit this file —
 edit `CLAIM_MAP` in the generator script and re-run it.
 
 Regenerate with:
@@ -880,7 +943,7 @@ Regenerate with:
 python3 docs/paper/gen_table3.py
 ```
 
-19 claims total, 19 with a verified existing primary log file.
+21 claims total, 21 with a verified existing primary log file.
 
 | Paper § | Claim (short) | Value | Ledger row | Machine | Provenance (path or CI run) | File exists? |
 |---|---|---|---|---|---|---|
@@ -903,6 +966,8 @@ python3 docs/paper/gen_table3.py
 | 6 | Bandwidth ceiling (engine context, not a CIS-1 claim) | peak seq. 11.19/10.95 GB/s (1T), 11.63/11.70 GB/s (4T) vs ternary stream 0.62 GB/s | A24 | Dell i5-5200U | `docs/hardware_logs/mech2colskip_L_dell_BOOTLOG_2026-08-01.txt` | yes |
 | 4 | Token-level FULL-INTEGER decode digest, BitNet-2B, x86-64 leg | digest cab11400d737ac4a, prompt_toks=4 gen_toks=64, identical on 2 runs, coherent text | A36 | i5-10210U crosvm | `docs/hardware_logs/cis_decode_bitnet2b_fullint_x86_i5-10210U_crosvm_2026-08-27.log` | yes |
 | 5 | Standalone third-party verifier (no engine dependency) reproduces both digests and verifies the golden receipt | CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field | A37 | i5-10210U crosvm | `docs/hardware_logs/cis_verify_standalone_tier2_tier3_golden_i5-10210U_crosvm_2026-08-27.log` | yes |
+| 5 | Standalone verifier crosses the ISA boundary in public CI | CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64 | A38 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_verify_aarch64_github_arm_ci_2026-08-27.log` | yes |
+| 4 | BitNet-2B decode receipt crosses the ISA boundary in public CI | digest cab11400d737ac4a reproduced on aarch64; cis_witness and standalone cis-verify both print VERIFY PASS | A39 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_decode_bitnet2b_receipt_crossisa_github_ci_2026-08-27.log` | yes |
 
 ---
 
