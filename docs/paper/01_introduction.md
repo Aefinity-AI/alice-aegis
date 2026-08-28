@@ -45,7 +45,9 @@ with the raw log it was taken from (Table 3):
 3. **The receipt crosses the ISA boundary and the operating-system boundary.** A receipt minted
    on x86 verifies on aarch64 in public CI (A32). The same receipt is re-derived by a unikernel
    that boots from UEFI firmware with no operating system present, on two physical machines —
-   one executing the AVX2 path, the other (which lacks AVX2) the scalar path (A33, A34).
+   one executing the AVX2 path, the other (which lacks AVX2) the scalar path (A33, A34). At
+   BitNet-2B production scale, the same unikernel re-derives the 2B receipt under QEMU/TCG
+   emulation — correctness/identity evidence only, not yet run on physical iron (A40).
 4. **Determinism is not the expensive part.** Measured on physical hardware, the integer semantics
    cost 25% against scalar floating point on a Broadwell-U core and are 4–14% *faster* on a
    Goldmont Plus core (A26); at parity vector width the integer AVX2 kernel is 2.94× faster than

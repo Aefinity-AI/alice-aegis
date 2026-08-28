@@ -49,13 +49,14 @@ integer path exists yet, and the README says so.
 obtained on hosted CI runners; the machine is named as precisely as the platform allows, and no
 timing is quoted or quotable from them.
 
-**BitNet-2B has not run on the unikernel or physical iron.** A38 and A39 close the gap the
-previous draft of this paper flagged here: the BitNet-2B decode digest (A36), the decode receipt
-built on it, and both independent verifiers (the reference `cis_witness` and the standalone
-`cis-verify`, A37/A38) now reproduce bit-for-bit on aarch64 in public CI, so the cross-ISA claim
-in §4 extends to BitNet-2B at production scale. What remains open is the boundary the M7 legs
-(A33, A34) already crossed: BitNet-2B has been run in the Linux userspace harness and in cloud CI,
-never on the bare-metal, no-OS unikernel or on physical iron (A39).
+**The 2B kit has been verified under QEMU but not yet on a physical machine.** A38 and A39
+closed the CI cross-ISA gap the previous draft of this paper flagged here, and A40 closes part of
+the boot-path gap that remained: the BitNet-2B decode receipt now re-derives bit-for-bit inside the
+UEFI unikernel, with no operating system present, under QEMU/TCG emulation. That is correctness and
+identity evidence only (Rule A) — no timing, and not a physical-machine result. What remains open
+is the boundary A33 and A34 already crossed, but only at M7 scale: those two legs verified the
+smaller M7 receipt on physical Dell and HP hardware, not BitNet-2B. The BitNet-2B kit has not yet
+booted on physical iron; a third physical machine (E7c) is staged for that leg.
 
 **What the receipt does not do.** A receipt proves that a conforming computation over the bound
 artifacts produced the bound outputs. It does not prove which physical machine ran it (that is
