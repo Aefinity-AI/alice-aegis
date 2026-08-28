@@ -82,6 +82,13 @@ with the raw log it was taken from (Table 3):
    integration tests), and prints `VERIFY PASS` on the x86-minted golden receipt — both the x86-64
    and aarch64 jobs are now standing CI gates (A38). Honest scope: this was an LM-agent
    transcription of the spec with the reference source visible, not a clean-room audit (§8).
+8. **The claim is about the spec, not the checkpoint.** With no engine change and no forge step,
+   the unmodified pipeline and the unmodified standalone verifier handle a second ternary
+   architecture that is not BitNet — Falcon-E-1B (24 layers, hidden 2048, SwiGLU/silu MLP,
+   16-head/2-KV-head grouped-query attention, 32,768-token vocabulary, untied embeddings):
+   full-integer perplexity cost +0.7012% against float, inside the same +5% kill line as A35, a
+   reproducible 64-token decode digest, and a receipt that verifies bit-for-bit by both the
+   reference `cis_witness` and the standalone `cis-verify` (A41).
 
 We are equally explicit about what is *not* shown (§8): the clean-room implementers were
 language-model agents rather than third-party engineers; the physical-machine attribution of one

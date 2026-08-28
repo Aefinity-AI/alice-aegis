@@ -63,6 +63,7 @@ CLAIM_MAP = [
     ("5", "Standalone verifier crosses the ISA boundary in public CI", "CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64", "A38"),
     ("4", "BitNet-2B decode receipt crosses the ISA boundary in public CI", "digest cab11400d737ac4a reproduced on aarch64; cis_witness and standalone cis-verify both print VERIFY PASS", "A39"),
     ("5", "BitNet-2B receipt re-derived by the unikernel under QEMU/TCG, no OS present", "STAGE V VERIFY PASS, cis-digest cab11400d737ac4a chain 917ddf5fea9a8488…, artifacts 3/3 hashes match", "A40"),
+    ("6", "CIS-1 generalizes to a second model family (Falcon-E-1B): quality, decode digest, and receipt", "full-int +0.7012% PPL (11.818673 vs 11.736378, 198 tokens); decode digest 3e21adb66d7a17d6; receipt chain 3ea8cc522efb28ef…, VERIFY PASS by cis_witness and standalone cis-verify", "A41"),
 ]
 
 CI_RUN_RE = re.compile(r"\bpublic run (\d+)\b")
@@ -189,6 +190,7 @@ def extract_machine(row_id: str, claim_text: str) -> str:
         "A38": "GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04",
         "A39": "GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04",
         "A40": "QEMU/TCG (crosvm dev host, i5-10210U)",
+        "A41": "i5-10210U crosvm",
     }
     return known.get(row_id, "UNKNOWN — check ledger row")
 
