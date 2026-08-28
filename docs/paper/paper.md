@@ -22,7 +22,8 @@ kernel [A27]. Quality cost, gated
 in advance, closed last: the complete all-integer forward pass on a 2-billion-parameter ternary
 model costs +0.1239% perplexity against float — 40× inside a preregistered +5% kill line [A35]. At
 that same 2-billion-parameter scale, a full-integer decode receipt minted on x86 verifies
-bit-for-bit on aarch64 in public CI, checked by two independent verifiers [A39].
+bit-for-bit on aarch64 in public CI, checked by two independent verifiers [A39], and the same 2B
+receipt is also re-derived by the unikernel booting with no OS, under QEMU [A40].
 
 ---
 
@@ -73,7 +74,9 @@ with the raw log it was taken from (Table 3):
 3. **The receipt crosses the ISA boundary and the operating-system boundary.** A receipt minted
    on x86 verifies on aarch64 in public CI (A32). The same receipt is re-derived by a unikernel
    that boots from UEFI firmware with no operating system present, on two physical machines —
-   one executing the AVX2 path, the other (which lacks AVX2) the scalar path (A33, A34).
+   one executing the AVX2 path, the other (which lacks AVX2) the scalar path (A33, A34). At
+   BitNet-2B production scale, the same unikernel re-derives the 2B receipt under QEMU/TCG
+   emulation — correctness/identity evidence only, not yet run on physical iron (A40).
 4. **Determinism is not the expensive part.** Measured on physical hardware, the integer semantics
    cost 25% against scalar floating point on a Broadwell-U core and are 4–14% *faster* on a
    Goldmont Plus core (A26); at parity vector width the integer AVX2 kernel is 2.94× faster than
@@ -570,6 +573,24 @@ every push to `main` (A39). Together, A38 and A39 close the receipt-side counter
 digest result: the same receipt, at production scale, checked by two independent implementations,
 on both ISAs, on every push.
 
+**The 2B receipt, re-derived by the unikernel with no OS, under QEMU (A40).** On 2026-08-27,
+`aegis-uefi.efi` booted under QEMU/OVMF (TCG, `-cpu max -m 2048`) from a 1024 MiB FAT32 kit image
+carrying the BitNet-2B artifacts — `MODEL.SAF` (522,831,917 B), `EMBED.BIN` (257,310,720 B),
+`VOCAB.BIN` (1,759,936 B) — and the golden BitNet-2B receipt. BOOTLOG.TXT records `STAGE 2: sizes
+OK model=522831917 embed=257310720 vocab=1759936`, `STAGE 4a`–`STAGE 4d` loading each artifact and
+the receipt, `STAGE 5: working heap online`, `CPUID: vendor=AuthenticAMD brand="QEMU TCG CPU
+version 2.5+"`, and `STAGE V: witness verify PASS — VERIFY PASS — this machine reproduced all 64
+decode steps' full logit vectors bit-for-bit, with no OS underneath`. The serial console shows
+`artifacts: 3/3 hashes match`, with receipt and local cis-digest `cab11400d737ac4a` and chain
+`917ddf5fea9a8488…` agreeing exactly — the same digest and chain prefix as the x86/aarch64 CI
+verifications above (A39). The loader, physical allocator (one contiguous ~732 MB claim), and DMA
+bounce path handled 782 MB of assets unchanged — no engine or firmware code change was needed;
+only the kit-image packaging script's 64 MiB size constant needed an `AEGIS_KIT_SIZE_MB` override.
+This extends A39 (2B receipt cross-ISA in CI) onto the boot path, and extends the M7-scale iron
+result (A33, A34) to BitNet-2B — but under QEMU/TCG emulation only: correctness/identity evidence
+(Rule A), no timing, and no physical-machine claim. A third physical machine (E7c) is staged for
+that leg.
+
 **Where a reviewer should push.** Both physical legs share one structural gap: the verifier
 prints no CPU identifier, so the receipt proves what was computed, not unassisted which box
 computed it. For the Dell leg, a differing firmware memory map gives log-internal evidence; for
@@ -813,13 +834,14 @@ integer path exists yet, and the README says so.
 obtained on hosted CI runners; the machine is named as precisely as the platform allows, and no
 timing is quoted or quotable from them.
 
-**BitNet-2B has not run on the unikernel or physical iron.** A38 and A39 close the gap the
-previous draft of this paper flagged here: the BitNet-2B decode digest (A36), the decode receipt
-built on it, and both independent verifiers (the reference `cis_witness` and the standalone
-`cis-verify`, A37/A38) now reproduce bit-for-bit on aarch64 in public CI, so the cross-ISA claim
-in §4 extends to BitNet-2B at production scale. What remains open is the boundary the M7 legs
-(A33, A34) already crossed: BitNet-2B has been run in the Linux userspace harness and in cloud CI,
-never on the bare-metal, no-OS unikernel or on physical iron (A39).
+**The 2B kit has been verified under QEMU but not yet on a physical machine.** A38 and A39
+closed the CI cross-ISA gap the previous draft of this paper flagged here, and A40 closes part of
+the boot-path gap that remained: the BitNet-2B decode receipt now re-derives bit-for-bit inside the
+UEFI unikernel, with no operating system present, under QEMU/TCG emulation. That is correctness and
+identity evidence only (Rule A) — no timing, and not a physical-machine result. What remains open
+is the boundary A33 and A34 already crossed, but only at M7 scale: those two legs verified the
+smaller M7 receipt on physical Dell and HP hardware, not BitNet-2B. The BitNet-2B kit has not yet
+booted on physical iron; a third physical machine (E7c) is staged for that leg.
 
 **What the receipt does not do.** A receipt proves that a conforming computation over the bound
 artifacts produced the bound outputs. It does not prove which physical machine ran it (that is
@@ -934,7 +956,7 @@ and can re-run the commands above to check it against live hardware anyway.
 # Table 3 — provenance
 
 Generated by `docs/paper/gen_table3.py` from `program/RESEARCH_LEDGER.md` rows
-A19-A39 and `docs/CIS1_PAPER_OUTLINE.md` §4-6. Do not hand-edit this file —
+A19-A40 and `docs/CIS1_PAPER_OUTLINE.md` §4-6. Do not hand-edit this file —
 edit `CLAIM_MAP` in the generator script and re-run it.
 
 Regenerate with:
@@ -943,7 +965,7 @@ Regenerate with:
 python3 docs/paper/gen_table3.py
 ```
 
-21 claims total, 21 with a verified existing primary log file.
+22 claims total, 22 with a verified existing primary log file.
 
 | Paper § | Claim (short) | Value | Ledger row | Machine | Provenance (path or CI run) | File exists? |
 |---|---|---|---|---|---|---|
@@ -968,6 +990,7 @@ python3 docs/paper/gen_table3.py
 | 5 | Standalone third-party verifier (no engine dependency) reproduces both digests and verifies the golden receipt | CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field | A37 | i5-10210U crosvm | `docs/hardware_logs/cis_verify_standalone_tier2_tier3_golden_i5-10210U_crosvm_2026-08-27.log` | yes |
 | 5 | Standalone verifier crosses the ISA boundary in public CI | CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64 | A38 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_verify_aarch64_github_arm_ci_2026-08-27.log` | yes |
 | 4 | BitNet-2B decode receipt crosses the ISA boundary in public CI | digest cab11400d737ac4a reproduced on aarch64; cis_witness and standalone cis-verify both print VERIFY PASS | A39 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_decode_bitnet2b_receipt_crossisa_github_ci_2026-08-27.log` | yes |
+| 5 | BitNet-2B receipt re-derived by the unikernel under QEMU/TCG, no OS present | STAGE V VERIFY PASS, cis-digest cab11400d737ac4a chain 917ddf5fea9a8488…, artifacts 3/3 hashes match | A40 | QEMU/TCG (crosvm dev host, i5-10210U) | `docs/hardware_logs/unikernel_bitnet2b_verify_qemu_tcg_2026-08-27.log` | yes |
 
 ---
 

@@ -88,6 +88,24 @@ every push to `main` (A39). Together, A38 and A39 close the receipt-side counter
 digest result: the same receipt, at production scale, checked by two independent implementations,
 on both ISAs, on every push.
 
+**The 2B receipt, re-derived by the unikernel with no OS, under QEMU (A40).** On 2026-08-27,
+`aegis-uefi.efi` booted under QEMU/OVMF (TCG, `-cpu max -m 2048`) from a 1024 MiB FAT32 kit image
+carrying the BitNet-2B artifacts — `MODEL.SAF` (522,831,917 B), `EMBED.BIN` (257,310,720 B),
+`VOCAB.BIN` (1,759,936 B) — and the golden BitNet-2B receipt. BOOTLOG.TXT records `STAGE 2: sizes
+OK model=522831917 embed=257310720 vocab=1759936`, `STAGE 4a`–`STAGE 4d` loading each artifact and
+the receipt, `STAGE 5: working heap online`, `CPUID: vendor=AuthenticAMD brand="QEMU TCG CPU
+version 2.5+"`, and `STAGE V: witness verify PASS — VERIFY PASS — this machine reproduced all 64
+decode steps' full logit vectors bit-for-bit, with no OS underneath`. The serial console shows
+`artifacts: 3/3 hashes match`, with receipt and local cis-digest `cab11400d737ac4a` and chain
+`917ddf5fea9a8488…` agreeing exactly — the same digest and chain prefix as the x86/aarch64 CI
+verifications above (A39). The loader, physical allocator (one contiguous ~732 MB claim), and DMA
+bounce path handled 782 MB of assets unchanged — no engine or firmware code change was needed;
+only the kit-image packaging script's 64 MiB size constant needed an `AEGIS_KIT_SIZE_MB` override.
+This extends A39 (2B receipt cross-ISA in CI) onto the boot path, and extends the M7-scale iron
+result (A33, A34) to BitNet-2B — but under QEMU/TCG emulation only: correctness/identity evidence
+(Rule A), no timing, and no physical-machine claim. A third physical machine (E7c) is staged for
+that leg.
+
 **Where a reviewer should push.** Both physical legs share one structural gap: the verifier
 prints no CPU identifier, so the receipt proves what was computed, not unassisted which box
 computed it. For the Dell leg, a differing firmware memory map gives log-internal evidence; for
