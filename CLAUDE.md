@@ -157,7 +157,7 @@ Rules A and B as binding on the result.
 | `PostToolUse` | `Write`/`Edit`/`MultiEdit` | `hooks/integrity_gate.sh`: edited `.rs` must not print numbers it did not compute |
 | `SessionStart` | new / compacted session | re-injects `.claude/rules/invariants.md` |
 
-`git push` and `gh pr create` require explicit approval.
+`git push` / merges to main: under Justin's standing authorization (2026-08-27) Claude may push and merge when CI digest gates are green and Rule B holds; ledger rows and spec errata likewise. Money, legal filings, outreach to named people still need Justin.
 
 > Note: this file replaced an earlier generic dev-loop protocol. That version is
 > recoverable at commit `5b69327`.
