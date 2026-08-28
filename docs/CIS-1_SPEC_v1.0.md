@@ -1,4 +1,4 @@
-# CIS-1 — Canonical Integer Semantics for Transformer Inference, v1.0.2
+# CIS-1 — Canonical Integer Semantics for Transformer Inference, v1.0.3
 
 **Status: FROZEN 2026-08-07; v1.0.1 + v1.0.2 errata 2026-08-08** (wording and
 provenance corrections from a post-publication adversarial review — §11
@@ -257,6 +257,17 @@ On the Q.20 grid before re-quantization (**ratified, replacing** the draft's
   (`g ≥ 0: rne(2⁶²/(2³¹+t))`; `g < 0: rne(t·2³¹/(2³¹+t))`; both give exactly
   2³⁰ at g = 0), then `rne(g·σ/2³¹)` and `rne(·u/2²⁰)`.
 
+**Block exponent on the ACT-I output (v1.0.3 erratum, normative).** After the
+elementwise product lands on Q.F, a conforming engine MUST apply the §5.6
+per-vector block exponent to the ACT-I output vector before it enters NORMQ /
+QUANT-ACT: with `b = bits(max|v|)` (bit length of the largest magnitude),
+`shift = max(0, b − 49)`, every element is RNE-right-shifted by `shift` and the
+vector is carried on grid `G = F − shift`, with `G` passed to the following
+NORMQ exactly as at the container boundary (§5.6). When `max|v| < 2⁴⁹` this is
+the identity (`G = F`), so every v1.0 golden is unchanged. Rationale (ledger
+A35): BitNet-2B relu² products exceed 2⁵⁰ on Q.20 (52–55 bits observed); the
+hybrid boundary already carried this contract and the all-integer path did not.
+
 ### 5.11 ARGMAX
 
 Ties (exact integer equality on the `i64` logits) break to the **lowest
@@ -373,7 +384,7 @@ row in the public research ledger:
   (`cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log`);
   production-scale ternary model (BitNet-2B) +0.74% in the
   integer-dominant *hybrid* configuration (f32 attention — outside §7
-  conformance; ledger A21). 2B full-integer quality is not yet measured.
+  conformance; ledger A21). 2B full-integer quality MEASURED (2026-08-27, ledger A35): +0.1239% vs float, inside the +5% line, two runs identical — after the v1.0.3 ACT-I block-exponent erratum; before it the all-integer path panicked on the NORMQ residual headroom (A35, negative half).
 
 ## 10. Not claimed by v1.0
 
@@ -394,6 +405,13 @@ row in the public research ledger:
 
 ## 11. Version history
 
+- **v1.0.3 (2026-08-27)** — erratum from the first production-scale
+  full-integer run (ledger A35): §5.10 ACT-I output now carries the §5.6
+  per-vector block exponent (`shift = max(0, bits(max|v|) − 49)`, `G = F −
+  shift`, `G` threaded to NORMQ). Identity at M7 ranges. Found by E1/E1b:
+  BitNet-2B relu² products reach 52–55 bits on Q.20 and tripped the NORMQ
+  `|h| < 2⁵⁰` precondition; attention re-entry was exact. §9 updated.
+  **Both conformance digests unchanged.**
 - **v1.0.2 (2026-08-08)** — errata from the clean-room sufficiency test
   (ledger A31: two independent implementations, spec text as sole source,
   both reproduce the Tier-2 digest — the v1.0.1 §5.4 procedure held on

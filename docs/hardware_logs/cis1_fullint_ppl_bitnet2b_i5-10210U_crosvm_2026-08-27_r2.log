@@ -1,0 +1,37 @@
+CIS-1 — BitNet-2B leg: float vs hybrid-int vs FULL-INTEGER teacher-forced PPL — 2026-08-27
+Machine: dev Chromebook i5-10210U (Comet Lake) under crosvm — QUALITY NUMBERS ONLY (Rule A: any wall-time below is incidental, not a result).
+Purpose: close spec §9 'BitNet-2B full-integer quality not yet measured'. Kill line: +5% relative PPL vs same-run float (preregistered, E2).
+Binary: aegis-eval release built at main 325ab2d; command: aegis-eval <MODEL> <EMBED> <VOCAB> test.txt 200 --cis-full  (no timing wrapper; RAM avail at start: 1237 MB, swap 0)
+Operator: Claudius Maximus (Fable), unattended, nice -n 10; box shared with a Claude session (quality-only run, permitted).
+
+== artifact identities ==
+53586af0856e141e8abb93fd434a9dc28932dfd77181eed44ec6ad3f0c689053  aegis_pruned_model.safetensors
+e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077  aegis-forge/embed.bin
+5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae  aegis-forge/vocab.bin
+d790b833ef8cf03a90db7bf1271b7520b83c45ce07ba3c1a9699df81e239eca0  test.txt
+(identical to docs/hardware_logs/cis1_e2_bitnet2b_int_vs_float_ppl_i5-10210U_crosvm_2026-08-01.log)
+
+== raw transcripts (two sequential runs) ==
+=================== RUN 1 ===================
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: test.txt | sample: 200 tokens
+
+thread 'main' (65962) panicked at /home/justinbrianthompson/projects/alice-aegis/aegis-core/src/cis_infer.rs:313:9:
+normq: residual out of range
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+run1 exit=101
+=================== RUN 2 ===================
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: test.txt | sample: 200 tokens
+
+thread 'main' (68884) panicked at /home/justinbrianthompson/projects/alice-aegis/aegis-core/src/cis_infer.rs:313:9:
+normq: residual out of range
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+run2 exit=101
+=== E1 finished 2026-08-27T18:00:45-05:00 ===
