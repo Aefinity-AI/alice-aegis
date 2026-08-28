@@ -51,6 +51,45 @@ digests reported throughout this paper, are unchanged. The A21 caveats
 (pruned vocabulary, 200-token window, not cross-comparable, no timing) apply
 identically to this figure.
 
+## Generalization to a second model family
+
+Every quality and identity figure above was measured on one architecture family (BitNet/M7's
+squared-ReLU MLP, tied embeddings). A41 tests whether CIS-1 is a property of the spec or an
+artifact of that one family's numerics, by running the unmodified pipeline, unmodified, on
+Falcon-E-1B — a ternary transformer that is **not** BitNet: 24 layers, hidden 2048, grouped-query
+attention with 16 query heads and 2 KV heads, a SwiGLU/silu MLP (intermediate size 9216) in place
+of BitNet's squared-ReLU, untied input/output embeddings, a 32,768-token vocabulary, and
+`rope_theta` 1e6. The checkpoint is the public `tiiuae/Falcon-E-1B-Instruct` (TII Falcon-LLM
+license); model weights are not redistributed here — only the receipt, artifact hashes, and logs
+are (A41).
+
+No engine code changed and no forge step ran to make this work: the packed artifact's
+`__metadata__.aegis_config` was already present, and the A35 ACT-I block-exponent fix did not
+trigger for this model (A41). Teacher-forced on 198 scored tokens, i5-10210U crosvm: float PPL
+**11.736378**, hybrid-int PPL **11.823613 (+0.7433%)**, full-integer PPL **11.818673 (+0.7012%)**
+— inside the same preregistered +5% kill line as A35, and, as with A35, closer to float than the
+hybrid path. Hybrid and full-integer argmax digests are `0x6988214C293A5A8F` and
+`0x4F90C9C906D6A041` respectively (A41). Falcon-E-1B's vocabulary (32,768 tokens, full source
+vocabulary) differs from BitNet-2B's pruned tokenizer, so this perplexity is not comparable to the
+A19–A21/A35 figures above, or to any other model's perplexity in this paper — as with every other
+quality figure here, only the internal float-vs-integer delta, measured in the same run with the
+same binary, is the claim.
+
+The unmodified `cis_decode` pipeline prints `CIS_DECODE digest=3e21adb66d7a17d6 prompt_toks=4
+gen_toks=64 mode=fullint` on this model, identical across two sequential runs, with the generated
+text a coherent English continuation. A receipt, `tests/golden/witness_v1_falcon_e_1b_once64.receipt`
+(chain `3ea8cc522efb28ef…`), mints and verifies bit-for-bit by both the reference `cis_witness`
+(`VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain
+bit-for-bit`) and, independently, the standalone `cis-verify` (A37/A38) — all six checks (receipt
+parse, the three artifact hashes, prompt tokenization, the 64-step token-id sequence, the
+cis-digest, and the witness chain) pass (A41).
+
+The result: the same spec text, the same unmodified engine, and the same standalone verifier
+proven against BitNet/M7 above hold, bit-for-bit, on an architecturally distinct ternary model —
+different attention shape, different MLP nonlinearity, different vocabulary, untied embeddings —
+with no engine change and no forge step. This is evidence the claim is about the spec, not one
+checkpoint (A41).
+
 ## Cost
 
 CIS-1's throughput cost was measured directly rather than assumed, on two
@@ -124,6 +163,8 @@ above.
 | +0.0637% | Full-integer PPL cost, M7 (5.643085 vs 5.639491) | i5-10210U crosvm | A20 |
 | +0.7408% | **HYBRID**-path (f32 attention) PPL cost, BitNet-2B (30.934140 vs 30.706665) | i5-10210U crosvm | A21 |
 | +0.1239% | **FULL-INTEGER**-path PPL cost, BitNet-2B, after v1.0.3 erratum (30.744724 vs 30.706665) | i5-10210U crosvm | A35 |
+| +0.7433% | HYBRID-path PPL cost, Falcon-E-1B (11.823613 vs 11.736378) | i5-10210U crosvm | A41 |
+| +0.7012% | FULL-INTEGER-path PPL cost, Falcon-E-1B (11.818673 vs 11.736378) | i5-10210U crosvm | A41 |
 | 1.248× | Scalar integer/float throughput ratio, C/B | Dell i5-5200U (Broadwell-U) | A26 |
 | 0.961× | Scalar integer/float throughput ratio, C/B | HP N4020 (Gemini Lake) | A26 |
 | 4.61× × 1.248× | Absent-SIMD × semantics decomposition | Dell i5-5200U | A26 |

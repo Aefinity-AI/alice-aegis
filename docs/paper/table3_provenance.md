@@ -10,7 +10,7 @@ Regenerate with:
 python3 docs/paper/gen_table3.py
 ```
 
-22 claims total, 22 with a verified existing primary log file.
+23 claims total, 23 with a verified existing primary log file.
 
 | Paper § | Claim (short) | Value | Ledger row | Machine | Provenance (path or CI run) | File exists? |
 |---|---|---|---|---|---|---|
@@ -36,4 +36,5 @@ python3 docs/paper/gen_table3.py
 | 5 | Standalone verifier crosses the ISA boundary in public CI | CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64 | A38 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_verify_aarch64_github_arm_ci_2026-08-27.log` | yes |
 | 4 | BitNet-2B decode receipt crosses the ISA boundary in public CI | digest cab11400d737ac4a reproduced on aarch64; cis_witness and standalone cis-verify both print VERIFY PASS | A39 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_decode_bitnet2b_receipt_crossisa_github_ci_2026-08-27.log` | yes |
 | 5 | BitNet-2B receipt re-derived by the unikernel under QEMU/TCG, no OS present | STAGE V VERIFY PASS, cis-digest cab11400d737ac4a chain 917ddf5fea9a8488…, artifacts 3/3 hashes match | A40 | QEMU/TCG (crosvm dev host, i5-10210U) | `docs/hardware_logs/unikernel_bitnet2b_verify_qemu_tcg_2026-08-27.log` | yes |
+| 6 | CIS-1 generalizes to a second model family (Falcon-E-1B): quality, decode digest, and receipt | full-int +0.7012% PPL (11.818673 vs 11.736378, 198 tokens); decode digest 3e21adb66d7a17d6; receipt chain 3ea8cc522efb28ef…, VERIFY PASS by cis_witness and standalone cis-verify | A41 | i5-10210U crosvm | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | yes |
 

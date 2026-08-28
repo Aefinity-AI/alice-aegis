@@ -23,7 +23,11 @@ in advance, closed last: the complete all-integer forward pass on a 2-billion-pa
 model costs +0.1239% perplexity against float — 40× inside a preregistered +5% kill line [A35]. At
 that same 2-billion-parameter scale, a full-integer decode receipt minted on x86 verifies
 bit-for-bit on aarch64 in public CI, checked by two independent verifiers [A39], and the same 2B
-receipt is also re-derived by the unikernel booting with no OS, under QEMU [A40].
+receipt is also re-derived by the unikernel booting with no OS, under QEMU [A40]. The same
+unmodified implementation and standalone verifier also handle a second ternary architecture —
+Falcon-E-1B, with a SwiGLU/silu MLP, 16-head/2-KV-head grouped-query attention, a 32,768-token
+vocabulary, and untied embeddings — inside the same +5% kill line, showing the claim is about the
+spec, not the checkpoint [A41].
 
 ---
 
@@ -111,6 +115,13 @@ with the raw log it was taken from (Table 3):
    integration tests), and prints `VERIFY PASS` on the x86-minted golden receipt — both the x86-64
    and aarch64 jobs are now standing CI gates (A38). Honest scope: this was an LM-agent
    transcription of the spec with the reference source visible, not a clean-room audit (§8).
+8. **The claim is about the spec, not the checkpoint.** With no engine change and no forge step,
+   the unmodified pipeline and the unmodified standalone verifier handle a second ternary
+   architecture that is not BitNet — Falcon-E-1B (24 layers, hidden 2048, SwiGLU/silu MLP,
+   16-head/2-KV-head grouped-query attention, 32,768-token vocabulary, untied embeddings):
+   full-integer perplexity cost +0.7012% against float, inside the same +5% kill line as A35, a
+   reproducible 64-token decode digest, and a receipt that verifies bit-for-bit by both the
+   reference `cis_witness` and the standalone `cis-verify` (A41).
 
 We are equally explicit about what is *not* shown (§8): the clean-room implementers were
 language-model agents rather than third-party engineers; the physical-machine attribution of one
@@ -217,6 +228,22 @@ without the prover/verifier asymmetry ZK and FHE approaches require. It
 attests *what was computed*, and is designed to compose with, not replace,
 platform attestation.
 
+**Bare-metal / no-OS LLM inference.** Running LLM inference directly in UEFI
+boot-services mode, without an operating system, is not unprecedented: a
+secondary report describes a from-scratch C tokenizer/weight-loader/tensor-
+math/inference stack running as a UEFI application on a Dell E6510, with no
+model, precision, or performance details given beyond an interactive chat
+demo and an admission that "optimization work has barely been done"
+(Insights, marvin-42.com, "Bare-Metal AI: Running LLM Inference Directly in
+UEFI, No OS or Kernel Required," Mar 2026 — itself a secondary report on an
+unlinked LocalLLaMA/Reddit project, not a primary technical writeup;
+UNVERIFIED beyond this secondary source). That project establishes UEFI as
+a viable host for LLM inference; it makes no claim of determinism,
+bit-exact reproducibility across ISAs, a cryptographic receipt, or
+independent third-party verification — the properties CIS-1 adds, and the
+ones the unikernel demonstration (§5) is built to exercise rather than the
+no-OS environment alone.
+
 **Conformance-by-digest as a design pattern.** Cryptographic standards
 have long used exactly this shape: NIST's Cryptographic Algorithm
 Validation Program (CAVP) validates a black-box implementation by feeding
@@ -242,6 +269,7 @@ reproduces the pinned digest or does not conform.
 - Karvonen et al., "DiFR: Inference Verification Despite Nondeterminism," arXiv:2511.20621 — https://arxiv.org/abs/2511.20621
 - Kim et al., "I-BERT: Integer-only BERT Quantization," arXiv:2101.01321 — https://arxiv.org/abs/2101.01321
 - Li and Gu, "I-ViT: Integer-only Quantization for Efficient Vision Transformer Inference," arXiv:2207.01405 — https://arxiv.org/abs/2207.01405
+- Insights (marvin-42.com), "Bare-Metal AI: Running LLM Inference Directly in UEFI, No OS or Kernel Required," Mar 2026 — https://insights.marvin-42.com/articles/bare-metal-ai-running-llm-inference-directly-in-uefi-no-os-or-kernel-required (secondary report, no primary source linked; UNVERIFIED beyond this source)
 - Danopoulos et al., "Taming the Exponential: A Fast Softmax Surrogate for Integer-Native Edge Inference," arXiv:2604.02292 — https://arxiv.org/abs/2604.02292 (UNVERIFIED beyond abstract)
 - Trusted Computing Group, "Overview of TCG Technologies for Device Identification and Attestation," v1.0 rev. 1.37 — https://trustedcomputinggroup.org/wp-content/uploads/Overview-of-TCG-Technologies-for-Device-Identification-and-Attestation-Version-1.0-Revision-1.37_5Feb24-2.pdf (content summary drawn from search index only; full text not machine-readable via fetch — UNVERIFIED beyond title/version)
 - NIST SP 800-155 (Initial Public Draft), "BIOS Integrity Measurement Guidelines" — https://csrc.nist.gov/pubs/sp/800/155/ipd
@@ -653,6 +681,45 @@ digests reported throughout this paper, are unchanged. The A21 caveats
 (pruned vocabulary, 200-token window, not cross-comparable, no timing) apply
 identically to this figure.
 
+## Generalization to a second model family
+
+Every quality and identity figure above was measured on one architecture family (BitNet/M7's
+squared-ReLU MLP, tied embeddings). A41 tests whether CIS-1 is a property of the spec or an
+artifact of that one family's numerics, by running the unmodified pipeline, unmodified, on
+Falcon-E-1B — a ternary transformer that is **not** BitNet: 24 layers, hidden 2048, grouped-query
+attention with 16 query heads and 2 KV heads, a SwiGLU/silu MLP (intermediate size 9216) in place
+of BitNet's squared-ReLU, untied input/output embeddings, a 32,768-token vocabulary, and
+`rope_theta` 1e6. The checkpoint is the public `tiiuae/Falcon-E-1B-Instruct` (TII Falcon-LLM
+license); model weights are not redistributed here — only the receipt, artifact hashes, and logs
+are (A41).
+
+No engine code changed and no forge step ran to make this work: the packed artifact's
+`__metadata__.aegis_config` was already present, and the A35 ACT-I block-exponent fix did not
+trigger for this model (A41). Teacher-forced on 198 scored tokens, i5-10210U crosvm: float PPL
+**11.736378**, hybrid-int PPL **11.823613 (+0.7433%)**, full-integer PPL **11.818673 (+0.7012%)**
+— inside the same preregistered +5% kill line as A35, and, as with A35, closer to float than the
+hybrid path. Hybrid and full-integer argmax digests are `0x6988214C293A5A8F` and
+`0x4F90C9C906D6A041` respectively (A41). Falcon-E-1B's vocabulary (32,768 tokens, full source
+vocabulary) differs from BitNet-2B's pruned tokenizer, so this perplexity is not comparable to the
+A19–A21/A35 figures above, or to any other model's perplexity in this paper — as with every other
+quality figure here, only the internal float-vs-integer delta, measured in the same run with the
+same binary, is the claim.
+
+The unmodified `cis_decode` pipeline prints `CIS_DECODE digest=3e21adb66d7a17d6 prompt_toks=4
+gen_toks=64 mode=fullint` on this model, identical across two sequential runs, with the generated
+text a coherent English continuation. A receipt, `tests/golden/witness_v1_falcon_e_1b_once64.receipt`
+(chain `3ea8cc522efb28ef…`), mints and verifies bit-for-bit by both the reference `cis_witness`
+(`VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain
+bit-for-bit`) and, independently, the standalone `cis-verify` (A37/A38) — all six checks (receipt
+parse, the three artifact hashes, prompt tokenization, the 64-step token-id sequence, the
+cis-digest, and the witness chain) pass (A41).
+
+The result: the same spec text, the same unmodified engine, and the same standalone verifier
+proven against BitNet/M7 above hold, bit-for-bit, on an architecturally distinct ternary model —
+different attention shape, different MLP nonlinearity, different vocabulary, untied embeddings —
+with no engine change and no forge step. This is evidence the claim is about the spec, not one
+checkpoint (A41).
+
 ## Cost
 
 CIS-1's throughput cost was measured directly rather than assumed, on two
@@ -726,6 +793,8 @@ above.
 | +0.0637% | Full-integer PPL cost, M7 (5.643085 vs 5.639491) | i5-10210U crosvm | A20 |
 | +0.7408% | **HYBRID**-path (f32 attention) PPL cost, BitNet-2B (30.934140 vs 30.706665) | i5-10210U crosvm | A21 |
 | +0.1239% | **FULL-INTEGER**-path PPL cost, BitNet-2B, after v1.0.3 erratum (30.744724 vs 30.706665) | i5-10210U crosvm | A35 |
+| +0.7433% | HYBRID-path PPL cost, Falcon-E-1B (11.823613 vs 11.736378) | i5-10210U crosvm | A41 |
+| +0.7012% | FULL-INTEGER-path PPL cost, Falcon-E-1B (11.818673 vs 11.736378) | i5-10210U crosvm | A41 |
 | 1.248× | Scalar integer/float throughput ratio, C/B | Dell i5-5200U (Broadwell-U) | A26 |
 | 0.961× | Scalar integer/float throughput ratio, C/B | HP N4020 (Gemini Lake) | A26 |
 | 4.61× × 1.248× | Absent-SIMD × semantics decomposition | Dell i5-5200U | A26 |
@@ -843,6 +912,19 @@ is the boundary A33 and A34 already crossed, but only at M7 scale: those two leg
 smaller M7 receipt on physical Dell and HP hardware, not BitNet-2B. The BitNet-2B kit has not yet
 booted on physical iron; a third physical machine (E7c) is staged for that leg.
 
+**Two model families is still two.** A41 shows the pipeline is not overfit to BitNet's specific
+shapes — it runs unmodified on Falcon-E-1B, a different attention shape (grouped-query, 16h/2kv),
+a different MLP nonlinearity (SwiGLU/silu vs. squared-ReLU), untied embeddings, and a different
+vocabulary — but it is one additional architecture, not a systematic sweep, and both families are
+BitNet-style ternary transformers within the class the frozen v1.0 spec targets (spec §3). The
+Falcon-E-1B perplexity figures inherit the same non-comparability caveat as A21/A35: its
+32,768-token vocabulary differs from BitNet-2B's pruned tokenizer, so the A41 PPL numbers are not
+comparable to any other model's PPL in this paper — only the internal float-vs-integer delta,
+measured in the same run with the same binary, is the claim. A harder, qualitatively different
+next target is a group-scaled GGUF ternary model — Ternary-Bonsai-27B — whose quantization scheme
+is not the per-tensor/per-block grid this spec's v1.0 §3 assumes; that generalization has not been
+attempted.
+
 **What the receipt does not do.** A receipt proves that a conforming computation over the bound
 artifacts produced the bound outputs. It does not prove which physical machine ran it (that is
 platform attestation's job), does not hide the model or the prompt (it is not a zero-knowledge
@@ -956,7 +1038,7 @@ and can re-run the commands above to check it against live hardware anyway.
 # Table 3 — provenance
 
 Generated by `docs/paper/gen_table3.py` from `program/RESEARCH_LEDGER.md` rows
-A19-A40 and `docs/CIS1_PAPER_OUTLINE.md` §4-6. Do not hand-edit this file —
+A19-A41 and `docs/CIS1_PAPER_OUTLINE.md` §4-6. Do not hand-edit this file —
 edit `CLAIM_MAP` in the generator script and re-run it.
 
 Regenerate with:
@@ -965,7 +1047,7 @@ Regenerate with:
 python3 docs/paper/gen_table3.py
 ```
 
-22 claims total, 22 with a verified existing primary log file.
+23 claims total, 23 with a verified existing primary log file.
 
 | Paper § | Claim (short) | Value | Ledger row | Machine | Provenance (path or CI run) | File exists? |
 |---|---|---|---|---|---|---|
@@ -991,6 +1073,7 @@ python3 docs/paper/gen_table3.py
 | 5 | Standalone verifier crosses the ISA boundary in public CI | CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64 | A38 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_verify_aarch64_github_arm_ci_2026-08-27.log` | yes |
 | 4 | BitNet-2B decode receipt crosses the ISA boundary in public CI | digest cab11400d737ac4a reproduced on aarch64; cis_witness and standalone cis-verify both print VERIFY PASS | A39 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_decode_bitnet2b_receipt_crossisa_github_ci_2026-08-27.log` | yes |
 | 5 | BitNet-2B receipt re-derived by the unikernel under QEMU/TCG, no OS present | STAGE V VERIFY PASS, cis-digest cab11400d737ac4a chain 917ddf5fea9a8488…, artifacts 3/3 hashes match | A40 | QEMU/TCG (crosvm dev host, i5-10210U) | `docs/hardware_logs/unikernel_bitnet2b_verify_qemu_tcg_2026-08-27.log` | yes |
+| 6 | CIS-1 generalizes to a second model family (Falcon-E-1B): quality, decode digest, and receipt | full-int +0.7012% PPL (11.818673 vs 11.736378, 198 tokens); decode digest 3e21adb66d7a17d6; receipt chain 3ea8cc522efb28ef…, VERIFY PASS by cis_witness and standalone cis-verify | A41 | i5-10210U crosvm | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | yes |
 
 ---
 
