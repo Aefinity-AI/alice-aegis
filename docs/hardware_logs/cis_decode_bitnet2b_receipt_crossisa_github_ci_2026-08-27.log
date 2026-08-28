@@ -1,0 +1,174 @@
+BitNet-2B decode receipt — cross-ISA verification in public CI (x86_64 ubuntu-24.04 + aarch64 ubuntu-24.04-arm), workflow .github/workflows/bitnet2b-receipt.yml run 33131590730 on main 9055fde — 2026-08-27 (UTC 2026-08-28)
+IDENTITY EVIDENCE ONLY (Rule A): cloud runners; no timing is a result. Artifacts fetched from release artifacts-bitnet2b-2026-08-27 and sha256-asserted in-job. Receipt: tests/golden/witness_v1_bitnet2b_once64.receipt (minted on the dev host i5-10210U crosvm, cis-digest cab11400d737ac4a, chain 917ddf5f…).
+Captured with: gh run view 33131590730 --log; verbatim lines (ANSI stripped) for the assertion/verdict steps; full log at https://github.com/Aefinity-AI/alice-aegis/actions/runs/33131590730
+
+== aarch64 job ==
+aarch64 — BitNet-2B decode receipt	Run actions/checkout@v4	2026-08-28T01:02:14.1199153Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Run actions/checkout@v4	2026-08-28T01:02:14.1200197Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Run actions/checkout@v4	2026-08-28T01:02:14.1201390Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	Confirm this is really aarch64 (the whole point)	﻿2026-08-28T01:02:15.5384914Z ##[group]Run uname -m
+aarch64 — BitNet-2B decode receipt	Confirm this is really aarch64 (the whole point)	2026-08-28T01:02:15.5386127Z uname -m
+aarch64 — BitNet-2B decode receipt	Confirm this is really aarch64 (the whole point)	2026-08-28T01:02:15.5387048Z test "$(uname -m)" = "aarch64"
+aarch64 — BitNet-2B decode receipt	Confirm this is really aarch64 (the whole point)	2026-08-28T01:02:15.5450121Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Confirm this is really aarch64 (the whole point)	2026-08-28T01:02:15.5451975Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Confirm this is really aarch64 (the whole point)	2026-08-28T01:02:15.5453733Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	Install Rust toolchain	2026-08-28T01:02:15.5712010Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Install Rust toolchain	2026-08-28T01:02:15.5713736Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Install Rust toolchain	2026-08-28T01:02:15.5715376Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	Cache cargo	2026-08-28T01:02:15.9116079Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Cache cargo	2026-08-28T01:02:15.9116739Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Cache cargo	2026-08-28T01:02:15.9117346Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	Download BitNet-2B artifacts from the release	2026-08-28T01:02:16.1115263Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Download BitNet-2B artifacts from the release	2026-08-28T01:02:16.1115955Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Download BitNet-2B artifacts from the release	2026-08-28T01:02:16.1116550Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.2989369Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.2989944Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.2990503Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.6130699Z facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db  aegis_pruned_model.cis.safetensors
+aarch64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.6131607Z facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db  aegis_pruned_model.cis.safetensors
+aarch64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.7647322Z e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077  embed.bin
+aarch64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.7648390Z e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077  embed.bin
+aarch64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.7657066Z 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae  vocab.bin
+aarch64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.7657952Z 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae  vocab.bin
+aarch64 — BitNet-2B decode receipt	Build the decode + witness drivers	2026-08-28T01:02:24.2386382Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Build the decode + witness drivers	2026-08-28T01:02:24.2386892Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Build the decode + witness drivers	2026-08-28T01:02:24.2387449Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:02:34.9180183Z echo "aarch64 reproduces the x86 BitNet-2B decode digest cab11400d737ac4a: cross-ISA identity holds for the 2B model too."
+aarch64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:02:34.9214115Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:02:34.9214670Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:02:34.9215252Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:03:41.9431002Z CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint
+aarch64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:03:41.9789871Z aarch64 reproduces the x86 BitNet-2B decode digest cab11400d737ac4a: cross-ISA identity holds for the 2B model too.
+aarch64 — BitNet-2B decode receipt	Witness v1 — verify the x86-minted BitNet-2B golden receipt on ARM	2026-08-28T01:03:41.9846172Z   | grep -q 'VERIFY PASS' || {
+aarch64 — BitNet-2B decode receipt	Witness v1 — verify the x86-minted BitNet-2B golden receipt on ARM	2026-08-28T01:03:41.9846881Z   echo '::error::WITNESS VERIFY FAIL — cis_witness did not reproduce the x86-minted BitNet-2B receipt on aarch64. Preserve 
+aarch64 — BitNet-2B decode receipt	Witness v1 — verify the x86-minted BitNet-2B golden receipt on ARM	2026-08-28T01:03:41.9848492Z echo "x86-minted BitNet-2B witness receipt verifies on $(uname -m)."
+aarch64 — BitNet-2B decode receipt	Witness v1 — verify the x86-minted BitNet-2B golden receipt on ARM	2026-08-28T01:03:41.9881771Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Witness v1 — verify the x86-minted BitNet-2B golden receipt on ARM	2026-08-28T01:03:41.9882328Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Witness v1 — verify the x86-minted BitNet-2B golden receipt on ARM	2026-08-28T01:03:41.9882841Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	Witness v1 — verify the x86-minted BitNet-2B golden receipt on ARM	2026-08-28T01:04:51.6713783Z VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain bit-for-bit
+aarch64 — BitNet-2B decode receipt	Witness v1 — verify the x86-minted BitNet-2B golden receipt on ARM	2026-08-28T01:04:51.7053214Z x86-minted BitNet-2B witness receipt verifies on aarch64.
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	﻿2026-08-28T01:04:51.7090427Z ##[group]Run set -euo pipefail
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7091000Z set -euo pipefail
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7091277Z M=2b-artifacts
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7091724Z cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin cis-verify -- \
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7092356Z   tests/golden/witness_v1_bitnet2b_once64.receipt \
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7092831Z   "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" \
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7093346Z   2>&1 | tee /dev/stderr | tee cis-verify-2b.log \
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7093690Z   | grep -q 'VERIFY PASS' || {
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7095129Z   echo '::error::cis-verify (standalone verifier) did not print VERIFY PASS on the BitNet-2B golden rece
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7096779Z   exit 1
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7096988Z }
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7097462Z echo "standalone cis-verify CLI reproduces VERIFY PASS on the BitNet-2B receipt on $(uname -m)."
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7128984Z shell: /usr/bin/bash -e {0}
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7129287Z env:
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7129640Z   CARGO_TERM_COLOR: always
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7129929Z   RELEASE_TAG: artifacts-bitnet2b-2026-08-27
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7130380Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7130951Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7131759Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7132181Z ##[endgroup]
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:51.7638780Z    Compiling cis-verify v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/cis-verify)
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:52.8902534Z     Finished `release` profile [optimized] target(s) in 1.16s
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:52.8905679Z      Running `cis-verify/target/release/cis-verify tests/golden/witness_v1_bitnet2b_once64.receipt 2b-ar
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:53.0969071Z cis-verify: receipt=tests/golden/witness_v1_bitnet2b_once64.receipt
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:53.0970473Z cis-verify: MODEL.SAF=2b-artifacts/aegis_pruned_model.cis.safetensors (522831917 bytes)
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:53.0971067Z cis-verify: EMBED.BIN=2b-artifacts/embed.bin (257310720 bytes)
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:04:53.0971671Z cis-verify: VOCAB.BIN=2b-artifacts/vocab.bin (1759936 bytes)
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:06:00.6676887Z check: receipt parse ......... ok
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:06:00.6677561Z check: artifact hashes ........ ok
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:06:00.6678783Z check: prompt tokenization ..... ok
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:06:00.6679118Z check: token-id sequence (64 steps) ok
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:06:00.6679494Z check: cis-digest (FNV-1a 64) .. ok
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:06:00.6679882Z check: witness chain (SHA-256) . ok
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:06:00.6680148Z VERIFY PASS
+aarch64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt on aarch64	2026-08-28T01:06:00.7009975Z standalone cis-verify CLI reproduces VERIFY PASS on the BitNet-2B receipt on aarch64.
+aarch64 — BitNet-2B decode receipt	Upload logs (aarch64)	2026-08-28T01:06:00.7089782Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+aarch64 — BitNet-2B decode receipt	Upload logs (aarch64)	2026-08-28T01:06:00.7090450Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+aarch64 — BitNet-2B decode receipt	Upload logs (aarch64)	2026-08-28T01:06:00.7091008Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+
+== x86_64 job ==
+x86_64 — BitNet-2B decode receipt	Run actions/checkout@v4	2026-08-28T01:02:12.4212477Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Run actions/checkout@v4	2026-08-28T01:02:12.4213060Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Run actions/checkout@v4	2026-08-28T01:02:12.4213625Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	Confirm this is really x86_64	﻿2026-08-28T01:02:14.0738295Z ##[group]Run uname -m
+x86_64 — BitNet-2B decode receipt	Confirm this is really x86_64	2026-08-28T01:02:14.0810298Z uname -m
+x86_64 — BitNet-2B decode receipt	Confirm this is really x86_64	2026-08-28T01:02:14.0810588Z test "$(uname -m)" = "x86_64"
+x86_64 — BitNet-2B decode receipt	Confirm this is really x86_64	2026-08-28T01:02:14.0856307Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Confirm this is really x86_64	2026-08-28T01:02:14.0856835Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Confirm this is really x86_64	2026-08-28T01:02:14.0857362Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	Install Rust toolchain	2026-08-28T01:02:14.1034299Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Install Rust toolchain	2026-08-28T01:02:14.1034822Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Install Rust toolchain	2026-08-28T01:02:14.1035311Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	Cache cargo	2026-08-28T01:02:14.5668621Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Cache cargo	2026-08-28T01:02:14.5669135Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Cache cargo	2026-08-28T01:02:14.5669634Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	Download BitNet-2B artifacts from the release	2026-08-28T01:02:14.7483691Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Download BitNet-2B artifacts from the release	2026-08-28T01:02:14.7484202Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Download BitNet-2B artifacts from the release	2026-08-28T01:02:14.7484696Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.2910840Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.2911348Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.2911837Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.7219738Z facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db  aegis_pruned_model.cis.safetensors
+x86_64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.7220538Z facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db  aegis_pruned_model.cis.safetensors
+x86_64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.9331965Z e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077  embed.bin
+x86_64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.9332940Z e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077  embed.bin
+x86_64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.9346210Z 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae  vocab.bin
+x86_64 — BitNet-2B decode receipt	Verify artifact hashes	2026-08-28T01:02:23.9347084Z 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae  vocab.bin
+x86_64 — BitNet-2B decode receipt	Build the decode + witness drivers	2026-08-28T01:02:24.5881848Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Build the decode + witness drivers	2026-08-28T01:02:24.5882361Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Build the decode + witness drivers	2026-08-28T01:02:24.5882842Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:02:45.1494016Z echo "BitNet-2B token-level decode reproduces digest=cab11400d737ac4a on $(uname -m)."
+x86_64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:02:45.1535616Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:02:45.1536137Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:02:45.1536663Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:04:29.6910969Z CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint
+x86_64 — BitNet-2B decode receipt	Token-level decode — pin the BitNet-2B digest	2026-08-28T01:04:29.7000717Z BitNet-2B token-level decode reproduces digest=cab11400d737ac4a on x86_64.
+x86_64 — BitNet-2B decode receipt	Witness v1 — verify the BitNet-2B golden receipt	2026-08-28T01:04:29.7034264Z   | grep -q 'VERIFY PASS' || {
+x86_64 — BitNet-2B decode receipt	Witness v1 — verify the BitNet-2B golden receipt	2026-08-28T01:04:29.7034950Z   echo '::error::WITNESS VERIFY FAIL — cis_witness did not reproduce the BitNet-2B golden receipt on this host. Preserve cis-witness-verify.lo
+x86_64 — BitNet-2B decode receipt	Witness v1 — verify the BitNet-2B golden receipt	2026-08-28T01:04:29.7036212Z echo "cis_witness reproduces VERIFY PASS on the BitNet-2B receipt on $(uname -m)."
+x86_64 — BitNet-2B decode receipt	Witness v1 — verify the BitNet-2B golden receipt	2026-08-28T01:04:29.7077329Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Witness v1 — verify the BitNet-2B golden receipt	2026-08-28T01:04:29.7077841Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Witness v1 — verify the BitNet-2B golden receipt	2026-08-28T01:04:29.7078549Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	Witness v1 — verify the BitNet-2B golden receipt	2026-08-28T01:06:17.8900104Z VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain bit-for-bit
+x86_64 — BitNet-2B decode receipt	Witness v1 — verify the BitNet-2B golden receipt	2026-08-28T01:06:17.8948500Z cis_witness reproduces VERIFY PASS on the BitNet-2B receipt on x86_64.
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	﻿2026-08-28T01:06:17.8979404Z ##[group]Run set -euo pipefail
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8979735Z set -euo pipefail
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8979976Z M=2b-artifacts
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8980426Z cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin cis-verify -- \
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8980975Z   tests/golden/witness_v1_bitnet2b_once64.receipt \
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8981448Z   "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" \
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8981908Z   2>&1 | tee /dev/stderr | tee cis-verify-2b.log \
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8982237Z   | grep -q 'VERIFY PASS' || {
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8983626Z   echo '::error::cis-verify (standalone verifier) did not print VERIFY PASS on the BitNet-2B golden receipt — this
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8984982Z   exit 1
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8985181Z }
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.8985585Z echo "standalone cis-verify CLI reproduces VERIFY PASS on the BitNet-2B receipt on $(uname -m)."
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.9025730Z shell: /usr/bin/bash -e {0}
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.9025992Z env:
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.9026196Z   CARGO_TERM_COLOR: always
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.9026476Z   RELEASE_TAG: artifacts-bitnet2b-2026-08-27
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.9026896Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.9027434Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.9028196Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.9028588Z ##[endgroup]
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:17.9733913Z    Compiling cis-verify v0.1.0 (/home/runner/work/alice-aegis/alice-aegis/cis-verify)
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:19.2676387Z     Finished `release` profile [optimized] target(s) in 1.34s
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:19.2680451Z      Running `cis-verify/target/release/cis-verify tests/golden/witness_v1_bitnet2b_once64.receipt 2b-artifacts/aegi
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:19.3704133Z cis-verify: receipt=tests/golden/witness_v1_bitnet2b_once64.receipt
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:19.3704945Z cis-verify: MODEL.SAF=2b-artifacts/aegis_pruned_model.cis.safetensors (522831917 bytes)
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:19.3705472Z cis-verify: EMBED.BIN=2b-artifacts/embed.bin (257310720 bytes)
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:06:19.3705880Z cis-verify: VOCAB.BIN=2b-artifacts/vocab.bin (1759936 bytes)
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:08:07.3477510Z check: receipt parse ......... ok
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:08:07.3478315Z check: artifact hashes ........ ok
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:08:07.3478728Z check: prompt tokenization ..... ok
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:08:07.3479135Z check: token-id sequence (64 steps) ok
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:08:07.3480059Z check: cis-digest (FNV-1a 64) .. ok
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:08:07.3480540Z check: witness chain (SHA-256) . ok
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:08:07.3480911Z VERIFY PASS
+x86_64 — BitNet-2B decode receipt	cis-verify (standalone verifier) — CLI verifies the BitNet-2B golden receipt	2026-08-28T01:08:07.3539072Z standalone cis-verify CLI reproduces VERIFY PASS on the BitNet-2B receipt on x86_64.
+x86_64 — BitNet-2B decode receipt	Upload logs (x86_64)	2026-08-28T01:08:07.3609776Z   MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+x86_64 — BitNet-2B decode receipt	Upload logs (x86_64)	2026-08-28T01:08:07.3610336Z   EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+x86_64 — BitNet-2B decode receipt	Upload logs (x86_64)	2026-08-28T01:08:07.3610838Z   VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+
+== run conclusion ==
+completed success sha=9055fde399c4fcf1151800df0c38a3b927e75fea
