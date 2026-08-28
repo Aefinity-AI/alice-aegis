@@ -53,16 +53,22 @@ with the raw log it was taken from (Table 3):
    determinism" figures, including this project's own, decompose into the cost of missing SIMD,
    not of integer semantics.
 5. **The quality cost is small and was gated in advance.** Against a preregistered +5% perplexity
-   kill line, the all-integer forward pass costs +0.06% on a 384-hidden reference model (A20), and
-   the integer-dominant hybrid path (attention still in floating point) costs +0.74% on a
-   2-billion-parameter ternary model (A21). The all-integer quality of the 2B model has not yet
-   been measured (spec §9).
+   kill line, the all-integer forward pass costs +0.06% on a 384-hidden reference model (A20), the
+   integer-dominant hybrid path (attention still in floating point) costs +0.7408% on a
+   2-billion-parameter ternary model (A21), and the complete all-integer forward pass on the same
+   2B model costs +0.1239% — closer to float than the hybrid figure, and 40× inside the kill line
+   (A35). The first all-integer run at this scale panicked instead: a NORMQ precondition rejected
+   an out-of-range residual, tracing to a spec gap in §5.10, where the ACT-I MLP nonlinearity was
+   the one op not carrying the §5.6 per-vector block exponent that the hybrid boundary already
+   applied. The fix — an RNE-rounded block exponent on the ACT-I output — is ratified as spec
+   erratum v1.0.3; both pinned conformance digests are unchanged.
 
 We are equally explicit about what is *not* shown (§8): the clean-room implementers were
 language-model agents rather than third-party engineers; the physical-machine attribution of one
 boot log rests on operator witness because the verifier prints no CPU identifier; the
-2B-parameter perplexity figure uses a pruned vocabulary and a short window and is not comparable
-to published numbers or to this project's own longer-window anchors; and no token-level throughput figure for the integer path has yet been
+2B-parameter perplexity figures (hybrid and all-integer) use a pruned vocabulary and a short
+window and are not comparable to published numbers or to this project's own longer-window
+anchors; and no token-level throughput figure for the integer path has yet been
 measured. The project publishes negative results and retractions in the same ledger as its
 claims, and a standing falsification bounty invites anyone to find a machine on which the digests
 diverge.

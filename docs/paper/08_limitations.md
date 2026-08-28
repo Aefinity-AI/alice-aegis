@@ -22,10 +22,12 @@ not discriminate the two machines and attribution of that entry rests on the ope
 presence (A33, A34). The scalar-path corollary — the HP processor lacks AVX2, so a pass on it
 implies the SSE2 path executed — depends on the same attribution.
 
-**Perplexity figures are not cross-comparable.** The 2B-parameter integer-vs-float comparison
-(A21) uses a vocabulary pruned from 128,256 to 50,256 tokens and a 200-token evaluation window in
-an out-of-vocabulary-dense region; the resulting absolute perplexity must not be compared with
-published full-vocabulary numbers or with this project's own longer-window anchors. Only the
+**Perplexity figures are not cross-comparable.** The 2B-parameter integer-vs-float comparisons —
+the hybrid path (A21) and the complete all-integer path after the v1.0.3 erratum (A35) — use a
+vocabulary pruned from 128,256 to 50,256 tokens and a 200-token evaluation window in an
+out-of-vocabulary-dense region; the resulting absolute perplexities must not be compared with
+published full-vocabulary numbers, with this project's own longer-window anchors, or with each
+other across runs beyond what the shared, sha-identical artifacts and window support. Only the
 *relative* integer-vs-float cost, measured in the same run with the same binary and window, is the
 claim.
 

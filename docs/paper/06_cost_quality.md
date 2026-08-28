@@ -21,9 +21,7 @@ quantization that the full-integer path adds.
 On the production-scale model, BitNet-2B, the measured figure is
 **+0.7408% perplexity** (integer 30.934140 vs. float 30.706665,
 i5-10210U crosvm, digest `0x24C4E510A86659D6`, A21). **This is the HYBRID
-path — attention still runs in f32.** The all-integer forward pass has not
-been run on BitNet-2B at all; 2B full-integer quality is not yet measured
-(spec §9, "Not claimed by v1.0" §10). Do not read +0.7408% as an all-integer
+path — attention still runs in f32.** Do not read +0.7408% as an all-integer
 number. The figure also carries caveats that make it non-comparable outside
 its own run: it uses a vocabulary pruned from 128,256 to 50,256 tokens
 (ASCII-oriented; never compared cross-tokenizer), and a 200-token evaluation
@@ -32,6 +30,26 @@ published full-vocabulary perplexities or to this project's own
 longer-window anchor (1,898 tokens, 10.758). The only claim it supports is
 the *relative* integer-vs-float cost, measured in the same run with the same
 binary and window.
+
+The complete all-integer forward pass on BitNet-2B — every op, including
+attention, in integer — is now measured: **+0.1239% perplexity** (full-integer
+30.744724 vs. float 30.706665, teacher-forced, 199 scored tokens, same
+sha-identical artifacts and window as A21, i5-10210U crosvm, argmax digest
+`0xB274DE03F5862DB7`, A35), *closer* to float than the hybrid figure above —
+40× inside the preregistered +5% kill line. Two sequential runs agreed on
+every computed value. Reaching that number required a fix: the unfixed
+binary panicked 2/2 runs (`normq: residual out of range`, `cis_infer.rs:313`).
+An env-gated trace (branch `cm/e1b-normq-trace`) localized the fault to the
+MLP, not attention — attention re-entry stayed exact at ≤38 bits on all 30
+layers, while the ACT-I (relu²) MLP output landed on Q.20 at 52–55 bits, a
+genuine spec gap: §5.10 lacked the §5.6 per-vector block exponent that the
+hybrid boundary already carried. The fix — an RNE-rounded block exponent on
+the ACT-I output, degenerating to the identity at M7 ranges — is ratified as
+spec erratum v1.0.3 (§11). It changes only that one op: `CIS_SELFTEST
+76985613c965f643` and `CIS_DECODE 67e8c0a96abc04e1`, the M7 conformance
+digests reported throughout this paper, are unchanged. The A21 caveats
+(pruned vocabulary, 200-token window, not cross-comparable, no timing) apply
+identically to this figure.
 
 ## Cost
 
@@ -105,6 +123,7 @@ above.
 | +0.3127% | Hybrid-path PPL cost, M7 (5.657126 vs 5.639491) | i5-10210U crosvm | A19 |
 | +0.0637% | Full-integer PPL cost, M7 (5.643085 vs 5.639491) | i5-10210U crosvm | A20 |
 | +0.7408% | **HYBRID**-path (f32 attention) PPL cost, BitNet-2B (30.934140 vs 30.706665) | i5-10210U crosvm | A21 |
+| +0.1239% | **FULL-INTEGER**-path PPL cost, BitNet-2B, after v1.0.3 erratum (30.744724 vs 30.706665) | i5-10210U crosvm | A35 |
 | 1.248× | Scalar integer/float throughput ratio, C/B | Dell i5-5200U (Broadwell-U) | A26 |
 | 0.961× | Scalar integer/float throughput ratio, C/B | HP N4020 (Gemini Lake) | A26 |
 | 4.61× × 1.248× | Absent-SIMD × semantics decomposition | Dell i5-5200U | A26 |

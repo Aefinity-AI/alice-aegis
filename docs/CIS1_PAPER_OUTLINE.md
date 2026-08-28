@@ -100,6 +100,10 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
   audit/regulatory: "prove model X on firmware Y produced output Z".
 - The $50 falsification challenge (CHALLENGE.md) as the paper's standing invitation — reviewers can
   try to break it before publication.
+- Economics of edge AI: the 2B model's complete all-integer forward pass now clears its
+  preregistered quality gate on commodity hardware (+0.1239% PPL vs. float, A35, after the v1.0.3
+  ACT-I block-exponent erratum) — but it has not yet been booted on the unikernel itself; no ledger
+  row establishes that yet.
 
 ## 8. Limitations and what is not claimed (verbatim from spec §10 + ledger caveats)
 - No claim of bit-identity for the pre-v0.3 hybrid path across kernel paths; sequence ≤512; the

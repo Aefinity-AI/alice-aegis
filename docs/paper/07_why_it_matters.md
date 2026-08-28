@@ -27,8 +27,10 @@ reporting has hidden real divergence for years.
 **For the economics of edge AI.** The engine that produces these receipts boots from firmware with
 no operating system on decade-old laptops and re-derives the receipt for the reference model there
 (A33, A34); the same engine runs a 2-billion-parameter ternary model in its Linux harness on the same
-class of hardware (A21), though the 2B model has not yet been booted on the unikernel and its
-all-integer quality is not yet measured. The cost of the integer semantics is a property of the
+class of hardware (A21). The complete all-integer forward pass on that 2B model now passes its
+preregistered quality gate (+0.1239% perplexity against float, 40× inside the +5% kill line, A35) —
+though the 2B model has not yet been booted on the unikernel itself; no ledger row yet establishes
+that. The cost of the integer semantics is a property of the
 microarchitecture, not of the semantics: 25% against scalar floating point on one core, 4–14% faster
 on another (A26), and at parity vector width the integer AVX2 kernel is 2.94× faster than the
 floating-point AVX2 kernel it replaces (A27). On the commodity CPUs where it was measured,

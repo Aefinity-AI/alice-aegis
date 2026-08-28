@@ -65,7 +65,9 @@ generated at load from `(max_seq, head_dim, f32 bits of rope_theta)` by a normat
 procedure — quadrant-reduced sin/cos via 9-term Taylor sums, RNE-requantized to Q1.30 and clamped
 to `±2³⁰`. **ACT-I** (§5.10) elementwise ops work on the Q.20 grid: relu² is an exact squaring
 plus one more RNE requant, and silu evaluates one `exp_neg` call for `σ(g)` in Q0.31 before two
-further RNE requants. **ARGMAX** (§5.11) breaks exact-equality ties on the `i64` logits to the
+further RNE requants. Since the v1.0.3 erratum, the ACT-I output MUST also carry the §5.6
+per-vector block exponent (`shift = max(0, bits(max|v|) − 49)`) before entering NORMQ, identity at
+M7 ranges (§5.10, ledger A35). **ARGMAX** (§5.11) breaks exact-equality ties on the `i64` logits to the
 lowest index, making a tie a specified, reproducible event rather than rounding noise.
 
 **§5.12 — pipeline grid assignments** fix the grid at every stage of the forward pass:
