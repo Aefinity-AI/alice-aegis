@@ -1,0 +1,62 @@
+# E17.2b — bitnet.cpp aarch64 build: gcc vs clang (follow-up to E17.2)
+
+Workflow `e17-2-bitnetcpp-crossisa` (workflow_dispatch), pinned bitnet.cpp HEAD at job time.
+Rule A: no timing numbers recorded/quoted below.
+
+## Runs
+- main, clang, GGML_LLAMAFILE=ON (the E17.2 fix from PR #8/dd59a57): run 33219288705,
+  job 99009739570 (aarch64) — FAILED at Build step.
+- cm/e17-2b-bitnetcpp-gcc, gcc/g++, GGML_LLAMAFILE=ON, aarch64-only matrix: run 33219483905,
+  job 99010330381 — FAILED at Build step, same source line.
+
+## Exact compiler error text
+
+clang (run 33219288705, job 99009739570):
+```
+/tmp/bitnet-cpp/3rdparty/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c:1495:40: error: use of undeclared identifier 'src1_cont'
+ 1495 |         const size_t src1_col_stride = src1_cont || src1->type != vec_dot_type ? i2s_row_size : nb11;
+      |                                        ^
+1 error generated.
+```
+
+gcc (run 33219483905, job 99010330381):
+```
+/tmp/bitnet-cpp/3rdparty/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c: In function 'ggml_compute_forward_mul_mat':
+/tmp/bitnet-cpp/3rdparty/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c:1495:40: error: 'src1_cont' undeclared (first use in this function)
+ 1495 |         const size_t src1_col_stride = src1_cont || src1->type != vec_dot_type ? i2s_row_size : nb11;
+      |                                        ^~~~~~~~~
+/tmp/bitnet-cpp/3rdparty/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c:1495:40: note: each undeclared identifier is reported only once for each function it appears in
+```
+
+## Finding
+
+The identical error reproduces byte-for-byte (same file, same line, same identifier) under
+both clang and gcc, in `ggml_compute_forward_mul_mat`'s I2_S GEMM fast path in the vendored
+llama.cpp (`3rdparty/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c:1495`). This rules out the E17.2
+hypothesis that it was a clang-specific diagnostic-strictness issue: `src1_cont` is genuinely
+undeclared on this code path for the aarch64 build (`-DBITNET_ARM_TL1=OFF -DGGML_LLAMAFILE=ON`),
+regardless of compiler. It is an upstream (vendored llama.cpp) source bug on this build
+configuration, not a toolchain quirk — `GGML_LLAMAFILE=ON` (the E17.2 fix for a *different*
+manifestation of the same missing-declaration pattern) did not reach this reference.
+
+Net: bitnet.cpp still does not build on aarch64 in the pinned config as of 2026-08-28, with
+either compiler. An older bitnet.cpp/llama.cpp commit predating this vendored regression was
+not tried (out of scope for this LOW-priority follow-up's budget); pinning to one would be the
+next step if a green aarch64 build is ever needed, but is not required for the paper's §2 claim
+(the claim is about the *absence* of a cross-ISA identity story for bitnet.cpp, which this
+strengthens rather than weakens).
+
+## x86_64 thread-count identity (threads=1 vs threads=4)
+
+NOT confirmed within this follow-up's budget. Workflow run 33219288705 (main, x86_64 leg,
+job 99009739829) was dispatched and still in progress (greedy decode step) when this
+follow-up stopped; it uses the same fixed prompt/seed/temp=0/top-k=1 methodology as E17.2
+and, once complete, will produce the threads=1 vs threads=4 token-transcript sha256 pair
+needed for this data point (see the workflow's "Extract token ids and hash" step). Check
+run 33219288705 for the outcome; if it completed, `docs/hardware_logs/e17_2_bitnetcpp_crossisa_x86_64_github_ci_2026-08-28.log`
+on main will contain the threads=1/threads=4 transcripts and their sha256 digests to diff.
+A local x86_64 build attempt (pre-existing partial checkout at
+`~/scratch-e17-2/bitnet-cpp/build`, clang, TL2) was tried as a faster alternative but
+`llama-cli` failed to link (`undefined reference to 'ggml_bitnet_mul_mat'` — stale/partial
+local build, TL2 kernel object likely not regenerated after codegen); not pursued further
+given LOW priority and budget.
