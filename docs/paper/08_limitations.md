@@ -49,10 +49,13 @@ integer path exists yet, and the README says so.
 obtained on hosted CI runners; the machine is named as precisely as the platform allows, and no
 timing is quoted or quotable from them.
 
-**BitNet-2B's token-level identity leg is x86-only.** A36 establishes the FullInt decode digest
-for BitNet-2B on x86-64, identical across two runs; the aarch64 leg that A29 provides for the
-smaller M7 model has not yet been run at 2B scale, so the cross-ISA claim in §4 does not yet
-extend to BitNet-2B.
+**BitNet-2B has not run on the unikernel or physical iron.** A38 and A39 close the gap the
+previous draft of this paper flagged here: the BitNet-2B decode digest (A36), the decode receipt
+built on it, and both independent verifiers (the reference `cis_witness` and the standalone
+`cis-verify`, A37/A38) now reproduce bit-for-bit on aarch64 in public CI, so the cross-ISA claim
+in §4 extends to BitNet-2B at production scale. What remains open is the boundary the M7 legs
+(A33, A34) already crossed: BitNet-2B has been run in the Linux userspace harness and in cloud CI,
+never on the bare-metal, no-OS unikernel or on physical iron (A39).
 
 **What the receipt does not do.** A receipt proves that a conforming computation over the bound
 artifacts produced the bound outputs. It does not prove which physical machine ran it (that is

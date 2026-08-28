@@ -91,6 +91,14 @@ is byte-identical to the A21/A35 model, and the same log reproduces the A21/A35 
 full-integer perplexity figures exactly on this artifact, so the digest and those figures share one
 model. The generated text is coherent English ("…in a small town called Greenfield, there lived a
 young girl named Lily…"). This is the x86 anchor for the BitNet-2B cross-ISA leg — the 2B
-counterpart of A29 — but only the x86 leg exists so far: the aarch64 run has not been performed, so
-the cross-ISA claim A29 makes for the M7 model does not yet extend to BitNet-2B. Identity evidence
-only; no timing is quoted or quotable from it (A36).
+counterpart of A29. Identity evidence only; no timing is quoted or quotable from it (A36).
+
+**The BitNet-2B cross-ISA leg closes (A39).** The same `cis_decode` binary, run on the GitHub
+`ubuntu-24.04-arm` runner (`uname -m`=aarch64 asserted in-job, public run `33131590730`),
+reproduces the identical digest, `CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64
+mode=fullint`, against the same x86-minted BitNet-2B artifacts; the x86-64 job in the same run
+prints the identical line. This upgrades A36 from "x86 anchor, aarch64 leg open" to token-level
+identity confirmed on both ISAs — the cross-ISA claim A29 makes for the 7-layer M7 model now
+extends to the full 2-billion-parameter model. The digest is a standing CI gate
+(`bitnet2b-receipt.yml`, push to `main`): a future divergence on either ISA fails the build.
+Identity evidence only; no timing is quoted or quotable from it (A39).
