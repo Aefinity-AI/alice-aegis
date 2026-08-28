@@ -13,8 +13,11 @@
 set -euo pipefail
 EFI="${1:?usage: make-kit-image.sh <path-to.efi> [out.img]}"
 OUT="${2:-$HOME/aegis-kit.img}"
-M="$HOME/model-lab/tinybit/m7_final_gate_work/artifacts"
-RECEIPT="$HOME/tests/golden/witness_v1_m7_once64.receipt"
+# Overridable so a worktree (whose model-lab/ and tests/golden/ live under the
+# worktree root, not $HOME) can point this at its own copies without editing
+# the script per-run.
+M="${AEGIS_KIT_ASSETS:-$HOME/model-lab/tinybit/m7_final_gate_work/artifacts}"
+RECEIPT="${AEGIS_KIT_RECEIPT:-$HOME/tests/golden/witness_v1_m7_once64.receipt}"
 
 for f in "$EFI" "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" "$RECEIPT"; do
     [ -f "$f" ] || { echo "missing: $f" >&2; exit 1; }

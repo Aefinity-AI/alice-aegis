@@ -700,6 +700,30 @@ fn main() -> uefi::Status {
             }
             core::fmt::Result::Ok(())
         });
+        // Attribution (ledger A33/A34): the previous log carried no CPUID at
+        // all, so a PASS could not be tied to a specific physical machine
+        // from the log alone. This line changes nothing about the verify
+        // computation above — it only records what CPU produced this PASS.
+        let mut cpuid_vendor_buf = [0u8; 12];
+        let cpuid_vendor = cpu::vendor_string(&mut cpuid_vendor_buf);
+        let mut cpuid_brand_buf = [0u8; 48];
+        let cpuid_brand = cpu::brand_string(&mut cpuid_brand_buf);
+        let (cpuid_family, cpuid_model, cpuid_stepping) = cpu::family_model_stepping();
+        let (cpuid_avx2, cpuid_fma, cpuid_sse2) = cpu::identity_feats();
+        boot_log(
+            &mut root,
+            &format!(
+                "CPUID: vendor={} brand=\"{}\" family={} model={} stepping={} feats=<avx2:{},fma:{},sse2:{}>",
+                cpuid_vendor,
+                cpuid_brand,
+                cpuid_family,
+                cpuid_model,
+                cpuid_stepping,
+                cpuid_avx2 as u8,
+                cpuid_fma as u8,
+                cpuid_sse2 as u8,
+            ),
+        );
         boot_log(
             &mut root,
             &format!(

@@ -1,0 +1,47 @@
+CIS-1 — BitNet-2B token-level FULL-INTEGER decode digest, x86-64 leg — 2026-08-27
+Machine: dev Chromebook i5-10210U (Comet Lake) under crosvm. IDENTITY EVIDENCE ONLY — no timing is a result (Rule A).
+Binary: cis_decode built in worktree alice-aegis-cm-e1c at 5a8a923 (FullInt ACT-I block exponent; now merged to main). Command: cis_decode <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> 64 "Once upon a time", two sequential runs, nice -n 10.
+Artifact: aegis_pruned_model.cis.safetensors = the A21/A35 model (53586af0…) with __metadata__.aegis_config added by aegis-forge/add_aegis_config.py (branch cm/e2a-2b-metadata); tensor data blob byte-identical; aegis-eval --cis-full on it reproduces float 30.706665 / hybrid 30.934140 (0x24C4E510A86659D6) / full-int 30.744724 (0xB274DE03F5862DB7) — transcript below.
+Operator: Claudius Maximus (Fable) via a sonnet agent; scratch captures copied verbatim (sha256 of scratch files: f26a1f100d66ec05 equiv, 56fc6d99d4dba348 run1, 56fc6d99d4dba348 run2).
+
+== artifact identities ==
+facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db  aegis_pruned_model.cis.safetensors
+53586af0856e141e8abb93fd434a9dc28932dfd77181eed44ec6ad3f0c689053  aegis_pruned_model.safetensors
+e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077  aegis-forge/embed.bin
+5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae  aegis-forge/vocab.bin
+
+== metadata written ==
+{"aegis_config": "{\"num_hidden_layers\":30,\"hidden_size\":2560,\"num_attention_heads\":20,\"num_key_value_heads\":5,\"intermediate_size\":6912,\"vocab_size\":50256,\"max_position_embeddings\":2048,\"hidden_act\":\"relu2\",\"rope_theta\":500000.0,\"rms_norm_eps\":1e-05,\"tie_word_embeddings\":true,\"chat_template\":\"none\"}"}
+
+== equivalence transcript (aegis-eval --cis-full on the .cis artifact) ==
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: ../alice-aegis/test.txt | sample: 200 tokens
+--------------------------------------------------
+CIS-1 v0.3 — float vs hybrid-int vs FULL-INTEGER, teacher-forced
+float      PPL (199 scored tokens): 30.706665   [56.7s]
+hybrid-int PPL (199 scored tokens): 30.934140   [344.7s]  delta vs float: +0.7408%
+full-int   PPL (199 scored tokens): 30.744724   [363.4s]  delta vs float: +0.1239%
+kill line (full-int vs float): +5.0%
+FULL-INT VERDICT: PASS (within the +5% line)
+hybrid-int argmax digest (FNV-1a 64): 0x24C4E510A86659D6
+full-int   argmax digest (FNV-1a 64): 0xB274DE03F5862DB7
+--------------------------------------------------
+NOTE: pruned-vocab model (50,256 of 128,256 tokens; ASCII-oriented).
+Report this number only alongside that caveat.
+
+== cis_decode RUN 1 ==
+model : 30 layers, hidden 2560, vocab 50256
+prompt: "Once upon a time" -> 4 tokens
+token ids: [11, 304, 264, 2678, 6424, 2663, 7997, 2630, 11, 1070, 12439, 264, 3995, 3828, 7086, 48390, 13, 48390, 574, 264, 22999, 323, 25530, 3828, 889, 10456, 311, 13488, 323, 4048, 502, 2574, 13, 3005, 574, 2744, 24450, 311, 7142, 279, 24511, 315, 279, 1917, 2212, 1077, 382, 4054, 40798, 13658, 11, 48390, 6773, 311, 4034, 279, 2254, 6875, 311, 1505, 264, 2363, 389, 279]
+text     : ", in a small town called Greenfield, there lived a young girl named Lily. Lily was a curious and intelligent girl who loved to explore and learn new things. She was always eager to discover the secrets of the world around her.\n\nOne sunny afternoon, Lily decided to visit the local library to find a book on the"
+CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint
+
+== cis_decode RUN 2 ==
+model : 30 layers, hidden 2560, vocab 50256
+prompt: "Once upon a time" -> 4 tokens
+token ids: [11, 304, 264, 2678, 6424, 2663, 7997, 2630, 11, 1070, 12439, 264, 3995, 3828, 7086, 48390, 13, 48390, 574, 264, 22999, 323, 25530, 3828, 889, 10456, 311, 13488, 323, 4048, 502, 2574, 13, 3005, 574, 2744, 24450, 311, 7142, 279, 24511, 315, 279, 1917, 2212, 1077, 382, 4054, 40798, 13658, 11, 48390, 6773, 311, 4034, 279, 2254, 6875, 311, 1505, 264, 2363, 389, 279]
+text     : ", in a small town called Greenfield, there lived a young girl named Lily. Lily was a curious and intelligent girl who loved to explore and learn new things. She was always eager to discover the secrets of the world around her.\n\nOne sunny afternoon, Lily decided to visit the local library to find a book on the"
+CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint

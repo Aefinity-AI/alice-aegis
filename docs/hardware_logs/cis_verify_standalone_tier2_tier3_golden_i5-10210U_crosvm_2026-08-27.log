@@ -1,0 +1,127 @@
+cis-verify — standalone third-party verifier: Tier-2 selftest, Tier-3 decode digest, golden receipt verify, tamper tests — 2026-08-27
+Machine: dev Chromebook i5-10210U crosvm. IDENTITY EVIDENCE ONLY (Rule A). Crate: cis-verify/ at main c171dc4 (branch cm/cis-verify e46b637 merged). Zero external runtime deps, no aegis-core dependency, no unsafe.
+Commands: cargo test --features std --manifest-path cis-verify/Cargo.toml -- --nocapture (selftest + verify_golden); cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin cis-verify -- <receipt> <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN>
+
+== test run ==
+running 81 tests
+test artifact::tests::all_three_can_mismatch_at_once ... ok
+test artifact::tests::digest_is_32_bytes_matching_receipt_field_width ... ok
+test artifact::tests::matching_bytes_produce_no_mismatch ... ok
+test artifact::tests::tampered_model_bytes_are_caught ... ok
+test attn::tests::golden_exp2_chain ... ok
+test attn::tests::golden_inv_sqrt ... ok
+test attn::tests::golden_log2_q32 ... ok
+test attn::tests::golden_exp_neg ... ok
+test attn::tests::golden_exp_lut ... ok
+test attn::tests::golden_relu2 ... ok
+test attn::tests::golden_sincos ... ok
+test attn::tests::golden_rope_apply ... ok
+test attn::tests::exp_neg_monotone ... ok
+test attn::tests::golden_softmax_8 ... ok
+test attn::tests::golden_silu ... ok
+test config::tests::defaults_apply_when_fields_absent ... ok
+test attn::tests::silu_sign_seam ... ok
+test config::tests::missing_required_field_errors ... ok
+test config::tests::unsupported_activation_errors ... ok
+test config::tests::parses_m7_config ... ok
+test fnv::tests::published_vectors ... ok
+test hex::tests::decode_hex_exact_checks_length ... ok
+test hex::tests::decode_hex_rejects_odd_length ... ok
+test hex::tests::round_trip ... ok
+test json_min::tests::empty_object ... ok
+test json_min::tests::escaped_quote_does_not_desynchronize ... ok
+test json_min::tests::parses_a_safetensors_style_header ... ok
+test json_min::tests::parses_config_floats ... ok
+test json_min::tests::rejects_malformed_input_instead_of_panicking ... ok
+test json_min::tests::skips_floats_bools_nulls_and_nested_junk ... ok
+test json_min::tests::unescape_round_trips_embedded_config ... ok
+test ops::tests::accumulation_order_invariance ... ok
+test ops::tests::argmax_ties_break_low ... ok
+test attn::tests::softmax_uniform_and_sum_bound ... ok
+test ops::tests::bf16_to_fixed_exact_values ... ok
+test ops::tests::fix_f32_vec_m7_scale_is_identity_at_g_eq_f ... ok
+test ops::tests::f32_to_fixed_exact_values ... ok
+test ops::tests::f32_to_ratio_decomposition ... ok
+test ops::tests::fix_f32_vec_panics_past_headroom - should panic ... ok
+test ops::tests::fix_q_vec_all_zero_returns_f ... ok
+test ops::tests::fix_q_vec_m7_scale_is_identity ... ok
+test ops::tests::fix_q_vec_rescales_past_2_49 ... ok
+test ops::tests::from_ratio_goldens ... ok
+test ops::tests::golden_quantize_activations_16 ... ok
+test ops::tests::golden_rmsnorm_16 ... ok
+test ops::tests::golden_requant_table ... ok
+test ops::tests::golden_tmv_8x32 ... ok
+test ops::tests::normq_and_quantq_basic ... ok
+test ops::tests::qscale64_from_ratio_and_rescale ... ok
+test ops::tests::qscale_rejects_unnormalized_multiplier - should panic ... ok
+test ops::tests::quantize_activations_ties_and_zero ... ok
+test ops::tests::tmv_undefined_code_11_decodes_to_zero ... ok
+test receipt::tests::bad_magic_is_rejected ... ok
+test receipt::tests::cis_digest_of_matches_golden_prompt_and_tokens ... ok
+test receipt::tests::non_hex_hash_field_is_rejected_not_panicking ... ok
+test receipt::tests::parse_format_parse_is_idempotent ... ok
+test receipt::tests::parses_golden_receipt ... ok
+test receipt::tests::round_trips_golden_receipt_byte_identical ... ok
+test receipt::tests::short_token_id_list_is_rejected ... ok
+test receipt::tests::truncated_receipt_is_rejected_not_panicking ... ok
+test receipt::tests::unknown_keys_are_ignored ... ok
+test safetensors::tests::inverted_offsets_are_rejected ... ok
+test safetensors::tests::parses_header_and_slices_tensor_bytes ... ok
+test safetensors::tests::truncated_buffer_is_rejected ... ok
+test sha256::tests::fips_abc ... ok
+test sha256::tests::fips_empty_string ... ok
+test sha256::tests::fips_two_block ... ok
+test verify::tests::field_names_are_stable ... ok
+test verify::tests::garbage_receipt_text_fails_as_receipt_parse ... ok
+test vocab::tests::parses_minimal_vocab_and_looks_up_ids ... ok
+test vocab::tests::rejects_bad_magic ... ok
+test vocab::tests::too_small_is_rejected_not_panicking ... ok
+test witness::tests::chain_matches_engine_reference_on_synthetic_sequence ... ok
+test witness::tests::header_binds_every_field ... ok
+test witness::tests::single_logit_flip_changes_final_digest ... ok
+test sha256::tests::streaming_matches_one_shot_across_chunk_sizes ... ok
+test witness::tests::step_reordering_changes_final_digest ... ok
+test witness::tests::token_id_substitution_changes_final_digest ... ok
+test attn::tests::golden_rope_table_m7 ... ok
+test attn::tests::rope_norm_preservation ... ok
+test sha256::tests::fips_million_a ... ok
+test result: ok. 81 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 2 tests
+test tampering_one_byte_of_a_real_artifact_is_caught ... ok
+test m7_artifacts_hash_match_the_golden_receipt ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+running 1 test
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+test digest_matches_pinned_constant ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+running 5 tests
+test negative_truncated_receipt_fails_naming_receipt_parse ... ok
+test negative_wrong_artifact_hash_fails_naming_the_artifact ... ok
+test gate_b_golden_receipt_verifies_pass ... ok
+test negative_tampered_token_id_fails_naming_token_id ... ok
+test negative_tampered_chain_hex_fails_naming_chain ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.44s
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+== CLI on golden receipt ==
+cis-verify: receipt=tests/golden/witness_v1_m7_once64.receipt
+cis-verify: MODEL.SAF=model-lab/tinybit/m7_final_gate_work/artifacts/MODEL.SAF (2797632 bytes)
+cis-verify: EMBED.BIN=model-lab/tinybit/m7_final_gate_work/artifacts/EMBED.BIN (6291456 bytes)
+cis-verify: VOCAB.BIN=model-lab/tinybit/m7_final_gate_work/artifacts/VOCAB.BIN (163954 bytes)
+check: receipt parse ......... ok
+check: artifact hashes ........ ok
+check: prompt tokenization ..... ok
+check: token-id sequence (64 steps) ok
+check: cis-digest (FNV-1a 64) .. ok
+check: witness chain (SHA-256) . ok
+VERIFY PASS
+
+== tamper: flipped token id ==
+Traceback (most recent call last):
+  File "<stdin>", line 5, in <module>
+ValueError: invalid literal for int() with base 10: '12,407,283,259,397,484,408,411,14,341,366,259,347,12,678,483,388,398,510,266,326,331,14,535,329,12,398,389,259,567,12,1070,835,354,338,483,14,285,835,283,386,567,267,366,670,2284,14,411,589,263,835,2
+check: witness chain (SHA-256) . ok
+VERIFY PASS

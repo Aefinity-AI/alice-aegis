@@ -142,6 +142,60 @@ pub fn brand_string(buf: &mut [u8; 48]) -> &str {
         .trim()
 }
 
+/// 12-character CPU vendor ID string from CPUID leaf 0 (EBX:EDX:ECX), e.g.
+/// "GenuineIntel". Used for physical-machine attribution in BOOTLOG.TXT
+/// (ledger A33/A34: verifier mode previously printed no CPUID at all).
+pub fn vendor_string(buf: &mut [u8; 12]) -> &str {
+    // SAFETY: CPUID leaf 0 is available on every x86_64 CPU unconditionally
+    // (no feature check needed for the CPUID instruction itself on this
+    // target); this only reads registers, no memory access.
+    let r = unsafe { __cpuid(0) };
+    buf[0..4].copy_from_slice(&r.ebx.to_le_bytes());
+    buf[4..8].copy_from_slice(&r.edx.to_le_bytes());
+    buf[8..12].copy_from_slice(&r.ecx.to_le_bytes());
+    core::str::from_utf8(buf).unwrap_or("unknown")
+}
+
+/// (family, model, stepping) decoded from CPUID.01H:EAX, combining the base
+/// and extended family/model fields per SDM Vol. 2A §3.2 (CPUID), Table 3-8's
+/// documented algorithm: extended family only adds onto family 0xF; extended
+/// model only widens model when family is 0x6 or 0xF.
+pub fn family_model_stepping() -> (u16, u8, u8) {
+    // SAFETY: CPUID leaf 1 is always available on x86_64; reads registers
+    // only, no memory access.
+    let eax = unsafe { __cpuid(1) }.eax;
+    let stepping = (eax & 0xF) as u8;
+    let base_model = ((eax >> 4) & 0xF) as u8;
+    let base_family = ((eax >> 8) & 0xF) as u8;
+    let ext_model = ((eax >> 16) & 0xF) as u8;
+    let ext_family = ((eax >> 20) & 0xFF) as u8;
+    let family: u16 = if base_family == 0xF {
+        base_family as u16 + ext_family as u16
+    } else {
+        base_family as u16
+    };
+    let model = if base_family == 0x6 || base_family == 0xF {
+        (ext_model << 4) | base_model
+    } else {
+        base_model
+    };
+    (family, model, stepping)
+}
+
+/// (avx2, fma, sse2) feature bits the ternary kernels dispatch on:
+/// CPUID.07H.0:EBX[5] (AVX2), CPUID.01H:ECX[12] (FMA), CPUID.01H:EDX[26] (SSE2).
+pub fn identity_feats() -> (bool, bool, bool) {
+    // SAFETY: CPUID leaf 1 and leaf 7 subleaf 0 are always available on
+    // x86_64; reads registers only, no memory access.
+    let leaf1 = unsafe { __cpuid(1) };
+    // SAFETY: as above.
+    let leaf7 = unsafe { __cpuid_count(7, 0) };
+    let sse2 = leaf1.edx & (1 << 26) != 0;
+    let fma = leaf1.ecx & (1 << 12) != 0;
+    let avx2 = leaf7.ebx & (1 << 5) != 0;
+    (avx2, fma, sse2)
+}
+
 /// (base MHz, max MHz, bus MHz) from CPUID leaf 0x16. Zeros if unsupported.
 /// This gives the nominal TSC frequency without asking anyone to read a BIOS screen.
 pub fn frequencies_mhz() -> (u32, u32, u32) {
