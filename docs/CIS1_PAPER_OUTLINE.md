@@ -31,8 +31,9 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
   6. The cost, measured honestly: integer semantics cost 25% vs scalar float on Broadwell and are 4–14%
      *faster* on Goldmont Plus (A26); at parity SIMD the integer AVX2 kernel is 2.94× faster than the
      float AVX2 incumbent (A27) (§6).
-  7. Quality: the all-integer forward pass costs +0.0637% perplexity on M7 and +0.7408% on BitNet-2B
-     vs float, inside a preregistered +5% kill line (A19–A21) (§6).
+  7. Quality: the all-integer forward pass costs +0.0637% perplexity on M7 (A20); the integer-dominant
+     HYBRID path costs +0.7408% on BitNet-2B (A21) — 2B all-integer quality NOT yet measured (spec §9);
+     both inside a preregistered +5% kill line (§6).
 - What is **not** claimed (lift verbatim from spec §10 and the ledger caveats): see §8.
 
 ## 2. Background and related work (short, sourced)
@@ -99,6 +100,10 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
   audit/regulatory: "prove model X on firmware Y produced output Z".
 - The $50 falsification challenge (CHALLENGE.md) as the paper's standing invitation — reviewers can
   try to break it before publication.
+- Economics of edge AI: the 2B model's complete all-integer forward pass now clears its
+  preregistered quality gate on commodity hardware (+0.1239% PPL vs. float, A35, after the v1.0.3
+  ACT-I block-exponent erratum) — but it has not yet been booted on the unikernel itself; no ledger
+  row establishes that yet.
 
 ## 8. Limitations and what is not claimed (verbatim from spec §10 + ledger caveats)
 - No claim of bit-identity for the pre-v0.3 hybrid path across kernel paths; sequence ≤512; the
@@ -123,6 +128,6 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
 
 ## Open decisions for Justin
 - Preprint first, or workshop deadline first? (arXiv is same-day; a workshop gives a review.)
-- License line on the paper vs the Apache-2.0/MIT discrepancy on the repo — resolve before submission.
+- License: DECIDED 2026-08-27 — Apache-2.0 (repo LICENSE, NOTICE, and all crate manifests already say so; the Aug 2 investor email saying MIT was the outlier and should be corrected in any follow-up).
 - Whether to run one more physical leg (a third machine) before submitting, to strengthen A33/A34
   attribution. Not required; would need you at the machine.
