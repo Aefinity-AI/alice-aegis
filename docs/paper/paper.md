@@ -228,6 +228,22 @@ without the prover/verifier asymmetry ZK and FHE approaches require. It
 attests *what was computed*, and is designed to compose with, not replace,
 platform attestation.
 
+**Bare-metal / no-OS LLM inference.** Running LLM inference directly in UEFI
+boot-services mode, without an operating system, is not unprecedented: a
+secondary report describes a from-scratch C tokenizer/weight-loader/tensor-
+math/inference stack running as a UEFI application on a Dell E6510, with no
+model, precision, or performance details given beyond an interactive chat
+demo and an admission that "optimization work has barely been done"
+(Insights, marvin-42.com, "Bare-Metal AI: Running LLM Inference Directly in
+UEFI, No OS or Kernel Required," Mar 2026 — itself a secondary report on an
+unlinked LocalLLaMA/Reddit project, not a primary technical writeup;
+UNVERIFIED beyond this secondary source). That project establishes UEFI as
+a viable host for LLM inference; it makes no claim of determinism,
+bit-exact reproducibility across ISAs, a cryptographic receipt, or
+independent third-party verification — the properties CIS-1 adds, and the
+ones the unikernel demonstration (§5) is built to exercise rather than the
+no-OS environment alone.
+
 **Conformance-by-digest as a design pattern.** Cryptographic standards
 have long used exactly this shape: NIST's Cryptographic Algorithm
 Validation Program (CAVP) validates a black-box implementation by feeding
@@ -253,6 +269,7 @@ reproduces the pinned digest or does not conform.
 - Karvonen et al., "DiFR: Inference Verification Despite Nondeterminism," arXiv:2511.20621 — https://arxiv.org/abs/2511.20621
 - Kim et al., "I-BERT: Integer-only BERT Quantization," arXiv:2101.01321 — https://arxiv.org/abs/2101.01321
 - Li and Gu, "I-ViT: Integer-only Quantization for Efficient Vision Transformer Inference," arXiv:2207.01405 — https://arxiv.org/abs/2207.01405
+- Insights (marvin-42.com), "Bare-Metal AI: Running LLM Inference Directly in UEFI, No OS or Kernel Required," Mar 2026 — https://insights.marvin-42.com/articles/bare-metal-ai-running-llm-inference-directly-in-uefi-no-os-or-kernel-required (secondary report, no primary source linked; UNVERIFIED beyond this source)
 - Danopoulos et al., "Taming the Exponential: A Fast Softmax Surrogate for Integer-Native Edge Inference," arXiv:2604.02292 — https://arxiv.org/abs/2604.02292 (UNVERIFIED beyond abstract)
 - Trusted Computing Group, "Overview of TCG Technologies for Device Identification and Attestation," v1.0 rev. 1.37 — https://trustedcomputinggroup.org/wp-content/uploads/Overview-of-TCG-Technologies-for-Device-Identification-and-Attestation-Version-1.0-Revision-1.37_5Feb24-2.pdf (content summary drawn from search index only; full text not machine-readable via fetch — UNVERIFIED beyond title/version)
 - NIST SP 800-155 (Initial Public Draft), "BIOS Integrity Measurement Guidelines" — https://csrc.nist.gov/pubs/sp/800/155/ipd
