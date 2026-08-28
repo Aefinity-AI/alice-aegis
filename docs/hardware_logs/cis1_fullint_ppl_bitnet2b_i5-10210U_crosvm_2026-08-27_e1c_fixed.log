@@ -1,0 +1,52 @@
+CIS-1 — BitNet-2B leg: float vs hybrid-int vs FULL-INTEGER teacher-forced PPL, AFTER the ACT-I block-exponent fix (E1c) — 2026-08-27
+Machine: dev Chromebook i5-10210U (Comet Lake) under crosvm — QUALITY NUMBERS ONLY (Rule A: bracketed wall-times are incidental, not results).
+Binary: aegis-eval release built in worktree alice-aegis-cm-e1c at commit 5a8a923 (branch cm/e1c-acti-blockexp: FullInt ACT-I output gets a per-vector block exponent G<=F, mirroring the hybrid boundary; M7 digests unchanged: CIS_SELFTEST 76985613c965f643, CIS_DECODE 67e8c0a96abc04e1).
+Command: aegis-eval <MODEL> <EMBED> <VOCAB> test.txt 200 --cis-full, two sequential runs, nice -n 10, operator Claudius Maximus (Fable) via a sonnet builder agent.
+Provenance note: stdout+stderr of each run were captured to scratch files and are copied below VERBATIM; sha256 of the scratch files: c8d594ad40865207 (run1) d1df0cad0c453cbf (run2).
+Predecessor: cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_r2.log (same artifacts, unfixed binary: panicked 'normq: residual out of range' 2/2 runs).
+
+== artifact identities ==
+53586af0856e141e8abb93fd434a9dc28932dfd77181eed44ec6ad3f0c689053  aegis_pruned_model.safetensors
+e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077  aegis-forge/embed.bin
+5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae  aegis-forge/vocab.bin
+d790b833ef8cf03a90db7bf1271b7520b83c45ce07ba3c1a9699df81e239eca0  test.txt
+(identical to the 2026-08-01 A21 log)
+
+== raw transcripts ==
+=================== RUN 1 ===================
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: ../alice-aegis/test.txt | sample: 200 tokens
+--------------------------------------------------
+CIS-1 v0.3 — float vs hybrid-int vs FULL-INTEGER, teacher-forced
+float      PPL (199 scored tokens): 30.706665   [54.6s]
+hybrid-int PPL (199 scored tokens): 30.934140   [343.9s]  delta vs float: +0.7408%
+full-int   PPL (199 scored tokens): 30.744724   [351.8s]  delta vs float: +0.1239%
+kill line (full-int vs float): +5.0%
+FULL-INT VERDICT: PASS (within the +5% line)
+hybrid-int argmax digest (FNV-1a 64): 0x24C4E510A86659D6
+full-int   argmax digest (FNV-1a 64): 0xB274DE03F5862DB7
+--------------------------------------------------
+NOTE: pruned-vocab model (50,256 of 128,256 tokens; ASCII-oriented).
+Report this number only alongside that caveat.
+
+=================== RUN 2 ===================
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: ../alice-aegis/test.txt | sample: 200 tokens
+--------------------------------------------------
+CIS-1 v0.3 — float vs hybrid-int vs FULL-INTEGER, teacher-forced
+float      PPL (199 scored tokens): 30.706665   [53.5s]
+hybrid-int PPL (199 scored tokens): 30.934140   [342.9s]  delta vs float: +0.7408%
+full-int   PPL (199 scored tokens): 30.744724   [430.2s]  delta vs float: +0.1239%
+kill line (full-int vs float): +5.0%
+FULL-INT VERDICT: PASS (within the +5% line)
+hybrid-int argmax digest (FNV-1a 64): 0x24C4E510A86659D6
+full-int   argmax digest (FNV-1a 64): 0xB274DE03F5862DB7
+--------------------------------------------------
+NOTE: pruned-vocab model (50,256 of 128,256 tokens; ASCII-oriented).
+Report this number only alongside that caveat.
