@@ -1,0 +1,331 @@
+CIS-1 op-level digest INVARIANCE across compiler opt-level / target-cpu / LTO — i5-10210U (Comet Lake) — 2026-08-28
+IDENTITY/CORRECTNESS (Rule A: no timing). Test: aegis-linux/examples/cis_selftest (self-contained golden vectors + fixed-seed LCG over aegis_core::cis; no model artifacts). 9 configs, cargo clean between builds, bin sha256+mtime confirm rebuild.
+Reference (spec §8 Tier 2): CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true. Operator: Claudius Maximus (Fable) via cm-builder, branch cm/e14-digest-invariance 964a134. Raw scratch sha256: 4efccc7e7f8b68f8.
+
+=== CONFIG: opt0 ===
+RUSTFLAGS='-C opt-level=0'
+   Compiling libm v0.2.16
+   Compiling aegis-core v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core)
+warning: field `top_p` is never read
+ --> /home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 2.19s
+bin_mtime=1787914284 bin_sha256=8d6f4ac08c938a9d40c4ce5820d486aca7a1b572e45dbecf8d95922560691462
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+PARSED_LINE: CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+=== CONFIG: opt1 ===
+RUSTFLAGS='-C opt-level=1'
+   Compiling libm v0.2.16
+   Compiling aegis-core v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core)
+warning: field `top_p` is never read
+ --> /home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 3.50s
+bin_mtime=1787914287 bin_sha256=4d99e413a95426007deea1fe805e6bc439981c16f19eeaefb962ac7d02c2e164
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+PARSED_LINE: CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+=== CONFIG: opt2 ===
+RUSTFLAGS='-C opt-level=2'
+   Compiling libm v0.2.16
+   Compiling aegis-core v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core)
+warning: field `top_p` is never read
+ --> /home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 3.55s
+bin_mtime=1787914291 bin_sha256=493bb3e0c73e4b1e7346efbae8ab449bb6d68ee6c12c824529ae383766fd20b8
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+PARSED_LINE: CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+=== CONFIG: opt3 ===
+RUSTFLAGS='-C opt-level=3'
+   Compiling libm v0.2.16
+   Compiling aegis-core v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core)
+warning: field `top_p` is never read
+ --> /home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 3.76s
+bin_mtime=1787914295 bin_sha256=ad96adcaf6930a482b14f1e494c05dfea41976fde9d62bf4621bc22edd675795
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+PARSED_LINE: CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+=== CONFIG: opts ===
+RUSTFLAGS='-C opt-level=s'
+   Compiling libm v0.2.16
+   Compiling aegis-core v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core)
+warning: field `top_p` is never read
+ --> /home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 2.99s
+bin_mtime=1787914298 bin_sha256=5fe44da1cb9108d25b86b6f597880a4eabd44b1e59d15f8d469b0be4420b9488
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+PARSED_LINE: CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+=== CONFIG: targetcpu_x86-64_opt3 ===
+RUSTFLAGS='-C opt-level=3 -C target-cpu=x86-64'
+   Compiling libm v0.2.16
+   Compiling aegis-core v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core)
+warning: field `top_p` is never read
+ --> /home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 3.99s
+bin_mtime=1787914302 bin_sha256=ad96adcaf6930a482b14f1e494c05dfea41976fde9d62bf4621bc22edd675795
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+PARSED_LINE: CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+=== CONFIG: targetcpu_native_opt3 ===
+RUSTFLAGS='-C opt-level=3 -C target-cpu=native'
+   Compiling libm v0.2.16
+   Compiling aegis-core v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core)
+warning: field `top_p` is never read
+ --> /home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 4.33s
+bin_mtime=1787914306 bin_sha256=31915a1a3366ec69b72d996fe9ba08dff25c7809c134d3fb380aecd0d7699941
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+PARSED_LINE: CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+=== CONFIG: lto_true (opt3, default target-cpu) ===
+   Compiling libm v0.2.16
+   Compiling aegis-core v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core)
+warning: field `top_p` is never read
+ --> /home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 7.59s
+bin_mtime=1787914314 bin_sha256=984bf8ca0f534bd7e1ad212b6661bce92c6daac6e91101e94e1607ee76cc1827
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
+=== CONFIG: lto_false (opt3, default target-cpu) ===
+warning: field `top_p` is never read
+ --> /home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-core/src/sampler.rs:3:5
+  |
+1 | pub struct Sampler {
+  |            ------- field in this struct
+2 |     temperature: f32,
+3 |     top_p: f32,
+  |     ^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `aegis-core` (lib) generated 1 warning
+   Compiling aegis-linux v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-cm-e14/aegis-linux)
+    Finished `release` profile [optimized] target(s) in 0.49s
+bin_mtime=1787914315 bin_sha256=ad96adcaf6930a482b14f1e494c05dfea41976fde9d62bf4621bc22edd675795
+CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+
