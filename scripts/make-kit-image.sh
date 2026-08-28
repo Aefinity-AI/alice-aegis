@@ -24,8 +24,11 @@ for f in "$EFI" "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" "$RECEIPT"; do
 done
 
 # 64 MB: M7 trio ~9 MB + .efi + slack; FAT32 floor is 33 MB.
+# Overridable for larger asset sets (e.g. the BitNet-2B trio, ~800 MB) —
+# default unchanged.
+SIZE_MB="${AEGIS_KIT_SIZE_MB:-64}"
 rm -f "$OUT"
-truncate -s 64M "$OUT"
+truncate -s "${SIZE_MB}M" "$OUT"
 mformat -i "$OUT" -F ::
 mmd -i "$OUT" ::/EFI ::/EFI/BOOT
 
