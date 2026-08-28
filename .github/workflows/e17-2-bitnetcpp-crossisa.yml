@@ -40,6 +40,7 @@ jobs:
           - runner: ubuntu-24.04-arm
             arch: aarch64
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -87,9 +88,15 @@ jobs:
           else
             EXTRA=-DBITNET_ARM_TL1=OFF
           fi
-          cmake -B build "$EXTRA" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+          # GGML_LLAMAFILE=ON: upstream ggml-cpu.c references src1_cont (declared only
+          # inside "#if GGML_USE_LLAMAFILE" blocks) unconditionally in the I2_S GEMM fast
+          # path a few lines past the #endif -- an undeclared-identifier compile error
+          # with the CMake default (GGML_LLAMAFILE_DEFAULT=OFF on every arch, no x86/arm
+          # branch in ggml/CMakeLists.txt). llamafile's sgemm.cpp has NEON paths, so this
+          # is arch-safe on both legs; recorded here as an E17.2 build-portability finding.
+          cmake -B build "$EXTRA" -DGGML_LLAMAFILE=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_EXAMPLES=ON -DLLAMA_BUILD_COMMON=ON -DLLAMA_BUILD_SERVER=ON
-          cmake --build build --config Release -j"$(nproc)"
+          cmake --build build --config Release -j2
 
       - name: Download official GGUF (i2_s, published checkpoint — not locally re-quantized)
         run: |
@@ -117,11 +124,16 @@ jobs:
           echo "bitnet.cpp commit: $BITNET_CPP_COMMIT"
           echo "llama.cpp (vendored) commit: $LLAMA_CPP_COMMIT"
           cat /tmp/gguf.sha256
+          export OMP_NUM_THREADS=1
           for T in 1 4; do
             echo "=== threads=$T ==="
-            "$BIN" -m models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf \
+            timeout 600 "$BIN" -m models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf \
               -n 32 -t "$T" -p "$PROMPT" -ngl 0 -c 2048 --temp 0 --top-k 1 --seed 42 \
-              --verbose-prompt -no-cnv 2>&1 | tee "/tmp/run_t${T}.log"
+              --verbose-prompt -no-cnv < /dev/null 2>&1 | tee "/tmp/run_t${T}.log"
+            RC=${PIPESTATUS[0]}
+            if [ "$RC" = "124" ]; then
+              echo "FINDING: llama-cli did not exit within 600s at threads=$T -- likely re-entered its interactive prompt loop despite -no-cnv/--verbose-prompt (stdin now forced closed via </dev/null); see run_t${T}.log for the last output before the hard timeout." | tee -a "/tmp/run_t${T}.log"
+            fi
           done
 
       - name: Best-effort per-step top-1 logprob capture via llama-server (n_probs=1)
@@ -139,7 +151,7 @@ jobs:
               curl -s http://127.0.0.1:8080/health | grep -q '"status":"ok"' && break
               sleep 1
             done
-            curl -s http://127.0.0.1:8080/completion \
+            curl -s --max-time 300 http://127.0.0.1:8080/completion \
               -H "Content-Type: application/json" \
               -d '{"prompt":"Once upon a time","n_predict":32,"temperature":0,"top_k":1,"seed":42,"n_probs":1}' \
               -o "/tmp/server_t${T}.json" || echo "server request failed at t=${T}" | tee -a /tmp/logprob_status.txt
