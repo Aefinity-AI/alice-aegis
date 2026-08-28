@@ -35,8 +35,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
-            arch: x86_64
+          # E17.2b (cm/e17-2b-bitnetcpp-gcc branch only): aarch64-only dispatch to
+          # test gcc instead of clang, to avoid re-burning ~60min of x86_64 CI time
+          # that was already exercised on main. Restore the x86_64 leg before any
+          # merge to main.
           - runner: ubuntu-24.04-arm
             arch: aarch64
     runs-on: ${{ matrix.runner }}
@@ -54,7 +56,7 @@ jobs:
       - name: Install build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang python3-venv python3-pip
+          sudo apt-get install -y cmake ninja-build clang gcc g++ python3-venv python3-pip
 
       - name: Clone bitnet.cpp (pinned to HEAD at job time, commit recorded)
         run: |
@@ -94,7 +96,17 @@ jobs:
           # with the CMake default (GGML_LLAMAFILE_DEFAULT=OFF on every arch, no x86/arm
           # branch in ggml/CMakeLists.txt). llamafile's sgemm.cpp has NEON paths, so this
           # is arch-safe on both legs; recorded here as an E17.2 build-portability finding.
-          cmake -B build "$EXTRA" -DGGML_LLAMAFILE=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+          # E17.2b: GGML_LLAMAFILE=ON alone did NOT fix the aarch64 build (same
+          # src1_cont error persists at ggml-cpu.c:1495 with clang, run 33219288705,
+          # 2026-08-28) -- that undeclared-identifier reference is outside any
+          # GGML_USE_LLAMAFILE guard on this code path. Try gcc/g++ on the aarch64
+          # leg to see whether this is a clang-specific diagnostic strictness issue.
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            CC_BIN=gcc; CXX_BIN=g++
+          else
+            CC_BIN=clang; CXX_BIN=clang++
+          fi
+          cmake -B build "$EXTRA" -DGGML_LLAMAFILE=ON -DCMAKE_C_COMPILER="$CC_BIN" -DCMAKE_CXX_COMPILER="$CXX_BIN" \
             -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_EXAMPLES=ON -DLLAMA_BUILD_COMMON=ON -DLLAMA_BUILD_SERVER=ON
           cmake --build build --config Release -j2
 
