@@ -106,6 +106,36 @@ result (A33, A34) to BitNet-2B — but under QEMU/TCG emulation only: correctnes
 (Rule A), no timing, and no physical-machine claim. A third physical machine (E7c) is staged for
 that leg.
 
+**Verification model.** A receipt contains three artifact hashes, the prompt,
+`max_new`, the generated token ids, the Tier-3 digest, and the final chain
+value — it does not contain the per-step logit vectors; only their SHA-256
+fold survives to disk (`docs/design/CIS_VERIFY_DESIGN.md` §1.2). `cis-verify`
+is an independent implementation of the spec (A37, A38: zero shared code with
+`aegis-core`, no `unsafe`, `no_std`+alloc) that verifies a receipt by
+recomputing the entire `FullInt` forward pass — every spec §5 op, from the
+three artifact bytes and the declared prompt — and comparing its own chain
+against the receipt's. Verification cost is one full deterministic decode, on
+any machine that can build the verifier crate: it trusts neither the
+prover's hardware nor its binary, only the spec and the artifact bytes. This
+is not a succinct proof — there is no check cheaper than re-running the
+decode, and per-step logits are not stored in the receipt for a verifier to
+spot-check against; the chain is the only compressed artifact.
+
+Threat model:
+- A forged receipt needs token ids and a final chain value consistent with
+  SHA-256 preimage resistance — i.e., it requires breaking SHA-256, or
+  already knowing the true forward-pass output, in which case it is not a
+  forgery.
+- A divergent implementation (wrong rounding, wrong grid, a skipped
+  rejection check) produces a different logit vector at whatever step it
+  first diverges, which folds forward and changes every later chain value
+  and the final digest; `cis-verify`'s tamper tests name the first
+  mismatching field (token id, chain, or artifact hash) rather than passing
+  silently (A37).
+- Out of scope: where the model weights came from (model provenance), and
+  whether the prompt is secret — the prompt is hashed into the header in the
+  clear, so a verifier learns it from the receipt itself.
+
 **Where a reviewer should push.** Both physical legs share one structural gap: the verifier
 prints no CPU identifier, so the receipt proves what was computed, not unassisted which box
 computed it. For the Dell leg, a differing firmware memory map gives log-internal evidence; for
