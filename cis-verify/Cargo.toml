@@ -15,6 +15,16 @@ docs/design/CIS_VERIFY_DESIGN.md.
 name = "cis_verify"
 path = "src/lib.rs"
 
+[[bin]]
+name = "cis-verify"
+path = "src/bin/cis-verify.rs"
+required-features = ["std"]
+
+[[example]]
+name = "cis_decode"
+path = "examples/cis_decode.rs"
+required-features = ["std"]
+
 [dependencies]
 # None. See docs/design/CIS_VERIFY_DESIGN.md §3.2: no serde, no sha2, no
 # clap — this crate reimplements exactly the narrow slice of each format it
@@ -22,7 +32,9 @@ path = "src/lib.rs"
 
 [features]
 default = []
-# Reserved for a future `bin/cis-verify.rs` CLI (file I/O, argv, stdout) —
-# not built in this phase. The verification core (sha256, fnv, witness
-# chain, receipt parsing, artifact hashing) is std-independent either way.
+# Gates `src/bin/cis-verify.rs` (file I/O, argv, stdout) and
+# `examples/cis_decode.rs`. The verification core (sha256, fnv, witness
+# chain, receipt parsing, artifact hashing, MODEL.SAF/VOCAB.BIN parsing,
+# the tokenizer, and the FullInt forward pass) is std-independent either
+# way — `no_std` + `alloc` regardless of this feature.
 std = []
