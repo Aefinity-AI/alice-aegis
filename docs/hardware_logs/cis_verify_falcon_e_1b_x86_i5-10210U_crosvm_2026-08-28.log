@@ -1,0 +1,53 @@
+receipt cis-digest 3e21adb66d7a17d6 chain 3ea8cc522efb28ef
+local   cis-digest 3e21adb66d7a17d6 chain 3ea8cc522efb28ef
+VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain bit-for-bit
+usage: cis-verify <receipt> <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN>
+cis-verify: receipt=tests/golden/witness_v1_falcon_e_1b_once64.receipt
+cis-verify: MODEL.SAF=/home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_model.safetensors (530823881 bytes)
+cis-verify: EMBED.BIN=/home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_embed.bin (134217728 bytes)
+cis-verify: VOCAB.BIN=/home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_vocab.bin (665179 bytes)
+check: receipt parse ......... ok
+check: artifact hashes ........ ok
+check: prompt tokenization ..... ok
+check: token-id sequence (64 steps) ok
+check: cis-digest (FNV-1a 64) .. ok
+check: witness chain (SHA-256) . ok
+VERIFY PASS
+
+==================================================
+ E13 SUMMARY: CIS-1 on Falcon-E-1B (first leg)
+==================================================
+
+Experiment: test CIS-1 generalization to a second model family (Falcon-E-1B-Instruct).
+Baseline: A32/A39 proved CIS-1 works on M7 and BitNet-2B across ISAs and platforms.
+E13 objective: demonstrate bit-identical Falcon-E-1B decode receipt on x86-64.
+
+Method (per ledger rigor A35-A40):
+1. Two sequential greedy-decode runs with cis_witness gen
+2. Bit-identity check: compare all receipt fields
+3. Verification: cis_witness verify + cis-verify (standalone)
+
+Results (x86-64, i5-10210U crosvm, dev host):
+- Run 1: cis-digest=3e21adb66d7a17d6, chain=3ea8cc522efb28ef8c9591c975e007b6f41385f57bae4b1242beaaaf3a8ff904
+- Run 2: cis-digest=3e21adb66d7a17d6, chain=3ea8cc522efb28ef8c9591c975e007b6f41385f57bae4b1242beaaaf3a8ff904
+- Bit-identity: ✓ (all 11 receipt lines byte-identical across runs)
+
+Verification:
+- cis_witness verify: VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain bit-for-bit
+- cis-verify (standalone): VERIFY PASS — all 6 checks (parse, artifacts, prompt, token-ids, cis-digest, chain)
+
+Model artifacts (Falcon-E-1B-Instruct, TII):
+- model: 6ebdb9e0b2a099beb2befb71dd4b58deac1f72a1a22aa604788e302f612c92ff
+- embed: 8951f5725b709b9763f4f6eadfedf17629a3861fe71f192399dfb7b4e94bc0c6
+- vocab: e8f860844bc1a0759bf412f15c206ac839333844e4f4eaf153b166ca59184989
+
+Prompt: "Once upon a time" (4 tokens)
+Generated: 64 tokens (greedy, EOS ignored per CIS-1 spec)
+
+Caveats / Open legs:
+- x86-64 only; cross-ISA verification (aarch64 CI, ARM hardware) not yet attempted
+- QEMU/unikernel verification not yet attempted (cf. A40 for BitNet-2B)
+- CIS-full PPL (like A35-A36 for BitNet-2B) not measured — identity artifact only
+
+Status: ✅ E13 CONFIRMED (first leg, x86-64)
+Next: cross-ISA CI legs (if desired), unikernel/iron verification
