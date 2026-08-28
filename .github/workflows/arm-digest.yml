@@ -116,6 +116,44 @@ jobs:
             tests/golden/witness_v1_m7_once64.receipt
           echo "x86-minted witness receipt verifies on $(uname -m)."
 
+      # cis-verify (E4): the standalone, engine-independent third-party
+      # verifier crate — no dependency on aegis-core::cis at all, a from-
+      # scratch transcription of docs/CIS-1_SPEC_v1.0.md. Its own test suite
+      # reproduces the same Tier-2 selftest digest pinned above, which is an
+      # independent corroboration: two separate implementations of the spec
+      # agree, on this ISA too.
+      - name: cis-verify (standalone verifier) — run test suite on aarch64
+        run: |
+          set -euo pipefail
+          cargo test --release --features std --manifest-path cis-verify/Cargo.toml -- --nocapture 2>&1 | tee cis-verify-test.log
+          grep -q 'CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true' cis-verify-test.log || {
+            echo '::error::cis-verify (standalone verifier) selftest did not print the pinned Tier-2/Tier-3 digest line on aarch64 — this falsifies the independent-verifier cross-ISA identity claim and is a finding: preserve cis-verify-test.log verbatim.';
+            exit 1;
+          }
+
+      # Same golden receipt as the Witness v1 step above, but verified by
+      # the standalone cis-verify CLI instead of the in-repo cis_witness
+      # example — a second, independently-built verifier agreeing on ARM.
+      - name: cis-verify (standalone verifier) — CLI verifies the golden receipt on aarch64
+        run: |
+          set -euo pipefail
+          M=model-lab/tinybit/m7_final_gate_work/artifacts
+          cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin cis-verify -- \
+            tests/golden/witness_v1_m7_once64.receipt "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" \
+            2>&1 | tee -a cis-verify-test.log
+          grep -q 'CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true' cis-verify-test.log && grep -q 'VERIFY PASS' cis-verify-test.log || {
+            echo '::error::cis-verify (standalone verifier) CLI did not print VERIFY PASS on the golden receipt on aarch64 — this falsifies the independent-verifier cross-ISA witness claim and is a finding: preserve cis-verify-test.log verbatim.';
+            exit 1;
+          }
+          echo "standalone cis-verify CLI reproduces VERIFY PASS on $(uname -m)."
+
+      - name: Upload cis-verify test log (aarch64)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cis-verify-test-log-aarch64
+          path: cis-verify-test.log
+
   digest-x86:
     name: x86_64 — same pins, same binary sources
     runs-on: ubuntu-24.04
@@ -157,3 +195,41 @@ jobs:
           ./aegis-linux/target/release/examples/cis_witness verify \
             "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" \
             tests/golden/witness_v1_m7_once64.receipt
+
+      # cis-verify (E4): the standalone, engine-independent third-party
+      # verifier crate — no dependency on aegis-core::cis at all, a from-
+      # scratch transcription of docs/CIS-1_SPEC_v1.0.md. Its own test suite
+      # reproduces the same Tier-2 selftest digest pinned above, which is an
+      # independent corroboration on x86_64 too: any ARM mismatch is the
+      # ISA, not this crate's tree.
+      - name: cis-verify (standalone verifier) — run test suite on x86_64
+        run: |
+          set -euo pipefail
+          cargo test --release --features std --manifest-path cis-verify/Cargo.toml -- --nocapture 2>&1 | tee cis-verify-test.log
+          grep -q 'CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true' cis-verify-test.log || {
+            echo '::error::cis-verify (standalone verifier) selftest did not print the pinned Tier-2/Tier-3 digest line on x86_64 — this falsifies the independent-verifier identity claim and is a finding: preserve cis-verify-test.log verbatim.';
+            exit 1;
+          }
+
+      # Same golden receipt as the Witness v1 step above, but verified by
+      # the standalone cis-verify CLI instead of the in-repo cis_witness
+      # example — a second, independently-built verifier agreeing on x86.
+      - name: cis-verify (standalone verifier) — CLI verifies the golden receipt on x86_64
+        run: |
+          set -euo pipefail
+          M=model-lab/tinybit/m7_final_gate_work/artifacts
+          cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin cis-verify -- \
+            tests/golden/witness_v1_m7_once64.receipt "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN" \
+            2>&1 | tee -a cis-verify-test.log
+          grep -q 'CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true' cis-verify-test.log && grep -q 'VERIFY PASS' cis-verify-test.log || {
+            echo '::error::cis-verify (standalone verifier) CLI did not print VERIFY PASS on the golden receipt on x86_64 — this falsifies the independent-verifier witness claim and is a finding: preserve cis-verify-test.log verbatim.';
+            exit 1;
+          }
+          echo "standalone cis-verify CLI reproduces VERIFY PASS on $(uname -m)."
+
+      - name: Upload cis-verify test log (x86_64)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cis-verify-test-log-x86_64
+          path: cis-verify-test.log
