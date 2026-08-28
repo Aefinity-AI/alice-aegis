@@ -1,0 +1,123 @@
+A.L.I.C.E. unikernel — BitNet-2B receipt verified in VERIFY mode under QEMU/OVMF (TCG) — 2026-08-27
+CORRECTNESS / IDENTITY ONLY (Rule A): QEMU -accel tcg -cpu max -m 2048; nothing here is a performance number and the ~26 min wall time is not a result. Host: dev Chromebook i5-10210U crosvm.
+Binary: aegis-uefi.efi from ./aegis-uefi/build_hardfloat.sh at main (fma=161 ymm=504 census OK), worktree branch cm/e10-2b-unikernel (kit-size override d60f3ef, merged). Image: 1024 MiB FAT via scripts/make-kit-image.sh (AEGIS_KIT_SIZE_MB=1024) with MODEL.SAF=aegis_pruned_model.cis.safetensors (522,831,917 B, sha256 facb3597…), EMBED.BIN (257,310,720 B), VOCAB.BIN (1,759,936 B), RECEIPT.TXT=tests/golden/witness_v1_bitnet2b_once64.receipt.
+Operator: Claudius Maximus (Fable) via a sonnet agent. Serial log and BOOTLOG.TXT copied verbatim below from scratch (sha256: 956142aac334e7f6 serial, cb547cc821ef4ed8 bootlog).
+
+== QEMU command and run transcript (result.txt) ==
+QEMU command:
+  qemu-system-x86_64  -machine  q35\,accel=tcg  -cpu  max  -m  2048  -drive  if=pflash\,format=raw\,readonly=on\,file=/usr/share/OVMF/OVMF_CODE_4M.fd  -drive  if=pflash\,format=raw\,file=/tmp/claude-1000/-home-justinbrianthompson/462eee83-5d3d-45d7-af1a-58abcfcc7c6e/scratchpad/e10/OVMF_VARS_4M.fd  -drive  format=raw\,file=/tmp/claude-1000/-home-justinbrianthompson/462eee83-5d3d-45d7-af1a-58abcfcc7c6e/scratchpad/e10/aegis-kit-e10-2b.img  -device  isa-debug-exit\,iobase=0xf4\,iosize=0x04  -serial  file:/tmp/claude-1000/-home-justinbrianthompson/462eee83-5d3d-45d7-af1a-58abcfcc7c6e/scratchpad/e10/e10_serial.log  -display  none  -no-reboot
+start: 2026-08-28T01:51:07Z
+qemu pid: 107645
+end: 2026-08-28T02:17:29Z
+loop exit status: verification_complete
+last stage line seen: 
+qemu exit code: 0
+--- serial console tail (last 80 lines) ---
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+BdsDxe: starting Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+[SYS] Tactically Questioning Silicon...
+[SYS] -> Model: QEMU TCG CPU version 2.5+
+[SYS] -> SSE4.1: [ DETECTED ]
+[SYS] -> AVX:    [ DETECTED ]
+[SYS] -> AVX2:   [ DETECTED ]
+[SYS] -> FMA3:   [ DETECTED ]
+[SYS] Locking inference kernel to native AVX2+FMA.
+[2J[01;01H
+==================================================
+ A.L.I.C.E. UNIKERNEL INFERENCE ENGINE (UEFI APP)
+==================================================
+
+[SYSTEM] Pre-allocating DMA Bounce Buffer...
+[SYSTEM] Pre-allocating Tensor Space...
+[SYSTEM] Locating weights on USB FAT32 Partition...
+[2J[01;01H  -> Reading MODEL.SAF (522831917 bytes) [  -> Reading MODEL.SAF [>                   ] 2% (10 MB/498 MB)     -> Reading MODEL.SAF [>                   ] 4% (20 MB/498 MB)     -> Reading MODEL.SAF [=>                  ] 6% (30 MB/498 MB)     -> Reading MODEL.SAF [=>                  ] 8% (40 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 10% (50 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 12% (60 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 14% (70 MB/498 MB)     -> Reading MODEL.SAF [===>                ] 16% (80 MB/498 MB)     -> Reading MODEL.SAF [===>                ] 18% (90 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 20% (100 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 22% (110 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 24% (120 MB/498 MB)     -> Reading MODEL.SAF [=====>              ] 26% (130 MB/498 MB)     -> Reading MODEL.SAF [=====>              ] 28% (140 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 30% (150 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 32% (160 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 34% (170 MB/498 MB)     -> Reading MODEL.SAF [=======>            ] 36% (180 MB/498 MB)     -> Reading MODEL.SAF [=======>            ] 38% (190 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 40% (200 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 42% (210 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 44% (220 MB/498 MB)     -> Reading MODEL.SAF [=========>          ] 46% (230 MB/498 MB)     -> Reading MODEL.SAF [=========>          ] 48% (240 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 50% (250 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 52% (260 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 54% (270 MB/498 MB)     -> Reading MODEL.SAF [===========>        ] 56% (280 MB/498 MB)     -> Reading MODEL.SAF [===========>        ] 58% (290 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 60% (300 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 62% (310 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 64% (320 MB/498 MB)     -> Reading MODEL.SAF [=============>      ] 66% (330 MB/498 MB)     -> Reading MODEL.SAF [=============>      ] 68% (340 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 70% (350 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 72% (360 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 74% (370 MB/498 MB)     -> Reading MODEL.SAF [===============>    ] 76% (380 MB/498 MB)     -> Reading MODEL.SAF [===============>    ] 78% (390 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 80% (400 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 82% (410 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 84% (420 MB/498 MB)     -> Reading MODEL.SAF [=================>  ] 86% (430 MB/498 MB)     -> Reading MODEL.SAF [=================>  ] 88% (440 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 90% (450 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 92% (460 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 94% (470 MB/498 MB)     -> Reading MODEL.SAF [===================>] 96% (480 MB/498 MB)     -> Reading MODEL.SAF [===================>] 98% (490 MB/498 MB)   OK]
+[2J[01;01H  -> Reading EMBED.BIN (257310720 bytes) [  -> Reading EMBED.BIN [>                   ] 4% (10 MB/245 MB)     -> Reading EMBED.BIN [=>                  ] 8% (20 MB/245 MB)     -> Reading EMBED.BIN [==>                 ] 12% (30 MB/245 MB)     -> Reading EMBED.BIN [===>                ] 16% (40 MB/245 MB)     -> Reading EMBED.BIN [====>               ] 20% (50 MB/245 MB)     -> Reading EMBED.BIN [====>               ] 24% (60 MB/245 MB)     -> Reading EMBED.BIN [=====>              ] 28% (70 MB/245 MB)     -> Reading EMBED.BIN [======>             ] 32% (80 MB/245 MB)     -> Reading EMBED.BIN [=======>            ] 36% (90 MB/245 MB)     -> Reading EMBED.BIN [========>           ] 40% (100 MB/245 MB)     -> Reading EMBED.BIN [========>           ] 44% (110 MB/245 MB)     -> Reading EMBED.BIN [=========>          ] 48% (120 MB/245 MB)     -> Reading EMBED.BIN [==========>         ] 52% (130 MB/245 MB)     -> Reading EMBED.BIN [===========>        ] 57% (140 MB/245 MB)     -> Reading EMBED.BIN [============>       ] 61% (150 MB/245 MB)     -> Reading EMBED.BIN [=============>      ] 65% (160 MB/245 MB)     -> Reading EMBED.BIN [=============>      ] 69% (170 MB/245 MB)     -> Reading EMBED.BIN [==============>     ] 73% (180 MB/245 MB)     -> Reading EMBED.BIN [===============>    ] 77% (190 MB/245 MB)     -> Reading EMBED.BIN [================>   ] 81% (200 MB/245 MB)     -> Reading EMBED.BIN [=================>  ] 85% (210 MB/245 MB)     -> Reading EMBED.BIN [=================>  ] 89% (220 MB/245 MB)     -> Reading EMBED.BIN [==================> ] 93% (230 MB/245 MB)     -> Reading EMBED.BIN [===================>] 97% (240 MB/245 MB)   OK]
+[2J[01;01H  -> Reading VOCAB.BIN (1759936 bytes) [OK]
+[2J[01;01H  -> Reading RECEIPT.TXT (723 bytes) [OK]
+  -> [SYS] Claiming physical memory: 0x000000002FF81000 -> 0x000000005BB81000... [OK]
+
+[SYSTEM] Files loaded to RAM. Initializing Tensor Arena...
+
+[AEGIS] RECEIPT.TXT found — witness verifier mode (CIS-1 FullInt)
+artifacts: 3/3 hashes match the receipt
+receipt cis-digest cab11400d737ac4a chain 917ddf5fea9a8488..
+local   cis-digest cab11400d737ac4a chain 917ddf5fea9a8488..
+VERIFY PASS — this machine reproduced all 64 decode steps' full logit vectors bit-for-bit, with no OS underneath
+
+Verification complete. It is safe to power off.
+--- BOOTLOG.TXT from image ---
+ Volume in drive : has no label
+ Volume Serial Number is 7853-3363
+Directory for ::/
+
+EFI          <DIR>     2026-08-27  20:50 
+MODEL    SAF  522831917 2026-08-27  20:50 
+EMBED    BIN  257310720 2026-08-27  20:50 
+VOCAB    BIN   1759936 2026-08-27  20:50 
+RECEIPT  TXT       723 2026-08-27  20:50 
+README   TXT       881 2026-08-27  20:50 
+BOOTLOG  TXT       713 2026-08-28   2:17 
+        7 files         781 904 890 bytes
+                        289 202 176 bytes free
+
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831917 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+H3 buffers: MODEL.SAF=0x1780000+522831917 EMBED.BIN=0x20A1D000+257310720 VOCAB.BIN=0x100000+1759936
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 4d: RECEIPT.TXT loaded — verifier mode armed
+STAGE 5: working heap online
+CPUID: vendor=AuthenticAMD brand="QEMU TCG CPU version 2.5+" family=6 model=6 stepping=3 feats=<avx2:1,fma:1,sse2:1>
+STAGE V: witness verify PASS — VERIFY PASS — this machine reproduced all 64 decode steps' full logit vectors bit-for-bit, with no OS underneath
+DONE
+
+== BOOTLOG.TXT (read back from the image) ==
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831917 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+H3 buffers: MODEL.SAF=0x1780000+522831917 EMBED.BIN=0x20A1D000+257310720 VOCAB.BIN=0x100000+1759936
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 4d: RECEIPT.TXT loaded — verifier mode armed
+STAGE 5: working heap online
+CPUID: vendor=AuthenticAMD brand="QEMU TCG CPU version 2.5+" family=6 model=6 stepping=3 feats=<avx2:1,fma:1,sse2:1>
+STAGE V: witness verify PASS — VERIFY PASS — this machine reproduced all 64 decode steps' full logit vectors bit-for-bit, with no OS underneath
+
+== serial log ==
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+BdsDxe: starting Boot0001 "UEFI QEMU HARDDISK QM00001 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)
+[SYS] Tactically Questioning Silicon...
+[SYS] -> Model: QEMU TCG CPU version 2.5+
+[SYS] -> SSE4.1: [ DETECTED ]
+[SYS] -> AVX:    [ DETECTED ]
+[SYS] -> AVX2:   [ DETECTED ]
+[SYS] -> FMA3:   [ DETECTED ]
+[SYS] Locking inference kernel to native AVX2+FMA.
+[2J[01;01H
+==================================================
+ A.L.I.C.E. UNIKERNEL INFERENCE ENGINE (UEFI APP)
+==================================================
+
+[SYSTEM] Pre-allocating DMA Bounce Buffer...
+[SYSTEM] Pre-allocating Tensor Space...
+[SYSTEM] Locating weights on USB FAT32 Partition...
+[2J[01;01H  -> Reading MODEL.SAF (522831917 bytes) [  -> Reading MODEL.SAF [>                   ] 2% (10 MB/498 MB)     -> Reading MODEL.SAF [>                   ] 4% (20 MB/498 MB)     -> Reading MODEL.SAF [=>                  ] 6% (30 MB/498 MB)     -> Reading MODEL.SAF [=>                  ] 8% (40 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 10% (50 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 12% (60 MB/498 MB)     -> Reading MODEL.SAF [==>                 ] 14% (70 MB/498 MB)     -> Reading MODEL.SAF [===>                ] 16% (80 MB/498 MB)     -> Reading MODEL.SAF [===>                ] 18% (90 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 20% (100 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 22% (110 MB/498 MB)     -> Reading MODEL.SAF [====>               ] 24% (120 MB/498 MB)     -> Reading MODEL.SAF [=====>              ] 26% (130 MB/498 MB)     -> Reading MODEL.SAF [=====>              ] 28% (140 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 30% (150 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 32% (160 MB/498 MB)     -> Reading MODEL.SAF [======>             ] 34% (170 MB/498 MB)     -> Reading MODEL.SAF [=======>            ] 36% (180 MB/498 MB)     -> Reading MODEL.SAF [=======>            ] 38% (190 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 40% (200 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 42% (210 MB/498 MB)     -> Reading MODEL.SAF [========>           ] 44% (220 MB/498 MB)     -> Reading MODEL.SAF [=========>          ] 46% (230 MB/498 MB)     -> Reading MODEL.SAF [=========>          ] 48% (240 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 50% (250 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 52% (260 MB/498 MB)     -> Reading MODEL.SAF [==========>         ] 54% (270 MB/498 MB)     -> Reading MODEL.SAF [===========>        ] 56% (280 MB/498 MB)     -> Reading MODEL.SAF [===========>        ] 58% (290 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 60% (300 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 62% (310 MB/498 MB)     -> Reading MODEL.SAF [============>       ] 64% (320 MB/498 MB)     -> Reading MODEL.SAF [=============>      ] 66% (330 MB/498 MB)     -> Reading MODEL.SAF [=============>      ] 68% (340 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 70% (350 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 72% (360 MB/498 MB)     -> Reading MODEL.SAF [==============>     ] 74% (370 MB/498 MB)     -> Reading MODEL.SAF [===============>    ] 76% (380 MB/498 MB)     -> Reading MODEL.SAF [===============>    ] 78% (390 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 80% (400 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 82% (410 MB/498 MB)     -> Reading MODEL.SAF [================>   ] 84% (420 MB/498 MB)     -> Reading MODEL.SAF [=================>  ] 86% (430 MB/498 MB)     -> Reading MODEL.SAF [=================>  ] 88% (440 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 90% (450 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 92% (460 MB/498 MB)     -> Reading MODEL.SAF [==================> ] 94% (470 MB/498 MB)     -> Reading MODEL.SAF [===================>] 96% (480 MB/498 MB)     -> Reading MODEL.SAF [===================>] 98% (490 MB/498 MB)   OK]
+[2J[01;01H  -> Reading EMBED.BIN (257310720 bytes) [  -> Reading EMBED.BIN [>                   ] 4% (10 MB/245 MB)     -> Reading EMBED.BIN [=>                  ] 8% (20 MB/245 MB)     -> Reading EMBED.BIN [==>                 ] 12% (30 MB/245 MB)     -> Reading EMBED.BIN [===>                ] 16% (40 MB/245 MB)     -> Reading EMBED.BIN [====>               ] 20% (50 MB/245 MB)     -> Reading EMBED.BIN [====>               ] 24% (60 MB/245 MB)     -> Reading EMBED.BIN [=====>              ] 28% (70 MB/245 MB)     -> Reading EMBED.BIN [======>             ] 32% (80 MB/245 MB)     -> Reading EMBED.BIN [=======>            ] 36% (90 MB/245 MB)     -> Reading EMBED.BIN [========>           ] 40% (100 MB/245 MB)     -> Reading EMBED.BIN [========>           ] 44% (110 MB/245 MB)     -> Reading EMBED.BIN [=========>          ] 48% (120 MB/245 MB)     -> Reading EMBED.BIN [==========>         ] 52% (130 MB/245 MB)     -> Reading EMBED.BIN [===========>        ] 57% (140 MB/245 MB)     -> Reading EMBED.BIN [============>       ] 61% (150 MB/245 MB)     -> Reading EMBED.BIN [=============>      ] 65% (160 MB/245 MB)     -> Reading EMBED.BIN [=============>      ] 69% (170 MB/245 MB)     -> Reading EMBED.BIN [==============>     ] 73% (180 MB/245 MB)     -> Reading EMBED.BIN [===============>    ] 77% (190 MB/245 MB)     -> Reading EMBED.BIN [================>   ] 81% (200 MB/245 MB)     -> Reading EMBED.BIN [=================>  ] 85% (210 MB/245 MB)     -> Reading EMBED.BIN [=================>  ] 89% (220 MB/245 MB)     -> Reading EMBED.BIN [==================> ] 93% (230 MB/245 MB)     -> Reading EMBED.BIN [===================>] 97% (240 MB/245 MB)   OK]
+[2J[01;01H  -> Reading VOCAB.BIN (1759936 bytes) [OK]
+[2J[01;01H  -> Reading RECEIPT.TXT (723 bytes) [OK]
+  -> [SYS] Claiming physical memory: 0x000000002FF81000 -> 0x000000005BB81000... [OK]
+
+[SYSTEM] Files loaded to RAM. Initializing Tensor Arena...
+
+[AEGIS] RECEIPT.TXT found — witness verifier mode (CIS-1 FullInt)
+artifacts: 3/3 hashes match the receipt
+receipt cis-digest cab11400d737ac4a chain 917ddf5fea9a8488..
+local   cis-digest cab11400d737ac4a chain 917ddf5fea9a8488..
+VERIFY PASS — this machine reproduced all 64 decode steps' full logit vectors bit-for-bit, with no OS underneath
+
+Verification complete. It is safe to power off.
