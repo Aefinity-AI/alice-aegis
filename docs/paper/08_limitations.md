@@ -58,6 +58,19 @@ is the boundary A33 and A34 already crossed, but only at M7 scale: those two leg
 smaller M7 receipt on physical Dell and HP hardware, not BitNet-2B. The BitNet-2B kit has not yet
 booted on physical iron; a third physical machine (E7c) is staged for that leg.
 
+**Two model families is still two.** A41 shows the pipeline is not overfit to BitNet's specific
+shapes — it runs unmodified on Falcon-E-1B, a different attention shape (grouped-query, 16h/2kv),
+a different MLP nonlinearity (SwiGLU/silu vs. squared-ReLU), untied embeddings, and a different
+vocabulary — but it is one additional architecture, not a systematic sweep, and both families are
+BitNet-style ternary transformers within the class the frozen v1.0 spec targets (spec §3). The
+Falcon-E-1B perplexity figures inherit the same non-comparability caveat as A21/A35: its
+32,768-token vocabulary differs from BitNet-2B's pruned tokenizer, so the A41 PPL numbers are not
+comparable to any other model's PPL in this paper — only the internal float-vs-integer delta,
+measured in the same run with the same binary, is the claim. A harder, qualitatively different
+next target is a group-scaled GGUF ternary model — Ternary-Bonsai-27B — whose quantization scheme
+is not the per-tensor/per-block grid this spec's v1.0 §3 assumes; that generalization has not been
+attempted.
+
 **What the receipt does not do.** A receipt proves that a conforming computation over the bound
 artifacts produced the bound outputs. It does not prove which physical machine ran it (that is
 platform attestation's job), does not hide the model or the prompt (it is not a zero-knowledge
