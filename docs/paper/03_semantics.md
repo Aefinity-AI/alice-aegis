@@ -110,6 +110,35 @@ exactly:
 CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint
 ```
 
+> **Definition (bit-identical decode).** Fix a model checkpoint, a prompt, and
+> `max_new`. Two conforming CIS-1 `FullInt` implementations are *bit-identical*
+> on this input iff, for every decode step `t = 1..max_new`, the complete `i64`
+> logit vector each computes is equal entry-for-entry and the argmax token id
+> each selects is equal. The witness chain is a deterministic function of
+> exactly that per-step state — the header folds the three artifact hashes
+> and `(max_new, prompt)`, and each step folds `(step index, token id, full
+> logit vector)` — so bit-identical decode is equivalent to an equal SHA-256
+> chain digest. Covered: every integer value that determines an argmax, at
+> every step. Not covered: KV-cache *bytes* are never hashed directly — a
+> verifier may lay out its cache arena however it likes, since cache contents
+> are themselves determined by the same integer arithmetic and cannot diverge
+> without producing a different logit vector downstream; and sampling is
+> out of scope, since v1.0 conformance is greedy argmax only (spec §10) — no
+> seeded-sampling claim is made or checked.
+
+**Mechanism.** The definition holds across ISA, vector width, and compiler
+because spec §1's axiom pins the arithmetic, not the loop: every reduction is
+a sum of integers with a proven headroom bound (§3 above), so associativity
+and commutativity let accumulation happen in any order, on any SIMD width,
+without changing the sum; one rounding mode and pinned transcendental tables
+(spec §2) remove the two remaining classical sources of drift — accumulation
+order and library-dependent constant precision. Ledger evidence per leg:
+cross-ISA (A39, BitNet-2B receipt reproduced on aarch64 CI by two independent
+verifiers), cross-model-family (A41, Falcon-E-1B — a non-BitNet ternary
+transformer — through the unmodified pipeline), and cross-compiler (A42, 9
+build configurations spanning opt-level and vectorization, identical digest
+despite objdump-verified different machine code).
+
 ---
 
 **Source map**
