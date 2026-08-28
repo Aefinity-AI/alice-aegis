@@ -1,0 +1,67 @@
+CIS-1 on Falcon-E-1B (SECOND model family, NOT BitNet) — full-int PPL, decode digest, receipt mint+verify — 2026-08-28
+Machine: dev Chromebook i5-10210U crosvm. QUALITY/IDENTITY ONLY (Rule A: any wall-time in the raw scratch logs is incidental, not a result).
+Model: Falcon-E-1B ternary (24L, hidden 2048, 16h/2kv, intermediate 9216, silu/SwiGLU, vocab 32768, rope_theta 1e6, untied) — aegis_config already in MODEL.SAF __metadata__, NO forge step, NO engine change.
+Binaries: aegis-eval + cis_decode + cis_witness release (worktree cm/e13-falcon-e c903cd6); standalone cis-verify. Commands: aegis-eval <M> <E> <V> test.txt 200 --cis-full; cis_decode <M> <E> <V> 64 "Once upon a time" (x2); cis_witness mint+verify; cis-verify CLI.
+Operator: Claudius Maximus (Fable) via cm-builder. Scratch log sha256: 0d2f86e083f3a2ae ppl, c8cf26f132a77045 dec1, 871eeb766fcf08bf dec2, d88885a6d9a33cf6 verify.
+
+== artifact identities ==
+6ebdb9e0b2a099beb2befb71dd4b58deac1f72a1a22aa604788e302f612c92ff  falcon_e_1b_model.safetensors
+8951f5725b709b9763f4f6eadfedf17629a3861fe71f192399dfb7b4e94bc0c6  falcon_e_1b_embed.bin
+e8f860844bc1a0759bf412f15c206ac839333844e4f4eaf153b166ca59184989  falcon_e_1b_vocab.bin
+
+== --cis-full transcript ==
+==================================================
+ A.L.I.C.E. Perplexity Evaluator (measured)
+==================================================
+Engine online. SIMD level: AVX2+FMA
+Dataset: /home/justinbrianthompson/projects/alice-aegis/test.txt | sample: 199 tokens
+--------------------------------------------------
+CIS-1 v0.3 — float vs hybrid-int vs FULL-INTEGER, teacher-forced
+float      PPL (198 scored tokens): 11.736378   [40.1s]
+hybrid-int PPL (198 scored tokens): 11.823613   [251.4s]  delta vs float: +0.7433%
+full-int   PPL (198 scored tokens): 11.818673   [250.3s]  delta vs float: +0.7012%
+kill line (full-int vs float): +5.0%
+FULL-INT VERDICT: PASS (within the +5% line)
+hybrid-int argmax digest (FNV-1a 64): 0x6988214C293A5A8F
+full-int   argmax digest (FNV-1a 64): 0x4F90C9C906D6A041
+--------------------------------------------------
+NOTE: vocab 32768 tokens (full source vocab; cross-tokenizer PPLs are not comparable).
+Report this number only alongside that caveat.
+EXIT: 0
+
+== cis_decode run1 ==
+model : 24 layers, hidden 2048, vocab 32768
+prompt: "Once upon a time" -> 4 tokens
+token ids: [535, 809, 774, 3489, 4283, 4908, 535, 1635, 9589, 774, 3989, 1387, 6534, 10426, 537, 6302, 1358, 1179, 774, 19386, 535, 774, 1358, 935, 29840, 1005, 798, 21365, 813, 784, 4363, 537, 805, 4430, 2780, 535, 10426, 530, 606, 4041, 1179, 16085, 1009, 774, 25599, 7544, 535, 774, 1387, 951, 774, 5707, 935, 14737, 817, 3442, 784, 2078, 817, 3700, 784, 4363, 537, 1921]
+text     : ", in a land far away, there lived a young man named Alex. His name was a mystery, a name that whispered secrets of the past.\n\nOne day, Alex's family was visited by a mysterious figure, a man with a face that seemed to hold the key to understanding the past. He"
+CIS_DECODE digest=3e21adb66d7a17d6 prompt_toks=4 gen_toks=64 mode=fullint
+EXIT1: 0
+== cis_decode run2 ==
+model : 24 layers, hidden 2048, vocab 32768
+prompt: "Once upon a time" -> 4 tokens
+token ids: [535, 809, 774, 3489, 4283, 4908, 535, 1635, 9589, 774, 3989, 1387, 6534, 10426, 537, 6302, 1358, 1179, 774, 19386, 535, 774, 1358, 935, 29840, 1005, 798, 21365, 813, 784, 4363, 537, 805, 4430, 2780, 535, 10426, 530, 606, 4041, 1179, 16085, 1009, 774, 25599, 7544, 535, 774, 1387, 951, 774, 5707, 935, 14737, 817, 3442, 784, 2078, 817, 3700, 784, 4363, 537, 1921]
+text     : ", in a land far away, there lived a young man named Alex. His name was a mystery, a name that whispered secrets of the past.\n\nOne day, Alex's family was visited by a mysterious figure, a man with a face that seemed to hold the key to understanding the past. He"
+CIS_DECODE digest=3e21adb66d7a17d6 prompt_toks=4 gen_toks=64 mode=fullint
+EXIT2: 0
+
+== receipt + verify ==
+=== cis_witness verify ===
+receipt cis-digest 3e21adb66d7a17d6 chain 3ea8cc522efb28ef
+local   cis-digest 3e21adb66d7a17d6 chain 3ea8cc522efb28ef
+VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain bit-for-bit
+EXIT: 0
+=== standalone cis-verify ===
+    Finished `release` profile [optimized] target(s) in 0.01s
+     Running `cis-verify/target/release/cis-verify tests/golden/witness_v1_falcon_e_1b_once64.receipt /home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_model.safetensors /home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_embed.bin /home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_vocab.bin`
+cis-verify: receipt=tests/golden/witness_v1_falcon_e_1b_once64.receipt
+cis-verify: MODEL.SAF=/home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_model.safetensors (530823881 bytes)
+cis-verify: EMBED.BIN=/home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_embed.bin (134217728 bytes)
+cis-verify: VOCAB.BIN=/home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_vocab.bin (665179 bytes)
+check: receipt parse ......... ok
+check: artifact hashes ........ ok
+check: prompt tokenization ..... ok
+check: token-id sequence (64 steps) ok
+check: cis-digest (FNV-1a 64) .. ok
+check: witness chain (SHA-256) . ok
+VERIFY PASS
+EXIT: 0
