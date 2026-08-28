@@ -5,11 +5,23 @@ edition = "2024"
 license = "Apache-2.0"
 authors = ["Justin B. Thompson (Aefinity AI)"]
 repository = "https://github.com/Aefinity-AI/alice-aegis"
-description = """
-Standalone third-party verifier core for CIS-1 decode receipts
-(AEGIS-WITNESS v1-CIS). no_std+alloc, zero runtime dependencies — see
-docs/design/CIS_VERIFY_DESIGN.md.
-"""
+readme = "README.md"
+description = "Standalone verifier for CIS-1 decode receipts: bit-identical transformer inference, checkable by anyone"
+keywords = ["verification", "no-std", "receipt", "transformer", "llm"]
+categories = ["cryptography", "command-line-utilities", "no-std"]
+# Keep the published package small and self-contained: this crate's own
+# source, the golden receipt fixture (1 KB — cheap to ship), and the README.
+# Excludes everything else this subdirectory can see by walking up
+# (../model-lab, ../docs, ../tests/golden) — none of it is needed to build
+# or run cis-verify, and the workspace-relative test fixtures gracefully
+# skip (not fail) when those paths aren't present (see tests/*.rs).
+include = [
+    "src/**",
+    "examples/**",
+    "tests/**",
+    "README.md",
+    "Cargo.toml",
+]
 
 [lib]
 name = "cis_verify"
