@@ -81,3 +81,16 @@ stop-condition dependence), and `CisMode::FullInt` only — the Hybrid arms are 
 x86-only, because their f32 legs carry no cross-ISA claim. Not established: BitNet-2B scale — the
 2B weights are not in the repository and a 2B decode does not fit in CI; that leg needs a local
 ARM board or a paid runner and stays open (A29).
+
+**Token-level identity reaches production scale, x86 only (A36).** `cis_decode` run on the pruned
+BitNet-2B artifacts (30 layers, hidden 2560, 50,256-token vocabulary) in the FullInt configuration
+prints `CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint`, identical
+across two sequential runs on the same host (i5-10210U crosvm). The artifact is the A21/A35 model
+with `__metadata__.aegis_config` added by `aegis-forge/add_aegis_config.py`; its tensor data blob
+is byte-identical to the A21/A35 model, and the same log reproduces the A21/A35 float, hybrid, and
+full-integer perplexity figures exactly on this artifact, so the digest and those figures share one
+model. The generated text is coherent English ("…in a small town called Greenfield, there lived a
+young girl named Lily…"). This is the x86 anchor for the BitNet-2B cross-ISA leg — the 2B
+counterpart of A29 — but only the x86 leg exists so far: the aarch64 run has not been performed, so
+the cross-ISA claim A29 makes for the M7 model does not yet extend to BitNet-2B. Identity evidence
+only; no timing is quoted or quotable from it (A36).

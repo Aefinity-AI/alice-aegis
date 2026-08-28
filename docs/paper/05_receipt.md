@@ -52,6 +52,25 @@ entry rests on operator witness (A34). The row also records a firmware finding m
 on this leg: that the N4020's UEFI boots the unikernel at all was previously unknown before this
 boot (A34).
 
+**A third, standalone implementation verifies the receipt without the engine (A37).** Everything
+above shows the receipt can be produced and replayed by machines running `aegis-core` itself, on
+either ISA. A receipt that only the reference engine can check is not yet useful to a third party
+— the verifier is what makes it useful, and it must not depend on the code being verified.
+`cis-verify` is a separate crate, written from the spec and the receipt format rather than as a
+fork of `aegis-core`: zero external runtime dependencies, no dependency on `aegis-core`, no
+`unsafe`, `no_std`+alloc at its core. On the same dev host, it reproduces the pinned op-level
+digest (`CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`), both pinned table digests (the exp
+LUT and RoPE constants), and the token-level decode digest
+(`CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint`) on first attempt,
+then verifies the golden receipt `tests/golden/witness_v1_m7_once64.receipt` end to end — all six
+checks (receipt parse, the three artifact hashes, prompt tokenization, the 64-step token-id
+sequence, the cis-digest, and the witness chain) — and prints `VERIFY PASS` in about 1.4 seconds.
+Its tamper tests fail by naming the corrupted field (token id, chain, model/vocab hash, or
+receipt parse), not by silently passing. Honest scope, stated plainly: this was an LM agent
+transcribing the spec with the reference source visible, not a clean-room reimplementation in the
+sense A31 uses that term — it is evidence that the spec and the receipt format are re-implementable
+without the engine's SIMD/dispatch code, not an independent third-party audit (§8, A37).
+
 **Where a reviewer should push.** Both physical legs share one structural gap: the verifier
 prints no CPU identifier, so the receipt proves what was computed, not unassisted which box
 computed it. For the Dell leg, a differing firmware memory map gives log-internal evidence; for

@@ -42,6 +42,22 @@ verify the x86-minted golden receipt. A mismatch in any digest is a
 falsification of the corresponding claim in §4–5, not a bug to be quietly
 fixed — the workflow says so at the point it would fail.
 
+**Standalone verifier (`cis-verify`).** A separate crate at `cis-verify/`, with zero external
+runtime dependencies and no dependency on `aegis-core` (§5, A37):
+
+```
+cargo test --features std --manifest-path cis-verify/Cargo.toml -- --nocapture
+
+cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin cis-verify -- \
+  tests/golden/witness_v1_m7_once64.receipt \
+  "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN"
+```
+
+The first command runs the crate's test suite, including the pinned op-level digest, both pinned
+table digests, the token-level decode digest, and the golden-receipt verification and tamper
+tests. The second runs the CLI directly against the golden receipt and prints `VERIFY PASS` (or
+`VERIFY FAIL (<field>)`) in about 1.4 seconds.
+
 **Append-only evidence (Rule C).** `tests/golden/` and `docs/hardware_logs/`
 are append-only: every figure in this paper traces to a file under one of
 these two paths, and no existing file under either is ever edited, only

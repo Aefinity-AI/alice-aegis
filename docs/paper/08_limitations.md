@@ -15,6 +15,14 @@ text as their sole source, with reference-source access forbidden and, as far as
 establish, not used. This demonstrates implementability from text; it is not an independent
 third-party audit, and we do not describe it as one.
 
+**The `cis-verify` reimplementation is an LM-agent transcription, not a clean-room audit.** Like
+the two implementers behind A31, `cis-verify` (§5) was built by a language-model agent — given the
+specification and the receipt format as reference material, in three phases — not by an
+independent third party working blind to the source. This demonstrates that the spec and receipt
+format are re-implementable without `aegis-core`'s SIMD/dispatch code and data structures; it is
+not the same claim as an external auditor's clean-room verification, and we do not describe it as
+one (A37).
+
 **Attribution of the bare-metal boot logs.** The unikernel's verifier prints no CPU identifier.
 The Dell log entry is attributable to that machine because its firmware memory map differs from
 the emulator's; the HP log entry's memory map is identical to the Dell's, so in-log evidence does
@@ -40,6 +48,11 @@ integer path exists yet, and the README says so.
 **Cloud-runner legs are identity evidence only.** The aarch64 results (A28, A29, A30, A32) were
 obtained on hosted CI runners; the machine is named as precisely as the platform allows, and no
 timing is quoted or quotable from them.
+
+**BitNet-2B's token-level identity leg is x86-only.** A36 establishes the FullInt decode digest
+for BitNet-2B on x86-64, identical across two runs; the aarch64 leg that A29 provides for the
+smaller M7 model has not yet been run at 2B scale, so the cross-ISA claim in §4 does not yet
+extend to BitNet-2B.
 
 **What the receipt does not do.** A receipt proves that a conforming computation over the bound
 artifacts produced the bound outputs. It does not prove which physical machine ran it (that is

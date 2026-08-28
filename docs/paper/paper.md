@@ -15,9 +15,10 @@ four x86 microarchitecture/codegen paths [A25] and on aarch64 [A28], and a compl
 digest matches across both ISAs [A29]. A decode receipt — hashes of the model artifacts, the
 tokens, and a hash chain over every step's logit vector — verifies across the ISA boundary in
 public CI [A32], and is re-derived bit-for-bit by a UEFI unikernel booting with no OS, on two
-physical machines spanning AVX2 and scalar SSE2 [A33, A34]. Determinism is not the expensive part:
-the integer path costs 25% against scalar float on one core and 4–14% faster on another [A26], and
-its AVX2 kernel is 2.94× faster than the float AVX2 kernel it replaces [A27]. Quality cost, gated
+physical machines spanning AVX2 and scalar SSE2 [A33, A34]. The cost is microarchitecture-dependent
+and sign-flips: the integer path is 25% slower than scalar float on Broadwell-U and 4–14% faster on
+Goldmont Plus [A26]; at parity SIMD, the integer AVX2 kernel is 2.94× faster than the float AVX2
+kernel [A27]. Quality cost, gated
 in advance, closed last: the complete all-integer forward pass on a 2-billion-parameter ternary
 model costs +0.1239% perplexity against float — 40× inside a preregistered +5% kill line [A35].
 
@@ -87,6 +88,19 @@ with the raw log it was taken from (Table 3):
    the one op not carrying the spec §5.6 per-vector block exponent that the hybrid boundary already
    applied. The fix — an RNE-rounded block exponent on the ACT-I output — is ratified as spec
    erratum v1.0.3; both pinned conformance digests are unchanged.
+6. **The token-level identity claim now reaches production scale, on one ISA.** A complete
+   64-token greedy decode of the 2-billion-parameter BitNet-2B model, run in the FullInt
+   configuration, prints one digest, reproduced identically across two sequential runs on x86-64:
+   `CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint`, and the generated
+   text is coherent English (A36). This is the x86 anchor for the BitNet-2B cross-ISA leg — the 2B
+   counterpart of A29 — but the aarch64 leg has not yet been run.
+7. **A third, independent implementation verifies the receipt without the engine.**
+   `cis-verify`, a standalone crate with zero external runtime dependencies and no dependency on
+   `aegis-core`, reproduces both pinned conformance digests and verifies the golden receipt — all
+   six checks (parse, three artifact hashes, prompt tokenization, the 64-step token sequence, the
+   cis-digest, and the witness chain) — in about 1.4 seconds, with tamper tests that fail by naming
+   the corrupted field (A37). Honest scope: this was an LM-agent transcription of the spec with the
+   reference source visible, not a clean-room audit (§8).
 
 We are equally explicit about what is *not* shown (§8): the clean-room implementers were
 language-model agents rather than third-party engineers; the physical-machine attribution of one
@@ -436,6 +450,19 @@ x86-only, because their f32 legs carry no cross-ISA claim. Not established: BitN
 2B weights are not in the repository and a 2B decode does not fit in CI; that leg needs a local
 ARM board or a paid runner and stays open (A29).
 
+**Token-level identity reaches production scale, x86 only (A36).** `cis_decode` run on the pruned
+BitNet-2B artifacts (30 layers, hidden 2560, 50,256-token vocabulary) in the FullInt configuration
+prints `CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint`, identical
+across two sequential runs on the same host (i5-10210U crosvm). The artifact is the A21/A35 model
+with `__metadata__.aegis_config` added by `aegis-forge/add_aegis_config.py`; its tensor data blob
+is byte-identical to the A21/A35 model, and the same log reproduces the A21/A35 float, hybrid, and
+full-integer perplexity figures exactly on this artifact, so the digest and those figures share one
+model. The generated text is coherent English ("…in a small town called Greenfield, there lived a
+young girl named Lily…"). This is the x86 anchor for the BitNet-2B cross-ISA leg — the 2B
+counterpart of A29 — but only the x86 leg exists so far: the aarch64 run has not been performed, so
+the cross-ISA claim A29 makes for the M7 model does not yet extend to BitNet-2B. Identity evidence
+only; no timing is quoted or quotable from it (A36).
+
 ---
 
 # 5. The decode receipt and bare-metal verification
@@ -491,6 +518,25 @@ the Dell entry's, so in-log evidence does not discriminate the two boxes, and at
 entry rests on operator witness (A34). The row also records a firmware finding made incidentally
 on this leg: that the N4020's UEFI boots the unikernel at all was previously unknown before this
 boot (A34).
+
+**A third, standalone implementation verifies the receipt without the engine (A37).** Everything
+above shows the receipt can be produced and replayed by machines running `aegis-core` itself, on
+either ISA. A receipt that only the reference engine can check is not yet useful to a third party
+— the verifier is what makes it useful, and it must not depend on the code being verified.
+`cis-verify` is a separate crate, written from the spec and the receipt format rather than as a
+fork of `aegis-core`: zero external runtime dependencies, no dependency on `aegis-core`, no
+`unsafe`, `no_std`+alloc at its core. On the same dev host, it reproduces the pinned op-level
+digest (`CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`), both pinned table digests (the exp
+LUT and RoPE constants), and the token-level decode digest
+(`CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint`) on first attempt,
+then verifies the golden receipt `tests/golden/witness_v1_m7_once64.receipt` end to end — all six
+checks (receipt parse, the three artifact hashes, prompt tokenization, the 64-step token-id
+sequence, the cis-digest, and the witness chain) — and prints `VERIFY PASS` in about 1.4 seconds.
+Its tamper tests fail by naming the corrupted field (token id, chain, model/vocab hash, or
+receipt parse), not by silently passing. Honest scope, stated plainly: this was an LM agent
+transcribing the spec with the reference source visible, not a clean-room reimplementation in the
+sense A31 uses that term — it is evidence that the spec and the receipt format are re-implementable
+without the engine's SIMD/dispatch code, not an independent third-party audit (§8, A37).
 
 **Where a reviewer should push.** Both physical legs share one structural gap: the verifier
 prints no CPU identifier, so the receipt proves what was computed, not unassisted which box
@@ -701,6 +747,14 @@ text as their sole source, with reference-source access forbidden and, as far as
 establish, not used. This demonstrates implementability from text; it is not an independent
 third-party audit, and we do not describe it as one.
 
+**The `cis-verify` reimplementation is an LM-agent transcription, not a clean-room audit.** Like
+the two implementers behind A31, `cis-verify` (§5) was built by a language-model agent — given the
+specification and the receipt format as reference material, in three phases — not by an
+independent third party working blind to the source. This demonstrates that the spec and receipt
+format are re-implementable without `aegis-core`'s SIMD/dispatch code and data structures; it is
+not the same claim as an external auditor's clean-room verification, and we do not describe it as
+one (A37).
+
 **Attribution of the bare-metal boot logs.** The unikernel's verifier prints no CPU identifier.
 The Dell log entry is attributable to that machine because its firmware memory map differs from
 the emulator's; the HP log entry's memory map is identical to the Dell's, so in-log evidence does
@@ -726,6 +780,11 @@ integer path exists yet, and the README says so.
 **Cloud-runner legs are identity evidence only.** The aarch64 results (A28, A29, A30, A32) were
 obtained on hosted CI runners; the machine is named as precisely as the platform allows, and no
 timing is quoted or quotable from them.
+
+**BitNet-2B's token-level identity leg is x86-only.** A36 establishes the FullInt decode digest
+for BitNet-2B on x86-64, identical across two runs; the aarch64 leg that A29 provides for the
+smaller M7 model has not yet been run at 2B scale, so the cross-ISA claim in §4 does not yet
+extend to BitNet-2B.
 
 **What the receipt does not do.** A receipt proves that a conforming computation over the bound
 artifacts produced the bound outputs. It does not prove which physical machine ran it (that is
@@ -784,6 +843,22 @@ verify the x86-minted golden receipt. A mismatch in any digest is a
 falsification of the corresponding claim in §4–5, not a bug to be quietly
 fixed — the workflow says so at the point it would fail.
 
+**Standalone verifier (`cis-verify`).** A separate crate at `cis-verify/`, with zero external
+runtime dependencies and no dependency on `aegis-core` (§5, A37):
+
+```
+cargo test --features std --manifest-path cis-verify/Cargo.toml -- --nocapture
+
+cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin cis-verify -- \
+  tests/golden/witness_v1_m7_once64.receipt \
+  "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN"
+```
+
+The first command runs the crate's test suite, including the pinned op-level digest, both pinned
+table digests, the token-level decode digest, and the golden-receipt verification and tamper
+tests. The second runs the CLI directly against the golden receipt and prints `VERIFY PASS` (or
+`VERIFY FAIL (<field>)`) in about 1.4 seconds.
+
 **Append-only evidence (Rule C).** `tests/golden/` and `docs/hardware_logs/`
 are append-only: every figure in this paper traces to a file under one of
 these two paths, and no existing file under either is ever edited, only
@@ -796,7 +871,7 @@ and can re-run the commands above to check it against live hardware anyway.
 # Table 3 — provenance
 
 Generated by `docs/paper/gen_table3.py` from `program/RESEARCH_LEDGER.md` rows
-A19-A35 and `docs/CIS1_PAPER_OUTLINE.md` §4-6. Do not hand-edit this file —
+A19-A37 and `docs/CIS1_PAPER_OUTLINE.md` §4-6. Do not hand-edit this file —
 edit `CLAIM_MAP` in the generator script and re-run it.
 
 Regenerate with:
@@ -805,7 +880,7 @@ Regenerate with:
 python3 docs/paper/gen_table3.py
 ```
 
-17 claims total, 17 with a verified existing primary log file.
+19 claims total, 19 with a verified existing primary log file.
 
 | Paper § | Claim (short) | Value | Ledger row | Machine | Provenance (path or CI run) | File exists? |
 |---|---|---|---|---|---|---|
@@ -826,6 +901,8 @@ python3 docs/paper/gen_table3.py
 | 6 | Ring-0 unikernel vs minimal Linux decode throughput | +3.6% / +9.4% / +5.1% (prereg form); P-V2-2 FAIL spread 4.7-9.6% | A22 | Dell i5-5200U | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | yes |
 | 6 | Column-skip kernel candidate (engine context, not a CIS-1 claim) | 2.88-2.89x vs incumbent (ordered variant); 2.80x (chain variant) | A23 | Dell i5-5200U | `docs/hardware_logs/mech2colskip_L_dell_BOOTLOG_2026-08-01.txt` | yes |
 | 6 | Bandwidth ceiling (engine context, not a CIS-1 claim) | peak seq. 11.19/10.95 GB/s (1T), 11.63/11.70 GB/s (4T) vs ternary stream 0.62 GB/s | A24 | Dell i5-5200U | `docs/hardware_logs/mech2colskip_L_dell_BOOTLOG_2026-08-01.txt` | yes |
+| 4 | Token-level FULL-INTEGER decode digest, BitNet-2B, x86-64 leg | digest cab11400d737ac4a, prompt_toks=4 gen_toks=64, identical on 2 runs, coherent text | A36 | i5-10210U crosvm | `docs/hardware_logs/cis_decode_bitnet2b_fullint_x86_i5-10210U_crosvm_2026-08-27.log` | yes |
+| 5 | Standalone third-party verifier (no engine dependency) reproduces both digests and verifies the golden receipt | CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field | A37 | i5-10210U crosvm | `docs/hardware_logs/cis_verify_standalone_tier2_tier3_golden_i5-10210U_crosvm_2026-08-27.log` | yes |
 
 ---
 

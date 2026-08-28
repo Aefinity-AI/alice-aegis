@@ -62,6 +62,19 @@ with the raw log it was taken from (Table 3):
    the one op not carrying the spec §5.6 per-vector block exponent that the hybrid boundary already
    applied. The fix — an RNE-rounded block exponent on the ACT-I output — is ratified as spec
    erratum v1.0.3; both pinned conformance digests are unchanged.
+6. **The token-level identity claim now reaches production scale, on one ISA.** A complete
+   64-token greedy decode of the 2-billion-parameter BitNet-2B model, run in the FullInt
+   configuration, prints one digest, reproduced identically across two sequential runs on x86-64:
+   `CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint`, and the generated
+   text is coherent English (A36). This is the x86 anchor for the BitNet-2B cross-ISA leg — the 2B
+   counterpart of A29 — but the aarch64 leg has not yet been run.
+7. **A third, independent implementation verifies the receipt without the engine.**
+   `cis-verify`, a standalone crate with zero external runtime dependencies and no dependency on
+   `aegis-core`, reproduces both pinned conformance digests and verifies the golden receipt — all
+   six checks (parse, three artifact hashes, prompt tokenization, the 64-step token sequence, the
+   cis-digest, and the witness chain) — in about 1.4 seconds, with tamper tests that fail by naming
+   the corrupted field (A37). Honest scope: this was an LM-agent transcription of the spec with the
+   reference source visible, not a clean-room audit (§8).
 
 We are equally explicit about what is *not* shown (§8): the clean-room implementers were
 language-model agents rather than third-party engineers; the physical-machine attribution of one
