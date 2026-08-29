@@ -37,6 +37,13 @@ int8_act = []
 # (ReLU^2 activation-sparsity probe). Counting only — no kernel change, no
 # effect on computed values. Allocates per token; OFF by default.
 act_stats = []
+# Leg C1 (2026-08-29 pre-reg, state/reports/2026-08-29-COMPACT-AXIS-PREREG.md):
+# routes CIS-1 FullInt matvecs through the byte-identical-by-construction
+# AVX2/NEON kernels (cis_avx2/cis_neon) instead of calling cis::ternary_matvec_i8
+# directly, and records the per (step, layer) active-neuron set (down_proj
+# input nonzero indices) for cross-ISA / fast-vs-scalar digesting. OFF by
+# default: the default build's call sites and CIS_DECODE digest are untouched.
+active_set_digest = []
 
 [[bin]]
 name = "lut_mpgemm"

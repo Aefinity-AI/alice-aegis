@@ -1,0 +1,151 @@
+name: c1-active-set
+
+# Leg C1 (2026-08-29 pre-reg, state/reports/2026-08-29-COMPACT-AXIS-PREREG.md,
+# private branch cm/c1-sparsity-determinism): the ReLU^2 active-neuron sets a
+# column-skip kernel would consume, on the CIS-1 FullInt BitNet-2B-4T path,
+# must be a deterministic function of the receipt — bit-identical across
+# x86_64/aarch64 and fast(AVX2/NEON)-vs-scalar. This job reproduces the
+# literal digests pinned from the local (i5-10210U crosvm) run and fails on
+# any mismatch, on both architectures, in both modes.
+#
+# CLAUDE.md Rule A: identity/correctness artifact ONLY. No timing figure from
+# this job may ever be recorded or quoted; CI hardware is shared and unnamed.
+# Rule B: every assert below is instrument-backed by this run's own log.
+
+on:
+  push:
+    branches: ["cm/c1-sparsity-determinism"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RELEASE_TAG: artifacts-bitnet2b-2026-08-27
+  MODEL_SHA: facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+  EMBED_SHA: e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+  VOCAB_SHA: 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+  # Pinned from the local run (docs/hardware_logs/c1_active_set_digest_i5-10210U_crosvm_2026-08-29.log).
+  ACTIVE_SET_DIGEST: 42ea01ca62a8f54f42ba2e3a8d6d6cbbe2988c6de929456ffbb94d4bd7a82374
+  CIS_DECODE_DIGEST: cab11400d737ac4a
+
+jobs:
+  active-set-x86:
+    name: x86_64 — active-set digest (fast + scalar)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm x86_64
+        run: |
+          uname -m
+          test "$(uname -m)" = "x86_64"
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-c1-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-c1-cargo-
+      - name: Download BitNet-2B artifacts from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p 2b-artifacts
+          gh release download "$RELEASE_TAG" --repo ${{ github.repository }} --dir 2b-artifacts --clobber
+      - name: Verify artifact hashes
+        run: |
+          set -euo pipefail
+          cd 2b-artifacts
+          echo "$MODEL_SHA  aegis_pruned_model.cis.safetensors" | sha256sum -c -
+          echo "$EMBED_SHA  embed.bin" | sha256sum -c -
+          echo "$VOCAB_SHA  vocab.bin" | sha256sum -c -
+      - name: Build active_set_digest (active_set_digest feature)
+        run: |
+          cargo build --release --example active_set_digest --features active_set_digest --manifest-path aegis-linux/Cargo.toml
+      - name: Fast path (AVX2, self-falling-back per kernel contract)
+        run: |
+          set -euo pipefail
+          M=2b-artifacts
+          ./aegis-linux/target/release/examples/active_set_digest "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" prompts/c1_prompts.txt 16 \
+            | tee /dev/stderr | tee c1-fast-x86.log
+          grep -q "digest=$ACTIVE_SET_DIGEST" c1-fast-x86.log || { echo "::error::x86_64 fast ACTIVE_SET digest mismatch"; exit 1; }
+          grep -q "digest=$CIS_DECODE_DIGEST" c1-fast-x86.log || { echo "::error::x86_64 fast CIS_DECODE digest mismatch (A36 gate)"; exit 1; }
+      - name: Scalar path (force-scalar)
+        run: |
+          set -euo pipefail
+          M=2b-artifacts
+          ./aegis-linux/target/release/examples/active_set_digest "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" prompts/c1_prompts.txt 16 --force-scalar \
+            | tee /dev/stderr | tee c1-scalar-x86.log
+          grep -q "digest=$ACTIVE_SET_DIGEST" c1-scalar-x86.log || { echo "::error::x86_64 scalar ACTIVE_SET digest mismatch"; exit 1; }
+          grep -q "digest=$CIS_DECODE_DIGEST" c1-scalar-x86.log || { echo "::error::x86_64 scalar CIS_DECODE digest mismatch (A36 gate)"; exit 1; }
+      - name: Upload logs (x86_64)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-active-set-logs-x86_64
+          path: |
+            c1-fast-x86.log
+            c1-scalar-x86.log
+
+  active-set-arm:
+    name: aarch64 — active-set digest (fast + scalar)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm aarch64
+        run: |
+          uname -m
+          test "$(uname -m)" = "aarch64"
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-c1-arm-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-c1-arm-cargo-
+      - name: Download BitNet-2B artifacts from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p 2b-artifacts
+          gh release download "$RELEASE_TAG" --repo ${{ github.repository }} --dir 2b-artifacts --clobber
+      - name: Verify artifact hashes
+        run: |
+          set -euo pipefail
+          cd 2b-artifacts
+          echo "$MODEL_SHA  aegis_pruned_model.cis.safetensors" | sha256sum -c -
+          echo "$EMBED_SHA  embed.bin" | sha256sum -c -
+          echo "$VOCAB_SHA  vocab.bin" | sha256sum -c -
+      - name: Build active_set_digest (active_set_digest feature)
+        run: |
+          cargo build --release --example active_set_digest --features active_set_digest --manifest-path aegis-linux/Cargo.toml
+      - name: Fast path (NEON, self-falling-back per kernel contract)
+        run: |
+          set -euo pipefail
+          M=2b-artifacts
+          ./aegis-linux/target/release/examples/active_set_digest "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" prompts/c1_prompts.txt 16 \
+            | tee /dev/stderr | tee c1-fast-arm.log
+          grep -q "digest=$ACTIVE_SET_DIGEST" c1-fast-arm.log || { echo "::error::aarch64 fast ACTIVE_SET digest mismatch"; exit 1; }
+          grep -q "digest=$CIS_DECODE_DIGEST" c1-fast-arm.log || { echo "::error::aarch64 fast CIS_DECODE digest mismatch (A36 gate)"; exit 1; }
+      - name: Scalar path (force-scalar)
+        run: |
+          set -euo pipefail
+          M=2b-artifacts
+          ./aegis-linux/target/release/examples/active_set_digest "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin" prompts/c1_prompts.txt 16 --force-scalar \
+            | tee /dev/stderr | tee c1-scalar-arm.log
+          grep -q "digest=$ACTIVE_SET_DIGEST" c1-scalar-arm.log || { echo "::error::aarch64 scalar ACTIVE_SET digest mismatch"; exit 1; }
+          grep -q "digest=$CIS_DECODE_DIGEST" c1-scalar-arm.log || { echo "::error::aarch64 scalar CIS_DECODE digest mismatch (A36 gate)"; exit 1; }
+      - name: Upload logs (aarch64)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-active-set-logs-aarch64
+          path: |
+            c1-fast-arm.log
+            c1-scalar-arm.log
