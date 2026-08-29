@@ -214,7 +214,7 @@ jobs:
             # -- both are stripped before anything reaches disk, the sha256, or the artifact.
             timeout 600 "$BIN" -m models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf \
               -n 32 -t "$T" -p "$PROMPT" -ngl 0 -c 2048 --temp 0 --top-k 1 --seed 42 \
-              --verbose-prompt -no-cnv --no-perf < /dev/null 2>&1 \
+              --verbose-prompt $NOCNV --no-perf < /dev/null 2>&1 \
               | grep -v 'common_perf_print' \
               | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ [A-Z] //' \
               | tee "/tmp/run_t${T}.log"
