@@ -30,15 +30,23 @@ on:
 
 jobs:
   bitnetcpp-crossisa:
-    name: bitnet.cpp greedy decode identity (${{ matrix.arch }})
+    name: bitnet.cpp greedy decode identity (${{ matrix.arch }}, TL=${{ matrix.tl }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: ubuntu-24.04
             arch: x86_64
+            tl: "ON"
+          - runner: ubuntu-24.04
+            arch: x86_64
+            tl: "OFF"
           - runner: ubuntu-24.04-arm
             arch: aarch64
+            tl: "ON"
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+            tl: "OFF"
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
@@ -88,10 +96,12 @@ jobs:
       - name: Build (clang, ISA-specific TL flag)
         run: |
           cd /tmp/bitnet-cpp
+          # TL=ON is bitnet.cpp as Microsoft ships it (setup_env.py enables the LUT kernel);
+          # TL=OFF is ggml's generic I2_S path. Both are measured.
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            EXTRA=-DBITNET_X86_TL2=OFF
+            EXTRA=-DBITNET_X86_TL2=${{ matrix.tl }}
           else
-            EXTRA=-DBITNET_ARM_TL1=OFF
+            EXTRA=-DBITNET_ARM_TL1=${{ matrix.tl }}
           fi
           # The real aarch64 build blocker (undeclared identifier src1_cont in ggml-cpu.c,
           # see "Patch upstream ggml-cpu.c" step above) was an upstream source bug, not a
@@ -141,9 +151,17 @@ jobs:
           export OMP_NUM_THREADS=1
           for T in 1 4; do
             echo "=== threads=$T ==="
+            # Rule A: never record/print timing numbers. llama-completion's own
+            # common_perf_print() always emits a block of wall-clock ms/tokens-per-second
+            # lines regardless of --no-perf (that flag only stops the *tracking*, not the
+            # print), and every log line carries a wall-clock-since-start timestamp prefix
+            # -- both are stripped before anything reaches disk, the sha256, or the artifact.
             timeout 600 "$BIN" -m models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf \
               -n 32 -t "$T" -p "$PROMPT" -ngl 0 -c 2048 --temp 0 --top-k 1 --seed 42 \
-              --verbose-prompt -no-cnv < /dev/null 2>&1 | tee "/tmp/run_t${T}.log"
+              --verbose-prompt -no-cnv --no-perf < /dev/null 2>&1 \
+              | grep -v 'common_perf_print' \
+              | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ [A-Z] //' \
+              | tee "/tmp/run_t${T}.log"
             RC=${PIPESTATUS[0]}
             if [ "$RC" = "124" ]; then
               echo "FINDING: llama-completion did not exit within 600s at threads=$T -- see run_t${T}.log for the last output before the hard timeout." | tee -a "/tmp/run_t${T}.log"
@@ -169,10 +187,14 @@ jobs:
               -H "Content-Type: application/json" \
               -d '{"prompt":"Once upon a time","n_predict":32,"temperature":0,"top_k":1,"seed":42,"n_probs":1}' \
               -o "/tmp/server_t${T}.json" || echo "server request failed at t=${T}" | tee -a /tmp/logprob_status.txt
+            # Rule A: llama.cpp's /completion response embeds a "timings" object
+            # (prompt_ms, predicted_ms, tokens-per-second) -- strip it before this file
+            # is hashed, assembled into the log, or uploaded as an artifact.
+            python3 "$GITHUB_WORKSPACE/scripts/e17_2_strip_timings.py" "/tmp/server_t${T}.json" || true
             kill "$SERVER_PID" 2>/dev/null || true
             wait "$SERVER_PID" 2>/dev/null || true
           done
-          echo "server logprob JSON captured (see /tmp/server_t*.json); these are top-1 POST-softmax log-probabilities, NOT raw logits" | tee -a /tmp/logprob_status.txt
+          echo "server logprob JSON captured (see /tmp/server_t*.json); these are top-1 POST-softmax log-probabilities, NOT raw logits; the response's timings object has been stripped per Rule A" | tee -a /tmp/logprob_status.txt
 
       - name: Extract token ids and hash
         run: |
@@ -181,7 +203,15 @@ jobs:
             grep -E "^\s*[0-9]+ ->" "/tmp/run_t${T}.log" > "/tmp/tokids_t${T}.txt" || true
             echo "=== threads=$T token id lines (raw, see full log for context) ==="
             cat "/tmp/tokids_t${T}.txt" || echo "(none matched; see full run log for token stream)"
-            echo "=== threads=$T SHA-256 of full stdout/stderr transcript ==="
+            # Digest of the GENERATED TEXT ONLY (the transcript contains timing lines that differ every run).
+            GEN=$(grep -a -m1 "^Once upon a time" "/tmp/run_t${T}.log" || true)
+            CONT="${GEN#Once upon a time}"
+            if [ -z "$GEN" ]; then STATE=NO_OUTPUT
+            elif [ -n "$CONT" ] && [ "$(printf '%s' "$CONT" | fold -w1 | sort -u | wc -l)" -le 1 ]; then STATE=DEGENERATE
+            else STATE=OK; fi
+            echo "=== threads=$T generated text ==="; echo "$GEN"
+            echo "E17_2_RESULT arch=${{ matrix.arch }} tl=${{ matrix.tl }} threads=$T state=$STATE gen_sha256=$(printf '%s' "$GEN" | sha256sum | cut -c1-64)" | tee -a /tmp/e17_results.txt
+            echo "=== threads=$T SHA-256 of full transcript (informative only; includes timing lines) ==="
             sha256sum "/tmp/run_t${T}.log"
             if [ -s "/tmp/server_t${T}.json" ]; then
               echo "=== threads=$T SHA-256 of server logprob JSON (top-1 logprob per step) ==="
@@ -189,6 +219,10 @@ jobs:
               python3 "$GITHUB_WORKSPACE/scripts/e17_2_logprob_digest.py" "$T" "/tmp/server_t${T}.json"
             fi
           done
+
+      - name: Job summary (E17_2_RESULT lines)
+        run: |
+          { echo "### E17.2 ${{ matrix.arch }} TL=${{ matrix.tl }}"; echo; echo '```'; cat /tmp/e17_results.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Assemble log artifact
         run: |
