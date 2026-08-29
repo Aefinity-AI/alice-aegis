@@ -1,0 +1,451 @@
+{"id": "Mercury_7057260", "row_idx": 1, "reason": "1 old ids not in pruned vocab: [68951]"}
+{"id": "ACTAAP_2014_7_6", "row_idx": 2, "reason": "1 old ids not in pruned vocab: [78738]"}
+{"id": "Mercury_7122448", "row_idx": 3, "reason": "3 old ids not in pruned vocab: [66669, 71019, 86228]"}
+{"id": "Mercury_SC_416516", "row_idx": 4, "reason": "1 old ids not in pruned vocab: [51058]"}
+{"id": "AKDE&ED_2012_8_43", "row_idx": 7, "reason": "3 old ids not in pruned vocab: [56994, 67861, 99868]"}
+{"id": "NYSEDREGENTS_2014_8_10", "row_idx": 8, "reason": "4 old ids not in pruned vocab: [50777, 56217, 60981, 91111]"}
+{"id": "Mercury_SC_LBS10938", "row_idx": 9, "reason": "2 old ids not in pruned vocab: [56925, 86642]"}
+{"id": "ACTAAP_2007_7_19", "row_idx": 10, "reason": "2 old ids not in pruned vocab: [88371, 93297]"}
+{"id": "Mercury_176873", "row_idx": 11, "reason": "1 old ids not in pruned vocab: [82882]"}
+{"id": "Mercury_400978", "row_idx": 13, "reason": "2 old ids not in pruned vocab: [58998, 68432]"}
+{"id": "Mercury_7185220", "row_idx": 14, "reason": "4 old ids not in pruned vocab: [55042, 62607, 92335, 99705]"}
+{"id": "Mercury_7213378", "row_idx": 15, "reason": "4 old ids not in pruned vocab: [60150, 72591, 94477, 99191]"}
+{"id": "Mercury_7241343", "row_idx": 16, "reason": "6 old ids not in pruned vocab: [57878, 62937, 79909, 82060, 82076, 91676]"}
+{"id": "TIMSS_1995_8_J5", "row_idx": 17, "reason": "5 old ids not in pruned vocab: [67957, 71396, 82482, 82817, 85311]"}
+{"id": "Mercury_SC_400175", "row_idx": 20, "reason": "3 old ids not in pruned vocab: [53958, 61050, 96649]"}
+{"id": "Mercury_7006213", "row_idx": 21, "reason": "1 old ids not in pruned vocab: [68102]"}
+{"id": "NCEOGA_2013_5_28", "row_idx": 22, "reason": "2 old ids not in pruned vocab: [80298, 96649]"}
+{"id": "MCAS_1999_8_35", "row_idx": 24, "reason": "2 old ids not in pruned vocab: [81291, 85563]"}
+{"id": "ACTAAP_2009_5_14", "row_idx": 25, "reason": "3 old ids not in pruned vocab: [53395, 54726, 72829]"}
+{"id": "Mercury_7112788", "row_idx": 26, "reason": "4 old ids not in pruned vocab: [54883, 74198, 74481, 91624]"}
+{"id": "Mercury_7137463", "row_idx": 27, "reason": "4 old ids not in pruned vocab: [79476, 87017, 90159, 96878]"}
+{"id": "Mercury_7008435", "row_idx": 28, "reason": "3 old ids not in pruned vocab: [58097, 61050, 96649]"}
+{"id": "Mercury_SC_401208", "row_idx": 29, "reason": "1 old ids not in pruned vocab: [72829]"}
+{"id": "Mercury_7057925", "row_idx": 30, "reason": "2 old ids not in pruned vocab: [51815, 99291]"}
+{"id": "ACTAAP_2013_5_16", "row_idx": 33, "reason": "2 old ids not in pruned vocab: [62607, 92335]"}
+{"id": "Mercury_SC_415396", "row_idx": 34, "reason": "2 old ids not in pruned vocab: [66579, 83281]"}
+{"id": "ACTAAP_2011_5_2", "row_idx": 36, "reason": "2 old ids not in pruned vocab: [66266, 74767]"}
+{"id": "Mercury_7092418", "row_idx": 38, "reason": "3 old ids not in pruned vocab: [64241, 93534, 93744]"}
+{"id": "MCAS_2012_8_23641", "row_idx": 39, "reason": "1 old ids not in pruned vocab: [57116]"}
+{"id": "MEA_2010_8_12", "row_idx": 40, "reason": "4 old ids not in pruned vocab: [53808, 76582, 83181, 87701]"}
+{"id": "Mercury_7091928", "row_idx": 42, "reason": "1 old ids not in pruned vocab: [67757]"}
+{"id": "Mercury_7112735", "row_idx": 43, "reason": "4 old ids not in pruned vocab: [51755, 52307, 62182, 79830]"}
+{"id": "Mercury_7040863", "row_idx": 44, "reason": "2 old ids not in pruned vocab: [56406, 60071]"}
+{"id": "Mercury_7268818", "row_idx": 45, "reason": "1 old ids not in pruned vocab: [81473]"}
+{"id": "VASoL_2007_3_33", "row_idx": 46, "reason": "2 old ids not in pruned vocab: [80199, 96649]"}
+{"id": "LEAP_2001_4_10239", "row_idx": 47, "reason": "1 old ids not in pruned vocab: [72176]"}
+{"id": "Mercury_SC_400840", "row_idx": 48, "reason": "2 old ids not in pruned vocab: [73757, 86672]"}
+{"id": "AIMS_2008_8_9", "row_idx": 49, "reason": "1 old ids not in pruned vocab: [71396]"}
+{"id": "TIMSS_2011_8_pg139", "row_idx": 51, "reason": "3 old ids not in pruned vocab: [65391, 68951, 79152]"}
+{"id": "Mercury_7173845", "row_idx": 52, "reason": "4 old ids not in pruned vocab: [52809, 69773, 73404, 88354]"}
+{"id": "Mercury_7239208", "row_idx": 53, "reason": "2 old ids not in pruned vocab: [54268, 58535]"}
+{"id": "Mercury_7064050", "row_idx": 54, "reason": "2 old ids not in pruned vocab: [50787, 50953]"}
+{"id": "Mercury_400540", "row_idx": 55, "reason": "2 old ids not in pruned vocab: [56563, 70241]"}
+{"id": "ACTAAP_2010_7_15", "row_idx": 56, "reason": "2 old ids not in pruned vocab: [79215, 90424]"}
+{"id": "MCAS_2013_5_29401", "row_idx": 58, "reason": "2 old ids not in pruned vocab: [58097, 86478]"}
+{"id": "NYSEDREGENTS_2014_4_24", "row_idx": 59, "reason": "3 old ids not in pruned vocab: [56217, 62840, 85626]"}
+{"id": "Mercury_7194425", "row_idx": 60, "reason": "1 old ids not in pruned vocab: [81776]"}
+{"id": "Mercury_7004165", "row_idx": 61, "reason": "1 old ids not in pruned vocab: [77537]"}
+{"id": "NYSEDREGENTS_2014_8_8", "row_idx": 63, "reason": "1 old ids not in pruned vocab: [94054]"}
+{"id": "Mercury_7041948", "row_idx": 64, "reason": "1 old ids not in pruned vocab: [57678]"}
+{"id": "Mercury_7092348", "row_idx": 65, "reason": "4 old ids not in pruned vocab: [51755, 57116, 58742, 60754]"}
+{"id": "VASoL_2009_5_25", "row_idx": 66, "reason": "5 old ids not in pruned vocab: [58668, 59132, 64605, 65594, 67164]"}
+{"id": "Mercury_7212713", "row_idx": 67, "reason": "6 old ids not in pruned vocab: [52046, 55194, 73024, 78909, 81558, 98912]"}
+{"id": "NCEOGA_2013_5_51", "row_idx": 69, "reason": "4 old ids not in pruned vocab: [50777, 54230, 88649, 92520]"}
+{"id": "Mercury_7163940", "row_idx": 70, "reason": "2 old ids not in pruned vocab: [74502, 92234]"}
+{"id": "Mercury_7164658", "row_idx": 71, "reason": "2 old ids not in pruned vocab: [71019, 79476]"}
+{"id": "Mercury_7197908", "row_idx": 72, "reason": "1 old ids not in pruned vocab: [74767]"}
+{"id": "Mercury_7080448", "row_idx": 73, "reason": "1 old ids not in pruned vocab: [58097]"}
+{"id": "MCAS_2013_5_17", "row_idx": 75, "reason": "3 old ids not in pruned vocab: [56669, 64873, 89022]"}
+{"id": "Mercury_7136623", "row_idx": 76, "reason": "1 old ids not in pruned vocab: [59854]"}
+{"id": "Mercury_7014508", "row_idx": 77, "reason": "4 old ids not in pruned vocab: [58636, 59132, 61437, 80744]"}
+{"id": "Mercury_SC_401652", "row_idx": 78, "reason": "2 old ids not in pruned vocab: [69131, 82830]"}
+{"id": "Mercury_7069003", "row_idx": 79, "reason": "1 old ids not in pruned vocab: [58448]"}
+{"id": "TIMSS_2007_4_pg110", "row_idx": 80, "reason": "4 old ids not in pruned vocab: [54280, 57116, 74975, 81473]"}
+{"id": "Mercury_183190", "row_idx": 81, "reason": "1 old ids not in pruned vocab: [91624]"}
+{"id": "Mercury_7032288", "row_idx": 84, "reason": "3 old ids not in pruned vocab: [78306, 81776, 82339]"}
+{"id": "Mercury_7007630", "row_idx": 85, "reason": "1 old ids not in pruned vocab: [57678]"}
+{"id": "NYSEDREGENTS_2014_8_25", "row_idx": 86, "reason": "2 old ids not in pruned vocab: [64465, 91096]"}
+{"id": "Mercury_182665", "row_idx": 87, "reason": "2 old ids not in pruned vocab: [60071, 96146]"}
+{"id": "Mercury_189018", "row_idx": 88, "reason": "2 old ids not in pruned vocab: [58097, 71162]"}
+{"id": "Mercury_SC_405304", "row_idx": 89, "reason": "2 old ids not in pruned vocab: [50684, 96649]"}
+{"id": "MCAS_2004_5_12", "row_idx": 90, "reason": "3 old ids not in pruned vocab: [50684, 73848, 89455]"}
+{"id": "MCAS_2004_9_16", "row_idx": 91, "reason": "1 old ids not in pruned vocab: [71019]"}
+{"id": "Mercury_7107363", "row_idx": 92, "reason": "3 old ids not in pruned vocab: [51009, 65391, 86795]"}
+{"id": "Mercury_7083965", "row_idx": 93, "reason": "2 old ids not in pruned vocab: [56767, 70241]"}
+{"id": "Mercury_7082688", "row_idx": 95, "reason": "1 old ids not in pruned vocab: [62447]"}
+{"id": "CSZ20680", "row_idx": 96, "reason": "3 old ids not in pruned vocab: [55479, 71086, 78883]"}
+{"id": "Mercury_7228568", "row_idx": 97, "reason": "3 old ids not in pruned vocab: [82986, 91260, 99291]"}
+{"id": "AKDE&ED_2012_4_35", "row_idx": 99, "reason": "5 old ids not in pruned vocab: [57116, 67378, 68951, 69940, 82020]"}
+{"id": "VASoL_2007_5_26", "row_idx": 100, "reason": "3 old ids not in pruned vocab: [52068, 56297, 61834]"}
+{"id": "TIMSS_2003_8_pg96", "row_idx": 101, "reason": "1 old ids not in pruned vocab: [78130]"}
+{"id": "Mercury_7119805", "row_idx": 102, "reason": "2 old ids not in pruned vocab: [57790, 58636]"}
+{"id": "Mercury_189770", "row_idx": 104, "reason": "3 old ids not in pruned vocab: [72359, 79476, 90159]"}
+{"id": "Mercury_7044730", "row_idx": 106, "reason": "1 old ids not in pruned vocab: [82168]"}
+{"id": "MCAS_2011_5_17662", "row_idx": 110, "reason": "4 old ids not in pruned vocab: [52307, 58302, 60150, 79152]"}
+{"id": "Mercury_7041580", "row_idx": 111, "reason": "2 old ids not in pruned vocab: [58097, 71145]"}
+{"id": "Mercury_7204050", "row_idx": 112, "reason": "4 old ids not in pruned vocab: [59103, 78625, 96519, 98845]"}
+{"id": "Mercury_7024378", "row_idx": 113, "reason": "1 old ids not in pruned vocab: [65819]"}
+{"id": "Mercury_7251755", "row_idx": 114, "reason": "2 old ids not in pruned vocab: [87633, 90052]"}
+{"id": "NYSEDREGENTS_2014_8_42", "row_idx": 116, "reason": "2 old ids not in pruned vocab: [71019, 75720]"}
+{"id": "OHAT_2011_5_20", "row_idx": 117, "reason": "2 old ids not in pruned vocab: [57035, 74198]"}
+{"id": "Mercury_7084123", "row_idx": 119, "reason": "2 old ids not in pruned vocab: [72829, 81299]"}
+{"id": "Mercury_7038098", "row_idx": 120, "reason": "3 old ids not in pruned vocab: [73757, 74198, 91111]"}
+{"id": "Mercury_7206448", "row_idx": 123, "reason": "1 old ids not in pruned vocab: [57116]"}
+{"id": "Mercury_7007665", "row_idx": 124, "reason": "2 old ids not in pruned vocab: [57678, 59862]"}
+{"id": "Mercury_408929", "row_idx": 125, "reason": "1 old ids not in pruned vocab: [82813]"}
+{"id": "Mercury_7094080", "row_idx": 126, "reason": "1 old ids not in pruned vocab: [66579]"}
+{"id": "Mercury_7068495", "row_idx": 127, "reason": "4 old ids not in pruned vocab: [58097, 66579, 67164, 96179]"}
+{"id": "TIMSS_2007_4_pg81", "row_idx": 128, "reason": "3 old ids not in pruned vocab: [53958, 80769, 86082]"}
+{"id": "AKDE&ED_2008_4_12", "row_idx": 129, "reason": "2 old ids not in pruned vocab: [67849, 97103]"}
+{"id": "TIMSS_2011_4_pg72", "row_idx": 130, "reason": "2 old ids not in pruned vocab: [50298, 82344]"}
+{"id": "LEAP_2011_8_10435", "row_idx": 131, "reason": "4 old ids not in pruned vocab: [59862, 81473, 88896, 92914]"}
+{"id": "Mercury_416365", "row_idx": 136, "reason": "3 old ids not in pruned vocab: [63052, 78966, 87438]"}
+{"id": "Mercury_411424", "row_idx": 137, "reason": "2 old ids not in pruned vocab: [63137, 78352]"}
+{"id": "Mercury_7015715", "row_idx": 138, "reason": "1 old ids not in pruned vocab: [59333]"}
+{"id": "Mercury_7172218", "row_idx": 139, "reason": "5 old ids not in pruned vocab: [56067, 60071, 62607, 91149, 100216]"}
+{"id": "Mercury_7094185", "row_idx": 140, "reason": "2 old ids not in pruned vocab: [54352, 78257]"}
+{"id": "Mercury_7161053", "row_idx": 141, "reason": "2 old ids not in pruned vocab: [77105, 86626]"}
+{"id": "Mercury_7248378", "row_idx": 143, "reason": "3 old ids not in pruned vocab: [71313, 71895, 94855]"}
+{"id": "Mercury_7134698", "row_idx": 144, "reason": "4 old ids not in pruned vocab: [53121, 54280, 64855, 96649]"}
+{"id": "NCEOGA_2013_5_15", "row_idx": 146, "reason": "2 old ids not in pruned vocab: [52192, 60071]"}
+{"id": "Mercury_SC_400370", "row_idx": 147, "reason": "4 old ids not in pruned vocab: [56217, 63494, 78306, 96648]"}
+{"id": "Mercury_SC_401137", "row_idx": 148, "reason": "3 old ids not in pruned vocab: [61050, 75826, 96649]"}
+{"id": "Mercury_7107030", "row_idx": 149, "reason": "2 old ids not in pruned vocab: [77791, 95790]"}
+{"id": "Mercury_7018200", "row_idx": 150, "reason": "1 old ids not in pruned vocab: [62607]"}
+{"id": "Mercury_7092138", "row_idx": 151, "reason": "2 old ids not in pruned vocab: [58636, 96078]"}
+{"id": "Mercury_7139685", "row_idx": 152, "reason": "3 old ids not in pruned vocab: [59681, 66266, 71895]"}
+{"id": "Mercury_7233538", "row_idx": 154, "reason": "1 old ids not in pruned vocab: [71532]"}
+{"id": "Mercury_7236128", "row_idx": 155, "reason": "6 old ids not in pruned vocab: [51180, 52349, 60038, 61933, 71532, 99530]"}
+{"id": "Mercury_182683", "row_idx": 156, "reason": "2 old ids not in pruned vocab: [52609, 56269]"}
+{"id": "Mercury_7216755", "row_idx": 157, "reason": "4 old ids not in pruned vocab: [54230, 70510, 85922, 88649]"}
+{"id": "Mercury_7013090", "row_idx": 158, "reason": "3 old ids not in pruned vocab: [61933, 62275, 83541]"}
+{"id": "Mercury_7248273", "row_idx": 159, "reason": "4 old ids not in pruned vocab: [54769, 58859, 62607, 90052]"}
+{"id": "Mercury_7187215", "row_idx": 160, "reason": "2 old ids not in pruned vocab: [56767, 67572]"}
+{"id": "Mercury_7206500", "row_idx": 161, "reason": "1 old ids not in pruned vocab: [57725]"}
+{"id": "Mercury_SC_400002", "row_idx": 164, "reason": "5 old ids not in pruned vocab: [55413, 70913, 74767, 79784, 82320]"}
+{"id": "Mercury_7227973", "row_idx": 165, "reason": "2 old ids not in pruned vocab: [50802, 63308]"}
+{"id": "Mercury_7026863", "row_idx": 166, "reason": "3 old ids not in pruned vocab: [59141, 62452, 65819]"}
+{"id": "Mercury_7068565", "row_idx": 167, "reason": "2 old ids not in pruned vocab: [52255, 60150]"}
+{"id": "NYSEDREGENTS_2014_8_39", "row_idx": 168, "reason": "1 old ids not in pruned vocab: [61083]"}
+{"id": "Mercury_SC_415696", "row_idx": 169, "reason": "3 old ids not in pruned vocab: [61519, 67854, 68143]"}
+{"id": "Mercury_7228515", "row_idx": 171, "reason": "1 old ids not in pruned vocab: [95454]"}
+{"id": "Mercury_SC_405215", "row_idx": 173, "reason": "2 old ids not in pruned vocab: [69918, 81473]"}
+{"id": "NYSEDREGENTS_2014_4_8", "row_idx": 174, "reason": "1 old ids not in pruned vocab: [54097]"}
+{"id": "Mercury_7013668", "row_idx": 175, "reason": "4 old ids not in pruned vocab: [58668, 64605, 88848, 95790]"}
+{"id": "MCAS_2011_8_17695", "row_idx": 176, "reason": "2 old ids not in pruned vocab: [74767, 87669]"}
+{"id": "VASoL_2011_5_3", "row_idx": 178, "reason": "3 old ids not in pruned vocab: [54707, 61856, 64333]"}
+{"id": "Mercury_7100713", "row_idx": 179, "reason": "1 old ids not in pruned vocab: [50789]"}
+{"id": "Mercury_7122553", "row_idx": 180, "reason": "2 old ids not in pruned vocab: [66017, 87887]"}
+{"id": "Mercury_7037590", "row_idx": 181, "reason": "4 old ids not in pruned vocab: [59623, 64802, 86559, 99164]"}
+{"id": "MDSA_2011_4_8", "row_idx": 183, "reason": "6 old ids not in pruned vocab: [51764, 53958, 57116, 61050, 66094, 88687]"}
+{"id": "Mercury_184695", "row_idx": 185, "reason": "3 old ids not in pruned vocab: [51815, 83181, 91260]"}
+{"id": "LEAP_2011_8_10436", "row_idx": 186, "reason": "4 old ids not in pruned vocab: [60981, 75709, 82665, 91624]"}
+{"id": "Mercury_SC_400989", "row_idx": 187, "reason": "3 old ids not in pruned vocab: [53098, 56925, 63000]"}
+{"id": "VASoL_2010_5_39", "row_idx": 188, "reason": "2 old ids not in pruned vocab: [55336, 59792]"}
+{"id": "VASoL_2009_5_10", "row_idx": 189, "reason": "1 old ids not in pruned vocab: [81776]"}
+{"id": "Mercury_SC_405952", "row_idx": 190, "reason": "1 old ids not in pruned vocab: [91111]"}
+{"id": "Mercury_SC_401111", "row_idx": 191, "reason": "2 old ids not in pruned vocab: [73757, 93297]"}
+{"id": "Mercury_7203245", "row_idx": 192, "reason": "5 old ids not in pruned vocab: [50123, 54832, 58097, 72329, 92948]"}
+{"id": "Mercury_7042858", "row_idx": 193, "reason": "2 old ids not in pruned vocab: [61050, 79152]"}
+{"id": "Mercury_SC_415418", "row_idx": 194, "reason": "3 old ids not in pruned vocab: [52307, 60150, 82829]"}
+{"id": "Mercury_SC_413138", "row_idx": 196, "reason": "3 old ids not in pruned vocab: [61050, 79152, 96649]"}
+{"id": "Mercury_7114940", "row_idx": 197, "reason": "4 old ids not in pruned vocab: [51313, 67754, 91260, 99269]"}
+{"id": "MDSA_2008_5_41", "row_idx": 198, "reason": "2 old ids not in pruned vocab: [61050, 96649]"}
+{"id": "MCAS_2002_8_2", "row_idx": 199, "reason": "1 old ids not in pruned vocab: [97733]"}
+{"id": "MCAS_2016_5_7", "row_idx": 200, "reason": "3 old ids not in pruned vocab: [57622, 60981, 81736]"}
+{"id": "Mercury_7154490", "row_idx": 201, "reason": "4 old ids not in pruned vocab: [59333, 65125, 69911, 84862]"}
+{"id": "Mercury_7177520", "row_idx": 202, "reason": "1 old ids not in pruned vocab: [71019]"}
+{"id": "Mercury_7241273", "row_idx": 203, "reason": "3 old ids not in pruned vocab: [88447, 89847, 92234]"}
+{"id": "Mercury_7234185", "row_idx": 204, "reason": "2 old ids not in pruned vocab: [52349, 66222]"}
+{"id": "Mercury_7074970", "row_idx": 205, "reason": "3 old ids not in pruned vocab: [50600, 51024, 52673]"}
+{"id": "LEAP__7_10350", "row_idx": 206, "reason": "3 old ids not in pruned vocab: [57116, 67164, 67776]"}
+{"id": "NYSEDREGENTS_2014_8_27", "row_idx": 207, "reason": "2 old ids not in pruned vocab: [50393, 61050]"}
+{"id": "Mercury_7205380", "row_idx": 209, "reason": "2 old ids not in pruned vocab: [57678, 97607]"}
+{"id": "Mercury_7072415", "row_idx": 210, "reason": "2 old ids not in pruned vocab: [71019, 90159]"}
+{"id": "Mercury_7008943", "row_idx": 211, "reason": "1 old ids not in pruned vocab: [78552]"}
+{"id": "Mercury_7220238", "row_idx": 213, "reason": "4 old ids not in pruned vocab: [52307, 66579, 67132, 72829]"}
+{"id": "ACTAAP_2010_7_11", "row_idx": 214, "reason": "2 old ids not in pruned vocab: [69397, 84261]"}
+{"id": "MEAP_2005_8_34", "row_idx": 215, "reason": "1 old ids not in pruned vocab: [76214]"}
+{"id": "Mercury_7010815", "row_idx": 216, "reason": "2 old ids not in pruned vocab: [51024, 61843]"}
+{"id": "Mercury_7270410", "row_idx": 217, "reason": "3 old ids not in pruned vocab: [56168, 65264, 81821]"}
+{"id": "Mercury_7168648", "row_idx": 218, "reason": "6 old ids not in pruned vocab: [51647, 55616, 56217, 58499, 69132, 99857]"}
+{"id": "Mercury_7082793", "row_idx": 219, "reason": "2 old ids not in pruned vocab: [66669, 71019]"}
+{"id": "Mercury_7270060", "row_idx": 220, "reason": "1 old ids not in pruned vocab: [64465]"}
+{"id": "Mercury_7085190", "row_idx": 221, "reason": "3 old ids not in pruned vocab: [51165, 60701, 67164]"}
+{"id": "AKDE&ED_2012_4_4", "row_idx": 222, "reason": "2 old ids not in pruned vocab: [85149, 92640]"}
+{"id": "Mercury_7213885", "row_idx": 223, "reason": "1 old ids not in pruned vocab: [93071]"}
+{"id": "Mercury_7142030", "row_idx": 225, "reason": "3 old ids not in pruned vocab: [56217, 62114, 90546]"}
+{"id": "Mercury_183733", "row_idx": 226, "reason": "2 old ids not in pruned vocab: [58097, 97893]"}
+{"id": "Mercury_SC_408452", "row_idx": 228, "reason": "2 old ids not in pruned vocab: [62447, 93297]"}
+{"id": "Mercury_178990", "row_idx": 229, "reason": "2 old ids not in pruned vocab: [62607, 99705]"}
+{"id": "Mercury_7027615", "row_idx": 230, "reason": "1 old ids not in pruned vocab: [56814]"}
+{"id": "Mercury_SC_LBS10920", "row_idx": 231, "reason": "1 old ids not in pruned vocab: [80298]"}
+{"id": "NYSEDREGENTS_2014_8_40", "row_idx": 232, "reason": "3 old ids not in pruned vocab: [67190, 80298, 96649]"}
+{"id": "VASoL_2011_5_14", "row_idx": 234, "reason": "2 old ids not in pruned vocab: [68372, 93297]"}
+{"id": "Mercury_7168315", "row_idx": 235, "reason": "2 old ids not in pruned vocab: [66094, 82320]"}
+{"id": "Mercury_SC_400201", "row_idx": 236, "reason": "2 old ids not in pruned vocab: [50937, 96649]"}
+{"id": "Mercury_7227763", "row_idx": 238, "reason": "1 old ids not in pruned vocab: [78872]"}
+{"id": "TIMSS_2011_8_pg121", "row_idx": 239, "reason": "1 old ids not in pruned vocab: [78852]"}
+{"id": "Mercury_7212520", "row_idx": 240, "reason": "2 old ids not in pruned vocab: [66669, 82817]"}
+{"id": "NYSEDREGENTS_2014_8_3", "row_idx": 242, "reason": "2 old ids not in pruned vocab: [50600, 79902]"}
+{"id": "Mercury_7056508", "row_idx": 243, "reason": "2 old ids not in pruned vocab: [54828, 60701]"}
+{"id": "MCAS_2012_8_23647", "row_idx": 244, "reason": "1 old ids not in pruned vocab: [81260]"}
+{"id": "Mercury_7081813", "row_idx": 245, "reason": "1 old ids not in pruned vocab: [68427]"}
+{"id": "Mercury_7107433", "row_idx": 246, "reason": "1 old ids not in pruned vocab: [50298]"}
+{"id": "Mercury_7090528", "row_idx": 247, "reason": "2 old ids not in pruned vocab: [58097, 90127]"}
+{"id": "Mercury_7176190", "row_idx": 250, "reason": "5 old ids not in pruned vocab: [52482, 54568, 66286, 70769, 84886]"}
+{"id": "Mercury_7135433", "row_idx": 251, "reason": "1 old ids not in pruned vocab: [95175]"}
+{"id": "Mercury_7030678", "row_idx": 252, "reason": "1 old ids not in pruned vocab: [56016]"}
+{"id": "Mercury_SC_402280", "row_idx": 254, "reason": "1 old ids not in pruned vocab: [94867]"}
+{"id": "Mercury_7223475", "row_idx": 255, "reason": "1 old ids not in pruned vocab: [72967]"}
+{"id": "Mercury_7056945", "row_idx": 257, "reason": "1 old ids not in pruned vocab: [70225]"}
+{"id": "Mercury_SC_405887", "row_idx": 258, "reason": "1 old ids not in pruned vocab: [57116]"}
+{"id": "MCAS_2013_5_29396", "row_idx": 259, "reason": "3 old ids not in pruned vocab: [54707, 64333, 79379]"}
+{"id": "Mercury_7001785", "row_idx": 260, "reason": "2 old ids not in pruned vocab: [53369, 60044]"}
+{"id": "Mercury_7012775", "row_idx": 261, "reason": "3 old ids not in pruned vocab: [52231, 69186, 88234]"}
+{"id": "Mercury_7221883", "row_idx": 262, "reason": "2 old ids not in pruned vocab: [52944, 73404]"}
+{"id": "NYSEDREGENTS_2014_4_27", "row_idx": 263, "reason": "2 old ids not in pruned vocab: [54097, 56217]"}
+{"id": "Mercury_179533", "row_idx": 264, "reason": "4 old ids not in pruned vocab: [55514, 63412, 63581, 93655]"}
+{"id": "NYSEDREGENTS_2014_8_23", "row_idx": 265, "reason": "3 old ids not in pruned vocab: [58097, 61354, 62938]"}
+{"id": "Mercury_7110933", "row_idx": 266, "reason": "2 old ids not in pruned vocab: [50925, 70760]"}
+{"id": "Mercury_7227728", "row_idx": 267, "reason": "3 old ids not in pruned vocab: [54230, 71374, 92520]"}
+{"id": "Mercury_7220500", "row_idx": 268, "reason": "3 old ids not in pruned vocab: [50829, 62235, 85206]"}
+{"id": "NYSEDREGENTS_2014_4_11", "row_idx": 269, "reason": "2 old ids not in pruned vocab: [58052, 74198]"}
+{"id": "Mercury_SC_401146", "row_idx": 271, "reason": "2 old ids not in pruned vocab: [81960, 82320]"}
+{"id": "Mercury_7080553", "row_idx": 272, "reason": "2 old ids not in pruned vocab: [68256, 72003]"}
+{"id": "Mercury_7098193", "row_idx": 273, "reason": "1 old ids not in pruned vocab: [50685]"}
+{"id": "Mercury_7056753", "row_idx": 276, "reason": "1 old ids not in pruned vocab: [66222]"}
+{"id": "VASoL_2008_3_26", "row_idx": 277, "reason": "4 old ids not in pruned vocab: [50313, 63592, 80199, 83681]"}
+{"id": "Mercury_7211085", "row_idx": 278, "reason": "4 old ids not in pruned vocab: [62059, 62114, 73575, 95911]"}
+{"id": "Mercury_7007963", "row_idx": 279, "reason": "3 old ids not in pruned vocab: [50585, 50684, 55204]"}
+{"id": "Mercury_7075233", "row_idx": 280, "reason": "1 old ids not in pruned vocab: [69397]"}
+{"id": "Mercury_175648", "row_idx": 281, "reason": "4 old ids not in pruned vocab: [55042, 62607, 92335, 99705]"}
+{"id": "MCAS_2005_8_30", "row_idx": 282, "reason": "2 old ids not in pruned vocab: [55042, 62607]"}
+{"id": "Mercury_7099015", "row_idx": 284, "reason": "3 old ids not in pruned vocab: [58375, 65928, 97192]"}
+{"id": "AKDE&ED_2012_8_31", "row_idx": 285, "reason": "2 old ids not in pruned vocab: [55717, 66196]"}
+{"id": "Mercury_7235865", "row_idx": 286, "reason": "1 old ids not in pruned vocab: [79904]"}
+{"id": "NYSEDREGENTS_2014_4_10", "row_idx": 287, "reason": "1 old ids not in pruned vocab: [98971]"}
+{"id": "TIMSS_2007_8_pg96", "row_idx": 288, "reason": "1 old ids not in pruned vocab: [60063]"}
+{"id": "Mercury_7025165", "row_idx": 289, "reason": "2 old ids not in pruned vocab: [57678, 59794]"}
+{"id": "MCAS_2013_8_29415", "row_idx": 290, "reason": "1 old ids not in pruned vocab: [86278]"}
+{"id": "NYSEDREGENTS_2014_8_11", "row_idx": 291, "reason": "1 old ids not in pruned vocab: [67757]"}
+{"id": "MEAP_2005_5_27", "row_idx": 294, "reason": "4 old ids not in pruned vocab: [57340, 57823, 78792, 85634]"}
+{"id": "Mercury_7213448", "row_idx": 295, "reason": "1 old ids not in pruned vocab: [62607]"}
+{"id": "Mercury_7083388", "row_idx": 296, "reason": "1 old ids not in pruned vocab: [79348]"}
+{"id": "Mercury_7014455", "row_idx": 297, "reason": "2 old ids not in pruned vocab: [67164, 80502]"}
+{"id": "Mercury_SC_400179", "row_idx": 298, "reason": "1 old ids not in pruned vocab: [93297]"}
+{"id": "Mercury_7235708", "row_idx": 299, "reason": "3 old ids not in pruned vocab: [57899, 58097, 66306]"}
+{"id": "NYSEDREGENTS_2014_8_19", "row_idx": 300, "reason": "2 old ids not in pruned vocab: [92335, 97192]"}
+{"id": "Mercury_7242918", "row_idx": 301, "reason": "5 old ids not in pruned vocab: [62525, 70510, 73945, 80790, 98260]"}
+{"id": "Mercury_7205450", "row_idx": 302, "reason": "7 old ids not in pruned vocab: [58782, 59141, 66669, 67957, 71396, 82817, 85311]"}
+{"id": "TIMSS_2007_8_pg52", "row_idx": 303, "reason": "2 old ids not in pruned vocab: [50616, 87669]"}
+{"id": "NYSEDREGENTS_2014_8_4", "row_idx": 305, "reason": "1 old ids not in pruned vocab: [74767]"}
+{"id": "Mercury_SC_408040", "row_idx": 306, "reason": "2 old ids not in pruned vocab: [53121, 96878]"}
+{"id": "Mercury_184748", "row_idx": 307, "reason": "1 old ids not in pruned vocab: [64677]"}
+{"id": "Mercury_7176155", "row_idx": 308, "reason": "6 old ids not in pruned vocab: [64579, 65069, 65792, 68006, 77942, 85830]"}
+{"id": "Mercury_SC_400004", "row_idx": 309, "reason": "8 old ids not in pruned vocab: [50777, 53827, 56269, 56741, 57622, 77602, 88848, 95911]"}
+{"id": "Mercury_7172008", "row_idx": 310, "reason": "2 old ids not in pruned vocab: [81540, 86597]"}
+{"id": "ACTAAP_2011_5_7", "row_idx": 312, "reason": "2 old ids not in pruned vocab: [56925, 94710]"}
+{"id": "Mercury_7068828", "row_idx": 313, "reason": "1 old ids not in pruned vocab: [75596]"}
+{"id": "Mercury_7158865", "row_idx": 314, "reason": "2 old ids not in pruned vocab: [69525, 74110]"}
+{"id": "Mercury_180128", "row_idx": 315, "reason": "2 old ids not in pruned vocab: [52255, 88680]"}
+{"id": "Mercury_7263463", "row_idx": 316, "reason": "1 old ids not in pruned vocab: [69361]"}
+{"id": "Mercury_7024518", "row_idx": 317, "reason": "2 old ids not in pruned vocab: [77826, 78548]"}
+{"id": "Mercury_7084193", "row_idx": 318, "reason": "1 old ids not in pruned vocab: [74767]"}
+{"id": "NCEOGA_2013_5_45", "row_idx": 319, "reason": "3 old ids not in pruned vocab: [60150, 65410, 75826]"}
+{"id": "Mercury_7213640", "row_idx": 320, "reason": "4 old ids not in pruned vocab: [55042, 58375, 70913, 92335]"}
+{"id": "Mercury_7032673", "row_idx": 321, "reason": "1 old ids not in pruned vocab: [62447]"}
+{"id": "CSZ_2007_5_CSZ10148", "row_idx": 322, "reason": "1 old ids not in pruned vocab: [89603]"}
+{"id": "Mercury_SC_400924", "row_idx": 323, "reason": "1 old ids not in pruned vocab: [55051]"}
+{"id": "Mercury_7027318", "row_idx": 325, "reason": "4 old ids not in pruned vocab: [53165, 55152, 72554, 85234]"}
+{"id": "Mercury_SC_400054", "row_idx": 326, "reason": "1 old ids not in pruned vocab: [96018]"}
+{"id": "Mercury_7034930", "row_idx": 328, "reason": "3 old ids not in pruned vocab: [72003, 80199, 91210]"}
+{"id": "Mercury_7064663", "row_idx": 329, "reason": "3 old ids not in pruned vocab: [50684, 52828, 81299]"}
+{"id": "NAEP_2009_8_S10+1", "row_idx": 331, "reason": "2 old ids not in pruned vocab: [70270, 71019]"}
+{"id": "Mercury_7223073", "row_idx": 332, "reason": "2 old ids not in pruned vocab: [56978, 90159]"}
+{"id": "NYSEDREGENTS_2014_8_6", "row_idx": 333, "reason": "2 old ids not in pruned vocab: [74502, 83181]"}
+{"id": "ACTAAP_2011_5_10", "row_idx": 336, "reason": "1 old ids not in pruned vocab: [59132]"}
+{"id": "Mercury_SC_400303", "row_idx": 337, "reason": "2 old ids not in pruned vocab: [50684, 93297]"}
+{"id": "Mercury_7140088", "row_idx": 338, "reason": "1 old ids not in pruned vocab: [78738]"}
+{"id": "Mercury_7011025", "row_idx": 339, "reason": "1 old ids not in pruned vocab: [57678]"}
+{"id": "Mercury_7201915", "row_idx": 340, "reason": "1 old ids not in pruned vocab: [58758]"}
+{"id": "Mercury_SC_405442", "row_idx": 341, "reason": "2 old ids not in pruned vocab: [54842, 74767]"}
+{"id": "Mercury_SC_402278", "row_idx": 343, "reason": "2 old ids not in pruned vocab: [58097, 59132]"}
+{"id": "Mercury_SC_417580", "row_idx": 344, "reason": "1 old ids not in pruned vocab: [94529]"}
+{"id": "Mercury_7211978", "row_idx": 346, "reason": "1 old ids not in pruned vocab: [50802]"}
+{"id": "Mercury_7008803", "row_idx": 348, "reason": "1 old ids not in pruned vocab: [57678]"}
+{"id": "Mercury_190138", "row_idx": 349, "reason": "1 old ids not in pruned vocab: [60547]"}
+{"id": "Mercury_7173513", "row_idx": 350, "reason": "1 old ids not in pruned vocab: [77480]"}
+{"id": "Mercury_179393", "row_idx": 352, "reason": "1 old ids not in pruned vocab: [51513]"}
+{"id": "Mercury_7203508", "row_idx": 356, "reason": "3 old ids not in pruned vocab: [52609, 57371, 92599]"}
+{"id": "Mercury_7016573", "row_idx": 357, "reason": "1 old ids not in pruned vocab: [68006]"}
+{"id": "Mercury_7057540", "row_idx": 359, "reason": "2 old ids not in pruned vocab: [58245, 63907]"}
+{"id": "Mercury_417570", "row_idx": 360, "reason": "4 old ids not in pruned vocab: [55616, 57116, 61820, 64677]"}
+{"id": "Mercury_7064523", "row_idx": 361, "reason": "2 old ids not in pruned vocab: [62607, 92335]"}
+{"id": "Mercury_7090650", "row_idx": 363, "reason": "1 old ids not in pruned vocab: [91687]"}
+{"id": "NCEOGA_2013_5_48", "row_idx": 364, "reason": "3 old ids not in pruned vocab: [50393, 63857, 74649]"}
+{"id": "Mercury_7247905", "row_idx": 366, "reason": "2 old ids not in pruned vocab: [76688, 87701]"}
+{"id": "WASL_2005_5_11", "row_idx": 367, "reason": "3 old ids not in pruned vocab: [54097, 72028, 100216]"}
+{"id": "Mercury_7188265", "row_idx": 368, "reason": "3 old ids not in pruned vocab: [51055, 57759, 85292]"}
+{"id": "MDSA_2008_5_39", "row_idx": 372, "reason": "2 old ids not in pruned vocab: [51045, 76785]"}
+{"id": "AKDE&ED_2008_4_22", "row_idx": 373, "reason": "3 old ids not in pruned vocab: [56925, 68797, 73757]"}
+{"id": "Mercury_7166740", "row_idx": 375, "reason": "1 old ids not in pruned vocab: [53391]"}
+{"id": "Mercury_7123480", "row_idx": 376, "reason": "3 old ids not in pruned vocab: [57188, 86228, 89819]"}
+{"id": "Mercury_SC_413454", "row_idx": 377, "reason": "3 old ids not in pruned vocab: [57267, 70913, 87992]"}
+{"id": "Mercury_7003710", "row_idx": 379, "reason": "1 old ids not in pruned vocab: [65125]"}
+{"id": "Mercury_SC_409254", "row_idx": 380, "reason": "1 old ids not in pruned vocab: [67757]"}
+{"id": "MDSA_2010_4_24", "row_idx": 381, "reason": "1 old ids not in pruned vocab: [77938]"}
+{"id": "Mercury_7064383", "row_idx": 383, "reason": "3 old ids not in pruned vocab: [50112, 65792, 88807]"}
+{"id": "MCAS_2013_8_29420", "row_idx": 384, "reason": "1 old ids not in pruned vocab: [91111]"}
+{"id": "Mercury_7248133", "row_idx": 385, "reason": "2 old ids not in pruned vocab: [56178, 62607]"}
+{"id": "Mercury_SC_413544", "row_idx": 386, "reason": "1 old ids not in pruned vocab: [80005]"}
+{"id": "Mercury_7041825", "row_idx": 387, "reason": "2 old ids not in pruned vocab: [52192, 60071]"}
+{"id": "Mercury_177380", "row_idx": 388, "reason": "2 old ids not in pruned vocab: [51483, 70785]"}
+{"id": "Mercury_SC_401245", "row_idx": 390, "reason": "2 old ids not in pruned vocab: [66664, 91210]"}
+{"id": "Mercury_SC_400206", "row_idx": 392, "reason": "4 old ids not in pruned vocab: [56741, 81776, 85626, 88068]"}
+{"id": "Mercury_7215408", "row_idx": 393, "reason": "2 old ids not in pruned vocab: [69773, 89819]"}
+{"id": "Mercury_7205538", "row_idx": 394, "reason": "2 old ids not in pruned vocab: [51692, 74767]"}
+{"id": "Mercury_7210735", "row_idx": 396, "reason": "4 old ids not in pruned vocab: [56528, 56925, 57811, 89819]"}
+{"id": "Mercury_7084508", "row_idx": 398, "reason": "1 old ids not in pruned vocab: [50561]"}
+{"id": "Mercury_7027370", "row_idx": 399, "reason": "4 old ids not in pruned vocab: [57678, 60826, 67221, 72554]"}
+{"id": "MDSA_2011_5_6", "row_idx": 400, "reason": "2 old ids not in pruned vocab: [79476, 90159]"}
+{"id": "MCAS_1998_4_25", "row_idx": 401, "reason": "4 old ids not in pruned vocab: [55682, 60150, 75826, 90109]"}
+{"id": "Mercury_7014245", "row_idx": 402, "reason": "2 old ids not in pruned vocab: [50264, 65069]"}
+{"id": "Mercury_7271653", "row_idx": 403, "reason": "4 old ids not in pruned vocab: [54280, 61050, 67757, 79152]"}
+{"id": "Mercury_7177940", "row_idx": 405, "reason": "6 old ids not in pruned vocab: [60701, 61129, 71019, 77537, 85160, 92948]"}
+{"id": "MCAS_2005_5_27", "row_idx": 406, "reason": "1 old ids not in pruned vocab: [97607]"}
+{"id": "TIMSS_2007_8_pg105", "row_idx": 407, "reason": "1 old ids not in pruned vocab: [74508]"}
+{"id": "Mercury_SC_401178", "row_idx": 408, "reason": "1 old ids not in pruned vocab: [74767]"}
+{"id": "Mercury_7186918", "row_idx": 409, "reason": "1 old ids not in pruned vocab: [89322]"}
+{"id": "Mercury_7245140", "row_idx": 410, "reason": "1 old ids not in pruned vocab: [69522]"}
+{"id": "NYSEDREGENTS_2014_8_5", "row_idx": 411, "reason": "2 old ids not in pruned vocab: [60071, 78738]"}
+{"id": "Mercury_7183225", "row_idx": 413, "reason": "5 old ids not in pruned vocab: [58097, 62555, 66664, 75790, 94761]"}
+{"id": "Mercury_SC_LBS10789", "row_idx": 414, "reason": "1 old ids not in pruned vocab: [81473]"}
+{"id": "Mercury_7080500", "row_idx": 415, "reason": "2 old ids not in pruned vocab: [61050, 80850]"}
+{"id": "Mercury_7007893", "row_idx": 416, "reason": "2 old ids not in pruned vocab: [71019, 77443]"}
+{"id": "Mercury_7163748", "row_idx": 417, "reason": "1 old ids not in pruned vocab: [65128]"}
+{"id": "Mercury_7218558", "row_idx": 422, "reason": "2 old ids not in pruned vocab: [58759, 79648]"}
+{"id": "NYSEDREGENTS_2014_4_18", "row_idx": 423, "reason": "3 old ids not in pruned vocab: [54945, 75690, 97103]"}
+{"id": "Mercury_SC_400049", "row_idx": 425, "reason": "1 old ids not in pruned vocab: [55043]"}
+{"id": "Mercury_7188475", "row_idx": 426, "reason": "2 old ids not in pruned vocab: [78353, 99107]"}
+{"id": "NYSEDREGENTS_2014_4_21", "row_idx": 427, "reason": "2 old ids not in pruned vocab: [56269, 57622]"}
+{"id": "Mercury_SC_406155", "row_idx": 429, "reason": "2 old ids not in pruned vocab: [54096, 57035]"}
+{"id": "Mercury_400813", "row_idx": 430, "reason": "2 old ids not in pruned vocab: [61083, 69945]"}
+{"id": "LEAP__5_10316", "row_idx": 431, "reason": "1 old ids not in pruned vocab: [95273]"}
+{"id": "MCAS_2009_8_4", "row_idx": 432, "reason": "2 old ids not in pruned vocab: [58097, 59132]"}
+{"id": "Mercury_7170835", "row_idx": 434, "reason": "1 old ids not in pruned vocab: [83631]"}
+{"id": "Mercury_7107398", "row_idx": 435, "reason": "3 old ids not in pruned vocab: [50935, 89075, 94313]"}
+{"id": "ACTAAP_2011_5_12", "row_idx": 436, "reason": "1 old ids not in pruned vocab: [88207]"}
+{"id": "Mercury_SC_405721", "row_idx": 437, "reason": "2 old ids not in pruned vocab: [60771, 61191]"}
+{"id": "TIMSS_2003_4_pg29", "row_idx": 438, "reason": "2 old ids not in pruned vocab: [69352, 82673]"}
+{"id": "Mercury_7103338", "row_idx": 439, "reason": "4 old ids not in pruned vocab: [61050, 61272, 79152, 96649]"}
+{"id": "NYSEDREGENTS_2014_8_7", "row_idx": 441, "reason": "3 old ids not in pruned vocab: [51877, 80727, 82320]"}
+{"id": "Mercury_7269063", "row_idx": 442, "reason": "5 old ids not in pruned vocab: [52349, 65928, 72591, 80492, 97607]"}
+{"id": "MEA_2010_8_14-v1", "row_idx": 443, "reason": "3 old ids not in pruned vocab: [60701, 80298, 96649]"}
+{"id": "Mercury_7180968", "row_idx": 446, "reason": "2 old ids not in pruned vocab: [57035, 70580]"}
+{"id": "Mercury_7083948", "row_idx": 447, "reason": "1 old ids not in pruned vocab: [69551]"}
+{"id": "Mercury_188773", "row_idx": 449, "reason": "1 old ids not in pruned vocab: [94710]"}
+{"id": "Mercury_7233363", "row_idx": 450, "reason": "4 old ids not in pruned vocab: [55479, 57116, 67004, 71086]"}
+{"id": "MCAS_2009_8_18", "row_idx": 451, "reason": "1 old ids not in pruned vocab: [50937]"}
+{"id": "Mercury_7212013", "row_idx": 452, "reason": "2 old ids not in pruned vocab: [59862, 97893]"}
+{"id": "Mercury_SC_LBS10689", "row_idx": 453, "reason": "2 old ids not in pruned vocab: [56925, 68797]"}
+{"id": "MCAS_2004_9_6", "row_idx": 454, "reason": "3 old ids not in pruned vocab: [50542, 84913, 85552]"}
+{"id": "AKDE&ED_2012_8_53", "row_idx": 455, "reason": "5 old ids not in pruned vocab: [61050, 66664, 75790, 96649, 98835]"}
+{"id": "Mercury_7032550", "row_idx": 456, "reason": "3 old ids not in pruned vocab: [67849, 68102, 82486]"}
+{"id": "Mercury_7172673", "row_idx": 457, "reason": "1 old ids not in pruned vocab: [57678]"}
+{"id": "Mercury_7016783", "row_idx": 458, "reason": "1 old ids not in pruned vocab: [50684]"}
+{"id": "Mercury_409399", "row_idx": 459, "reason": "2 old ids not in pruned vocab: [57678, 82586]"}
+{"id": "Mercury_7207253", "row_idx": 460, "reason": "5 old ids not in pruned vocab: [57790, 69131, 79195, 80492, 84922]"}
+{"id": "Mercury_SC_402253", "row_idx": 462, "reason": "1 old ids not in pruned vocab: [74767]"}
+{"id": "Mercury_SC_400194", "row_idx": 463, "reason": "2 old ids not in pruned vocab: [59132, 79476]"}
+{"id": "Mercury_7032568", "row_idx": 464, "reason": "3 old ids not in pruned vocab: [57678, 62607, 70241]"}
+{"id": "Mercury_SC_LBS10612", "row_idx": 465, "reason": "2 old ids not in pruned vocab: [58636, 94867]"}
+{"id": "Mercury_7008330", "row_idx": 466, "reason": "3 old ids not in pruned vocab: [56669, 62114, 84862]"}
+{"id": "Mercury_7108413", "row_idx": 467, "reason": "1 old ids not in pruned vocab: [57035]"}
+{"id": "Mercury_7043593", "row_idx": 469, "reason": "4 old ids not in pruned vocab: [62452, 69695, 93297, 99336]"}
+{"id": "Mercury_7033705", "row_idx": 470, "reason": "2 old ids not in pruned vocab: [56217, 69918]"}
+{"id": "Mercury_7114083", "row_idx": 471, "reason": "1 old ids not in pruned vocab: [50561]"}
+{"id": "Mercury_SC_LBS10785", "row_idx": 472, "reason": "2 old ids not in pruned vocab: [90918, 93972]"}
+{"id": "Mercury_7114013", "row_idx": 473, "reason": "3 old ids not in pruned vocab: [58097, 66222, 72579]"}
+{"id": "Mercury_192903", "row_idx": 474, "reason": "2 old ids not in pruned vocab: [60071, 91111]"}
+{"id": "Mercury_7082093", "row_idx": 475, "reason": "2 old ids not in pruned vocab: [58218, 67030]"}
+{"id": "Mercury_7004708", "row_idx": 476, "reason": "1 old ids not in pruned vocab: [72579]"}
+{"id": "Mercury_SC_LBS10783", "row_idx": 477, "reason": "1 old ids not in pruned vocab: [64802]"}
+{"id": "Mercury_7037433", "row_idx": 478, "reason": "3 old ids not in pruned vocab: [52609, 78245, 80269]"}
+{"id": "Mercury_SC_400033", "row_idx": 479, "reason": "1 old ids not in pruned vocab: [77537]"}
+{"id": "NYSEDREGENTS_2014_4_25", "row_idx": 480, "reason": "2 old ids not in pruned vocab: [80417, 85626]"}
+{"id": "Mercury_SC_402287", "row_idx": 481, "reason": "3 old ids not in pruned vocab: [66579, 71019, 86559]"}
+{"id": "Mercury_SC_414364", "row_idx": 482, "reason": "2 old ids not in pruned vocab: [62059, 77678]"}
+{"id": "Mercury_7250215", "row_idx": 483, "reason": "3 old ids not in pruned vocab: [56406, 78284, 94263]"}
+{"id": "Mercury_7138898", "row_idx": 484, "reason": "4 old ids not in pruned vocab: [53205, 80412, 85648, 93319]"}
+{"id": "Mercury_7010920", "row_idx": 485, "reason": "3 old ids not in pruned vocab: [52192, 60071, 78738]"}
+{"id": "Mercury_403682", "row_idx": 486, "reason": "3 old ids not in pruned vocab: [82486, 84443, 96104]"}
+{"id": "Mercury_7026828", "row_idx": 487, "reason": "3 old ids not in pruned vocab: [58097, 72591, 80944]"}
+{"id": "Mercury_7235760", "row_idx": 488, "reason": "2 old ids not in pruned vocab: [50843, 64490]"}
+{"id": "Mercury_7217525", "row_idx": 490, "reason": "2 old ids not in pruned vocab: [50600, 83066]"}
+{"id": "Mercury_SC_405302", "row_idx": 491, "reason": "2 old ids not in pruned vocab: [61050, 65350]"}
+{"id": "Mercury_7082583", "row_idx": 493, "reason": "1 old ids not in pruned vocab: [71019]"}
+{"id": "Mercury_7245875", "row_idx": 494, "reason": "4 old ids not in pruned vocab: [54444, 56067, 74502, 75477]"}
+{"id": "VASoL_2008_3_39", "row_idx": 496, "reason": "1 old ids not in pruned vocab: [61221]"}
+{"id": "Mercury_177013", "row_idx": 498, "reason": "3 old ids not in pruned vocab: [54108, 58182, 69397]"}
+{"id": "Mercury_SC_400185", "row_idx": 499, "reason": "1 old ids not in pruned vocab: [78352]"}
+{"id": "Mercury_SC_402159", "row_idx": 500, "reason": "2 old ids not in pruned vocab: [57342, 59064]"}
+{"id": "Mercury_SC_401598", "row_idx": 502, "reason": "1 old ids not in pruned vocab: [77757]"}
+{"id": "MCAS_2004_8_24", "row_idx": 503, "reason": "2 old ids not in pruned vocab: [65344, 95560]"}
+{"id": "Mercury_SC_413081", "row_idx": 504, "reason": "3 old ids not in pruned vocab: [53722, 58309, 78466]"}
+{"id": "CSZ_2008_5_CSZ50776", "row_idx": 505, "reason": "3 old ids not in pruned vocab: [61843, 90090, 97478]"}
+{"id": "MCAS_1998_4_22", "row_idx": 506, "reason": "3 old ids not in pruned vocab: [69930, 74081, 81496]"}
+{"id": "Mercury_7267785", "row_idx": 507, "reason": "4 old ids not in pruned vocab: [50076, 50253, 50789, 53686]"}
+{"id": "Mercury_SC_405035", "row_idx": 508, "reason": "1 old ids not in pruned vocab: [74956]"}
+{"id": "Mercury_7032200", "row_idx": 510, "reason": "4 old ids not in pruned vocab: [52902, 61433, 77826, 78548]"}
+{"id": "LEAP_2009_8_10431", "row_idx": 512, "reason": "1 old ids not in pruned vocab: [78295]"}
+{"id": "Mercury_7143150", "row_idx": 514, "reason": "3 old ids not in pruned vocab: [58097, 67164, 80502]"}
+{"id": "Mercury_SC_407720", "row_idx": 516, "reason": "1 old ids not in pruned vocab: [90546]"}
+{"id": "MCAS_2002_8_19", "row_idx": 517, "reason": "3 old ids not in pruned vocab: [55791, 74503, 97539]"}
+{"id": "Mercury_7009940", "row_idx": 518, "reason": "2 old ids not in pruned vocab: [52609, 99688]"}
+{"id": "Mercury_7239645", "row_idx": 519, "reason": "2 old ids not in pruned vocab: [78872, 82316]"}
+{"id": "Mercury_7026268", "row_idx": 520, "reason": "1 old ids not in pruned vocab: [93941]"}
+{"id": "Mercury_7057610", "row_idx": 521, "reason": "2 old ids not in pruned vocab: [60150, 69996]"}
+{"id": "VASoL_2009_5_14", "row_idx": 522, "reason": "1 old ids not in pruned vocab: [66579]"}
+{"id": "TIMSS_1995_8_I11", "row_idx": 524, "reason": "1 old ids not in pruned vocab: [69683]"}
+{"id": "MCAS_2000_8_30", "row_idx": 525, "reason": "3 old ids not in pruned vocab: [58466, 70275, 72908]"}
+{"id": "Mercury_7190015", "row_idx": 527, "reason": "4 old ids not in pruned vocab: [51751, 67164, 72155, 80502]"}
+{"id": "Mercury_7032830", "row_idx": 528, "reason": "3 old ids not in pruned vocab: [55479, 71086, 80492]"}
+{"id": "AIMS_2008_4_17", "row_idx": 529, "reason": "3 old ids not in pruned vocab: [58097, 67164, 80502]"}
+{"id": "Mercury_7271618", "row_idx": 530, "reason": "2 old ids not in pruned vocab: [54280, 89455]"}
+{"id": "NCEOGA_2013_8_46", "row_idx": 531, "reason": "2 old ids not in pruned vocab: [58309, 61508]"}
+{"id": "Mercury_7084560", "row_idx": 532, "reason": "2 old ids not in pruned vocab: [53657, 76214]"}
+{"id": "Mercury_7202388", "row_idx": 534, "reason": "3 old ids not in pruned vocab: [68550, 74956, 78466]"}
+{"id": "Mercury_7210403", "row_idx": 535, "reason": "1 old ids not in pruned vocab: [59572]"}
+{"id": "Mercury_SC_401826", "row_idx": 536, "reason": "2 old ids not in pruned vocab: [79379, 86006]"}
+{"id": "Mercury_7269028", "row_idx": 537, "reason": "1 old ids not in pruned vocab: [57678]"}
+{"id": "Mercury_SC_407784", "row_idx": 538, "reason": "4 old ids not in pruned vocab: [65216, 67861, 82091, 94003]"}
+{"id": "Mercury_7042508", "row_idx": 539, "reason": "3 old ids not in pruned vocab: [66425, 87286, 87887]"}
+{"id": "Mercury_7271443", "row_idx": 540, "reason": "4 old ids not in pruned vocab: [56617, 58636, 66959, 92662]"}
+{"id": "Mercury_7029873", "row_idx": 542, "reason": "2 old ids not in pruned vocab: [65391, 77537]"}
+{"id": "Mercury_7228323", "row_idx": 543, "reason": "3 old ids not in pruned vocab: [64842, 71034, 85311]"}
+{"id": "Mercury_7217140", "row_idx": 544, "reason": "2 old ids not in pruned vocab: [73200, 99738]"}
+{"id": "Mercury_SC_400515", "row_idx": 545, "reason": "3 old ids not in pruned vocab: [52255, 74416, 75105]"}
+{"id": "MCAS_2003_8_13", "row_idx": 546, "reason": "3 old ids not in pruned vocab: [74502, 74767, 87669]"}
+{"id": "OHAT_2009_5_4", "row_idx": 547, "reason": "4 old ids not in pruned vocab: [57116, 70760, 83323, 95869]"}
+{"id": "ACTAAP_2012_7_16", "row_idx": 548, "reason": "1 old ids not in pruned vocab: [83181]"}
+{"id": "Mercury_7156800", "row_idx": 549, "reason": "5 old ids not in pruned vocab: [53031, 68700, 74441, 89847, 92234]"}
+{"id": "VASoL_2007_3_32", "row_idx": 550, "reason": "2 old ids not in pruned vocab: [74956, 97478]"}
+{"id": "Mercury_SC_416126", "row_idx": 551, "reason": "2 old ids not in pruned vocab: [60071, 69397]"}
+{"id": "Mercury_7254520", "row_idx": 553, "reason": "3 old ids not in pruned vocab: [66222, 75105, 84443]"}
+{"id": "Mercury_7037415", "row_idx": 554, "reason": "3 old ids not in pruned vocab: [56927, 70225, 83181]"}
+{"id": "Mercury_7221533", "row_idx": 555, "reason": "1 old ids not in pruned vocab: [50227]"}
+{"id": "Mercury_SC_410965", "row_idx": 556, "reason": "1 old ids not in pruned vocab: [52356]"}
+{"id": "TIMSS_2011_8_pg106", "row_idx": 557, "reason": "1 old ids not in pruned vocab: [73780]"}
+{"id": "Mercury_406736", "row_idx": 558, "reason": "1 old ids not in pruned vocab: [82455]"}
+{"id": "Mercury_SC_400691", "row_idx": 559, "reason": "1 old ids not in pruned vocab: [62233]"}
+{"id": "NYSEDREGENTS_2014_8_18", "row_idx": 560, "reason": "1 old ids not in pruned vocab: [74767]"}
+{"id": "Mercury_404901", "row_idx": 561, "reason": "1 old ids not in pruned vocab: [83181]"}
+{"id": "Mercury_7006265", "row_idx": 562, "reason": "2 old ids not in pruned vocab: [60764, 85648]"}
+{"id": "MCAS_2006_9_16", "row_idx": 563, "reason": "4 old ids not in pruned vocab: [65216, 65932, 78852, 81540]"}
+{"id": "MCAS_2006_9_9-v1", "row_idx": 564, "reason": "1 old ids not in pruned vocab: [76001]"}
+{"id": "MCAS_2011_8_17687", "row_idx": 565, "reason": "1 old ids not in pruned vocab: [51936]"}
+{"id": "Mercury_7094098", "row_idx": 567, "reason": "3 old ids not in pruned vocab: [78257, 78466, 86497]"}
+{"id": "Mercury_SC_401188", "row_idx": 568, "reason": "1 old ids not in pruned vocab: [90918]"}
+{"id": "Mercury_7193078", "row_idx": 569, "reason": "3 old ids not in pruned vocab: [57116, 72013, 79152]"}

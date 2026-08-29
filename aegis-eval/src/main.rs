@@ -71,6 +71,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .get(op + 1)
             .filter(|a| !a.starts_with("--"))
             .ok_or("--mc-out requires <results.jsonl>")?;
+        // --mc-cis-full: score the SAME items through the CIS-1 full-integer
+        // path (mc::run_mc_cis_full) instead of the float engine. Optional
+        // separate items/out via --mc-cis-full <items.jsonl> --mc-cis-full-out
+        // <results.jsonl>, so one process can run float then full-int in turn
+        // without reloading the (large) model artifacts twice.
+        if let Some(cp) = args.iter().position(|a| a == "--mc-cis-full") {
+            let cis_items = args
+                .get(cp + 1)
+                .filter(|a| !a.starts_with("--"))
+                .unwrap_or(items);
+            let cop = args
+                .iter()
+                .position(|a| a == "--mc-cis-full-out")
+                .ok_or("--mc-cis-full requires --mc-cis-full-out <results.jsonl>")?;
+            let cis_out = args
+                .get(cop + 1)
+                .filter(|a| !a.starts_with("--"))
+                .ok_or("--mc-cis-full-out requires <results.jsonl>")?;
+            mc::run_mc(&mut engine, items, out)?;
+            return mc::run_mc_cis_full(&engine, cis_items, cis_out);
+        }
         return mc::run_mc(&mut engine, items, out);
     }
 

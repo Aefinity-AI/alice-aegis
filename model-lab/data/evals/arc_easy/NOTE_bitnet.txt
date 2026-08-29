@@ -1,0 +1,5 @@
+NOTE: ARC-Easy (AI2 Reasoning Challenge, allenai/ai2_arc) is licensed CC BY-SA 4.0.
+Source file: ARC-Easy/validation-00000-of-00001.parquet from allenai/ai2_arc (validation split ONLY), sha256=ed890ff1e4cef7a7140d3a30dcea3ed2c9d467c6458f447ad9ef0176d8dcbb74, 86080 bytes.
+Items file: arc_easy_val_n570_seed42_bitnet.jsonl = n=570 seed=42 random.Random(seed).sample over 570 validation rows, sorted by row index (SAME row selection as arc_easy_val_n570_seed42.jsonl, the Falcon-E M16/M3 items file — item ids are comparable across the two files).
+Tokenizer: BitNet-2B-4T checkpoint's own tokenizer (Llama-3 BPE, vocab_size 128256), repo-root tokenizer.json/tokenizer_config.json snapshot, plain encode, no BOS (add_special_tokens=False).
+Ids are remapped into the aegis-forge pruned vocab space (regen_vocab_embed.py): old_id<50000 unchanged, old added-special-token id 128000+k -> 50000+k; any row needing an old id in [50000,128000) that is NOT an added special token cannot be represented in the pruned (50,256-of-128,256) vocab and was DROPPED. kept=119 dropped=451 (see arc_easy_val_n570_seed42_bitnet_dropped.jsonl).

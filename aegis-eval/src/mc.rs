@@ -23,6 +23,7 @@
 //!              denominators)
 //! Ties break toward the lower choice index on both sides.
 
+use aegis_core::cis_infer::{CisEngine, CisMode, CisModel};
 use aegis_core::inference::TernaryInferenceEngine;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -273,25 +274,33 @@ fn total_nll(engine: &mut TernaryInferenceEngine<'_>, ids: &[u32]) -> Result<f64
     Ok(ppl.ln() * (ids.len() - 1) as f64)
 }
 
-pub fn run_mc(
-    engine: &mut TernaryInferenceEngine<'_>,
+/// Shared MC scoring loop: everything except the "how do I get total NLL for
+/// a token sequence" step is identical between the float path (`run_mc`) and
+/// the CIS-1 full-integer path (`run_mc_cis_full`) — same items file format,
+/// same acc/acc_norm definitions, same JSONL schema. `total_nll_fn` is the
+/// only thing that differs; it is handed a token sequence and returns the
+/// summed teacher-forced NLL (nats) over predictions 1..len-1.
+fn run_mc_generic(
     items_path: &str,
     out_path: &str,
+    window: usize,
+    vocab: u32,
+    vocab_len_for_caveat: usize,
+    mode_label: &str,
+    mut total_nll_fn: impl FnMut(&[u32]) -> Result<f64, String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let data = std::fs::read_to_string(items_path)?;
     let mut out = BufWriter::new(File::create(out_path)?);
 
-    let window = engine.config.max_position_embeddings;
-    let vocab = engine.config.vocab_size as u32;
-
     let norm_def = "acc: pred = argmin_k cont_nll[k] (raw sum over continuation \
                     tokens); acc_norm: pred = argmax_k(-cont_nll[k] / \
                     utf8_byte_len(choice_text_k)); ties -> lower index";
-    println!("MC mode: items={items_path} out={out_path}");
+    println!("MC mode ({mode_label}): items={items_path} out={out_path}");
     println!("Scoring: {norm_def}");
     writeln!(
         out,
-        "{{\"header\":\"aegis-eval --mc\",\"items\":\"{}\",\"normalization\":\"{}\"}}",
+        "{{\"header\":\"aegis-eval --mc\",\"mode\":\"{}\",\"items\":\"{}\",\"normalization\":\"{}\"}}",
+        json_escape(mode_label),
         json_escape(items_path),
         json_escape(norm_def)
     )?;
@@ -344,7 +353,7 @@ pub fn run_mc(
         }
 
         let ctx_nll =
-            total_nll(engine, &item.ctx_ids).map_err(|e| format!("item {} ctx: {e}", item.id))?;
+            total_nll_fn(&item.ctx_ids).map_err(|e| format!("item {} ctx: {e}", item.id))?;
         tokens_forwarded += item.ctx_ids.len();
 
         let mut cont_nll = Vec::with_capacity(item.choice_ids.len());
@@ -353,7 +362,7 @@ pub fn run_mc(
             let mut seq = item.ctx_ids.clone();
             seq.extend_from_slice(cont);
             let total =
-                total_nll(engine, &seq).map_err(|e| format!("item {} choice {k}: {e}", item.id))?;
+                total_nll_fn(&seq).map_err(|e| format!("item {} choice {k}: {e}", item.id))?;
             tokens_forwarded += seq.len();
             let nll = total - ctx_nll;
             cont_nll.push(nll);
@@ -429,18 +438,83 @@ pub fn run_mc(
 
     writeln!(
         out,
-        "{{\"summary\":true,\"n\":{n},\"acc\":{acc:.6},\"acc_norm\":{acc_norm:.6},\
-         \"tokens_forwarded\":{tokens_forwarded},\"wall_s\":{dt:.1}}}"
+        "{{\"summary\":true,\"mode\":\"{}\",\"n\":{n},\"acc\":{acc:.6},\"acc_norm\":{acc_norm:.6},\
+         \"tokens_forwarded\":{tokens_forwarded},\"wall_s\":{dt:.1}}}",
+        json_escape(mode_label)
     )?;
     out.flush()?;
 
     println!("--------------------------------------------------");
-    println!("MC summary: n={n} acc={acc:.4} ({n_correct_raw}/{n}) acc_norm={acc_norm:.4} ({n_correct_norm}/{n})");
+    println!("MC summary ({mode_label}): n={n} acc={acc:.4} ({n_correct_raw}/{n}) acc_norm={acc_norm:.4} ({n_correct_norm}/{n})");
     println!(
         "tokens forwarded: {tokens_forwarded} | wall {dt:.1}s ({:.2} tok/s)",
         tokens_forwarded as f64 / dt
     );
     println!("--------------------------------------------------");
-    crate::print_caveat(engine.tokenizer.vocab_len());
+    crate::print_caveat(vocab_len_for_caveat);
     Ok(())
+}
+
+/// Float-path MC (unchanged behavior/output vs the pre-C2a harness): scores
+/// via `TernaryInferenceEngine::calculate_perplexity`.
+pub fn run_mc(
+    engine: &mut TernaryInferenceEngine<'_>,
+    items_path: &str,
+    out_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let window = engine.config.max_position_embeddings;
+    let vocab = engine.config.vocab_size as u32;
+    let vocab_len = engine.tokenizer.vocab_len();
+    run_mc_generic(
+        items_path,
+        out_path,
+        window,
+        vocab,
+        vocab_len,
+        "float",
+        |ids| total_nll(engine, ids),
+    )
+}
+
+/// CIS-1 FULL-INTEGER path MC: same items file, same acc/acc_norm scoring,
+/// but continuation NLL is recovered from `CisEngine::calculate_perplexity_int`
+/// (mode `FullInt`) instead of the float engine — the same all-integer
+/// ROPE-I/SOFTMAX-I/ACT-I forward pass `run_cis_full`'s PPL number uses.
+/// `CisPplResult` only reports `ppl` (=exp(total_nll/scored)); `total_nll` is
+/// recovered exactly the same way `total_nll()` above recovers it from the
+/// float engine's `calculate_perplexity`.
+pub fn run_mc_cis_full(
+    engine: &TernaryInferenceEngine<'_>,
+    items_path: &str,
+    out_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let window = engine.config.max_position_embeddings;
+    let vocab = engine.config.vocab_size as u32;
+    let vocab_len = engine.tokenizer.vocab_len();
+
+    let model = CisModel::new(engine.pipeline(), &engine.config)
+        .map_err(|e| format!("CIS model conversion: {e}"))?;
+    let mut cis = CisEngine::new_with_mode(&model, CisMode::FullInt);
+
+    run_mc_generic(
+        items_path,
+        out_path,
+        window,
+        vocab,
+        vocab_len,
+        "full-int",
+        |ids| {
+            let r = cis.calculate_perplexity_int(ids);
+            if !r.ppl.is_finite() || r.ppl <= 0.0 || r.scored == 0 {
+                return Err(format!(
+                    "calculate_perplexity_int returned ppl={} scored={} on a {}-token sequence \
+                 (NaN = out-of-vocab target id; 0 = sequence too short)",
+                    r.ppl,
+                    r.scored,
+                    ids.len()
+                ));
+            }
+            Ok(r.ppl.ln() * r.scored as f64)
+        },
+    )
 }
