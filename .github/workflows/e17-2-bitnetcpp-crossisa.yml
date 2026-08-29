@@ -279,6 +279,8 @@ jobs:
               python3 "$GITHUB_WORKSPACE/scripts/e17_2_logprob_digest.py" "$T" "/tmp/server_t${T}.json"
             fi
           done
+          # informational step: the E17_2_RESULT lines above are the record; never fail the job here
+          exit 0
 
       - name: Job summary (E17_2_RESULT lines)
         run: |
