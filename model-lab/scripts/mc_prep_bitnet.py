@@ -43,12 +43,25 @@ PARQUET = "ARC-Easy/validation-00000-of-00001.parquet"
 MAX_PARQUET_BYTES = 5 * 1024 * 1024
 
 
-def build_remap(tokenizer_json_path):
-    """Reproduce aegis-forge/regen_vocab_embed.py's id remap exactly, without
-    touching vocab.bin/embed.bin (read-only derivation from tokenizer.json)."""
+def build_remap(tokenizer_json_path, full_vocab=False):
+    """Reproduce aegis-forge's id remap exactly, without touching
+    vocab.bin/embed.bin (read-only derivation from tokenizer.json).
+
+    full_vocab=True reproduces repack_ternary.py's full_vocab_id_space():
+    the identity map over the dense [0, n) id space (no pruning at all —
+    the forge built WITHOUT --llama3-prune)."""
     tk = json.load(open(tokenizer_json_path))
     base_vocab = tk["model"]["vocab"]  # str -> old_id
     added = tk.get("added_tokens", [])
+
+    if full_vocab:
+        entries = set(base_vocab.values()) | {t["id"] for t in added}
+        n = max(entries) + 1
+        missing = [i for i in range(n) if i not in entries]
+        assert not missing, f"vocab has id gaps (first: {missing[:5]})"
+        remap = {i: i for i in range(n)}
+        print(f"remap: IDENTITY over full vocab space [0,{n}) (no pruning)")
+        return remap, n
 
     base_kept = sorted(oid for oid in base_vocab.values() if oid < 50000)
     assert len(base_kept) == 50000, f"expected 50000 base tokens, got {len(base_kept)}"
@@ -75,6 +88,9 @@ def main() -> int:
     )
     ap.add_argument("--n", type=int, default=570)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--full-vocab", action="store_true",
+                     help="target the UNPRUNED (no --llama3-prune) forge: identity id "
+                          "remap, every row expected representable (asserted)")
     ap.add_argument(
         "--out-dir",
         default=str(__import__("pathlib").Path(__file__).resolve().parents[1]
@@ -85,7 +101,7 @@ def main() -> int:
     os.makedirs(args.out_dir, exist_ok=True)
 
     tokenizer_json_path = os.path.join(args.tokenizer, "tokenizer.json")
-    remap, new_vocab_size = build_remap(tokenizer_json_path)
+    remap, new_vocab_size = build_remap(tokenizer_json_path, full_vocab=args.full_vocab)
 
     # --- size-check via hub API BEFORE any download (DISK LAW) ---
     from huggingface_hub import HfApi, hf_hub_download
@@ -116,11 +132,12 @@ def main() -> int:
 
     tok = AutoTokenizer.from_pretrained(args.tokenizer)
 
+    suffix = "_bitnet_fullvocab" if args.full_vocab else "_bitnet"
     items_path = os.path.join(
-        args.out_dir, f"arc_easy_val_n{args.n}_seed{args.seed}_bitnet.jsonl"
+        args.out_dir, f"arc_easy_val_n{args.n}_seed{args.seed}{suffix}.jsonl"
     )
     dropped_path = os.path.join(
-        args.out_dir, f"arc_easy_val_n{args.n}_seed{args.seed}_bitnet_dropped.jsonl"
+        args.out_dir, f"arc_easy_val_n{args.n}_seed{args.seed}{suffix}_dropped.jsonl"
     )
     prefix_mismatches = 0
     n_kept = 0
@@ -181,7 +198,13 @@ def main() -> int:
                 + "\n"
             )
 
-    note_path = os.path.join(args.out_dir, "NOTE_bitnet.txt")
+    if args.full_vocab:
+        assert n_dropped == 0, (
+            f"--full-vocab expects every row representable (identity remap over the dense "
+            f"unpruned vocab) but {n_dropped} were dropped — investigate before trusting "
+            f"the full-vocab baseline"
+        )
+    note_path = os.path.join(args.out_dir, "NOTE_bitnet_fullvocab.txt" if args.full_vocab else "NOTE_bitnet.txt")
     with open(note_path, "w") as f:
         f.write(
             "NOTE: ARC-Easy (AI2 Reasoning Challenge, allenai/ai2_arc) is licensed CC BY-SA 4.0.\n"
