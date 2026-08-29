@@ -61,7 +61,6 @@ jobs:
     # the required leg; TL=ON is best-effort and documented as a build-portability finding,
     # not force-failed, so this genuine upstream-vs-upstream incompatibility doesn't turn
     # the whole run red.
-    continue-on-error: ${{ matrix.tl == 'ON' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -77,10 +76,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build clang python3-venv python3-pip
 
-      - name: Clone bitnet.cpp (pinned to HEAD at job time, commit recorded)
+      - name: Clone bitnet.cpp (pinned commit)
         run: |
           git clone --recursive https://github.com/microsoft/BitNet.git /tmp/bitnet-cpp
           cd /tmp/bitnet-cpp
+          # Pinned (E17.2 resolution, 2026-08-29) so the result is reproducible.
+          git checkout 0b341e582afbf9e1011f24744b554c96a3477eb5 && git submodule update --init --recursive
           echo "BITNET_CPP_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           echo "LLAMA_CPP_COMMIT=$(git -C 3rdparty/llama.cpp rev-parse HEAD)" >> "$GITHUB_ENV"
 
@@ -105,6 +106,19 @@ jobs:
           else
             python3 utils/codegen_tl1.py --model bitnet_b1_58-3B --BM 160,320,320 --BK 64,128,64 --bm 32,64,32
           fi
+
+      - name: Patch generated LUT kernel header for the vendored ggml API (E17.2 finding; arch-independent)
+        if: matrix.tl == 'ON'
+        run: |
+          cd /tmp/bitnet-cpp
+          H=include/bitnet-lut-kernels.h
+          # upstream codegen_tl1/tl2 templates still emit `tensor->backend == GGML_BACKEND_TYPE_CPU`,
+          # a field/enum removed from the ggml that bitnet.cpp itself vendors. In a CPU-only build
+          # every buffer is host memory, so the equivalent modern check is ggml_backend_buffer_is_host.
+          grep -c "GGML_BACKEND_TYPE_CPU" "$H"
+          sed -i 's/tensor->backend == GGML_BACKEND_TYPE_CPU/(tensor->buffer == nullptr || ggml_backend_buffer_is_host(tensor->buffer))/g' "$H"
+          grep -q '#include "ggml-backend.h"' "$H" || sed -i '1i #include "ggml-backend.h"' "$H"
+          grep -c "ggml_backend_buffer_is_host" "$H"
 
       - name: Build (clang, ISA-specific TL flag)
         run: |
