@@ -1,0 +1,114 @@
+\begin{thebibliography}{18}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Bitnet.cpp()]{bitnetcpp2025}
+Bitnet.cpp.
+\newblock Bitnet.cpp: Efficient edge inference for ternary {LLM}s, 2025.
+
+\bibitem[Danopoulos et~al.(2026)]{danopoulos2026taming}
+Dimitrios Danopoulos et~al.
+\newblock Taming the exponential: A fast softmax surrogate for integer-native
+  edge inference, April 2026.
+\newblock UNVERIFIED beyond abstract.
+
+\bibitem[He(2025)]{he2025defeating}
+Horace He.
+\newblock Defeating nondeterminism in {LLM} inference.
+\newblock Blog post, Thinking Machines Lab, September 2025.
+\newblock
+  \url{https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/}.
+
+\bibitem[{Insights (marvin-42.com)}(2026)]{insights2026baremetal}
+{Insights (marvin-42.com)}.
+\newblock Bare-metal {AI}: Running {LLM} inference directly in {UEFI}, no {OS}
+  or kernel required.
+\newblock Web article, March 2026.
+\newblock
+  \url{https://insights.marvin-42.com/articles/bare-metal-ai-running-llm-inference-directly-in-uefi-no-os-or-kernel-required};
+  secondary report, no primary source linked; UNVERIFIED beyond this source.
+
+\bibitem[Karvonen et~al.(2025)]{karvonen2025difr}
+Adam Karvonen et~al.
+\newblock {DiFR}: Inference verification despite nondeterminism, November 2025.
+
+\bibitem[Kim et~al.(2021)]{kim2021ibert}
+Sehoon Kim et~al.
+\newblock {I-BERT}: Integer-only {BERT} quantization, January 2021.
+\newblock rev.\ Jun 2021.
+
+\bibitem[Li and Gu(2022)]{li2022ivit}
+Zhikai Li and Qingyi Gu.
+\newblock {I-ViT}: Integer-only quantization for efficient vision transformer
+  inference, July 2022.
+\newblock rev.\ Aug 2023. {ICCV} 2023.
+
+\bibitem[Ma et~al.(2024)]{ma2024bitnet158}
+Shuming Ma et~al.
+\newblock The era of 1-bit {LLM}s: All large language models are in 1.58 bits,
+  February 2024.
+
+\bibitem[Ma et~al.(2025)]{ma2025bitnet2b4t}
+Shuming Ma et~al.
+\newblock {BitNet} b1.58 2{B}4{T} technical report, April 2025.
+
+\bibitem[{National Institute of Standards and
+  Technology}(2011)]{nist2011sp800155}
+{National Institute of Standards and Technology}.
+\newblock {BIOS} integrity measurement guidelines.
+\newblock Technical Report SP 800-155 (Initial Public Draft), NIST, December
+  2011.
+
+\bibitem[{National Institute of Standards and
+  Technology}(2026{\natexlab{a}})]{nistaesavs}
+{National Institute of Standards and Technology}.
+\newblock The advanced encryption standard algorithm validation suite
+  ({AESAVS}), 2026{\natexlab{a}}.
+\newblock
+  \url{https://csrc.nist.gov/csrc/media/projects/cryptographic-algorithm-validation-program/documents/aes/aesavs.pdf}.
+
+\bibitem[{National Institute of Standards and
+  Technology}(2026{\natexlab{b}})]{nistcavp}
+{National Institute of Standards and Technology}.
+\newblock Cryptographic algorithm validation program ({CAVP}),
+  2026{\natexlab{b}}.
+\newblock
+  \url{https://csrc.nist.gov/Projects/cryptographic-algorithm-validation-program}.
+
+\bibitem[Orion()]{orion2023fhe}
+Orion.
+\newblock Orion: A fully homomorphic encryption framework for deep learning,
+  2023.
+
+\bibitem[Peng et~al.(2025)]{peng2025zkmlsurvey}
+Zhibo Peng et~al.
+\newblock A survey of zero-knowledge proof based verifiable machine learning,
+  2025.
+
+\bibitem[Shanmugavelu et~al.(2024)]{shanmugavelu2024nonassoc}
+Sanjif Shanmugavelu et~al.
+\newblock Impacts of floating-point non-associativity on reproducibility for
+  {HPC} and deep learning applications, August 2024.
+\newblock rev.\ Oct 2024.
+
+\bibitem[Sun et~al.(2024)Sun, Li, and Zhang]{sun2024zkllm}
+Haochen Sun, Jason Li, and Hongyang Zhang.
+\newblock {zkLLM}: Zero knowledge proofs for large language models, April 2024.
+\newblock {ACM} {CCS} 2024.
+
+\bibitem[{Trusted Computing Group}(2024)]{tcg2024overview}
+{Trusted Computing Group}.
+\newblock Overview of {TCG} technologies for device identification and
+  attestation.
+\newblock Technical Report v1.0 rev.\ 1.37, Trusted Computing Group, February
+  2024.
+
+\bibitem[Wang et~al.(2024)]{wang2024onebitinfra}
+Jinheng Wang et~al.
+\newblock 1-bit {AI} infra: Part 1.1, fast and lossless {BitNet} b1.58
+  inference on {CPU}s, October 2024.
+
+\end{thebibliography}

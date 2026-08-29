@@ -1,0 +1,13 @@
+# arXiv submission notes — CIS-1
+
+**Files to upload:** `main.tex`, `refs.bib`, `main.bbl` (arXiv runs pdflatex but not always bibtex — include the .bbl). Or upload `cis1-arxiv.tar.gz`, which contains exactly those three.
+
+**Categories:** cs.LG (primary), cs.CR (cross-list).
+**License:** CC BY 4.0 for the paper (artifacts are Apache-2.0 at https://github.com/Aefinity-AI/alice-aegis).
+**Title:** Bit-identical transformer inference across ISAs, with a verifiable decode receipt, demonstrated on bare metal
+**Author:** Justin Brian Thompson (Aefinity AI Inc.)
+**Comments field:** 27 pages. Code, frozen spec (CIS-1_SPEC_v1.0.md), reference implementation, two independent clean-room verifiers, and hardware/CI logs: https://github.com/Aefinity-AI/alice-aegis
+
+**Abstract (plain text for the arXiv form, 1882 chars):**
+
+We define CIS-1, a frozen integer-only semantics for the transformer decode path — every operation, attention included, in fixed-point integers under one rounding rule — and show it is checkable, not merely accurate. Given only the spec text and a public harness, two independent implementers reproduced the op-level digest on first try [A31]. The digest is bit-identical across four x86 microarchitecture/codegen paths [A25] and on aarch64 [A28], and a complete 64-token decode digest matches across both ISAs [A29]. A decode receipt — hashes of the model artifacts, the tokens, and a hash chain over every step's logit vector — verifies across the ISA boundary in public CI [A32], and is re-derived bit-for-bit by a UEFI unikernel booting with no OS, on two physical machines spanning AVX2 and scalar SSE2 [A33, A34]. The cost is microarchitecture-dependent and sign-flips: the integer path is 25% slower than scalar float on Broadwell-U and 4–14% faster on Goldmont Plus [A26]; at parity SIMD, the integer AVX2 kernel is 2.94× faster than the float AVX2 kernel [A27]. Quality cost, gated in advance, closed last: the complete all-integer forward pass on a 2-billion-parameter ternary model costs +0.1239% perplexity against float — 40× inside a preregistered +5% kill line [A35]. At that same 2-billion-parameter scale, a full-integer decode receipt minted on x86 verifies bit-for-bit on aarch64 in public CI, checked by two independent verifiers [A39], and the same 2B receipt is also re-derived by the unikernel booting with no OS, under QEMU [A40]. The same unmodified implementation and standalone verifier also handle a second ternary architecture — Falcon-E-1B, with a SwiGLU/silu MLP, 16-head/2-KV-head grouped-query attention, a 32,768-token vocabulary, and untied embeddings — inside the same +5% kill line, showing the claim is about the spec, not the checkpoint [A41].
