@@ -88,7 +88,6 @@ jobs:
             /tmp/bitnet-cpp/3rdparty/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c || echo "patch target absent at this pin (expected for prerefactor) -- continuing" 
 
       - name: Set up venv (huggingface_hub + gguf-py)
-        if: env.BUILD_OK == '1'
         run: |
           python3 -m venv /tmp/bitnet-venv
           . /tmp/bitnet-venv/bin/activate
