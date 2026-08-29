@@ -155,6 +155,11 @@ jobs:
               exit 0
             fi
           fi
+          if [ "${{ matrix.pin }}" = "prerefactor" ]; then
+            ERR=$(grep -m1 -E "error:" build/.e17_build.log | sed 's/^.*\/tmp\/bitnet-cpp\///' | cut -c1-160)
+            echo "E17_2_RESULT arch=${{ matrix.arch }} tl=ON pin=prerefactor state=PREREFACTOR_BUILD_FAIL first_error=\"$ERR\"" | tee -a /tmp/e17_results.txt
+            exit 0
+          fi
           echo "unexpected build failure"; tail -50 build/.e17_build.log; exit 1
 
       - name: Download official GGUF (i2_s, published checkpoint — not locally re-quantized)
@@ -191,7 +196,8 @@ jobs:
           # not a hang the `timeout` wrapper could catch fast enough). llama-completion is
           # the old-style text-completion binary (tools/completion/completion.cpp) that
           # still supports -no-cnv and exits cleanly ("EOF by user") on stdin EOF.
-          BIN=build/bin/llama-completion
+          if [ -x build/bin/llama-completion ]; then BIN=build/bin/llama-completion; else BIN=build/bin/llama-cli; fi
+          echo "decode binary: $BIN"; ls build/bin | tr '\n' ' '; echo
           PROMPT="Once upon a time"
           echo "bitnet.cpp commit: $BITNET_CPP_COMMIT"
           echo "llama.cpp (vendored) commit: $LLAMA_CPP_COMMIT"
@@ -250,6 +256,7 @@ jobs:
         run: |
           cd /tmp/bitnet-cpp
           for T in 1 4; do
+            [ -f "/tmp/run_t${T}.log" ] || { echo "no run log for threads=$T (decode skipped or crashed)"; continue; }
             grep -E "^\s*[0-9]+ ->" "/tmp/run_t${T}.log" > "/tmp/tokids_t${T}.txt" || true
             echo "=== threads=$T token id lines (raw, see full log for context) ==="
             cat "/tmp/tokids_t${T}.txt" || echo "(none matched; see full run log for token stream)"
@@ -276,6 +283,8 @@ jobs:
 
       - name: Assemble log artifact
         run: |
+          set +e
+          touch /tmp/e17_results.txt
           mkdir -p docs/hardware_logs
           {
             echo "# E17.2 bitnet.cpp cross-ISA leg: ${{ matrix.arch }} (GitHub Actions ${{ matrix.runner }})"
