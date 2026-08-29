@@ -39,3 +39,21 @@ VERDICT (local, x86_64 only):
   (c) CIS_DECODE digest unchanged (A36): IDENTICAL (cab11400d737ac4a), both paths
   (a) x86_64-vs-aarch64: NOT YET — see c1-active-set.yml CI dispatch, this is
       the local (x86_64) half of the pre-registered gate only.
+
+CI FOLLOW-UP (2026-08-29): .github/workflows/c1-active-set.yml, branch
+cm/c1-sparsity-determinism, run id 33257724875 (push trigger), both jobs
+green:
+  x86_64 (ubuntu-24.04): fast + scalar both
+    ACTIVE_SET digest=42ea01ca62a8f54f42ba2e3a8d6d6cbbe2988c6de929456ffbb94d4bd7a82374 layers=30 steps=330
+    CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint
+  aarch64 (ubuntu-24.04-arm): fast (NEON) + scalar both
+    ACTIVE_SET digest=42ea01ca62a8f54f42ba2e3a8d6d6cbbe2988c6de929456ffbb94d4bd7a82374 layers=30 steps=330
+    CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint
+All four combinations (x86 fast, x86 scalar, arm fast, arm scalar) print the
+identical ACTIVE_SET and CIS_DECODE digests. Logs downloaded via
+`gh run download 33257724875` (artifacts c1-active-set-logs-x86_64,
+c1-active-set-logs-aarch64).
+
+FINAL VERDICT: gate (a) cross-ISA IDENTICAL, gate (b) fast-vs-scalar
+IDENTICAL, gate (c) CIS_DECODE unchanged IDENTICAL. PASS (all three, per
+pre-reg "PASS = all three").
