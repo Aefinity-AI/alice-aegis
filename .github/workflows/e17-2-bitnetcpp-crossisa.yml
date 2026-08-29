@@ -88,6 +88,7 @@ jobs:
             /tmp/bitnet-cpp/3rdparty/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c || echo "patch target absent at this pin (expected for prerefactor) -- continuing" 
 
       - name: Set up venv (huggingface_hub + gguf-py)
+        if: env.BUILD_OK == '1'
         run: |
           python3 -m venv /tmp/bitnet-venv
           . /tmp/bitnet-venv/bin/activate
@@ -135,7 +136,7 @@ jobs:
           # GGML_LLAMAFILE=ON kept (llamafile's sgemm.cpp has NEON paths; arch-safe).
           cmake -B build "$EXTRA" -DGGML_LLAMAFILE=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_EXAMPLES=ON -DLLAMA_BUILD_COMMON=ON -DLLAMA_BUILD_SERVER=ON
-          cmake --build build --config Release -j2
+          mkdir -p build; cmake --build build --config Release -j2 2>&1 | tee build/.e17_build.log; exit ${PIPESTATUS[0]}
 
       - name: Build outcome gate (E17.2 finding)
         run: |
@@ -158,6 +159,7 @@ jobs:
           echo "unexpected build failure"; tail -50 build/.e17_build.log; exit 1
 
       - name: Download official GGUF (i2_s, published checkpoint — not locally re-quantized)
+        if: env.BUILD_OK == '1'
         run: |
           . /tmp/bitnet-venv/bin/activate
           cd /tmp/bitnet-cpp
@@ -176,6 +178,7 @@ jobs:
           echo "llama-completion (tools/completion/completion.cpp; llama-cli is a newer chat-only REPL in this vendored llama.cpp and explicitly does not support -no-cnv, see tools/cli/cli.cpp) prints no per-step logit or logprob values in any mode; llama_get_logits() is called internally for sampling only and is never printed. The server's /completion endpoint with n_probs>0 returns POST-SOFTMAX log-probabilities of the top-n candidate tokens, not the raw logit vector, and only for as many candidates as n_probs requests, not the full vocab. No stock interface (CLI flag or server field) exports a raw pre-softmax logit vector." | tee -a /tmp/logits_finding.txt
 
       - name: Greedy decode at threads=1 and threads=4 (llama-completion, token ids)
+        if: env.BUILD_OK == '1'
         run: |
           cd /tmp/bitnet-cpp
           # E17.2 finding: llama-cli in this vendored llama.cpp (tools/cli/cli.cpp) is a
@@ -215,6 +218,7 @@ jobs:
           done
 
       - name: Best-effort per-step top-1 logprob capture via llama-server (n_probs=1)
+        if: env.BUILD_OK == '1'
         run: |
           cd /tmp/bitnet-cpp
           BIN=build/bin/llama-server
@@ -243,6 +247,7 @@ jobs:
           echo "server logprob JSON captured (see /tmp/server_t*.json); these are top-1 POST-softmax log-probabilities, NOT raw logits; the response's timings object has been stripped per Rule A" | tee -a /tmp/logprob_status.txt
 
       - name: Extract token ids and hash
+        if: env.BUILD_OK == '1'
         run: |
           cd /tmp/bitnet-cpp
           for T in 1 4; do
