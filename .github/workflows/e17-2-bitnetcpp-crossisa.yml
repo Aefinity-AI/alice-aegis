@@ -5,7 +5,8 @@ name: e17-2-bitnetcpp-crossisa
 # question for the CIS-1 paper §2. IDENTITY ONLY — Rule A: no timing numbers
 # may ever be recorded or quoted from this job; CI hardware is shared/unnamed.
 #
-# Matrix: {x86_64, aarch64} x {threads=1, threads=4}. Builds bitnet.cpp
+# Matrix: {x86_64, aarch64} x {TL kernel ON, TL kernel OFF} x {threads=1, threads=4}.
+# Builds bitnet.cpp
 # (microsoft/BitNet, pinned commit recorded in-job); the ISA-specific
 # codegen step (codegen_tl2.py on x86_64, codegen_tl1.py on arm64, same
 # invocation microsoft's own setup_env.py uses for this model name) only
@@ -30,17 +31,32 @@ on:
 
 jobs:
   bitnetcpp-crossisa:
-    name: bitnet.cpp greedy decode identity (${{ matrix.arch }})
+    name: bitnet.cpp greedy decode identity (${{ matrix.arch }}, TL=${{ matrix.tl }}, ${{ matrix.pin }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
-            arch: x86_64
-          - runner: ubuntu-24.04-arm
-            arch: aarch64
+          # pin=head: microsoft/BitNet 0b341e5 (2026-07-15 era, post "refactor T-MAC LUT path").
+          # pin=prerefactor: 1876a3e (2026-01-27), the last commit before the LUT-path refactor.
+          - { runner: ubuntu-24.04,     arch: x86_64,  tl: "OFF", pin: head }
+          - { runner: ubuntu-24.04,     arch: x86_64,  tl: "ON",  pin: head }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, tl: "OFF", pin: head }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, tl: "ON",  pin: head }
+          - { runner: ubuntu-24.04,     arch: x86_64,  tl: "ON",  pin: prerefactor }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, tl: "ON",  pin: prerefactor }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    # TL=ON (bitnet.cpp's own LUT-kernel fast path, as setup_env.py enables it) fails to
+    # build on BOTH x86_64 and aarch64 at the pinned commit used here: bitnet-lut-kernels.h
+    # (the codegen'd header) references ggml_tensor.backend / GGML_BACKEND_TYPE_CPU, fields
+    # removed from ggml's tensor struct in the version of llama.cpp that this same BitNet
+    # commit vendors as its own submodule -- an upstream version-skew bug in
+    # microsoft/BitNet (its LUT-kernel templates and its own pinned llama.cpp submodule
+    # have drifted apart), not an ISA issue and not something introduced by this workflow.
+    # TL=OFF (ggml's generic I2_S path, the actual op semantics this test cares about) is
+    # the required leg; TL=ON is best-effort and documented as a build-portability finding,
+    # not force-failed, so this genuine upstream-vs-upstream incompatibility doesn't turn
+    # the whole run red.
     steps:
       - uses: actions/checkout@v4
 
@@ -56,12 +72,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build clang python3-venv python3-pip
 
-      - name: Clone bitnet.cpp (pinned to HEAD at job time, commit recorded)
+      - name: Clone bitnet.cpp (pinned commit)
         run: |
           git clone --recursive https://github.com/microsoft/BitNet.git /tmp/bitnet-cpp
           cd /tmp/bitnet-cpp
+          # Pinned (E17.2 resolution, 2026-08-29) so the result is reproducible.
+          if [ "${{ matrix.pin }}" = "prerefactor" ]; then PIN=1876a3e; else PIN=0b341e582afbf9e1011f24744b554c96a3477eb5; fi
+          git checkout "$PIN" && git submodule update --init --recursive
           echo "BITNET_CPP_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           echo "LLAMA_CPP_COMMIT=$(git -C 3rdparty/llama.cpp rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Patch upstream ggml-cpu.c src1_cont bug (E17.2 finding; arch-independent)
+        run: |
+          python3 "$GITHUB_WORKSPACE/scripts/e17_2_patch_ggml_cpu.py" \
+            /tmp/bitnet-cpp/3rdparty/llama.cpp/ggml/src/ggml-cpu/ggml-cpu.c || echo "patch target absent at this pin (expected for prerefactor) -- continuing" 
 
       - name: Set up venv (huggingface_hub + gguf-py)
         run: |
@@ -80,25 +104,66 @@ jobs:
             python3 utils/codegen_tl1.py --model bitnet_b1_58-3B --BM 160,320,320 --BK 64,128,64 --bm 32,64,32
           fi
 
-      - name: Build (clang, ISA-specific TL flag)
+      - name: Patch generated LUT kernel header for the vendored ggml API (E17.2 finding; arch-independent)
+        if: matrix.tl == 'ON'
         run: |
           cd /tmp/bitnet-cpp
+          H=include/bitnet-lut-kernels.h
+          # upstream codegen_tl1/tl2 templates still emit `tensor->backend == GGML_BACKEND_TYPE_CPU`,
+          # a field/enum removed from the ggml that bitnet.cpp itself vendors. In a CPU-only build
+          # every buffer is host memory, so the equivalent modern check is ggml_backend_buffer_is_host.
+          grep -c "GGML_BACKEND_TYPE_CPU" "$H" || true
+          sed -i 's/tensor->backend == GGML_BACKEND_TYPE_CPU/(tensor->buffer == nullptr || ggml_backend_buffer_is_host(tensor->buffer))/g' "$H"
+          grep -q '#include "ggml-backend.h"' "$H" || sed -i '1i #include "ggml-backend.h"' "$H"
+          grep -c "ggml_backend_buffer_is_host" "$H" || true
+
+      - name: Build (clang, ISA-specific TL flag)
+        id: build
+        continue-on-error: true
+        run: |
+          cd /tmp/bitnet-cpp
+          # TL=ON is bitnet.cpp as Microsoft ships it (setup_env.py enables the LUT kernel);
+          # TL=OFF is ggml's generic I2_S path. Both are measured.
           if [ "${{ matrix.arch }}" = "x86_64" ]; then
-            EXTRA=-DBITNET_X86_TL2=OFF
+            EXTRA=-DBITNET_X86_TL2=${{ matrix.tl }}
           else
-            EXTRA=-DBITNET_ARM_TL1=OFF
+            EXTRA=-DBITNET_ARM_TL1=${{ matrix.tl }}
           fi
-          # GGML_LLAMAFILE=ON: upstream ggml-cpu.c references src1_cont (declared only
-          # inside "#if GGML_USE_LLAMAFILE" blocks) unconditionally in the I2_S GEMM fast
-          # path a few lines past the #endif -- an undeclared-identifier compile error
-          # with the CMake default (GGML_LLAMAFILE_DEFAULT=OFF on every arch, no x86/arm
-          # branch in ggml/CMakeLists.txt). llamafile's sgemm.cpp has NEON paths, so this
-          # is arch-safe on both legs; recorded here as an E17.2 build-portability finding.
+          # The real aarch64 build blocker (undeclared identifier src1_cont in ggml-cpu.c,
+          # see "Patch upstream ggml-cpu.c" step above) was an upstream source bug, not a
+          # compiler or ISA issue -- clang works on both legs once the source is patched.
+          # GGML_LLAMAFILE=ON kept (llamafile's sgemm.cpp has NEON paths; arch-safe).
           cmake -B build "$EXTRA" -DGGML_LLAMAFILE=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_EXAMPLES=ON -DLLAMA_BUILD_COMMON=ON -DLLAMA_BUILD_SERVER=ON
-          cmake --build build --config Release -j2
+          mkdir -p build; cmake --build build --config Release -j2 2>&1 | tee build/.e17_build.log; exit ${PIPESTATUS[0]}
+
+      - name: Build outcome gate (E17.2 finding)
+        run: |
+          cd /tmp/bitnet-cpp
+          if [ "${{ steps.build.outcome }}" = "success" ]; then
+            echo "BUILD_OK=1" >> "$GITHUB_ENV"; echo "build: OK"; exit 0
+          fi
+          echo "BUILD_OK=0" >> "$GITHUB_ENV"
+          if [ "${{ matrix.tl }}" = "ON" ] && [ "${{ matrix.pin }}" = "head" ]; then
+            # KNOWN upstream defect at microsoft/BitNet 0b341e5 (post 3b04140 "refactor T-MAC LUT path"):
+            # src/ggml-bitnet-lut.cpp defines ggml_bitnet_mul_mat only under GGML_BITNET_ARM_TL1, and the
+            # ARM block calls ggml_bitnet_mul_mat_task_init/_task_compute which no longer exist anywhere.
+            # Result: the shipped LUT-kernel (TL) path cannot LINK on either ISA. This step passes only if
+            # the failure is exactly that defect; any other failure is a real regression of this workflow.
+            if grep -qE "undefined reference to .ggml_bitnet_mul_mat(_task_init|_task_compute)?'" build/.e17_build.log; then
+              echo "E17_2_RESULT arch=${{ matrix.arch }} tl=ON pin=head state=UPSTREAM_LINK_DEFECT symbols=$(grep -oE 'ggml_bitnet_mul_mat[a-z_]*' build/.e17_build.log | sort -u | tr '\n' ',')" | tee -a /tmp/e17_results.txt
+              exit 0
+            fi
+          fi
+          if [ "${{ matrix.pin }}" = "prerefactor" ]; then
+            ERR=$(grep -m1 -E "error:" build/.e17_build.log | sed 's/^.*\/tmp\/bitnet-cpp\///' | cut -c1-160)
+            echo "E17_2_RESULT arch=${{ matrix.arch }} tl=ON pin=prerefactor state=PREREFACTOR_BUILD_FAIL first_error=\"$ERR\"" | tee -a /tmp/e17_results.txt
+            exit 0
+          fi
+          echo "unexpected build failure"; tail -50 build/.e17_build.log; exit 1
 
       - name: Download official GGUF (i2_s, published checkpoint — not locally re-quantized)
+        if: env.BUILD_OK == '1'
         run: |
           . /tmp/bitnet-venv/bin/activate
           cd /tmp/bitnet-cpp
@@ -114,12 +179,27 @@ jobs:
           echo "=== searching vendored llama.cpp for a CLI/server path to raw (pre-softmax) logits ===" | tee /tmp/logits_finding.txt
           grep -n "n_probs\|logprobs" -r 3rdparty/llama.cpp/common 3rdparty/llama.cpp/examples/main 3rdparty/llama.cpp/examples/server 2>/dev/null | tee -a /tmp/logits_finding.txt || true
           echo "---" | tee -a /tmp/logits_finding.txt
-          echo "llama-cli (examples/main/main.cpp) prints no per-step logit or logprob values in any mode; llama_get_logits() is called internally for sampling only and is never printed. The server's /completion endpoint with n_probs>0 returns POST-SOFTMAX log-probabilities of the top-n candidate tokens, not the raw logit vector, and only for as many candidates as n_probs requests, not the full vocab. No stock interface (CLI flag or server field) exports a raw pre-softmax logit vector." | tee -a /tmp/logits_finding.txt
+          echo "llama-completion (tools/completion/completion.cpp; llama-cli is a newer chat-only REPL in this vendored llama.cpp and explicitly does not support -no-cnv, see tools/cli/cli.cpp) prints no per-step logit or logprob values in any mode; llama_get_logits() is called internally for sampling only and is never printed. The server's /completion endpoint with n_probs>0 returns POST-SOFTMAX log-probabilities of the top-n candidate tokens, not the raw logit vector, and only for as many candidates as n_probs requests, not the full vocab. No stock interface (CLI flag or server field) exports a raw pre-softmax logit vector." | tee -a /tmp/logits_finding.txt
 
-      - name: Greedy decode at threads=1 and threads=4 (llama-cli, token ids)
+      - name: Greedy decode at threads=1 and threads=4 (llama-completion, token ids)
+        if: env.BUILD_OK == '1'
         run: |
           cd /tmp/bitnet-cpp
-          BIN=build/bin/llama-cli
+          # E17.2 finding: llama-cli in this vendored llama.cpp (tools/cli/cli.cpp) is a
+          # NEW chat-only REPL that explicitly does not support -no-cnv (it logs an error
+          # and continues anyway: "--no-conversation is not supported by llama-cli, please
+          # use llama-completion instead"); after consuming -p once its outer `while(true)`
+          # loop re-enters console::readline() every iteration, which on a closed/empty
+          # stdin returns instantly, producing an unbounded fast "> " reprint loop that
+          # overwhelms the CI log streamer well inside any per-call `timeout` (this is what
+          # caused the earlier "runner lost communication with the server" x86_64 failures,
+          # not a hang the `timeout` wrapper could catch fast enough). llama-completion is
+          # the old-style text-completion binary (tools/completion/completion.cpp) that
+          # still supports -no-cnv and exits cleanly ("EOF by user") on stdin EOF.
+          # newer vendored llama.cpp: llama-completion (needs -no-cnv). Older (prerefactor pin): llama-cli,
+          # which is non-interactive by default and rejects -no-cnv ("invalid argument").
+          if [ -x build/bin/llama-completion ]; then BIN=build/bin/llama-completion; NOCNV=-no-cnv; else BIN=build/bin/llama-cli; NOCNV=; fi
+          echo "decode binary: $BIN"; ls build/bin | tr '\n' ' '; echo
           PROMPT="Once upon a time"
           echo "bitnet.cpp commit: $BITNET_CPP_COMMIT"
           echo "llama.cpp (vendored) commit: $LLAMA_CPP_COMMIT"
@@ -127,16 +207,25 @@ jobs:
           export OMP_NUM_THREADS=1
           for T in 1 4; do
             echo "=== threads=$T ==="
+            # Rule A: never record/print timing numbers. llama-completion's own
+            # common_perf_print() always emits a block of wall-clock ms/tokens-per-second
+            # lines regardless of --no-perf (that flag only stops the *tracking*, not the
+            # print), and every log line carries a wall-clock-since-start timestamp prefix
+            # -- both are stripped before anything reaches disk, the sha256, or the artifact.
             timeout 600 "$BIN" -m models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf \
               -n 32 -t "$T" -p "$PROMPT" -ngl 0 -c 2048 --temp 0 --top-k 1 --seed 42 \
-              --verbose-prompt -no-cnv < /dev/null 2>&1 | tee "/tmp/run_t${T}.log"
+              --verbose-prompt $NOCNV --no-perf < /dev/null 2>&1 \
+              | grep -v 'common_perf_print' \
+              | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ [A-Z] //' \
+              | tee "/tmp/run_t${T}.log"
             RC=${PIPESTATUS[0]}
             if [ "$RC" = "124" ]; then
-              echo "FINDING: llama-cli did not exit within 600s at threads=$T -- likely re-entered its interactive prompt loop despite -no-cnv/--verbose-prompt (stdin now forced closed via </dev/null); see run_t${T}.log for the last output before the hard timeout." | tee -a "/tmp/run_t${T}.log"
+              echo "FINDING: llama-completion did not exit within 600s at threads=$T -- see run_t${T}.log for the last output before the hard timeout." | tee -a "/tmp/run_t${T}.log"
             fi
           done
 
       - name: Best-effort per-step top-1 logprob capture via llama-server (n_probs=1)
+        if: env.BUILD_OK == '1'
         run: |
           cd /tmp/bitnet-cpp
           BIN=build/bin/llama-server
@@ -155,19 +244,34 @@ jobs:
               -H "Content-Type: application/json" \
               -d '{"prompt":"Once upon a time","n_predict":32,"temperature":0,"top_k":1,"seed":42,"n_probs":1}' \
               -o "/tmp/server_t${T}.json" || echo "server request failed at t=${T}" | tee -a /tmp/logprob_status.txt
+            # Rule A: llama.cpp's /completion response embeds a "timings" object
+            # (prompt_ms, predicted_ms, tokens-per-second) -- strip it before this file
+            # is hashed, assembled into the log, or uploaded as an artifact.
+            python3 "$GITHUB_WORKSPACE/scripts/e17_2_strip_timings.py" "/tmp/server_t${T}.json" || true
             kill "$SERVER_PID" 2>/dev/null || true
             wait "$SERVER_PID" 2>/dev/null || true
           done
-          echo "server logprob JSON captured (see /tmp/server_t*.json); these are top-1 POST-softmax log-probabilities, NOT raw logits" | tee -a /tmp/logprob_status.txt
+          echo "server logprob JSON captured (see /tmp/server_t*.json); these are top-1 POST-softmax log-probabilities, NOT raw logits; the response's timings object has been stripped per Rule A" | tee -a /tmp/logprob_status.txt
 
       - name: Extract token ids and hash
+        if: env.BUILD_OK == '1'
         run: |
+          set +e
           cd /tmp/bitnet-cpp
           for T in 1 4; do
+            [ -f "/tmp/run_t${T}.log" ] || { echo "no run log for threads=$T (decode skipped or crashed)"; continue; }
             grep -E "^\s*[0-9]+ ->" "/tmp/run_t${T}.log" > "/tmp/tokids_t${T}.txt" || true
             echo "=== threads=$T token id lines (raw, see full log for context) ==="
             cat "/tmp/tokids_t${T}.txt" || echo "(none matched; see full run log for token stream)"
-            echo "=== threads=$T SHA-256 of full stdout/stderr transcript ==="
+            # Digest of the GENERATED TEXT ONLY (the transcript contains timing lines that differ every run).
+            GEN=$(grep -a -m1 "^Once upon a time" "/tmp/run_t${T}.log" || true)
+            CONT="${GEN#Once upon a time}"
+            if [ -z "$GEN" ]; then STATE=NO_OUTPUT
+            elif [ -n "$CONT" ] && [ "$(printf '%s' "$CONT" | fold -w1 | sort -u | wc -l)" -le 1 ]; then STATE=DEGENERATE
+            else STATE=OK; fi
+            echo "=== threads=$T generated text ==="; echo "$GEN"
+            echo "E17_2_RESULT arch=${{ matrix.arch }} tl=${{ matrix.tl }} threads=$T state=$STATE gen_sha256=$(printf '%s' "$GEN" | sha256sum | cut -c1-64)" | tee -a /tmp/e17_results.txt
+            echo "=== threads=$T SHA-256 of full transcript (informative only; includes timing lines) ==="
             sha256sum "/tmp/run_t${T}.log"
             if [ -s "/tmp/server_t${T}.json" ]; then
               echo "=== threads=$T SHA-256 of server logprob JSON (top-1 logprob per step) ==="
@@ -175,9 +279,17 @@ jobs:
               python3 "$GITHUB_WORKSPACE/scripts/e17_2_logprob_digest.py" "$T" "/tmp/server_t${T}.json"
             fi
           done
+          # informational step: the E17_2_RESULT lines above are the record; never fail the job here
+          exit 0
+
+      - name: Job summary (E17_2_RESULT lines)
+        run: |
+          { echo "### E17.2 ${{ matrix.arch }} TL=${{ matrix.tl }}"; echo; echo '```'; cat /tmp/e17_results.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Assemble log artifact
         run: |
+          set +e
+          touch /tmp/e17_results.txt
           mkdir -p docs/hardware_logs
           {
             echo "# E17.2 bitnet.cpp cross-ISA leg: ${{ matrix.arch }} (GitHub Actions ${{ matrix.runner }})"
@@ -192,7 +304,7 @@ jobs:
             echo "--- server logprob capture status ---"
             cat /tmp/logprob_status.txt 2>/dev/null || echo "(no status file)"
             for T in 1 4; do
-              echo "--- threads=$T full llama-cli run log ---"
+              echo "--- threads=$T full llama-completion run log ---"
               cat "/tmp/run_t${T}.log"
               echo "--- threads=$T transcript sha256 ---"
               sha256sum "/tmp/run_t${T}.log"
@@ -201,8 +313,8 @@ jobs:
                 sha256sum "/tmp/server_t${T}.json"
               fi
             done
-          } > "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_github_ci_2026-08-28.log"
-          cat "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_github_ci_2026-08-28.log"
+          } > "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_tl${{ matrix.tl }}_github_ci_2026-08-28.log"
+          cat "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_tl${{ matrix.tl }}_github_ci_2026-08-28.log"
 
       - name: Job summary
         run: |
@@ -222,8 +334,8 @@ jobs:
       - name: Upload log + server-json artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: e17-2-bitnetcpp-${{ matrix.arch }}-log
+          name: e17-2-bitnetcpp-${{ matrix.arch }}-tl${{ matrix.tl }}-log
           path: |
-            docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_github_ci_2026-08-28.log
+            docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_tl${{ matrix.tl }}_github_ci_2026-08-28.log
             /tmp/server_t*.json
           if-no-files-found: warn
