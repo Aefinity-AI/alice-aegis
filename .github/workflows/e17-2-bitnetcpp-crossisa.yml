@@ -196,7 +196,9 @@ jobs:
           # not a hang the `timeout` wrapper could catch fast enough). llama-completion is
           # the old-style text-completion binary (tools/completion/completion.cpp) that
           # still supports -no-cnv and exits cleanly ("EOF by user") on stdin EOF.
-          if [ -x build/bin/llama-completion ]; then BIN=build/bin/llama-completion; else BIN=build/bin/llama-cli; fi
+          # newer vendored llama.cpp: llama-completion (needs -no-cnv). Older (prerefactor pin): llama-cli,
+          # which is non-interactive by default and rejects -no-cnv ("invalid argument").
+          if [ -x build/bin/llama-completion ]; then BIN=build/bin/llama-completion; NOCNV=-no-cnv; else BIN=build/bin/llama-cli; NOCNV=; fi
           echo "decode binary: $BIN"; ls build/bin | tr '\n' ' '; echo
           PROMPT="Once upon a time"
           echo "bitnet.cpp commit: $BITNET_CPP_COMMIT"
@@ -254,6 +256,7 @@ jobs:
       - name: Extract token ids and hash
         if: env.BUILD_OK == '1'
         run: |
+          set +e
           cd /tmp/bitnet-cpp
           for T in 1 4; do
             [ -f "/tmp/run_t${T}.log" ] || { echo "no run log for threads=$T (decode skipped or crashed)"; continue; }
