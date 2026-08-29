@@ -228,6 +228,69 @@ without the prover/verifier asymmetry ZK and FHE approaches require. It
 attests *what was computed*, and is designed to compose with, not replace,
 platform attestation.
 
+**Reproducible builds and supply-chain provenance.** SLSA (Supply-chain Levels
+for Software Artifacts, slsa.dev) and in-toto (Torres-Arias et al., "in-toto:
+Providing farm-to-table guarantees for bits and bytes," USENIX Security 2019)
+are the closest prior art for CIS-1's stated goal of "verify what was
+built/run without trusting the builder": both attach signed, structured
+attestations to a supply chain so a verifier can check that a claimed
+sequence of steps (build, test, package) actually produced a given artifact,
+without re-executing the whole pipeline. That is provenance about *which
+code produced an artifact* — a chain of custody — not a claim about the
+bit-exact numerical semantics of what the artifact computes at runtime. A
+SLSA/in-toto attestation says "this binary was built from this source by
+this build system"; it says nothing about whether re-running that binary's
+inference on different hardware reproduces the same output. CIS-1's decode
+receipt is a claim of the latter kind: an independent verifier re-derives
+the numeric result — token-for-token, bit-for-bit — from the spec and the
+artifact hashes, not from trust in the build pipeline that produced the
+weights or the binary. The two problems compose (a SLSA-attested build could
+still produce a CIS-1 receipt) but are not the same problem, and no
+supply-chain-provenance framework we are aware of makes a claim about
+numerical reproducibility of the computation itself.
+
+**Verifier independence.** The credibility of a receipt scheme rests on
+whether the party checking it can be fooled by the party producing it, so we
+state independence explicitly. Two lines of evidence support it for CIS-1:
+two from-scratch, spec-only clean-room implementations — no access to the
+reference source, 400 and 484 lines, verified distinct by diff/md5 —
+independently reproduce the Tier-2 conformance digest
+`76985613c965f643`, evidence that the specification text alone, not the
+reference engine, determines the answer (RESEARCH_LEDGER.md A31); and a
+separate `cis-verify` crate, with zero dependency on `aegis-core` and no
+shared runtime code with the engine, ~4,700 lines transcribed from the spec
+text, independently reproduces both conformance digests and verifies a
+golden decode receipt end-to-end, with tamper tests failing and naming the
+corrupted field (A37). `cis-verify`'s transcription had the reference source
+visible, so we describe it as evidence of spec-re-implementability rather
+than a blind third-party audit (the honest-scope caveat is stated at length
+in §8); the clean-room pair (A31) is the stronger independence claim, since
+those implementers worked from the spec text alone. Both verifiers, and the
+receipts they check, reproduce on the GitHub `aarch64` CI runner as well as
+`x86_64`, as a standing CI gate (A38). Taken together, no single codebase
+produces both a receipt and its own passing verification.
+
+**Economic and GPU-specific verification.** Two 2026 systems are the
+closest prior art to CIS-1's determinism-plus-receipt claim, and both are
+narrower in a way worth stating precisely. EigenAI (arXiv:2602.00182) ships
+bit-exact GPU inference gated by an *economic* verification layer — stake,
+slashing, and a TEE-mediated dispute process — rather than an independent
+re-derivation from a public spec; it is also explicitly not
+cross-architecture (its own reporting shows 0% output match between an A100
+and an H100 for the same model). A second 2026 report on bit-exact
+verification of existing floating-point GPU inference (arXiv:2606.00279)
+targets NVIDIA hardware only, via CPU-emulator output matching, with a
+self-built verifier and no independent third-party re-implementation
+reported. Neither crosses instruction-set architectures, neither is
+integer-only or ternary, and neither ships a verifier built from a public
+specification by a party other than the scheme's own authors. CIS-1/CIS-2
+differ on exactly these axes: the numerical contract is a versioned, public
+specification rather than a vendor's kernel behavior to be matched, the
+arithmetic is integer-only so there is no floating-point reduction order to
+emulate, and the receipts are checked by verifiers — the clean-room pair and
+`cis-verify` — that are demonstrably independent of the engine, with
+CI-green reproduction on both x86_64 and aarch64 (A31, A37, A38).
+
 **Bare-metal / no-OS LLM inference.** Running LLM inference directly in UEFI
 boot-services mode, without an operating system, is not unprecedented: a
 secondary report describes a from-scratch C tokenizer/weight-loader/tensor-
@@ -278,6 +341,10 @@ reproduces the pinned digest or does not conform.
 - "Orion: A Fully Homomorphic Encryption Framework for Deep Learning," arXiv:2311.03470 — https://arxiv.org/abs/2311.03470
 - NIST, "Cryptographic Algorithm Validation Program (CAVP)" — https://csrc.nist.gov/Projects/cryptographic-algorithm-validation-program
 - NIST/CSRC, "The Advanced Encryption Standard Algorithm Validation Suite (AESAVS)" — https://csrc.nist.gov/csrc/media/projects/cryptographic-algorithm-validation-program/documents/aes/aesavs.pdf
+- SLSA (Supply-chain Levels for Software Artifacts) — https://slsa.dev
+- Torres-Arias et al., "in-toto: Providing farm-to-table guarantees for bits and bytes," USENIX Security 2019 — https://in-toto.io
+- "EigenAI: Deterministic AI Inference" (EigenCloud), arXiv:2602.00182 — https://arxiv.org/abs/2602.00182
+- "Bit-Exact AI Inference Verification," arXiv:2606.00279 — https://arxiv.org/abs/2606.00279 (details unverified beyond abstract)
 
 ---
 
