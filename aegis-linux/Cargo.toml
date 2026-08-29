@@ -14,6 +14,7 @@ legacy_matmul = ["aegis-core/legacy_matmul"]
 parallel = ["aegis-core/parallel"]
 int8_act = ["aegis-core/int8_act"]
 act_stats = ["aegis-core/act_stats"]
+active_set_digest = ["aegis-core/active_set_digest"]
 
 [[example]]
 name = "act_sparsity"
@@ -22,3 +23,7 @@ required-features = ["act_stats"]
 [[example]]
 name = "act_capture"
 required-features = ["act_stats"]
+
+[[example]]
+name = "active_set_digest"
+required-features = ["active_set_digest"]

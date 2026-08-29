@@ -814,6 +814,14 @@ pub struct CisEngine<'m, 'a> {
     exp_lut: Option<ExpLut>,
     rope_i: Option<RopeTableI>,
     isq_q30: i64,
+    /// Leg C1 (2026-08-29 pre-reg): per (step, layer) sorted list of nonzero
+    /// indices in the down_proj input (`self.fixed[..inter]` post-activation,
+    /// pre-quant) — the active-neuron set a column-skip kernel would consume.
+    /// `active_set_digest` feature only. Push order is chronological
+    /// (step-major, layer-minor), which the digest fold in the example
+    /// binary relies on. Diagnostic only; callers drain between runs.
+    #[cfg(feature = "active_set_digest")]
+    pub active_sets: alloc::vec::Vec<(usize, alloc::vec::Vec<u32>)>,
 }
 
 impl<'m, 'a> CisEngine<'m, 'a> {
@@ -860,7 +868,49 @@ impl<'m, 'a> CisEngine<'m, 'a> {
             rope_i: full.then(|| RopeTableI::new(max_pos, head_dim, c.rope_theta.to_bits())),
             isq_q30: inv_sqrt_q30(head_dim as u64),
             model,
+            #[cfg(feature = "active_set_digest")]
+            active_sets: alloc::vec::Vec::new(),
         }
+    }
+
+    /// Leg C1: byte-identical-by-construction ternary matvec dispatch (see
+    /// `cis_avx2`/`cis_neon` module docs — both are proven bit-identical to
+    /// `cis::ternary_matvec_i8` and honor its own force-scalar race toggle).
+    /// Only reached when `active_set_digest` is compiled in; the default
+    /// build calls `cis::ternary_matvec_i8` directly, unchanged.
+    #[cfg(feature = "active_set_digest")]
+    #[inline]
+    fn tmv_dispatch(
+        output: &mut [i32],
+        input: &[i8],
+        weights_packed: &[u8],
+        dim_out: usize,
+        dim_in: usize,
+    ) {
+        #[cfg(target_arch = "x86_64")]
+        {
+            crate::cis_avx2::ternary_matvec_i8_avx2(output, input, weights_packed, dim_out, dim_in);
+        }
+        #[cfg(target_arch = "aarch64")]
+        {
+            crate::cis_neon::ternary_matvec_i8_neon(output, input, weights_packed, dim_out, dim_in);
+        }
+        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        {
+            crate::cis::ternary_matvec_i8(output, input, weights_packed, dim_out, dim_in);
+        }
+    }
+
+    #[cfg(not(feature = "active_set_digest"))]
+    #[inline]
+    fn tmv_dispatch(
+        output: &mut [i32],
+        input: &[i8],
+        weights_packed: &[u8],
+        dim_out: usize,
+        dim_in: usize,
+    ) {
+        crate::cis::ternary_matvec_i8(output, input, weights_packed, dim_out, dim_in);
     }
 
     /// One decode step: token embedding through all layers, integer residual
@@ -913,7 +963,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                 ),
                 #[cfg(target_arch = "x86_64")]
                 CisMode::Hybrid => {
-                    crate::cis::ternary_matvec_i8(
+                    Self::tmv_dispatch(
                         &mut self.acc_a[..hidden],
                         &self.codes[..hidden],
                         layer.q_w,
@@ -924,7 +974,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                     for (o, &a) in self.qf.iter_mut().zip(&self.acc_a[..hidden]) {
                         *o = (a as f64 * sq) as f32;
                     }
-                    crate::cis::ternary_matvec_i8(
+                    Self::tmv_dispatch(
                         &mut self.acc_a[..kv_dim],
                         &self.codes[..hidden],
                         layer.k_w,
@@ -935,7 +985,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                     for (o, &a) in self.kf.iter_mut().zip(&self.acc_a[..kv_dim]) {
                         *o = (a as f64 * sk) as f32;
                     }
-                    crate::cis::ternary_matvec_i8(
+                    Self::tmv_dispatch(
                         &mut self.acc_a[..kv_dim],
                         &self.codes[..hidden],
                         layer.v_w,
@@ -1000,7 +1050,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                     // the V mix is an exact integer dot requantized to Q.F.
                     let lut = self.exp_lut.as_ref().expect("FullInt: exp LUT");
                     let rt = self.rope_i.as_ref().expect("FullInt: RoPE-I table");
-                    crate::cis::ternary_matvec_i8(
+                    Self::tmv_dispatch(
                         &mut self.acc_a[..hidden],
                         &self.codes[..hidden],
                         layer.q_w,
@@ -1016,7 +1066,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                         assert!(v.unsigned_abs() < 1 << 29, "FullInt: q exceeds Q.16 range");
                         *o = v as i32;
                     }
-                    crate::cis::ternary_matvec_i8(
+                    Self::tmv_dispatch(
                         &mut self.acc_a[..kv_dim],
                         &self.codes[..hidden],
                         layer.k_w,
@@ -1030,7 +1080,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                         assert!(v.unsigned_abs() < 1 << 29, "FullInt: k exceeds Q.16 range");
                         *o = v as i32;
                     }
-                    crate::cis::ternary_matvec_i8(
+                    Self::tmv_dispatch(
                         &mut self.acc_a[..kv_dim],
                         &self.codes[..hidden],
                         layer.v_w,
@@ -1104,7 +1154,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                 Some(g) => normq(&mut self.codes[..hidden], &self.fixed[..hidden], g),
                 None => quantq(&mut self.codes[..hidden], &self.fixed[..hidden], g_attn),
             };
-            crate::cis::ternary_matvec_i8(
+            Self::tmv_dispatch(
                 &mut self.acc_a[..hidden],
                 &self.codes[..hidden],
                 layer.o_w,
@@ -1119,14 +1169,14 @@ impl<'m, 'a> CisEngine<'m, 'a> {
 
             // --- MLP block --------------------------------------------------
             let s_mlp = normq(&mut self.codes[..hidden], &self.h[..hidden], &layer.ln2);
-            crate::cis::ternary_matvec_i8(
+            Self::tmv_dispatch(
                 &mut self.acc_a[..inter],
                 &self.codes[..hidden],
                 layer.up_w,
                 inter,
                 hidden,
             );
-            crate::cis::ternary_matvec_i8(
+            Self::tmv_dispatch(
                 &mut self.acc_b[..inter],
                 &self.codes[..hidden],
                 layer.gate_w,
@@ -1201,11 +1251,26 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                     fix_q_vec(&mut self.fixed[..inter])
                 }
             };
+            // Leg C1: capture the active-neuron set — sorted nonzero indices
+            // of the down_proj input, at the exact instant a column-skip
+            // kernel would consume it (post-activation, pre-quant; zero is
+            // preserved by quantization, so this is also the set the
+            // quantized `self.codes[..inter]` would carry into the matvec).
+            #[cfg(feature = "active_set_digest")]
+            {
+                let idxs: alloc::vec::Vec<u32> = self.fixed[..inter]
+                    .iter()
+                    .enumerate()
+                    .filter(|&(_, &v)| v != 0)
+                    .map(|(i, _)| i as u32)
+                    .collect();
+                self.active_sets.push((layer_idx, idxs));
+            }
             let s_down = match &layer.ffn_sub {
                 Some(g) => normq(&mut self.codes[..inter], &self.fixed[..inter], g),
                 None => quantq(&mut self.codes[..inter], &self.fixed[..inter], g_mlp),
             };
-            crate::cis::ternary_matvec_i8(
+            Self::tmv_dispatch(
                 &mut self.acc_a[..hidden],
                 &self.codes[..inter],
                 layer.down_w,

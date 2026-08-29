@@ -1,0 +1,41 @@
+Leg C1 (2026-08-29 pre-reg, state/reports/2026-08-29-COMPACT-AXIS-PREREG.md)
+sparsity-determinism gate: ReLU^2 active-neuron sets on the CIS-1 FullInt
+BitNet-2B-4T path, fast (AVX2, via cis_avx2::ternary_matvec_i8_avx2 wired in
+under the new `active_set_digest` feature) vs scalar (--force-scalar,
+cis::ternary_matvec_i8 only).
+
+Host: i5-10210U crosvm (dev box, penguin). No timing recorded (Rule A).
+Binary: aegis-linux/target/release/examples/active_set_digest
+  (cargo build --release -j2 --example active_set_digest
+   --features active_set_digest --manifest-path aegis-linux/Cargo.toml)
+Artifacts (A36 pins, verified by sha256sum before this run):
+  aegis_pruned_model.cis.safetensors  facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+  embed.bin                           e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+  vocab.bin                           5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+Prompt set: prompts/c1_prompts.txt (16 fixed prompts, pinned in-repo), 16
+  greedy decode steps each, FullInt mode, CisEngine reset per prompt.
+Also checked inline: A36 prompt ("Once upon a time", max_new=64) CIS_DECODE
+  digest, same fnv1a64 fold cis_decode uses.
+
+$ ./aegis-linux/target/release/examples/active_set_digest \
+    aegis_pruned_model.cis.safetensors embed.bin vocab.bin \
+    prompts/c1_prompts.txt 16
+ACTIVE_SET digest=42ea01ca62a8f54f42ba2e3a8d6d6cbbe2988c6de929456ffbb94d4bd7a82374 layers=30 steps=330 path=fast
+CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint path=fast
+
+$ ./aegis-linux/target/release/examples/active_set_digest \
+    aegis_pruned_model.cis.safetensors embed.bin vocab.bin \
+    prompts/c1_prompts.txt 16 --force-scalar
+ACTIVE_SET digest=42ea01ca62a8f54f42ba2e3a8d6d6cbbe2988c6de929456ffbb94d4bd7a82374 layers=30 steps=330 path=scalar
+CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint path=scalar
+
+Also confirmed: the unmodified `cis_decode` binary (no active_set_digest
+feature, tmv_dispatch compiles to the old direct cis::ternary_matvec_i8 call
+unconditionally) still reproduces CIS_DECODE digest=cab11400d737ac4a on the
+A36 prompt — the tmv_dispatch refactor is a no-op for default builds.
+
+VERDICT (local, x86_64 only):
+  (b) fast-vs-scalar ACTIVE_SET digest: IDENTICAL (42ea01ca...82374)
+  (c) CIS_DECODE digest unchanged (A36): IDENTICAL (cab11400d737ac4a), both paths
+  (a) x86_64-vs-aarch64: NOT YET — see c1-active-set.yml CI dispatch, this is
+      the local (x86_64) half of the pre-registered gate only.
