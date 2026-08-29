@@ -5,7 +5,8 @@ name: e17-2-bitnetcpp-crossisa
 # question for the CIS-1 paper §2. IDENTITY ONLY — Rule A: no timing numbers
 # may ever be recorded or quoted from this job; CI hardware is shared/unnamed.
 #
-# Matrix: {x86_64, aarch64} x {threads=1, threads=4}. Builds bitnet.cpp
+# Matrix: {x86_64, aarch64} x {TL kernel ON, TL kernel OFF} x {threads=1, threads=4}.
+# Builds bitnet.cpp
 # (microsoft/BitNet, pinned commit recorded in-job); the ISA-specific
 # codegen step (codegen_tl2.py on x86_64, codegen_tl1.py on arm64, same
 # invocation microsoft's own setup_env.py uses for this model name) only
@@ -249,8 +250,8 @@ jobs:
                 sha256sum "/tmp/server_t${T}.json"
               fi
             done
-          } > "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_github_ci_2026-08-28.log"
-          cat "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_github_ci_2026-08-28.log"
+          } > "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_tl${{ matrix.tl }}_github_ci_2026-08-28.log"
+          cat "docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_tl${{ matrix.tl }}_github_ci_2026-08-28.log"
 
       - name: Job summary
         run: |
@@ -270,8 +271,8 @@ jobs:
       - name: Upload log + server-json artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: e17-2-bitnetcpp-${{ matrix.arch }}-log
+          name: e17-2-bitnetcpp-${{ matrix.arch }}-tl${{ matrix.tl }}-log
           path: |
-            docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_github_ci_2026-08-28.log
+            docs/hardware_logs/e17_2_bitnetcpp_crossisa_${{ matrix.arch }}_tl${{ matrix.tl }}_github_ci_2026-08-28.log
             /tmp/server_t*.json
           if-no-files-found: warn
