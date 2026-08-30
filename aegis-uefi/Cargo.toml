@@ -22,4 +22,9 @@ spin = "0.12.1"                                        # Mutex for the heap
 linked_list_allocator = "0.10.6"                       # the heap itself
 
 [features]
+default = ["gop"]
 qemu-test = []
+# Framebuffer boot console via UEFI GraphicsOutput. Falls back to the
+# firmware's 80x25 SimpleTextOutput console at runtime if no GOP handle is
+# found or mode-setting fails; see src/console.rs.
+gop = []
