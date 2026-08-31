@@ -25,7 +25,6 @@ pub struct GopConsole {
     width_px: usize,
     height_px: usize,
     bgr: bool,
-    bgr: bool, // true = PixelFormat::Bgr, false = PixelFormat::Rgb
     scale: usize,
     cols: usize,
     rows: usize,
@@ -58,8 +57,7 @@ impl GopConsole {
         for mode in gop.modes() {
             let info = mode.info();
             match info.pixel_format() {
-                PixelFormat::Rgb | PixelFormat::Bgr => {    border: None,
-        }
+                PixelFormat::Rgb | PixelFormat::Bgr => {}
                 PixelFormat::Bitmask | PixelFormat::BltOnly => continue,
             }
             let (w, h) = info.resolution();
@@ -105,6 +103,7 @@ impl GopConsole {
             cursor_y: 0,
             fg: DEFAULT_FG,
             bg: DEFAULT_BG,
+            border: None,
         };
         console.clear_screen();
         // A single-pixel panel border around the whole screen so the boot
