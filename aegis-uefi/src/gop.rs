@@ -25,7 +25,7 @@ pub struct GopConsole {
     width_px: usize,
     height_px: usize,
     bgr: bool,
-            border: None, // true = PixelFormat::Bgr, false = PixelFormat::Rgb
+    bgr: bool, // true = PixelFormat::Bgr, false = PixelFormat::Rgb
     scale: usize,
     cols: usize,
     rows: usize,
@@ -58,7 +58,8 @@ impl GopConsole {
         for mode in gop.modes() {
             let info = mode.info();
             match info.pixel_format() {
-                PixelFormat::Rgb | PixelFormat::Bgr => {}
+                PixelFormat::Rgb | PixelFormat::Bgr => {    border: None,
+        }
                 PixelFormat::Bitmask | PixelFormat::BltOnly => continue,
             }
             let (w, h) = info.resolution();
