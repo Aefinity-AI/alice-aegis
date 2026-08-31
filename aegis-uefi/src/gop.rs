@@ -24,7 +24,8 @@ pub struct GopConsole {
     stride_px: usize, // pixels per scanline, from ModeInfo::stride()
     width_px: usize,
     height_px: usize,
-    bgr: bool, // true = PixelFormat::Bgr, false = PixelFormat::Rgb
+    bgr: bool,
+            border: None, // true = PixelFormat::Bgr, false = PixelFormat::Rgb
     scale: usize,
     cols: usize,
     rows: usize,
@@ -32,6 +33,8 @@ pub struct GopConsole {
     cursor_y: usize,
     fg: u32,
     bg: u32,
+    /// Last border drawn (x, y, w, h, color); re-applied after every clear so panels survive `.clear()`.
+    border: Option<(usize, usize, usize, usize, u32)>,
 }
 
 // SAFETY: see struct doc — single-threaded boot-time use only.
@@ -173,6 +176,17 @@ impl GopConsole {
         }
         self.cursor_x = 0;
         self.cursor_y = 0;
+        // Re-apply the persistent border, if any (it was just painted over).
+        if let Some((bx, by, bw, bh, bc)) = self.border {
+            for i in 0..bw {
+                self.put_pixel(bx + i, by, bc);
+                self.put_pixel(bx + i, by + bh - 1, bc);
+            }
+            for j in 0..bh {
+                self.put_pixel(bx, by + j, bc);
+                self.put_pixel(bx + bw - 1, by + j, bc);
+            }
+        }
     }
 
     /// Draw a 1px-wide rectangular border/panel outline.
@@ -180,6 +194,7 @@ impl GopConsole {
         if w == 0 || h == 0 {
             return;
         }
+        self.border = Some((x, y, w, h, color));
         for i in 0..w {
             self.put_pixel(x + i, y, color);
             self.put_pixel(x + i, y + h - 1, color);
