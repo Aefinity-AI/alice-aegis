@@ -7,7 +7,11 @@ use alloc::format;
 use core::fmt::Write;
 
 mod allocator;
+mod console;
 mod cpu;
+mod font;
+#[cfg(feature = "gop")]
+mod gop;
 mod h3;
 mod mtrr_decode;
 mod verifier;
@@ -183,7 +187,7 @@ fn park_aps_for_turbo(root: &mut uefi::proto::media::file::Directory) {
 }
 
 fn typematic_print(msg: &str, delay_ms: u64) {
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         for c in msg.chars() {
             let _ = st.write_char(c);
             if delay_ms > 0 {
@@ -226,7 +230,7 @@ fn load_file_into(
     let cstr = match uefi::CStr16::from_str_with_buf(path, &mut buf) {
         Ok(c) => c,
         Err(_) => {
-            let _ = uefi::system::with_stdout(|st| {
+            let _ = console::with_console(|st| {
                 let _ = st.write_str(" [ERR: CStr16 fail] ");
                 core::fmt::Result::Ok(())
             });
@@ -237,7 +241,7 @@ fn load_file_into(
     let file_handle = match root.open(cstr, FileMode::Read, FileAttribute::empty()) {
         Ok(f) => f,
         Err(e) => {
-            let _ = uefi::system::with_stdout(|st| {
+            let _ = console::with_console(|st| {
                 use core::fmt::Write;
                 let _ = write!(st, " [ERR: open fail {:?}] ", e.status());
                 core::fmt::Result::Ok(())
@@ -249,7 +253,7 @@ fn load_file_into(
     let mut file = match file_handle.into_type() {
         Ok(FileType::Regular(f)) => f,
         _ => {
-            let _ = uefi::system::with_stdout(|st| {
+            let _ = console::with_console(|st| {
                 let _ = st.write_str(" [ERR: not regular file] ");
                 core::fmt::Result::Ok(())
             });
@@ -261,7 +265,7 @@ fn load_file_into(
     let info = match file.get_info::<uefi::proto::media::file::FileInfo>(&mut info_buf) {
         Ok(i) => i,
         Err(e) => {
-            let _ = uefi::system::with_stdout(|st| {
+            let _ = console::with_console(|st| {
                 use core::fmt::Write;
                 let _ = write!(st, " [ERR: get_info fail {:?}] ", e.status());
                 core::fmt::Result::Ok(())
@@ -271,7 +275,7 @@ fn load_file_into(
     };
     let size = info.file_size() as usize;
     if size > dest_slice.len() {
-        let _ = uefi::system::with_stdout(|st| {
+        let _ = console::with_console(|st| {
             use core::fmt::Write;
             let _ = write!(st, " [ERR: size mismatch {} > {}] ", size, dest_slice.len());
             core::fmt::Result::Ok(())
@@ -279,7 +283,7 @@ fn load_file_into(
         return false;
     }
 
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         let _ = st.clear(); // CLEAR THE SCREEN TO PREVENT HARDWARE SCROLL BUG!
         use core::fmt::Write;
         let _ = write!(st, "  -> Reading {} ({} bytes) [", path, size);
@@ -311,7 +315,7 @@ fn load_file_into(
                 if bytes_read % (10 * 1024 * 1024) < chunk_size {
                     let _ = uefi::boot::set_watchdog_timer(0, 0, None);
                     let pct = (bytes_read * 100) / size;
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         use core::fmt::Write;
                         let _ = write!(st, "\r  -> Reading {} [", path);
                         let bar_len = 20;
@@ -333,7 +337,7 @@ fn load_file_into(
                 }
             }
             Err(e) => {
-                let _ = uefi::system::with_stdout(|st| {
+                let _ = console::with_console(|st| {
                     use core::fmt::Write;
                     let _ = write!(
                         st,
@@ -354,7 +358,7 @@ fn load_file_into(
     // A short read (flaky USB, BOT stall) must NOT be reported as success —
     // silently truncated weights produce garbage inference with no error.
     if bytes_read != size {
-        let _ = uefi::system::with_stdout(|st| {
+        let _ = console::with_console(|st| {
             use core::fmt::Write;
             let _ = write!(
                 st,
@@ -366,7 +370,7 @@ fn load_file_into(
         return false;
     }
 
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         let _ = st.write_str("OK]\r\n");
         core::fmt::Result::Ok(())
     });
@@ -384,7 +388,7 @@ pub unsafe fn exit_uefi_test_runner(success: bool) -> ! {
 pub unsafe fn exit_uefi_test_runner(_success: bool) {}
 
 fn fatal_error(msg: &str) -> uefi::Status {
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         let _ = st.write_str(msg);
         let _ = st.write_str("\r\nRebooting in 10 seconds...\r\n");
         core::fmt::Result::Ok(())
@@ -405,6 +409,11 @@ fn main() -> uefi::Status {
 
     // 1. Initialize a small 32MB block for early `find_handles` Vec allocations and JSON parsing
     allocator::init_uefi_alloc_small();
+
+    // Select the boot console: GOP framebuffer if a suitable mode exists,
+    // else the firmware's 80x25 text console (console::with_console handles
+    // the fallback transparently for every print site below).
+    console::init();
 
     // (Removed duplicate init_uefi_alloc_large call here to prevent OOM before file load)
 
@@ -478,7 +487,7 @@ fn main() -> uefi::Status {
         );
     }
 
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         let _ = st.clear();
         let _ = st.write_str("\r\n==================================================\r\n");
         let _ = st.write_str(" A.L.I.C.E. UNIKERNEL INFERENCE ENGINE (UEFI APP)\r\n");
@@ -508,7 +517,7 @@ fn main() -> uefi::Status {
     let bounce_slice =
         unsafe { core::slice::from_raw_parts_mut(aligned_ptr as *mut u8, 64 * 1024) };
 
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         let _ = st.write_str("[SYSTEM] Pre-allocating Tensor Space...\r\n");
         core::fmt::Result::Ok(())
     });
@@ -599,7 +608,7 @@ fn main() -> uefi::Status {
     let vocab_slice =
         unsafe { core::slice::from_raw_parts_mut(vocab_addr.as_ptr() as *mut u8, vocab_size) };
 
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         let _ = st.write_str("[SYSTEM] Locating weights on USB FAT32 Partition...\r\n");
         core::fmt::Result::Ok(())
     });
@@ -676,7 +685,7 @@ fn main() -> uefi::Status {
         let _ = uefi::boot::free_pages(bounce_addr, bounce_pages);
     }
 
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         let _ = st.write_str("\r\n[SYSTEM] Files loaded to RAM. Initializing Tensor Arena...\r\n");
         core::fmt::Result::Ok(())
     });
@@ -686,14 +695,14 @@ fn main() -> uefi::Status {
     // replay the receipt's decode through the CIS-1 full-integer engine and
     // report PASS/FAIL. Identity only — no REPL, no timing (Rule A).
     if !receipt_bytes.is_empty() {
-        let _ = uefi::system::with_stdout(|st| {
+        let _ = console::with_console(|st| {
             let _ = st.write_str(
                 "\r\n[AEGIS] RECEIPT.TXT found — witness verifier mode (CIS-1 FullInt)\r\n",
             );
             core::fmt::Result::Ok(())
         });
         let verdict = verifier::run(model_slice, embeddings_slice, vocab_slice, &receipt_bytes);
-        let _ = uefi::system::with_stdout(|st| {
+        let _ = console::with_console(|st| {
             for line in verdict.detail.lines() {
                 let _ = st.write_str(line);
                 let _ = st.write_str("\r\n");
@@ -740,7 +749,7 @@ fn main() -> uefi::Status {
         }
         #[allow(unreachable_code)]
         {
-            let _ = uefi::system::with_stdout(|st| {
+            let _ = console::with_console(|st| {
                 let _ = st.write_str("\r\nVerification complete. It is safe to power off.\r\n");
                 core::fmt::Result::Ok(())
             });
@@ -758,7 +767,7 @@ fn main() -> uefi::Status {
         Ok(e) => e,
         Err(err) => {
             boot_log(&mut root, &format!("STAGE 6 FAILED: engine init: {}", err));
-            let _ = uefi::system::with_stdout(|st| {
+            let _ = console::with_console(|st| {
                 let _ = st.write_str("FATAL: Engine failed: ");
                 let _ = st.write_str(&err);
                 let _ = st.write_str("\r\n");
@@ -889,7 +898,7 @@ fn main() -> uefi::Status {
         h3::log_h3_probe(&mut root, &ranges);
     }
 
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         let _ = write!(st, "[SYSTEM] Engine Online.\r\n\n");
         core::fmt::Result::Ok(())
     });
@@ -948,7 +957,7 @@ fn main() -> uefi::Status {
                         ntok += 1;
                     }
                     if $loud {
-                        let _ = uefi::system::with_stdout(|st| {
+                        let _ = console::with_console(|st| {
                             let _ = st.write_str(token_str);
                             core::fmt::Result::Ok(())
                         });
@@ -960,7 +969,7 @@ fn main() -> uefi::Status {
                 let dt = unsafe { core::arch::x86_64::_rdtsc() } - t0;
                 // QUIET output appears only after the timed region closes.
                 if !$loud {
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str(&quiet_buf);
                         let _ = st.write_str("\r\n");
                         core::fmt::Result::Ok(())
@@ -1094,7 +1103,7 @@ fn main() -> uefi::Status {
     #[cfg(feature = "qemu-test")]
     {
         // Run REAL autonomous inference; only claim success if tokens were generated.
-        let _ = uefi::system::with_stdout(|st| {
+        let _ = console::with_console(|st| {
             let _ =
                 st.write_str("[TEST] Prompt: What is the capital of France?\r\n[TEST] Response: ");
             core::fmt::Result::Ok(())
@@ -1102,7 +1111,7 @@ fn main() -> uefi::Status {
         let mut token_count: usize = 0;
         let response = engine.process_intent("What is the capital of France?", 48, |token_str| {
             token_count += 1;
-            let _ = uefi::system::with_stdout(|st| {
+            let _ = console::with_console(|st| {
                 let _ = st.write_str(token_str);
                 core::fmt::Result::Ok(())
             });
@@ -1115,7 +1124,7 @@ fn main() -> uefi::Status {
                 token_count
             ),
         );
-        let _ = uefi::system::with_stdout(|st| {
+        let _ = console::with_console(|st| {
             let _ = write!(st, "\r\n\r\n[TEST] Generated {} tokens.\r\n", token_count);
             if ok {
                 let _ = st.write_str("[TEST SUCCESS] Autonomous Inference Completed.\r\n");
@@ -1136,7 +1145,7 @@ fn main() -> uefi::Status {
 
     #[cfg(not(feature = "qemu-test"))]
     loop {
-        let _ = uefi::system::with_stdout(|st| {
+        let _ = console::with_console(|st| {
             let _ = st.write_str("A.L.I.C.E.> ");
             core::fmt::Result::Ok(())
         });
@@ -1150,7 +1159,7 @@ fn main() -> uefi::Status {
                     uefi::proto::console::text::Key::Printable(c) => {
                         let c_char: char = c.into();
                         if c_char == '\r' || c_char == '\n' {
-                            let _ = uefi::system::with_stdout(|st| {
+                            let _ = console::with_console(|st| {
                                 let _ = st.write_char('\r');
                                 let _ = st.write_char('\n');
                                 core::fmt::Result::Ok(())
@@ -1165,7 +1174,7 @@ fn main() -> uefi::Status {
                                     break;
                                 } // not a continuation byte
                             }
-                            let _ = uefi::system::with_stdout(|st| {
+                            let _ = console::with_console(|st| {
                                 let _ = st.write_str("\x08 \x08");
                                 core::fmt::Result::Ok(())
                             });
@@ -1177,7 +1186,7 @@ fn main() -> uefi::Status {
                             if len + enc.len() <= input_buffer.len() {
                                 input_buffer[len..len + enc.len()].copy_from_slice(enc.as_bytes());
                                 len += enc.len();
-                                let _ = uefi::system::with_stdout(|st| {
+                                let _ = console::with_console(|st| {
                                     let _ = st.write_char(c_char);
                                     core::fmt::Result::Ok(())
                                 });
@@ -1203,7 +1212,7 @@ fn main() -> uefi::Status {
                 // no EOS in sight it runs to the token cap. Refuse it explicitly
                 // instead of letting the machine appear to have gone haywire.
                 if cmd.trim().is_empty() {
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("(empty prompt ignored — type a question)\r\n");
                         core::fmt::Result::Ok(())
                     });
@@ -1248,11 +1257,11 @@ fn main() -> uefi::Status {
                                 secs as u64, ((secs * 1000.0) as u64) % 1000,
                                 match clk { Some(p) => format!("{}%", p), None => alloc::string::String::from("?") }
                             ));
-                            let _ = uefi::system::with_stdout(|st| { let _ = write!(st, "  [{}] decode {}.{:02} tok/s, prefill {}.{:03}s\r\n", $label, d_tps as u64, ((d_tps*100.0) as u64)%100, p_secs as u64, ((p_secs*1000.0) as u64)%1000); core::fmt::Result::Ok(()) });
+                            let _ = console::with_console(|st| { let _ = write!(st, "  [{}] decode {}.{:02} tok/s, prefill {}.{:03}s\r\n", $label, d_tps as u64, ((d_tps*100.0) as u64)%100, p_secs as u64, ((p_secs*1000.0) as u64)%1000); core::fmt::Result::Ok(()) });
                         }};
                     }
                     let say = |s: &str| {
-                        let _ = uefi::system::with_stdout(|st| {
+                        let _ = console::with_console(|st| {
                             let _ = st.write_str(s);
                             core::fmt::Result::Ok(())
                         });
@@ -1368,7 +1377,7 @@ fn main() -> uefi::Status {
                             verdict
                         ),
                     );
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = write!(st, "  [PARITY] max diff {:e} -> {}\r\n", diff, verdict);
                         core::fmt::Result::Ok(())
                     });
@@ -1381,19 +1390,19 @@ fn main() -> uefi::Status {
                         "Translate the following phonetic Arabic into English, or English into phonetic Arabic:\n\n{}\n\nTranslation:\n",
                         phrase
                     );
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("\r\n[ALICE TRANSLATING...]\r\n");
                         core::fmt::Result::Ok(())
                     });
 
                     engine.process_intent(&prompt, 128, |t| {
-                        let _ = uefi::system::with_stdout(|st| {
+                        let _ = console::with_console(|st| {
                             let _ = st.write_str(t);
                             core::fmt::Result::Ok(())
                         });
                     });
 
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("\r\n\n");
                         core::fmt::Result::Ok(())
                     });
@@ -1412,7 +1421,7 @@ fn main() -> uefi::Status {
                             engine.process_intent(
                                 "Write a comprehensive and detailed essay about the future of artificial intelligence in aerospace.",
                                 50,
-                                |t| { n += 1; let _ = uefi::system::with_stdout(|st| { let _ = st.write_str(t); core::fmt::Result::Ok(()) }); },
+                                |t| { n += 1; let _ = console::with_console(|st| { let _ = st.write_str(t); core::fmt::Result::Ok(()) }); },
                             );
                             let p1 = cpu::perf_snapshot();
                             let w1 = wall_seconds();
@@ -1431,7 +1440,7 @@ fn main() -> uefi::Status {
                         }};
                     }
 
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("\r\n[AUTOTEST] 1/6 identifying CPU...\r\n");
                         core::fmt::Result::Ok(())
                     });
@@ -1478,7 +1487,7 @@ fn main() -> uefi::Status {
                     // between them. Their ratio is the drift. Only then raise the P-state
                     // and run RUN3. The turbo effect is RUN3/RUN2, and it must exceed the
                     // measured drift to mean anything.
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("[AUTOTEST] 2/6 warmup (not recorded)...\r\n");
                         core::fmt::Result::Ok(())
                     });
@@ -1489,19 +1498,19 @@ fn main() -> uefi::Status {
                         });
                     }
 
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("[AUTOTEST] 3/6 RUN1 (baseline)...\r\n");
                         core::fmt::Result::Ok(())
                     });
                     bench!("RUN1_baseline");
 
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("\r\n[AUTOTEST] 4/6 RUN2 (repeat, nothing changed -> measures drift)...\r\n");
                         core::fmt::Result::Ok(())
                     });
                     bench!("RUN2_control");
 
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("\r\n[AUTOTEST] 5/6 requesting max P-state...\r\n");
                         core::fmt::Result::Ok(())
                     });
@@ -1517,7 +1526,7 @@ fn main() -> uefi::Status {
                         Err(e) => boot_log(&mut root, &format!("AUTOTEST TURBO FAILED: {}", e)),
                     }
 
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("[AUTOTEST] 6/6 RUN3 (after turbo)...\r\n");
                         core::fmt::Result::Ok(())
                     });
@@ -1527,7 +1536,7 @@ fn main() -> uefi::Status {
                         &mut root,
                         "AUTOTEST DONE  (effect = RUN3/RUN2; drift = RUN2/RUN1; effect must exceed drift)",
                     );
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str(
                             "\r\n[AUTOTEST] complete. Type /exit, then remove the stick.\r\n",
                         );
@@ -1579,7 +1588,7 @@ fn main() -> uefi::Status {
                             None => alloc::string::String::from("unmeasurable"),
                         },
                     );
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str(&msg);
                         core::fmt::Result::Ok(())
                     });
@@ -1615,7 +1624,7 @@ fn main() -> uefi::Status {
                                 "HWP (Speed Shift): requested max performance, level {}.\r\n  Now re-run /benchmark and compare.\r\n",
                                 highest
                             );
-                            let _ = uefi::system::with_stdout(|st| {
+                            let _ = console::with_console(|st| {
                                 let _ = st.write_str(&m);
                                 core::fmt::Result::Ok(())
                             });
@@ -1629,7 +1638,7 @@ fn main() -> uefi::Status {
                                 "Legacy SpeedStep: requested ratio {} (~{} MHz).\r\n  Now re-run /benchmark and compare.\r\n",
                                 ratio, mhz
                             );
-                            let _ = uefi::system::with_stdout(|st| {
+                            let _ = console::with_console(|st| {
                                 let _ = st.write_str(&m);
                                 core::fmt::Result::Ok(())
                             });
@@ -1640,7 +1649,7 @@ fn main() -> uefi::Status {
                         }
                         Err(e) => {
                             let m = format!("Cannot raise P-state: {}\r\n", e);
-                            let _ = uefi::system::with_stdout(|st| {
+                            let _ = console::with_console(|st| {
                                 let _ = st.write_str(&m);
                                 core::fmt::Result::Ok(())
                             });
@@ -1656,14 +1665,14 @@ fn main() -> uefi::Status {
                     if let Ok(v) = n.trim().parse::<usize>() {
                         if v > 0 && v <= 4096 {
                             max_new_tokens = v;
-                            let _ = uefi::system::with_stdout(|st| {
+                            let _ = console::with_console(|st| {
                                 let _ = write!(st, "max_new_tokens = {}\r\n", v);
                                 core::fmt::Result::Ok(())
                             });
                             continue;
                         }
                     }
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str("usage: /tokens <1..4096>\r\n");
                         core::fmt::Result::Ok(())
                     });
@@ -1671,7 +1680,7 @@ fn main() -> uefi::Status {
                 }
 
                 if cmd == "/benchmark" {
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str(
                             "[BENCHMARK] Warming up Matrix Core... Running speed test.\r\n",
                         );
@@ -1684,7 +1693,7 @@ fn main() -> uefi::Status {
                     let mut token_count = 0;
                     engine.process_intent("Write a comprehensive and detailed essay about the future of artificial intelligence in aerospace.", 50, |t| {
                         token_count += 1;
-                        let _ = uefi::system::with_stdout(|st| { let _ = st.write_str(t); core::fmt::Result::Ok(()) });
+                        let _ = console::with_console(|st| { let _ = st.write_str(t); core::fmt::Result::Ok(()) });
                     });
                     let p1 = cpu::perf_snapshot();
                     let t_wall1 = wall_seconds();
@@ -1714,7 +1723,7 @@ fn main() -> uefi::Status {
                         Some(p) => format!("{}%", p),
                         None => alloc::string::String::from("unmeasurable"),
                     };
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let msg = alloc::format!(
                             "\r\n\n[BENCHMARK RESULTS]\r\n* Tokens: {}\r\n* TSC ticks: {} ({} ticks/token)\r\n* WALL TIME: {}.{:03} s -> {}.{:02} tok/s\r\n* ACTUAL CLOCK: {} of nominal\r\n\n",
                             token_count,
@@ -1751,7 +1760,7 @@ fn main() -> uefi::Status {
                 // Record prompt, response, and speed to BOOTLOG.TXT on the boot
                 // volume. Real hardware has no serial console to scrape, and an
                 // unrecorded generation cannot be cited later.
-                let _ = uefi::system::with_stdout(|st| {
+                let _ = console::with_console(|st| {
                     let _ = write!(st, "[prompt: {:?}, max {} tokens]\r\n", cmd, max_new_tokens);
                     core::fmt::Result::Ok(())
                 });
@@ -1764,7 +1773,7 @@ fn main() -> uefi::Status {
                     if !token_str.starts_with("[SYSTEM]") && !token_str.contains("[PERFORMANCE]") {
                         ntok += 1;
                     }
-                    let _ = uefi::system::with_stdout(|st| {
+                    let _ = console::with_console(|st| {
                         let _ = st.write_str(token_str);
                         core::fmt::Result::Ok(())
                     });
@@ -1803,7 +1812,7 @@ fn main() -> uefi::Status {
                         }
                     ),
                 );
-                let _ = uefi::system::with_stdout(|st| {
+                let _ = console::with_console(|st| {
                     let _ = st.write_str("\r\n\r\n");
                     core::fmt::Result::Ok(())
                 });
@@ -1816,7 +1825,7 @@ fn main() -> uefi::Status {
 
 #[panic_handler]
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
-    let _ = uefi::system::with_stdout(|st| {
+    let _ = console::with_console(|st| {
         let _ = st.write_str("\r\n\r\n*** KERNEL PANIC ***\r\n");
         use core::fmt::Write;
         let _ = write!(st, "{}\r\n", info);
