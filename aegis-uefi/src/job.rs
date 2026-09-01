@@ -39,6 +39,14 @@ pub const MAX_TOKENS: usize = 1024;
 pub const DEFAULT_LISTEN: u16 = 4242;
 /// `job.N.response` is truncated to this many bytes *after* escaping (spec §3).
 pub const RESPONSE_MAX: usize = 256;
+/// Each leg of a `NETCHECK` — connect, send, wait for the peer to close — is
+/// given this long. Phase 1a's gate (spec §6) states the wait as 5 s; the same
+/// bound is used for the connect and the write so a directive can never cost
+/// the job more than a few seconds whatever the peer does.
+pub const NETCHECK_TIMEOUT_MS: u64 = 5_000;
+/// The four-way close afterwards. Short: the exchange is already over, and a
+/// peer that will not finish the close must not hold the job open.
+const NETCHECK_CLOSE_MS: u64 = 2_000;
 /// Job bodies are capped (spec §4); the same cap guards the on-disk file.
 const JOB_MAX_BYTES: usize = 64 * 1024;
 /// A single `PROMPT` line is capped (spec §4).
@@ -378,6 +386,10 @@ pub struct StepResult {
     /// First 16 hex of sha256 over the generated ids as little-endian u32.
     pub digest: String,
     pub response: String,
+    /// `job.N.ok` — emitted only for step kinds whose result is a pass/fail
+    /// rather than a generation (`netcheck`, phase 1a). `None` leaves the
+    /// `prompt`/`bench` blocks byte-for-byte what phase 0 wrote.
+    pub ok: Option<bool>,
 }
 
 /// The whole `RESULT.TXT`, in the key order of spec §3.
@@ -439,6 +451,9 @@ impl ResultRecord {
         for (i, j) in self.steps.iter().enumerate() {
             let n = i + 1;
             s.push_str(&format!("job.{n}.kind={}\n", j.kind));
+            if let Some(ok) = j.ok {
+                s.push_str(&format!("job.{n}.ok={ok}\n"));
+            }
             // Spec §3 caps `response`, not `prompt`; a PROMPT line is
             // already bounded to 4 KiB at parse time.
             s.push_str(&format!("job.{n}.prompt={}\n", escape(&j.prompt)));
@@ -835,6 +850,12 @@ pub fn run_job(
         );
     }
 
+    // Brought up by the first directive that needs it (currently NETCHECK;
+    // phase 1b's REPORT joins it). Dropping it at the end of this function
+    // shuts the NIC down and releases the exclusive SNP open before the caller
+    // resets the machine — see `net::SnpDevice::drop`.
+    let mut net: Option<crate::net::Net> = None;
+
     let started = crate::wall_seconds();
     if started.is_none() {
         crate::boot_log(
@@ -864,23 +885,50 @@ pub fn run_job(
             Step::Prompt { text, tokens } => ("prompt", text.clone(), *tokens),
             Step::Bench { tokens } => ("bench", String::from(BENCH_PROMPT), *tokens),
             Step::NetCheck { target } => {
-                // Phase 1a owns NETCHECK. Recording it as an unrun step with
-                // an explicit verdict is honest; pretending it passed is not.
+                // Phase 1a. The network is brought up lazily, on the first
+                // directive that needs it: a job of pure PROMPTs must not pay
+                // for a NIC it never uses, and a boot with no JOB.TXT must
+                // never reach this module at all.
+                crate::boot_log(root, &format!("JOB: step {n} NETCHECK {target}"));
+                let w0 = crate::wall_seconds();
+                if net.is_none() {
+                    net = crate::net::Net::bring_up(&job.net, root);
+                }
+                if let Some(nw) = net.as_ref() {
+                    rec.mac = nw.mac_string();
+                    rec.ip = nw.ip_string();
+                }
+                let (ok, detail) = match net.as_mut() {
+                    Some(nw) => netcheck(nw, target, root),
+                    None => (false, String::from(crate::net::NetError::NoNic.as_str())),
+                };
+                let w1 = crate::wall_seconds();
+                let wall_ms = match (w0, w1) {
+                    (Some(a), Some(b)) if b >= a => ((b - a) * 1000.0) as u64,
+                    _ => 0,
+                };
                 crate::boot_log(
                     root,
-                    &format!("JOB: step {n} NETCHECK {target} — phase 1a, not run"),
+                    &if ok {
+                        format!("NETCHECK: ok {detail}")
+                    } else {
+                        format!("NETCHECK: fail {detail}")
+                    },
                 );
                 rec.steps.push(StepResult {
                     kind: "netcheck",
                     prompt: target.clone(),
                     tokens: 0,
-                    wall_ms: 0,
+                    wall_ms,
                     tps: 0.0,
                     tsc_per_tok: 0,
                     digest: token_digest(&[]),
-                    response: String::from("not implemented in phase 0"),
+                    response: detail,
+                    ok: Some(ok),
                 });
-                rec.fail("netcheck unimplemented");
+                if !ok {
+                    rec.fail("netcheck");
+                }
                 continue;
             }
         };
@@ -953,6 +1001,7 @@ pub fn run_job(
             tsc_per_tok: if ntok > 0 { ticks / ntok as u64 } else { 0 },
             digest: token_digest(&ids),
             response,
+            ok: None,
         });
 
         // Budget first: a step the budget cut short in prefill also produced
@@ -981,10 +1030,71 @@ pub fn run_job(
         );
     }
 
+    if let Some(nw) = net.as_ref() {
+        let (tx_dropped, rx_errors) = nw.counters();
+        crate::boot_log(
+            root,
+            &format!("NET: tx_dropped={tx_dropped} rx_errors={rx_errors}"),
+        );
+    }
+
     if rec.steps.is_empty() {
         rec.fail("no runnable directives");
     }
     rec
+}
+
+/// One `NETCHECK host:port`: connect, send `HELLO <mac>\n`, wait for the peer
+/// to close (spec §6 / phase 1a gate).
+///
+/// Returns `(ok, detail)`, where `detail` is what goes into `job.N.response`
+/// and the `NETCHECK:` line in `BOOTLOG.TXT`. `ok` is decided by the connect
+/// and the write, because those are what the gate asserts on the other end —
+/// a listener that receives the line and then holds the socket open is not a
+/// failure of this box.
+fn netcheck(
+    net: &mut crate::net::Net,
+    target: &str,
+    root: &mut Directory,
+) -> (bool, alloc::string::String) {
+    use crate::net::Until;
+
+    let Some((ip, port)) = crate::net::parse_host_port(target) else {
+        return (false, format!("bad target {target}"));
+    };
+    if net.ip().is_none() {
+        return (false, alloc::string::String::from("no ip"));
+    }
+
+    let handle = match net.tcp_connect(ip, port, NETCHECK_TIMEOUT_MS) {
+        Ok(h) => h,
+        Err(e) => return (false, format!("connect {}", e.as_str())),
+    };
+
+    let hello = format!("HELLO {}\n", net.mac_string());
+    if let Err(e) = net.tcp_send_all(&handle, hello.as_bytes(), NETCHECK_TIMEOUT_MS) {
+        net.tcp_close(handle, NETCHECK_CLOSE_MS);
+        return (false, format!("send {}", e.as_str()));
+    }
+
+    // Wait for the peer to close, or give up after the same bound. Either way
+    // the line is already on the wire; this only decides what `detail` says.
+    let (echo, waited) = net.tcp_recv_until(&handle, Until::Close, NETCHECK_TIMEOUT_MS);
+    net.tcp_close(handle, NETCHECK_CLOSE_MS);
+
+    let how = match waited {
+        Ok(()) => "peer closed",
+        Err(e) => e.as_str(),
+    };
+    crate::boot_log(
+        root,
+        &format!(
+            "NETCHECK: sent {} bytes to {target}, {how}, {} bytes back",
+            hello.len(),
+            echo.len()
+        ),
+    );
+    (true, format!("sent {} bytes, {how}", hello.len()))
 }
 
 /// The single entry point `main.rs` calls (spec §5).
