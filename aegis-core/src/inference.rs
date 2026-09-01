@@ -37,6 +37,48 @@ pub fn generation_stop_requested() -> bool {
     GENERATION_STOP.load(Ordering::Relaxed)
 }
 
+/// Evaluate a caller's cooperative deadline check at an engine checkpoint and
+/// latch a `true` into [`GENERATION_STOP`].
+///
+/// Latching is the point: "a stop happened" then has ONE observable for the
+/// caller no matter which checkpoint saw it first — prefill's per-layer check
+/// or the decode loop's per-token check. The AEFINITY OS job runner reads
+/// exactly that one flag to decide whether the record says `FAIL budget`.
+///
+/// With the default `|| false` check this is one relaxed load and a call the
+/// monomorphizer folds away, so every pre-existing path stays bit-identical.
+#[inline]
+fn checkpoint(stop_cb: &mut impl FnMut() -> bool) -> bool {
+    if generation_stop_requested() {
+        return true;
+    }
+    if stop_cb() {
+        request_generation_stop();
+        return true;
+    }
+    false
+}
+
+/// Prompt tokens per prefill pass.
+///
+/// Prefill is run in chunks of this many tokens instead of one pass over the
+/// whole prompt. Two reasons, in this order:
+///
+/// 1. **Deadline granularity.** A caller running a wall-clock budget can only
+///    be heard between passes and at the checkpoints inside one; a single pass
+///    over a 4 KiB prompt is minutes of work on a slow box with no way out,
+///    which on a headless machine means the firmware watchdog resets it before
+///    any record is written.
+/// 2. It is **free**. The batched kernel already streams the weights once per
+///    `GEMM_TILE` tokens, so splitting the batch at a whole number of tiles
+///    reads exactly the same weight bytes in exactly the same order.
+///
+/// Chunking is bit-exact, not approximately equal: attention reads the KV the
+/// earlier chunks wrote, and every other operation in the pass is per-token.
+/// `tests/prefill_chunking.rs` asserts identical generated ids across chunk
+/// sizes, which is the check that keeps this true.
+pub const PREFILL_CHUNK_TOKENS: usize = 64;
+
 /// Quantize one token's activation vector onto the int8 grid, if the
 /// `int8_act` feature is on. No-op otherwise, so the f32 path is unchanged.
 #[inline]
@@ -95,6 +137,13 @@ pub struct TernaryInferenceEngine<'a> {
     sampler: Sampler,
     rope_cache: RopeCache,
     arena: WorkingMemoryArena,
+    /// Prompt tokens per prefill pass — see [`PREFILL_CHUNK_TOKENS`], which is
+    /// the default. `0` means one pass over the whole prompt.
+    ///
+    /// Changing it must not change what the engine produces; that is what
+    /// `tests/prefill_chunking.rs` asserts, and it is the only reason a knob
+    /// on the hot path is acceptable here.
+    pub prefill_chunk_tokens: usize,
     /// Cycles spent in the last prefill, and how many tokens it covered.
     pub last_prefill_cycles: u64,
     pub last_prefill_tokens: usize,
@@ -223,6 +272,7 @@ impl<'a> TernaryInferenceEngine<'a> {
             sampler,
             rope_cache,
             arena,
+            prefill_chunk_tokens: PREFILL_CHUNK_TOKENS,
             last_prefill_cycles: 0,
             last_prefill_tokens: 0,
             last_decode_cycles: 0,
@@ -244,13 +294,15 @@ impl<'a> TernaryInferenceEngine<'a> {
         &self.pipeline
     }
 
+    /// Returns `false` when `stop_cb` ended the pass early — see
+    /// [`forward_batch_with_capture`](Self::forward_batch_with_capture).
     fn forward_batch(
         &mut self,
         batch_tokens: &[u32],
         seq_pos_start: usize,
-        print_cb: impl FnMut(&str),
-    ) {
-        self.forward_batch_with_capture(batch_tokens, seq_pos_start, print_cb, None);
+        stop_cb: impl FnMut() -> bool,
+    ) -> bool {
+        self.forward_batch_with_capture(batch_tokens, seq_pos_start, stop_cb, None)
     }
 
     /// `forward_batch` with an optional per-layer probe: after every decoder
@@ -259,15 +311,27 @@ impl<'a> TernaryInferenceEngine<'a> {
     /// an HF dump of the same prompt is compared layer by layer, which
     /// localizes a stride/dtype/graph bug to the exact layer that diverges.
     /// Diagnostic path: allocates per layer; never call it from the hot loop.
+    ///
+    /// `stop_cb` is a cooperative deadline check, consulted at coarse
+    /// checkpoints (twice per decoder layer). Returning `true` from it ends
+    /// the pass immediately and this function returns `false`; the batch
+    /// state is then INCOMPLETE and the caller must not sample from it. A
+    /// caller with no deadline passes `|| false` and nothing changes.
+    ///
+    /// Why prefill needs this at all: from the caller's side one
+    /// `forward_batch` is a single uninterruptible call, so a wall-clock
+    /// budget could previously first be observed only once the first token
+    /// was emitted — i.e. after the whole prompt had been prefilled. For a
+    /// long prompt that is far past the deadline, and on a headless box the
+    /// firmware watchdog then resets the machine before any record is
+    /// written.
     fn forward_batch_with_capture(
         &mut self,
         batch_tokens: &[u32],
         seq_pos_start: usize,
-        mut print_cb: impl FnMut(&str),
+        mut stop_cb: impl FnMut() -> bool,
         mut capture: Option<&mut Vec<Vec<f32>>>,
-    ) {
-        let msg = alloc::format!("[SYSTEM] Analyzing {} tokens...\r\n", batch_tokens.len());
-        print_cb(&msg);
+    ) -> bool {
         let batch_size = batch_tokens.len();
         let emb_dim = self.config.hidden_size;
         let num_heads = self.config.num_attention_heads;
@@ -301,6 +365,15 @@ impl<'a> TernaryInferenceEngine<'a> {
         }
 
         for (layer_idx, layer) in self.pipeline.layers.iter().enumerate() {
+            // Deadline checkpoint (see the `stop_cb` note on this function).
+            // Twice per layer bounds how long a caller's budget can be
+            // overshot by roughly half a layer of prefill work, which on a
+            // headless box is the difference between a written record and a
+            // watchdog reset with nothing on the volume.
+            if checkpoint(&mut stop_cb) {
+                return false;
+            }
+
             self.arena.batch_norm_state[0..batch_size * emb_dim]
                 .copy_from_slice(&self.arena.batch_hidden_state[0..batch_size * emb_dim]);
             for b in 0..batch_size {
@@ -440,6 +513,11 @@ impl<'a> TernaryInferenceEngine<'a> {
                 self.arena.batch_hidden_state[i] += self.arena.batch_o[i];
             }
 
+            // Second deadline checkpoint: attention done, FFN not started.
+            if checkpoint(&mut stop_cb) {
+                return false;
+            }
+
             self.arena.batch_norm_state[0..batch_size * emb_dim]
                 .copy_from_slice(&self.arena.batch_hidden_state[0..batch_size * emb_dim]);
             for b in 0..batch_size {
@@ -547,6 +625,7 @@ impl<'a> TernaryInferenceEngine<'a> {
                 cap.push(self.arena.batch_hidden_state[0..batch_size * emb_dim].to_vec());
             }
         }
+        true
     }
 
     /// Run `tokens` from position 0 and return the residual-stream state
@@ -559,7 +638,7 @@ impl<'a> TernaryInferenceEngine<'a> {
         );
         let mut states = Vec::with_capacity(self.pipeline.layers.len());
         self.kv_cache.reset_prefix(tokens.len());
-        self.forward_batch_with_capture(tokens, 0, |_| {}, Some(&mut states));
+        self.forward_batch_with_capture(tokens, 0, || false, Some(&mut states));
         states
     }
 
@@ -588,7 +667,7 @@ impl<'a> TernaryInferenceEngine<'a> {
         let emb_dim = self.config.hidden_size;
 
         // Process the first token to seed the KV cache and get the hidden state
-        self.forward_batch(&tokens[0..1], 0, |_| {});
+        self.forward_batch(&tokens[0..1], 0, || false);
         self.arena
             .hidden_state
             .copy_from_slice(&self.arena.batch_hidden_state[0..emb_dim]);
@@ -848,7 +927,32 @@ impl<'a> TernaryInferenceEngine<'a> {
         &mut self,
         intent: &str,
         max_new_tokens: usize,
+        print_cb: impl FnMut(&str),
+    ) -> String {
+        self.process_intent_with_deadline(intent, max_new_tokens, print_cb, || false)
+    }
+
+    /// [`process_intent`](Self::process_intent) under a caller-supplied
+    /// cooperative deadline.
+    ///
+    /// `stop_cb` is consulted at coarse checkpoints in BOTH phases — twice
+    /// per decoder layer during prefill and once per token during decode —
+    /// so a caller running a wall-clock budget can end generation from
+    /// either phase. `process_intent` passes `|| false`, which monomorphizes
+    /// the checks away, so every existing caller is unchanged.
+    ///
+    /// A deadline hit during prefill returns an EMPTY string with
+    /// `last_generated_ids` empty: the batch state at that point is partial,
+    /// and a token sampled from it would not be the token this prompt
+    /// produces. Reporting nothing generated is the honest answer; a caller
+    /// that needs to say why reads
+    /// [`generation_stop_requested`], which the checkpoint latches.
+    pub fn process_intent_with_deadline(
+        &mut self,
+        intent: &str,
+        max_new_tokens: usize,
         mut print_cb: impl FnMut(&str),
+        mut stop_cb: impl FnMut() -> bool,
     ) -> String {
         self.last_generated_ids.clear();
         let mut tokens = Vec::new();
@@ -911,13 +1015,46 @@ impl<'a> TernaryInferenceEngine<'a> {
         let mut next_token;
 
         // --- PREFILL PHASE ---
+        // Chunked; see `PREFILL_CHUNK_TOKENS` for why, and why it is bit-exact.
+        print_cb(&alloc::format!(
+            "[SYSTEM] Analyzing {} tokens...\r\n",
+            tokens.len()
+        ));
+        let chunk = match self.prefill_chunk_tokens {
+            0 => tokens.len(),
+            n => n.min(tokens.len()),
+        }
+        .max(1);
         let prefill_start = unsafe { core::arch::x86_64::_rdtsc() };
-        self.forward_batch(&tokens, 0, &mut print_cb);
+        let mut prefill_complete = true;
+        let mut pos = 0;
+        let mut last_chunk_len = 0;
+        while pos < tokens.len() {
+            let end = (pos + chunk).min(tokens.len());
+            if !self.forward_batch(&tokens[pos..end], pos, &mut stop_cb) {
+                prefill_complete = false;
+                break;
+            }
+            last_chunk_len = end - pos;
+            pos = end;
+        }
         let prefill_cycles = unsafe { core::arch::x86_64::_rdtsc() } - prefill_start;
         self.last_prefill_cycles = prefill_cycles;
         self.last_prefill_tokens = tokens.len();
 
-        let final_token_offset = (tokens.len() - 1) * emb_dim;
+        if !prefill_complete {
+            // The caller's deadline expired inside prefill. See the note on
+            // `process_intent_with_deadline`: the residual stream is partial,
+            // so nothing may be sampled from it.
+            print_cb("[SYSTEM] Prefill stopped by the caller's deadline.\r\n");
+            self.last_decode_cycles = 0;
+            self.last_decode_steps = 0;
+            return String::new();
+        }
+
+        // `batch_hidden_state` holds the LAST chunk, so the final token sits
+        // at the end of that chunk, not at the end of the whole prompt.
+        let final_token_offset = (last_chunk_len - 1) * emb_dim;
         self.arena.hidden_state.copy_from_slice(
             &self.arena.batch_hidden_state[final_token_offset..final_token_offset + emb_dim],
         );
@@ -959,7 +1096,7 @@ impl<'a> TernaryInferenceEngine<'a> {
             // Cooperative stop (see `GENERATION_STOP`): only ever set by a
             // caller running under a wall-clock budget. Unset, this is one
             // relaxed load per token and the loop is unchanged.
-            if generation_stop_requested() {
+            if checkpoint(&mut stop_cb) {
                 break;
             }
             if next_token == eos_token || next_token == eot_token || Some(next_token) == imend_token
@@ -1053,7 +1190,7 @@ impl<'a> TernaryInferenceEngine<'a> {
             "parity token count exceeds arena batch capacity"
         );
 
-        self.forward_batch(tokens, 0, |_s| {});
+        self.forward_batch(tokens, 0, || false);
         let batch_hidden = self.arena.batch_hidden_state[..tokens.len() * emb_dim].to_vec();
 
         let mut max_diff = 0.0f32;
