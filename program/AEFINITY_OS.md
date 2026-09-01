@@ -103,9 +103,30 @@ without running any of our code, so the only record that can survive is one
 written beforehand. A stick that comes home carrying a `RESULT.WIP` is a box
 that did not finish, and the file names the step it was in; `BOOTLOG.TXT` says
 whether it was still in prefill or already decoding. `RESULT.TXT` is
-authoritative whenever both are present — the delete is best effort and
-`BOOTLOG.TXT` records whether the firmware took it — and the controller stages
-a volume with neither file on it.
+authoritative whenever both are present, and the controller stages a volume
+with neither file on it.
+
+> **Erratum, 2026-09-01 (the delete's confirmation).** As first built, the
+> delete was issued and the name re-opened in the next statement, and
+> `BOOTLOG.TXT` reported `cleared=` from that. That is the hand-off, not the
+> medium — the same distinction `settle_volume` exists for on the write side —
+> and the check also read "empty" and "unreadable" as "gone". The delete is now
+> issued when `RESULT.TXT` lands and *confirmed* after the settle stall, from
+> two independent probes (an `open` that distinguishes `NOT_FOUND` from
+> unreadable, and a walk of the root directory), with one retry if either still
+> sees it. The line reads
+> `JOB: RESULT.WIP cleared=<bool> (open=… dir=… retried=…)`.
+>
+> A gate-environment caveat, measured on 2026-09-01 and not a property of the
+> unikernel: under `cargo xtask job-test` / `job-budget-test` the host mirror of
+> the staged ESP still shows `result.wip` after a run in which both guest probes
+> reported it absent and the guest's later writes committed through. QEMU's
+> `fat:rw:` (vvfat) backend commits guest writes back to the host directory and
+> does not commit the unlink. A stick has no such mirror — the FAT directory the
+> firmware walks is the medium — so the gates assert the guest's BOOTLOG line
+> and print the host state as a note. "A stick that comes home carrying a
+> `RESULT.WIP`" is a statement about a stick, and it is unverified on iron until
+> hardware first light.
 
 `digest` is the CIS-style witness of *what was generated*; identical
 digests across two machines for the same JOB.TXT are the fleet check in §1/3.

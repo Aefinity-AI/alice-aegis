@@ -64,24 +64,59 @@ generated, and the thing a fleet actually compares.
 
 ### Budget, watchdog and AFTER
 
-`BUDGET` is wall-clock, read from UEFI `GetTime()`. When it is spent the
-token callback stops generation at the next token and the record carries
-`verdict=FAIL budget` — a short answer with an honest verdict, still written
-to disk. Independently, the firmware watchdog is armed at `BUDGET + 60`, so a
-hang anywhere in our own code is reset by firmware rather than leaving a
-headless box wedged. `AFTER reset` issues `ResetSystem(COLD)`; `AFTER halt`
-disarms the watchdog and returns to the normal boot path.
+`BUDGET` is wall-clock, read from UEFI `GetTime()`, and it is checked in
+three places. Before each step, so work that cannot finish is not begun.
+Inside the engine at coarse checkpoints in **both** phases — twice per decoder
+layer during prefill (the prompt is prefilled in chunks for exactly this
+reason) and once per token during decode — because a spec-legal 4 KiB `PROMPT`
+can spend the whole budget before the first token exists, and a decode-only
+check would then never run at all. And the firmware watchdog, armed at
+`BUDGET + 60`, as the backstop for a hang between checkpoints. A job stopped
+by either software check still writes a complete record carrying
+`verdict=FAIL budget` — a short answer with an honest verdict beats silence.
+`AFTER reset` issues `ResetSystem(COLD)`; `AFTER halt` disarms the watchdog
+and returns to the normal boot path.
 
 Everything stays inside boot services — the file, watchdog and reset
 protocols all require them, so the unikernel never calls `ExitBootServices`.
 
+### `RESULT.WIP`
+
+The watchdog resets the box without running any of our code, so the one case
+the software budget cannot cover leaves nothing behind unless something was
+written first. `RESULT.WIP` is that something: the record so far, written
+before each step in the `RESULT.TXT` format with
+`verdict=FAIL incomplete: step N did not return`, and deleted once the real
+`RESULT.TXT` is on the volume. A stick that comes home carrying one is a box
+that did not finish, and the file names the step; `BOOTLOG.TXT` says whether
+it was still in prefill or already decoding. `RESULT.TXT` is authoritative
+whenever both are present.
+
+The delete is confirmed, not assumed. `delete()` returns when the firmware has
+taken the request, not when the medium has, so the confirmation happens after
+the same settle stall the `RESULT.TXT` read-back gets, from two independent
+probes — an `open` that tells `NOT_FOUND` apart from unreadable, and a walk of
+the root directory — and a marker still there gets one more delete and one
+more probe. The result is one `BOOTLOG.TXT` line:
+`JOB: RESULT.WIP cleared=<bool> (open=… dir=… retried=…)`.
+
+Under the xtask gates the host mirror of the ESP can still show `result.wip`
+after a run whose guest probes both said absent: QEMU's `fat:rw:` backend
+commits guest writes back to the host directory but not the unlink. A real
+stick has no mirror, and the gates assert the guest's BOOTLOG line rather than
+the host's `ls`.
+
 ### Gate
 
 ```bash
-cargo xtask boot-test   # no JOB.TXT: unchanged boot path, QEMU exit 33
-cargo xtask job-test    # stages a JOB.TXT, asserts the record and the reset
+cargo xtask boot-test         # no JOB.TXT: unchanged boot path, QEMU exit 33
+cargo xtask job-test          # stages a JOB.TXT, asserts the record and the reset
+cargo xtask job-budget-test   # a prompt that cannot be prefilled in its BUDGET
 ```
 
 `job-test` boots with `-no-reboot`, so the guest's `ResetSystem` exits QEMU,
 then asserts `target/esp/RESULT.TXT` has `aefinity_os=0.1`, `verdict=OK`,
-`jobs=2` and `env=vm`. Structure and exit codes only — never a value.
+`jobs=2` and `env=vm`. `job-budget-test` asserts a `FAIL budget` record exists
+at all — before the prefill checkpoints that case produced none. Both also
+assert the guest's `RESULT.WIP cleared=true` line. Structure and exit codes
+only — never a value.
