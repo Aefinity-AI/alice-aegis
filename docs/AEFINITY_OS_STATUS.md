@@ -310,3 +310,62 @@ Host tooling for §7 of the spec — `cm-os-collector`, `cm-os-job` (including
 `claudius-maximus` repo on branch `cm/aefinity-os-host`, with a stdlib-only
 `python3 -m unittest tests.test_os_host` suite. It is reviewed and tested
 against fake servers; it has never spoken to a real booted stick.
+
+---
+
+## 8. Critic fixes 2026-09-01
+
+An adversarial review of this branch (`docs/AEFINITY_OS_CRITIC_v0.1.md`,
+verbatim) returned **SHIP-WITH-FIXES**: merge as a QEMU-verified harness, but
+do not flash a stick or expose a resident box on a LAN until fixes 1–4 land.
+All five landed. Nothing below was verified on iron; every gate is still TCG,
+still correctness-only (Rule A).
+
+| # | finding | what changed |
+|---|---|---|
+| 1 | TX frames could be DMA'd from above 4 GB — `SnpTxToken::consume` boxed the frame on the global heap, and `allocate_huge_pages` deliberately does not cap the large chunks | `net/mod.rs`: `DmaPool`, one `MaxAddress(0xFFFF_FFFF)` `LOADER_DATA` allocation of 9 frame-sized slots (8 transmit + 1 receive), free list, slots reclaimed by pointer match on `get_recycled_transmit_buffer_status`. Receive stages into the pinned slot too, because a driver may serve `Receive()` by DMA into the caller's buffer. No slot = frame dropped, which is what `MAX_PENDING_TX` already meant. |
+| 2 | `REPORT` could blow the watchdog margin — `http::post` gave connect, send, recv and both closes a fresh `timeout_ms` each, ~120 s against 60 s of margin | `net/http.rs`: one deadline taken before the connect, each phase gets what is left; `Net::now_ms` exposed for it. `job::REPORT_TIMEOUT_MS`'s comment now carries the arithmetic — 30 s `REPORT` + 4 s `settle_volume` = ~34 s of the 60 s margin. |
+| 3 | Resident mode disarmed the watchdog before the FAT write | `server.rs`: the watchdog is re-armed at `RECORD_WATCHDOG_S` (120 s) before `write_result_txt` and disarmed only after the `RESULT` send and both BOOTLOG lines. Idle still runs unguarded, per §4. |
+| 4 | The collector was an unauthenticated write endpoint on every interface | `claudius-maximus` `cm/aefinity-os-host`: `--bind` defaults to `127.0.0.1`, `--token`/`CM_COLLECTOR_TOKEN` gates POST with `X-Aefinity-Token` (401 otherwise), `cpu_brand`/`verdict`/`run_id` stripped of control characters and pipes before `LOG.md` and `inbox.txt`, bad `Content-Length` is 400, the unit passes `--bind ${CM_COLLECTOR_BIND}`, and `docs/UEFI-REMOTE-LANE.md` gains "Exposing the collector on a LAN". Here: a `TOKEN <value>` line in `JOB.TXT` (`Job::token`) is sent as `X-Aefinity-Token` on the `REPORT` POST. |
+| 5 | Two `unsafe` blocks with no `// SAFETY:`, and a wrong `hlt` comment | `job.rs`: both rdtsc sites carry one. `server.rs`: `park_no_net` no longer claims `hlt` "returns at once" with interrupts masked — it halts until an NMI or SMI, which is correct for a park loop, and the comment says why. |
+
+### Spec deltas this introduced
+
+- **`TOKEN <value>`** is a new `JOB.TXT` directive, not in §2's table. A value
+  containing a control character is refused at parse time and logged, because
+  the value is pasted into an HTTP header.
+
+### What remains — nothing here has run on iron
+
+The critic's ordered list, minus what landed:
+
+1. **Hardware first light.** No box has booted this. SNP against a real NIC,
+   real-LAN DHCP, a real `SetWatchdogTimer` firing, a real cold reset, FAT32 on
+   a stick — all unobserved. Fixes 1 and 3 in particular exist because QEMU at
+   `-m 2048` and OVMF's cooperative firmware **cannot** exhibit the failures
+   they prevent: the fixes are argued from the UEFI spec and the hardware's
+   addressing limits, not from a run. Log first light to
+   `docs/hardware_logs/` (Rule C: new files only).
+2. **The cross-machine `job.N.digest` comparison** on a second box — the only
+   claim this design exists to make — is unmade.
+3. **Phase-4 auth on the §4 protocol.** The resident listener is still
+   unauthenticated by design: any host that can reach `LISTEN` gets `READY`,
+   can run arbitrary prompts, and can `HALT` the box into a state needing a
+   physical power cycle. `TOKEN` currently authenticates the box *to* the
+   collector, not a client to the box. The phase-4 item is an `AUTH <token>`
+   verb honoured before any other command, plus a source-address allowlist.
+4. **Unexamined firmware behaviours** the critic named and this pass did not
+   touch: `open_protocol_exclusive` forcibly disconnecting a real firmware's
+   own network stack and never restoring it; `find_handles().first()` picking
+   an arbitrary NIC on a multi-NIC box; a resident DHCP lease that expires
+   with no re-acquire; `write_named` deleting before creating, so power loss
+   between the two leaves neither record.
+5. **The clippy ratchet is still stale** (115 against a baseline of 48, on
+   `main` as much as here). Not rebaselined by this pass; the counts are
+   unchanged by it.
+6. **"OS" is still the name.** The critic's §5 stands: a hostile reviewer will
+   call this a firmware application — no scheduler, no processes, no memory
+   protection, one thread, and every I/O through boot services it never exits.
+   The defensible description is a single-purpose appliance image with its own
+   TCP/IP stack, a job protocol and a remote lifecycle. Renaming it in
+   reviewer-facing prose is an open decision, not a code change.
