@@ -1009,6 +1009,11 @@ pub fn run_job(
             None => false,
         };
         let w0 = crate::wall_seconds();
+        // SAFETY: RDTSC is unprivileged, takes no operands and has no side
+        // effects; it is architecturally present on every x86_64 CPU this
+        // unikernel can boot on, so there is no feature bit to test first.
+        // Rule A: the delta it feeds is `tsc_per_tok` — invariant-rate ticks,
+        // not cycles, and never a performance figure (see this file's header).
         let c0 = unsafe { core::arch::x86_64::_rdtsc() };
         aegis_core::inference::clear_generation_stop();
         {
@@ -1031,6 +1036,8 @@ pub fn run_job(
                 over_budget,
             );
         }
+        // SAFETY: as at `c0` above — unprivileged, no operands, no side
+        // effects, architecturally present.
         let c1 = unsafe { core::arch::x86_64::_rdtsc() };
         let w1 = crate::wall_seconds();
         let stopped = aegis_core::inference::generation_stop_requested();

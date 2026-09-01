@@ -732,12 +732,23 @@ fn park_no_net(root: &mut Directory) -> ! {
     say("\r\n[AEFINITY OS] RESIDENT: halted — parked.\r\n");
     loop {
         // SAFETY: `hlt` is a ring-0 instruction and this unikernel runs in
-        // ring 0 under boot services (it never calls ExitBootServices), with
-        // the firmware's own interrupts still enabled — so the CPU wakes on
-        // the next interrupt and the loop re-parks it. It reads no memory and
-        // touches no stack. `pause` after it keeps the loop cheap on a
-        // firmware that leaves interrupts masked and makes `hlt` return at
-        // once.
+        // ring 0 under boot services (it never calls ExitBootServices). It
+        // reads no memory and touches no stack, which is what the options
+        // assert.
+        //
+        // What it does here, precisely: `hlt` halts the core until the next
+        // interrupt, NMI or SMI. Under boot services the firmware's own timer
+        // interrupt is normally unmasked, so the core wakes every tick and the
+        // loop parks it again — and if a firmware has masked interrupts, `hlt`
+        // halts until an NMI or SMI instead. It does *not* "return at once",
+        // as the comment here used to claim.
+        //
+        // Either behaviour is correct for this loop, because parking for ever
+        // is the whole intent: `HALT` (spec §4) is defined as a box that stops
+        // until someone power-cycles or resets it, the NIC is already down and
+        // the watchdog is already off. The `pause` below is for the waking
+        // case, where it keeps the spin cheap; on a masked-interrupt firmware
+        // it is simply never reached.
         unsafe {
             core::arch::asm!("hlt", options(nomem, nostack, preserves_flags));
         }
