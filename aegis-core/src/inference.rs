@@ -1,4 +1,5 @@
 use alloc::{string::String, vec::Vec};
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use crate::arena::WorkingMemoryArena;
 use crate::attention::RopeCache;
@@ -6,6 +7,35 @@ use crate::kvcache::KVCache;
 use crate::model::{FullBitNetPipeline, SafeTensors};
 use crate::sampler::Sampler;
 use crate::tokenizer::AegisTokenizer;
+
+/// Cooperative generation stop.
+///
+/// `process_intent`'s token callback cannot borrow the engine it is
+/// generating with, so a caller that needs to end generation early — the
+/// AEFINITY OS job runner, when a wall-clock budget is spent — has nowhere to
+/// put the request. A process-global flag is how `ops::set_force_scalar`
+/// solves the same shape of problem in this crate.
+///
+/// The decode loop checks it once per step and returns what it has generated
+/// so far, which keeps a budget-stopped run a *complete* short answer rather
+/// than a truncated one. Nothing sets it unless a caller asks, so every
+/// existing path is bit-identical.
+static GENERATION_STOP: AtomicBool = AtomicBool::new(false);
+
+/// Ask the running decode loop to stop at the next step boundary.
+pub fn request_generation_stop() {
+    GENERATION_STOP.store(true, Ordering::Relaxed);
+}
+
+/// Clear the stop request. Callers clear before each generation.
+pub fn clear_generation_stop() {
+    GENERATION_STOP.store(false, Ordering::Relaxed);
+}
+
+/// Whether a stop has been requested since the last clear.
+pub fn generation_stop_requested() -> bool {
+    GENERATION_STOP.load(Ordering::Relaxed)
+}
 
 /// Quantize one token's activation vector onto the int8 grid, if the
 /// `int8_act` feature is on. No-op otherwise, so the f32 path is unchanged.
@@ -73,6 +103,11 @@ pub struct TernaryInferenceEngine<'a> {
     /// amortized into a whole-run average fakes a speedup at longer outputs.
     pub last_decode_cycles: u64,
     pub last_decode_steps: u64,
+    /// Token ids emitted by the last `process_intent`, in order. The witness
+    /// of *what was generated*: `RESULT.TXT`'s `job.N.digest` is sha256 over
+    /// these as little-endian u32, and the decoded string cannot stand in for
+    /// them because detokenization is not injective across token boundaries.
+    pub last_generated_ids: Vec<u32>,
     /// Down_proj-input zero counts, appended per (token, layer) as forward
     /// passes run. Diagnostic only (allocates); callers drain between runs.
     #[cfg(feature = "act_stats")]
@@ -192,6 +227,7 @@ impl<'a> TernaryInferenceEngine<'a> {
             last_prefill_tokens: 0,
             last_decode_cycles: 0,
             last_decode_steps: 0,
+            last_generated_ids: Vec::new(),
             #[cfg(feature = "act_stats")]
             act_zero_counts: Vec::new(),
             #[cfg(feature = "act_stats")]
@@ -814,6 +850,7 @@ impl<'a> TernaryInferenceEngine<'a> {
         max_new_tokens: usize,
         mut print_cb: impl FnMut(&str),
     ) -> String {
+        self.last_generated_ids.clear();
         let mut tokens = Vec::new();
 
         let push_tok =
@@ -919,6 +956,12 @@ impl<'a> TernaryInferenceEngine<'a> {
         // end of generation instead of a crash.
         let ctx_limit = (tokens.len() + max_new_tokens).min(window);
         while step < ctx_limit {
+            // Cooperative stop (see `GENERATION_STOP`): only ever set by a
+            // caller running under a wall-clock budget. Unset, this is one
+            // relaxed load per token and the loop is unchanged.
+            if generation_stop_requested() {
+                break;
+            }
             if next_token == eos_token || next_token == eot_token || Some(next_token) == imend_token
             {
                 break;
@@ -989,6 +1032,7 @@ impl<'a> TernaryInferenceEngine<'a> {
             avg_cycles
         ));
 
+        self.last_generated_ids.extend_from_slice(&generated_tokens);
         self.tokenizer.decode(&generated_tokens)
     }
 
