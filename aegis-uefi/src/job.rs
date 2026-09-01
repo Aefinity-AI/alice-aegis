@@ -1087,6 +1087,11 @@ fn netcheck(
 
     let how = match waited {
         Ok(()) => "peer closed",
+        // The wait ran out with the connection still up. That is not a fault:
+        // a listener is free to hold the socket open, and the HELLO line was
+        // already delivered. Saying so is better than reporting the bare
+        // "timeout", which reads as a failure this was not.
+        Err(crate::net::NetError::Timeout) => "peer held the connection open",
         Err(e) => e.as_str(),
     };
     crate::boot_log(

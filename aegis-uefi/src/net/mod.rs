@@ -85,6 +85,18 @@ const TCP_TX_BYTES: usize = 4096;
 /// source, so the count is also the bound on how much memory an unresponsive
 /// NIC can pin: `MAX_PENDING_TX * (MTU)`, about 12 KiB.
 const MAX_PENDING_TX: usize = 8;
+/// The backstop that tears down a connection nobody is talking on.
+///
+/// Deliberately **not** the caller's operation timeout. Arming the socket's
+/// idle timer with the same value a caller passes to [`Net::tcp_connect`]
+/// makes the backstop race every subsequent wait on that connection and win:
+/// the first net-test run ended its exchange with a RST five seconds after
+/// the connect, because the 5 s idle timer expired at the same moment the 5 s
+/// wait-for-close did. A backstop that fires before the primary is not a
+/// backstop. This is longer than any single operation the OS performs and
+/// exists only so a peer that vanishes cannot leave a socket wedged on a box
+/// nobody can log into.
+const TCP_IDLE_TIMEOUT_MS: u64 = 60_000;
 /// How long each polling loop sleeps between passes. Short enough that a
 /// handshake is not sleep-bound, long enough that the loop is not a spin.
 const POLL_SLEEP_MS: u64 = 2;
@@ -830,7 +842,11 @@ impl Net {
         (self.dev.tx_dropped, self.dev.rx_errors)
     }
 
-    /// Open a TCP connection, giving up after `timeout_ms`.
+    /// Open a TCP connection.
+    ///
+    /// `timeout_ms` bounds the **handshake** only. The connection that comes
+    /// back carries its own [`TCP_IDLE_TIMEOUT_MS`] backstop, so a caller is
+    /// free to hold it open for longer than it took to make.
     pub fn tcp_connect(
         &mut self,
         ip: Ipv4Addr,
@@ -848,14 +864,9 @@ impl Net {
             tcp::SocketBuffer::new(vec![0u8; TCP_RX_BYTES]),
             tcp::SocketBuffer::new(vec![0u8; TCP_TX_BYTES]),
         );
-        // smoltcp's own idle timeout. It bounds the handshake, and it keeps
-        // bounding the connection afterwards: `timeout_ms` of silence in
-        // either direction tears the socket down. That is deliberate on a box
-        // nobody can log into — a half-open connection to a peer that has gone
-        // away would otherwise sit in the socket set for ever — and it is why
-        // a caller that means to hold a connection open must pass a timeout
-        // that covers the whole exchange, not just the connect.
-        sock.set_timeout(Some(SmolDuration::from_millis(timeout_ms)));
+        // The wedged-socket backstop, independent of `timeout_ms` — see
+        // TCP_IDLE_TIMEOUT_MS for why the two must not be the same value.
+        sock.set_timeout(Some(SmolDuration::from_millis(TCP_IDLE_TIMEOUT_MS)));
         let handle = self.sockets.add(sock);
 
         let local = self.take_local_port();
