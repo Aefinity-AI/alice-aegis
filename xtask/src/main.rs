@@ -155,9 +155,12 @@ SUBCOMMANDS:
                  §4 line protocol to the guest while it runs: retry until the
                  READY banner (≤{RESIDENT_READY_S}s, each attempt ≤{RESIDENT_ATTEMPT_S}s), PING->PONG, a
                  two-directive JOB, a second JOB on the same connection, a
-                 garbage line, and REBOOT. PASS = both RESULTs carry
+                 garbage line, one {RESIDENT_OVERLONG_BYTES}-byte line with no newline in it, and
+                 REBOOT. PASS = both RESULTs carry
                  verdict=OK / env=vm with jobs=2 then jobs=1, garbage answered
-                 `ERR unknown`, REBOOT answered `BYE`, RESULT.TXT on the volume
+                 `ERR unknown`, the over-long line answered `ERR too-large` and
+                 then dropped with the listener coming back,
+                 REBOOT answered `BYE`, RESULT.TXT on the volume
                  holds the LAST job, and QEMU exits because the guest reset.
                  Both RESULTs are printed. Structure and exit codes only.
 
@@ -1036,6 +1039,20 @@ const RESIDENT_IO_S: u64 = 120;
 const RESIDENT_JOB_S: u64 = 1500;
 /// How long QEMU gets to exit after the guest answered `BYE` to `REBOOT`.
 const RESIDENT_EXIT_S: u64 = 240;
+/// Bytes in the deliberately over-long command line, with no `\n` anywhere in
+/// it. Comfortably past the server's 64 KiB line cap (spec §4) so the case is
+/// unambiguous, and past the network stack's own per-read cap too — the two
+/// are the same number, and an over-long line has to be answered
+/// `ERR too-large` whichever of them notices first.
+const RESIDENT_OVERLONG_BYTES: usize = 70 * 1024;
+/// How long the over-long line is given to go out before the harness stops
+/// pushing and reads the answer. The guest stops reading once it has decided
+/// the line is over the cap, so the tail of this write is *expected* to stall
+/// or fail; that is the case being tested, not a harness fault.
+const RESIDENT_OVERLONG_WRITE_S: u64 = 30;
+/// How long the guest gets to come back up on the listener after it drops the
+/// over-long client. No boot happens here — only `tcp_close` and a re-listen.
+const RESIDENT_RELISTEN_S: u64 = 180;
 
 /// A line-oriented client for the resident protocol (spec §4).
 ///
@@ -1376,16 +1393,22 @@ struct ResidentSession {
     results: Vec<String>,
 }
 
-/// Drive the protocol of spec §4 end to end against the running guest.
-fn resident_exchange(
+/// Connect to the forwarded resident port and wait for the READY banner,
+/// retrying until `wait_s` seconds have passed or the run's hard deadline is
+/// reached.
+///
+/// Used twice: once for the guest's first boot into the listener, and once
+/// after the over-long-line case, which by spec §4 costs the client its
+/// connection and so has to be reconnected before the run can go on.
+fn resident_ready(
     child: &mut Child,
     host_port: u16,
+    wait_s: u64,
     hard_deadline: Instant,
-) -> Result<ResidentSession, String> {
-    // ---- connect and wait for READY ---------------------------------------
-    let deadline = (Instant::now() + Duration::from_secs(RESIDENT_READY_S)).min(hard_deadline);
+) -> Result<(ResidentConn, String), String> {
+    let deadline = (Instant::now() + Duration::from_secs(wait_s)).min(hard_deadline);
     let mut attempt = 0usize;
-    let (mut conn, banner) = loop {
+    loop {
         if let Ok(Some(status)) = child.try_wait() {
             return Err(format!(
                 "QEMU exited ({status}) before the guest ever answered on 127.0.0.1:{host_port}"
@@ -1393,7 +1416,7 @@ fn resident_exchange(
         }
         if Instant::now() >= deadline {
             return Err(format!(
-                "no READY banner on 127.0.0.1:{host_port} within {RESIDENT_READY_S}s \
+                "no READY banner on 127.0.0.1:{host_port} within {wait_s}s \
                  ({attempt} attempts)"
             ));
         }
@@ -1402,7 +1425,7 @@ fn resident_exchange(
             Ok(mut c) => match c.read_line(Duration::from_secs(RESIDENT_ATTEMPT_S)) {
                 Ok(line) if line.starts_with("AEFINITY-OS ") && line.contains(" READY ") => {
                     println!("   attempt {attempt}: {line}");
-                    break (c, line);
+                    return Ok((c, line));
                 }
                 // A stale forward the guest accepted before this attempt was
                 // made is being served; it will be dropped when its peer (the
@@ -1413,7 +1436,17 @@ fn resident_exchange(
             Err(e) => println!("   attempt {attempt}: {e}"),
         }
         std::thread::sleep(Duration::from_secs(3));
-    };
+    }
+}
+
+/// Drive the protocol of spec §4 end to end against the running guest.
+fn resident_exchange(
+    child: &mut Child,
+    host_port: u16,
+    hard_deadline: Instant,
+) -> Result<ResidentSession, String> {
+    // ---- connect and wait for READY ---------------------------------------
+    let (mut conn, banner) = resident_ready(child, host_port, RESIDENT_READY_S, hard_deadline)?;
 
     // ---- PING -> PONG -----------------------------------------------------
     conn.send("PING\n")?;
@@ -1466,6 +1499,9 @@ fn resident_exchange(
     }
     println!("   ok   garbage -> ERR unknown");
 
+    // ---- one over-long line -> ERR too-large (spec §4) --------------------
+    let mut conn = resident_overlong(child, host_port, conn, hard_deadline)?;
+
     // ---- REBOOT -> BYE ----------------------------------------------------
     conn.send("REBOOT\n")?;
     let bye = conn.read_line(left(hard_deadline, RESIDENT_IO_S)?)?;
@@ -1476,6 +1512,83 @@ fn resident_exchange(
     drop(conn);
 
     Ok(ResidentSession { banner, results })
+}
+
+/// Send one command line longer than the 64 KiB cap of spec §4 and assert the
+/// server answers `ERR too-large` instead of dropping the peer in silence.
+///
+/// This exists because it once did drop it in silence. The network stack's own
+/// per-read cap and the server's line cap are the same number, so the stack hit
+/// its cap first and reported the generic "closed", which the line reader could
+/// not tell from the peer having vanished — the client got zero bytes back and
+/// no way to know why. The regression is invisible to every other step in this
+/// gate, so it gets its own.
+///
+/// The write runs on its own thread: the guest stops reading at the cap, so the
+/// tail of an over-long line has nowhere to go, and the answer has to be read
+/// while the write is still stuck. Both fds have a timeout, so neither can hang
+/// the gate.
+///
+/// By spec the connection is spent afterwards, so this returns a fresh one.
+fn resident_overlong(
+    child: &mut Child,
+    host_port: u16,
+    mut conn: ResidentConn,
+    hard_deadline: Instant,
+) -> Result<ResidentConn, String> {
+    println!("   sending one {RESIDENT_OVERLONG_BYTES}-byte line with no newline in it");
+    let mut writer = conn
+        .stream
+        .try_clone()
+        .map_err(|e| format!("could not clone the connection to write on: {e}"))?;
+    writer
+        .set_write_timeout(Some(Duration::from_secs(RESIDENT_OVERLONG_WRITE_S)))
+        .map_err(|e| format!("set_write_timeout: {e}"))?;
+    let pusher = std::thread::spawn(move || {
+        use std::io::Write;
+        // A stalled or refused write is the expected ending here, so the
+        // result is deliberately dropped: what this case asserts is what came
+        // *back*, which the reader below has.
+        let blob = vec![b'X'; RESIDENT_OVERLONG_BYTES];
+        let _ = writer.write_all(&blob);
+    });
+
+    let answer = conn.read_line(left(hard_deadline, RESIDENT_IO_S)?);
+    let _ = pusher.join();
+    match answer {
+        Ok(line) if line == "ERR too-large" => {
+            println!("   ok   over-long line -> ERR too-large");
+        }
+        Ok(line) => {
+            return Err(format!(
+                "an over-long line was answered {line:?}, expected `ERR too-large`"
+            ));
+        }
+        Err(e) => {
+            return Err(format!(
+                "an over-long line got no `ERR too-large` back: {e} — the server must \
+                 answer before it drops the peer (spec §4)"
+            ));
+        }
+    }
+
+    // Spec §4: "the connection is dropped". Either ending is that drop — a
+    // clean close, or a reset once the guest tears down a socket the harness
+    // is still pushing into. What must not happen is the server carrying on
+    // taking commands on a connection it has already refused.
+    match conn.read_line(left(hard_deadline, RESIDENT_IO_S)?) {
+        Ok(line) => {
+            return Err(format!(
+                "the server kept serving after `ERR too-large` and sent {line:?}"
+            ));
+        }
+        Err(e) => println!("   ok   connection dropped after ERR too-large ({e})"),
+    }
+    drop(conn);
+
+    let (conn, banner) = resident_ready(child, host_port, RESIDENT_RELISTEN_S, hard_deadline)?;
+    println!("   ok   the server took a new connection afterwards: {banner}");
+    Ok(conn)
 }
 
 /// Wait for a spawned QEMU to exit, killing it if it overruns.
