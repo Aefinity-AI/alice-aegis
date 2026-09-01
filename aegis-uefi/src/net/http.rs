@@ -168,10 +168,8 @@ pub fn post(
     // has already refused any value with a control character in it, so this
     // cannot break the header framing; the check is repeated here because the
     // consequence of being wrong is request smuggling, not a bad header.
-    if let Some(t) = token {
-        if !t.is_empty() && !t.bytes().any(|b| b < 0x20 || b == 0x7F) {
-            req.push_str(&format!("X-Aefinity-Token: {t}\r\n"));
-        }
+    if let Some(t) = token.filter(|t| !t.is_empty() && !t.bytes().any(|b| b < 0x20 || b == 0x7F)) {
+        req.push_str(&format!("X-Aefinity-Token: {t}\r\n"));
     }
     req.push_str("\r\n");
 
