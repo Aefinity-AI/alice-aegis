@@ -23,11 +23,17 @@
 //! `JOB.TXT` carrying `NET static` + `NETCHECK`, and asserts that the guest's
 //! own TCP/IP stack reached the host and announced its MAC.
 //!
+//! `cargo xtask os-test` is the AEFINITY OS phase-1b gate (spec §6): it runs a
+//! minimal HTTP/1.1 server on the host, boots the guest with a virtio NIC and
+//! a `JOB.TXT` carrying `PROMPT`/`BENCH` plus `REPORT <url>` pointing at that
+//! server, and asserts that the guest POSTed its `RESULT.TXT` bytes there
+//! before resetting.
+//!
 //! No external crates: argument parsing is hand-rolled so this works offline.
 
 use std::env;
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitCode};
@@ -84,6 +90,13 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        "os-test" => match os_test(&flags) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("xtask: os-test failed: {e}");
+                ExitCode::from(1)
+            }
+        },
         "job-budget-test" => match job_budget_test(&flags) {
             Ok(code) => code,
             Err(e) => {
@@ -108,7 +121,7 @@ fn usage() {
         "xtask — A.L.I.C.E. / Aegis dev automation
 
 USAGE:
-    cargo xtask <boot-test|job-test|net-test|job-budget-test> [--ci] [--debug] [--dhcp] [--pcap]
+    cargo xtask <boot-test|job-test|net-test|os-test|job-budget-test> [--ci] [--debug] [--dhcp] [--pcap]
 
 SUBCOMMANDS:
     boot-test    Build the UEFI unikernel, stage an ESP, boot under OVMF in QEMU.
@@ -132,6 +145,17 @@ SUBCOMMANDS:
                  listener is what the guest reaches. PASS = the harness receives
                  a line beginning `HELLO ` followed by a 17-character MAC, AND
                  RESULT.TXT carries job.1.ok=true with a matching mac=/ip=.
+
+    os-test      AEFINITY OS phase 1b (program/AEFINITY_OS.md §6). Runs a minimal
+                 HTTP/1.1 server on an ephemeral 127.0.0.1 port, and stages a
+                 JOB.TXT with `NET static {NET_GUEST_CIDR} {NET_HOST_IP}` / `PROMPT` /
+                 `BENCH {JOB_BENCH_TOKENS}` / `TOKENS {JOB_TOKENS}` /
+                 `REPORT http://{NET_HOST_IP}:<port>/aefinity/result`. PASS = the
+                 harness receives a POST whose body parses with aefinity_os=0.1,
+                 env=vm, jobs=2, verdict=OK, AND QEMU exits (guest ResetSystem).
+                 The on-disk RESULT.TXT is not required to carry `report=` (spec
+                 §6: it predates the POST) — only the received body is asserted.
+                 The received body is printed either way.
 
     job-budget-test
                  Budget-enforcement regression gate. Stages a JOB.TXT with a
@@ -955,6 +979,356 @@ fn is_mac(s: &str) -> bool {
         }
     }
     parts == 6
+}
+
+// ---------------------------------------------------------------------------
+// os-test — AEFINITY OS phase 1b gate (program/AEFINITY_OS.md §6)
+// ---------------------------------------------------------------------------
+
+/// Bytes of request head (method line + headers) the harness buffers before
+/// giving up looking for the blank line that ends them. `net/http.rs` sends
+/// six short headers; this is the cap on a peer that never sends the blank
+/// line at all.
+const OS_HEAD_MAX: usize = 8 * 1024;
+/// Total request bytes (head + body) the harness accepts. The guest's
+/// `RESULT.TXT` is capped at 64 KiB on its own side (spec §4, `job.rs`
+/// `JOB_MAX_BYTES`); this is double that so a legal POST is never what trips
+/// the cap.
+const OS_BODY_MAX: usize = 128 * 1024;
+/// Read timeout once a connection is accepted. The boot itself already
+/// happened by the time the guest dials in, so this only bounds a stalled
+/// write, not the model load.
+const OS_READ_S: u64 = 60;
+/// The reply body the harness's HTTP server sends back. `net::http::post`'s
+/// only caller (`job::dispatch`) reads the status code, not this text; kept
+/// short and ASCII so a `tcpdump`/log read is not surprised by it.
+const OS_REPLY_BODY: &str = "ok";
+
+/// What the harness's HTTP server saw.
+#[derive(Default)]
+struct CaughtBody {
+    /// The POST body, once a full request has been read.
+    body: Vec<u8>,
+    /// Whether a connection was accepted at all (a connection that never
+    /// produced a parseable request still sets this).
+    connected: bool,
+    note: Option<String>,
+}
+
+fn os_test(flags: &[&str]) -> Result<ExitCode, String> {
+    let ci = flags.contains(&"--ci");
+    let debug = flags.contains(&"--debug");
+
+    // Port 0 lets the kernel choose; the guest's JOB.TXT is told the result.
+    // Loopback rather than 0.0.0.0 for the same reason as net-test: slirp
+    // proxies the guest's connection to NET_HOST_IP onto 127.0.0.1, and a
+    // listener on every interface would also be reachable from off the box.
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|e| format!("cannot bind a host listener: {e}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| format!("cannot read the listener address: {e}"))?
+        .port();
+    listener
+        .set_nonblocking(true)
+        .map_err(|e| format!("cannot set the listener non-blocking: {e}"))?;
+
+    let caught = Arc::new(Mutex::new(CaughtBody::default()));
+    let stop = Arc::new(AtomicBool::new(false));
+    let server = {
+        let caught = Arc::clone(&caught);
+        let stop = Arc::clone(&stop);
+        std::thread::spawn(move || {
+            // The whole boot, not just the accept: REPORT is the last thing
+            // the guest does before AFTER, so a slow model load pushes the
+            // connection attempt out nearly as far as JOB_TIMEOUT_S itself.
+            let hard_deadline = Instant::now() + Duration::from_secs(JOB_TIMEOUT_S);
+            loop {
+                match listener.accept() {
+                    Ok((mut sock, peer)) => {
+                        let _ = sock.set_read_timeout(Some(Duration::from_secs(OS_READ_S)));
+                        match read_http_request(&mut sock) {
+                            Ok(body) => {
+                                let reply = format!(
+                                    "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{OS_REPLY_BODY}",
+                                    OS_REPLY_BODY.len()
+                                );
+                                let _ = sock.write_all(reply.as_bytes());
+                                let _ = sock.flush();
+                                let _ = sock.shutdown(std::net::Shutdown::Both);
+                                let mut c = match caught.lock() {
+                                    Ok(c) => c,
+                                    Err(p) => p.into_inner(),
+                                };
+                                c.connected = true;
+                                c.body = body;
+                                c.note = Some(format!("POST from {peer}"));
+                                return;
+                            }
+                            Err(e) => {
+                                // A connection that did not carry a parseable
+                                // request must not consume the only chance to
+                                // see the real POST — keep listening.
+                                let mut c = match caught.lock() {
+                                    Ok(c) => c,
+                                    Err(p) => p.into_inner(),
+                                };
+                                c.connected = true;
+                                c.note = Some(format!("connection from {peer} but {e}"));
+                            }
+                        }
+                    }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                    Err(e) => {
+                        let mut c = match caught.lock() {
+                            Ok(c) => c,
+                            Err(p) => p.into_inner(),
+                        };
+                        c.note = Some(format!("accept failed: {e}"));
+                        return;
+                    }
+                }
+                if stop.load(Ordering::Relaxed) || Instant::now() >= hard_deadline {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        })
+    };
+
+    // BUDGET/TOKENS/BENCH reuse job-test's constants (JOB_BUDGET_S,
+    // JOB_TOKENS, JOB_BENCH_TOKENS): the same wall-clock-under-TCG reasoning
+    // documented on JOB_BUDGET_S applies verbatim to a job that also does
+    // PROMPT/BENCH before REPORT, and this box is shared with other gates —
+    // one pair of constants for "a job that generates tokens under TCG" is
+    // enough.
+    let job_txt = format!(
+        "# staged by `cargo xtask os-test` — AEFINITY OS phase 1b gate\n\
+         BUDGET {JOB_BUDGET_S}\n\
+         MODE oneshot\n\
+         NET static {NET_GUEST_CIDR} {NET_HOST_IP}\n\
+         TOKENS {JOB_TOKENS}\n\
+         PROMPT The capital of France is\n\
+         BENCH {JOB_BENCH_TOKENS}\n\
+         REPORT http://{NET_HOST_IP}:{port}/aefinity/result\n\
+         AFTER reset\n"
+    );
+
+    let esp = stage("os-test", ci, debug, Some(&job_txt))?;
+
+    // Same NIC as net-test: virtio-net-pci is what Debian's OVMF has a
+    // driver for (VirtioNetDxe/EFI_SIMPLE_NETWORK), and virtio-rng-pci is
+    // present because OVMF's entropy path wants an RNG whenever a NIC is
+    // attached.
+    let extra = vec![
+        "-netdev".to_string(),
+        "user,id=n0".to_string(),
+        "-device".to_string(),
+        "virtio-net-pci,netdev=n0".to_string(),
+        "-device".to_string(),
+        "virtio-rng-pci".to_string(),
+    ];
+
+    println!("[4/4] booting under OVMF with a virtio NIC");
+    println!(
+        "      host HTTP server : 127.0.0.1:{port}/aefinity/result (guest posts to {NET_HOST_IP}:{port})"
+    );
+    let outcome = qemu(&esp, &extra, Some(Duration::from_secs(JOB_TIMEOUT_S)))?;
+
+    // QEMU is gone, so nothing more can connect; give the server thread the
+    // tail deadline and then take what it has.
+    stop.store(true, Ordering::Relaxed);
+    let _ = server.join();
+    let caught = match caught.lock() {
+        Ok(c) => CaughtBody {
+            body: c.body.clone(),
+            connected: c.connected,
+            note: c.note.clone(),
+        },
+        Err(p) => {
+            let c = p.into_inner();
+            CaughtBody {
+                body: c.body.clone(),
+                connected: c.connected,
+                note: c.note.clone(),
+            }
+        }
+    };
+
+    println!();
+    match outcome {
+        Outcome::Exited(c) => println!("   QEMU exited {c} (guest ResetSystem under -no-reboot)"),
+        Outcome::Signalled => {
+            eprintln!("== FAIL == QEMU terminated by a signal with no exit code.");
+            return Ok(ExitCode::from(1));
+        }
+        Outcome::TimedOut => {
+            eprintln!(
+                "== FAIL == the guest did not reset within {JOB_TIMEOUT_S}s.\n\
+                 BOOTLOG.TXT on the staged ESP holds the JOB/NET/REPORT lines it reached."
+            );
+            return Ok(ExitCode::from(1));
+        }
+    }
+
+    // The guest's own account of what it did: on a failure these lines say
+    // whether the NIC came up, and whether REPORT connected, sent, or failed.
+    if let Some(text) = find_ci(&esp.dir, "BOOTLOG.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        println!("---- BOOTLOG.TXT (JOB/NET/REPORT lines) ----");
+        for line in text.lines() {
+            if line.contains("JOB:") || line.contains("NET:") || line.contains("REPORT:") {
+                println!("{line}");
+            }
+        }
+        println!("---- end ----");
+        println!();
+    }
+
+    if let Some(note) = &caught.note {
+        println!("   note {note}");
+    }
+
+    let mut failures: Vec<String> = Vec::new();
+
+    // ---- the assertion the phase exists for -------------------------------
+    let body_text = String::from_utf8_lossy(&caught.body).to_string();
+    if !caught.connected {
+        failures.push(format!(
+            "the guest never connected to {NET_HOST_IP}:{port} — no REPORT POST arrived"
+        ));
+    } else if caught.body.is_empty() {
+        failures.push(
+            "the guest connected but the harness never read a complete POST (see the note above)"
+                .to_string(),
+        );
+    } else {
+        println!("---- received POST body (/aefinity/result) ----");
+        print!("{body_text}");
+        if !body_text.ends_with('\n') {
+            println!();
+        }
+        println!("---- end ----");
+    }
+
+    for (key, want) in [
+        ("aefinity_os", "0.1"),
+        ("env", "vm"),
+        ("jobs", "2"),
+        ("verdict", "OK"),
+    ] {
+        match record_value(&body_text, key) {
+            Some(got) if got == want => println!("   ok   {key}={got}"),
+            Some(got) => failures.push(format!("POST body: {key}={got}, expected {want}")),
+            None => failures.push(format!("POST body: {key} missing")),
+        }
+    }
+
+    // The on-disk record, printed for a human reading the gate output. Not
+    // asserted key-by-key: spec §6 says explicitly that `report=` on it is
+    // not required to reflect the POST outcome, because the file predates
+    // the POST (job.rs writes it, then reports it — never the reverse). What
+    // is asserted is only that it exists, because a guest that reset without
+    // ever writing one failed a step long before REPORT.
+    match find_ci(&esp.dir, "RESULT.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        Some(disk) => {
+            println!();
+            println!(
+                "---- {}/RESULT.TXT (on-disk, predates the POST) ----",
+                esp.dir.display()
+            );
+            print!("{disk}");
+            println!("---- end ----");
+        }
+        None => failures.push(format!(
+            "no RESULT.TXT under {} — the guest reset without writing a record",
+            esp.dir.display()
+        )),
+    }
+
+    match wip_cleared_check(&esp) {
+        Ok(line) => println!("   ok   {line}"),
+        Err(why) => failures.push(why),
+    }
+    wip_host_note(&esp);
+
+    println!();
+    if failures.is_empty() {
+        println!("== PASS == the guest POSTed RESULT.TXT to the host collector and reset.");
+        Ok(ExitCode::SUCCESS)
+    } else {
+        for f in &failures {
+            eprintln!("== FAIL == {f}");
+        }
+        Ok(ExitCode::from(1))
+    }
+}
+
+/// Read one HTTP/1.1 request off `sock`: the head (request line + headers, up
+/// to the blank line), then exactly `Content-Length` more bytes as the body.
+/// Returns the body.
+///
+/// `Transfer-Encoding: chunked` is not decoded: `net::http::post` (spec §5)
+/// never sends it, so a peer that does is not phase 1b's client and gets an
+/// error here rather than a wrong body.
+fn read_http_request(sock: &mut std::net::TcpStream) -> Result<Vec<u8>, String> {
+    let mut buf = Vec::new();
+    let mut chunk = [0u8; 1024];
+    let head_end = loop {
+        if let Some(i) = find_subslice(&buf, b"\r\n\r\n") {
+            break i + 4;
+        }
+        if buf.len() >= OS_HEAD_MAX {
+            return Err(format!(
+                "request head exceeded {OS_HEAD_MAX} bytes with no blank line"
+            ));
+        }
+        let n = sock
+            .read(&mut chunk)
+            .map_err(|e| format!("read failed: {e}"))?;
+        if n == 0 {
+            return Err("peer closed before sending a complete request head".to_string());
+        }
+        buf.extend_from_slice(&chunk[..n]);
+    };
+
+    let head = String::from_utf8_lossy(&buf[..head_end]);
+    let content_length: usize = head
+        .lines()
+        .find_map(|l| {
+            let (k, v) = l.split_once(':')?;
+            if k.trim().eq_ignore_ascii_case("content-length") {
+                v.trim().parse().ok()
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| "request carried no Content-Length header".to_string())?;
+    if content_length > OS_BODY_MAX {
+        return Err(format!(
+            "Content-Length {content_length} exceeds the {OS_BODY_MAX}-byte cap"
+        ));
+    }
+
+    let mut body = buf[head_end..].to_vec();
+    while body.len() < content_length {
+        let n = sock
+            .read(&mut chunk)
+            .map_err(|e| format!("read failed: {e}"))?;
+        if n == 0 {
+            return Err(format!(
+                "peer closed after {} of {content_length} body bytes",
+                body.len()
+            ));
+        }
+        body.extend_from_slice(&chunk[..n]);
+    }
+    body.truncate(content_length);
+    Ok(body)
+}
+
+/// First index of `needle` in `hay`, or `None`.
+fn find_subslice(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    hay.windows(needle.len()).position(|w| w == needle)
 }
 
 // ---------------------------------------------------------------------------
