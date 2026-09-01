@@ -115,6 +115,12 @@ SUBCOMMANDS:
                  this case produced no record at all: the firmware watchdog reset
                  the box mid-prefill and the volume stayed silent.
 
+    Both job gates also assert the guest's BOOTLOG line `RESULT.WIP cleared=true`:
+    spec §3 makes the marker's presence mean \"this box did not finish\", so the
+    guest must have confirmed it off the volume. QEMU's `fat:rw:` does not commit
+    the unlink to the host mirror, so target/esp may still show the file; that is
+    noted, not failed (see `wip_cleared_check`).
+
 FLAGS:
     --ci         Non-interactive: fail fast with diagnostics instead of prompting.
     --debug      Build the debug profile instead of release.
@@ -507,6 +513,11 @@ fn job_test(flags: &[&str]) -> Result<ExitCode, String> {
             None => failures.push(format!("{key} missing")),
         }
     }
+    match wip_cleared_check(&esp) {
+        Ok(line) => println!("   ok   {line}"),
+        Err(why) => failures.push(why),
+    }
+    wip_host_note(&esp);
 
     println!();
     if failures.is_empty() {
@@ -634,6 +645,11 @@ fn job_budget_test(flags: &[&str]) -> Result<ExitCode, String> {
         )),
         None => failures.push("verdict missing".to_string()),
     }
+    match wip_cleared_check(&esp) {
+        Ok(line) => println!("   ok   {line}"),
+        Err(why) => failures.push(why),
+    }
+    wip_host_note(&esp);
 
     println!();
     if failures.is_empty() {
@@ -644,6 +660,57 @@ fn job_budget_test(flags: &[&str]) -> Result<ExitCode, String> {
             eprintln!("== FAIL == {f}");
         }
         Ok(ExitCode::from(1))
+    }
+}
+
+/// Assert that the guest cleared its in-progress marker, reading the guest's
+/// own `BOOTLOG.TXT` line rather than the host mirror of the ESP.
+///
+/// `aegis-uefi`'s `job::confirm_wip_cleared` writes
+/// `JOB: RESULT.WIP cleared=<bool> (open=… dir=… retried=…)` after the settle
+/// stall, from two independent probes of the volume it is holding: an `open`
+/// that distinguishes `NOT_FOUND` from unreadable, and a walk of the root
+/// directory. That line is the claim spec §3 rests on — a `RESULT.WIP` on a
+/// stick that comes home means the box did not finish — so it is what this
+/// gate checks.
+///
+/// It is checked there and not with `ls target/esp` because the difference is
+/// measured, not assumed: on 2026-09-01, in the same run, both guest probes
+/// reported the marker absent while `target/esp/result.wip` was still in the
+/// host directory, and the guest's *later* writes (the BOOTLOG lines below
+/// it, `RESULT.TXT`) committed through fine. QEMU's `fat:rw:` backend commits
+/// guest writes back to the host directory; it does not commit the unlink.
+/// A real stick has no such mirror — the FAT directory the firmware walks is
+/// the medium — so a host-side `ls` here would assert a QEMU property, not a
+/// unikernel one. The host state is still printed, because someone reading
+/// this output will see the file and deserves to be told why.
+fn wip_cleared_check(esp: &Esp) -> Result<String, String> {
+    let Some(log) = find_ci(&esp.dir, "BOOTLOG.TXT").and_then(|p| fs::read_to_string(p).ok())
+    else {
+        return Err("no BOOTLOG.TXT on the staged ESP — cannot confirm RESULT.WIP".to_string());
+    };
+    let Some(line) = log.lines().rfind(|l| l.contains("RESULT.WIP cleared=")) else {
+        return Err(
+            "BOOTLOG.TXT has no `RESULT.WIP cleared=` line — the guest never confirmed              the marker was off the volume"
+                .to_string(),
+        );
+    };
+    let line = line.trim().to_string();
+    if line.contains("cleared=true") {
+        Ok(line)
+    } else {
+        Err(format!(
+            "the guest could not clear its in-progress marker: {line}"
+        ))
+    }
+}
+
+/// Report the host mirror's view of the marker (see [`wip_cleared_check`]).
+fn wip_host_note(esp: &Esp) {
+    if let Some(p) = find_ci(&esp.dir, "RESULT.WIP") {
+        println!("   note {} is still in the host mirror.", p.display());
+        println!("        QEMU `fat:rw:` commits guest writes but not the unlink;");
+        println!("        the guest's BOOTLOG line above is the statement about the volume.");
     }
 }
 
