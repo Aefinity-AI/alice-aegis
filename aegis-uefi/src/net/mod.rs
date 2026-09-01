@@ -51,7 +51,6 @@
 //!   protocol timers, and no duration it produces may be quoted as a
 //!   measurement.
 
-use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec;
@@ -92,6 +91,13 @@ const TCP_TX_BYTES: usize = 4096;
 /// source, so the count is also the bound on how much memory an unresponsive
 /// NIC can pin: `MAX_PENDING_TX * (MTU)`, about 12 KiB.
 const MAX_PENDING_TX: usize = 8;
+/// Granularity of a pinned DMA slot, in bytes. One Ethernet frame (1514 on a
+/// standard MTU) fits in one; the pool rounds up to a multiple of this so
+/// every slot is naturally aligned inside the page allocation.
+const DMA_SLOT_GRAIN: usize = 2048;
+/// Slots the pool holds: one per in-flight transmit, plus one the receive path
+/// keeps for the whole life of the device.
+const DMA_POOL_SLOTS: usize = MAX_PENDING_TX + 1;
 /// The backstop that tears down a connection nobody is talking on.
 ///
 /// Deliberately **not** the caller's operation timeout. Arming the socket's
@@ -367,6 +373,109 @@ impl Clock {
 }
 
 // ---------------------------------------------------------------------------
+// DmaPool — frame buffers the NIC can actually reach
+// ---------------------------------------------------------------------------
+
+/// A small, fixed pool of frame-sized buffers pinned **below 4 GB**.
+///
+/// # Why a pool and not the global heap
+///
+/// `EFI_SIMPLE_NETWORK.Transmit()` hands the NIC a pointer its DMA engine
+/// reads directly, and `Receive()` may be served the same way by a driver that
+/// programs a descriptor with the caller's buffer. A NIC with a 32-bit DMA
+/// descriptor format — every older PCI/PCIe part, which is most of what sits
+/// on a lab shelf — cannot address memory above 4 GB. Given a 64-bit address
+/// it either refuses the frame or, worse, truncates the address to 32 bits and
+/// reads or writes somebody else's memory: silent corruption committed by the
+/// NIC, not the CPU, so nothing in the CPU's view of the program can catch it.
+///
+/// The global heap here gives no such guarantee. Only the small boot heap is
+/// capped at `MaxAddress(0xFFFF_FFFF)`; [`crate::allocator::allocate_huge_pages`]
+/// deliberately is not, and says so in its own comment, because weight buffers
+/// legitimately belong above 4 GB on a large-memory machine. A frame that fell
+/// through into one of those chunks would be a >4 GB DMA address. The model
+/// loader already bounces through a `MaxAddress(0xFFFF_FFFF)` allocation for
+/// exactly this reason (`main.rs`); this is the same rule applied to the NIC.
+///
+/// # Why the test lane cannot find this
+///
+/// `cargo xtask boot-test` runs QEMU with `-m 2048`. Every guest-physical
+/// address is under 4 GB, so a heap frame works there by accident on every
+/// run, on every host. This is a hardware-only failure mode and the fix has to
+/// land before a stick is flashed, not after a box misbehaves.
+struct DmaPool {
+    /// Page-aligned base of the one allocation, guaranteed under 4 GB.
+    base: core::ptr::NonNull<u8>,
+    /// Pages allocated, for `free_pages` at drop.
+    pages: usize,
+    /// Bytes per slot; a multiple of [`DMA_SLOT_GRAIN`].
+    slot_size: usize,
+    /// Slot indices nobody holds.
+    free: Vec<usize>,
+}
+
+impl DmaPool {
+    /// Claim `slots` buffers of at least `want` bytes each, all below 4 GB.
+    ///
+    /// `None` means the firmware would not give us low memory, which the
+    /// caller turns into "no network" — a NIC driven from unreachable buffers
+    /// is worse than no NIC, because it fails silently.
+    fn new(slots: usize, want: usize) -> Option<DmaPool> {
+        let slot_size = want.max(DMA_SLOT_GRAIN).div_ceil(DMA_SLOT_GRAIN) * DMA_SLOT_GRAIN;
+        let bytes = slots.checked_mul(slot_size)?;
+        let pages = bytes.div_ceil(4096);
+        let base = uefi::boot::allocate_pages(
+            uefi::boot::AllocateType::MaxAddress(0xFFFF_FFFF),
+            uefi::boot::MemoryType::LOADER_DATA,
+            pages,
+        )
+        .ok()?;
+        Some(DmaPool {
+            base,
+            pages,
+            slot_size,
+            free: (0..slots).collect(),
+        })
+    }
+
+    /// Address of slot `i`. Slots are `slot_size` apart inside one allocation,
+    /// so every one is `DMA_SLOT_GRAIN`-aligned.
+    fn slot_ptr(&self, i: usize) -> *mut u8 {
+        // SAFETY: `i` only ever comes from the free list this pool built for
+        // its own `slots`, so `i * slot_size` stays inside the allocation that
+        // `base`/`pages` describe. The result is a pointer, not a reference:
+        // nothing is read or written here.
+        unsafe { self.base.as_ptr().add(i * self.slot_size) }
+    }
+
+    /// Take a slot out of circulation, or `None` when every one is in flight.
+    fn take(&mut self) -> Option<usize> {
+        self.free.pop()
+    }
+
+    /// Return a slot the NIC has finished with. Idempotent on purpose: a
+    /// driver that recycles the same address twice must not be able to hand
+    /// the same slot out to two frames at once.
+    fn give_back(&mut self, i: usize) {
+        if !self.free.contains(&i) {
+            self.free.push(i);
+        }
+    }
+}
+
+impl Drop for DmaPool {
+    fn drop(&mut self) {
+        // SAFETY: `base` and `pages` are exactly what `allocate_pages`
+        // returned and nothing else has freed any of it. The NIC is no longer
+        // reading from these pages: `SnpDevice::drop` runs `Shutdown()` in its
+        // own body, which is before Rust drops the struct's fields.
+        unsafe {
+            let _ = uefi::boot::free_pages(self.base, self.pages);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // SnpDevice — smoltcp::phy::Device over EFI_SIMPLE_NETWORK (spec §5)
 // ---------------------------------------------------------------------------
 
@@ -380,21 +489,30 @@ impl Clock {
 /// use-after-free that the NIC, not the CPU, commits — silent corruption of
 /// whatever the allocator handed out next.
 ///
-/// So a transmitted frame is boxed and parked in `pending` keyed by its
-/// address, and only dropped once `get_recycled_transmit_buffer_status`
-/// returns that address. `pending` is capped at [`MAX_PENDING_TX`]; when it is
-/// full the frame is not queued at all and `tx_dropped` counts it. Dropping a
-/// frame is legal — TCP retransmits, ARP retries — and it is the only choice
-/// here that is both bounded and sound.
+/// So a transmitted frame is written into a [`DmaPool`] slot and that slot is
+/// parked in `pending` keyed by its address, and only returned to the pool
+/// once `get_recycled_transmit_buffer_status` hands that address back.
+/// `pending` is capped at [`MAX_PENDING_TX`] — the pool's transmit slots —
+/// and when they are all in flight the frame is not queued at all and
+/// `tx_dropped` counts it. Dropping a frame is legal — TCP retransmits, ARP
+/// retries — and it is the only choice here that is both bounded and sound.
+///
+/// # DMA reach
+///
+/// Every buffer the NIC touches, transmit and receive both, comes out of
+/// `pool` and is therefore under 4 GB. See [`DmaPool`] for why that is not
+/// optional and why no QEMU run can show it.
 pub struct SnpDevice {
     snp: ScopedProtocol<SimpleNetwork>,
     /// Ethernet frame size the NIC reports: media header + payload.
     mtu: usize,
-    /// Reused receive staging buffer, so a poll that finds nothing allocates
-    /// nothing.
-    rx: Vec<u8>,
-    /// Frames the NIC still owns, keyed by buffer address.
-    pending: Vec<(usize, Box<[u8]>)>,
+    /// Frame buffers the NIC can reach: transmit slots plus the receive one.
+    pool: DmaPool,
+    /// The pool slot the receive path stages into, held for the life of the
+    /// device so a poll that finds nothing allocates nothing.
+    rx_slot: usize,
+    /// Slots the NIC still owns, keyed by the address it was given.
+    pending: Vec<(usize, usize)>,
     /// Frames never handed to the NIC (queue full, or the firmware refused).
     tx_dropped: u64,
     /// Receives that failed for a reason other than "nothing to read".
@@ -504,7 +622,18 @@ impl SnpDevice {
         }
 
         // A few bytes of slack: some drivers hand back the FCS with the frame.
-        let rx = vec![0u8; mtu + 8];
+        // Both directions come out of the same pinned pool — see `DmaPool`.
+        let Some(mut pool) = DmaPool::new(DMA_POOL_SLOTS, mtu + 8) else {
+            crate::boot_log(
+                root,
+                "NET: no DMA-reachable memory under 4 GB for frame buffers",
+            );
+            return None;
+        };
+        let Some(rx_slot) = pool.take() else {
+            crate::boot_log(root, "NET: DMA pool came up with no slots");
+            return None;
+        };
         crate::boot_log(
             root,
             &format!(
@@ -516,7 +645,8 @@ impl SnpDevice {
         Some(SnpDevice {
             snp,
             mtu,
-            rx,
+            pool,
+            rx_slot,
             pending: Vec::new(),
             tx_dropped: 0,
             rx_errors: 0,
@@ -546,9 +676,12 @@ impl SnpDevice {
                 Ok(Some(p)) => {
                     let addr = p.as_ptr() as usize;
                     if let Some(i) = self.pending.iter().position(|(a, _)| *a == addr) {
-                        // Dropping the Box here is the point: the driver has
-                        // said it is done reading from it.
-                        self.pending.swap_remove(i);
+                        // Returning the slot here is the point: the driver has
+                        // said it is done reading from it. Matching by pointer
+                        // is what SNP gives us — `GetStatus` hands back the
+                        // address, not a token.
+                        let (_, slot) = self.pending.swap_remove(i);
+                        self.pool.give_back(slot);
                     }
                 }
                 // No buffer waiting, or the driver will not say. Either way
@@ -558,29 +691,46 @@ impl SnpDevice {
         }
     }
 
-    /// Queue one complete Ethernet frame.
-    fn send(&mut self, buf: Box<[u8]>) {
+    /// Claim a pinned slot to build a `len`-byte frame in, reclaiming the
+    /// finished ones first.
+    ///
+    /// `None` means the frame cannot be sent DMA-safely: every slot is in
+    /// flight, or the frame is bigger than a slot (which the MTU smoltcp was
+    /// given makes unreachable, but a driver that lies about its MTU must not
+    /// turn into an overflow).
+    fn tx_slot(&mut self, len: usize) -> Option<usize> {
+        if len == 0 || len > self.pool.slot_size {
+            return None;
+        }
         self.reclaim();
-        if self.pending.len() >= MAX_PENDING_TX {
+        if self.pool.free.is_empty() {
             // Give the driver a moment to finish one, then look again.
             uefi::boot::stall(CoreDuration::from_millis(1));
             self.reclaim();
         }
-        if self.pending.len() >= MAX_PENDING_TX {
-            self.tx_dropped += 1;
-            return;
-        }
-        let addr = buf.as_ptr() as usize;
+        self.pool.take()
+    }
+
+    /// Queue the `len` bytes already written into pinned slot `slot`.
+    fn send(&mut self, slot: usize, len: usize) {
+        let ptr = self.pool.slot_ptr(slot);
+        let addr = ptr as usize;
+        // SAFETY: `slot` came from `tx_slot`, so it is out of the pool's free
+        // list and no other reference to it exists; `len <= slot_size` was
+        // checked there, so the slice stays inside the one allocation. The
+        // caller finished writing the frame before calling this.
+        let buf = unsafe { core::slice::from_raw_parts(ptr, len) };
         // header_size 0: the frame already carries its Ethernet header, which
         // smoltcp wrote. Passing a non-zero header size would ask the driver to
         // overwrite it from the src/dst/protocol arguments instead.
-        if self.snp.transmit(0, &buf, None, None, None).is_err() {
-            // Rejected, so the driver never took the pointer and `buf` is ours
-            // to drop at the end of this scope.
+        if self.snp.transmit(0, buf, None, None, None).is_err() {
+            // Rejected, so the driver never took the pointer and the slot is
+            // ours to hand straight back.
+            self.pool.give_back(slot);
             self.tx_dropped += 1;
             return;
         }
-        self.pending.push((addr, buf));
+        self.pending.push((addr, slot));
     }
 }
 
@@ -590,9 +740,10 @@ impl Drop for SnpDevice {
     /// Order matters and it is the reason this impl exists: `Shutdown()`
     /// disables the receive and transmit queues, so after it returns the
     /// driver is no longer reading from anything in `pending`. Rust drops the
-    /// struct's fields *after* this body, which is exactly the order the
-    /// hardware needs. Dropping `pending` first would hand the allocator
-    /// memory a live DMA engine still points at.
+    /// struct's fields *after* this body — including the [`DmaPool`], whose
+    /// own `Drop` returns the pinned pages to the firmware — which is exactly
+    /// the order the hardware needs. Freeing the pool first would hand the
+    /// firmware memory a live DMA engine still points at.
     fn drop(&mut self) {
         let _ = self.snp.shutdown();
         let _ = self.snp.stop();
@@ -626,10 +777,32 @@ impl smoltcp::phy::TxToken for SnpTxToken<'_> {
     where
         F: FnOnce(&mut [u8]) -> R,
     {
-        let mut buf: Box<[u8]> = vec![0u8; len].into_boxed_slice();
-        let r = f(&mut buf);
-        self.dev.send(buf);
-        r
+        match self.dev.tx_slot(len) {
+            Some(slot) => {
+                let ptr = self.dev.pool.slot_ptr(slot);
+                // SAFETY: `tx_slot` just took `slot` off the pool's free list,
+                // so this is the only reference to it, and it checked
+                // `len <= slot_size`, so the slice stays inside the pool's one
+                // allocation. The slice is gone before `send` hands the
+                // address to the NIC.
+                let buf = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
+                buf.fill(0);
+                let r = f(buf);
+                self.dev.send(slot, len);
+                r
+            }
+            None => {
+                // No pinned slot: every one is in flight, or the frame is
+                // over-size. smoltcp requires `f` to run either way, so the
+                // frame is built on the heap and dropped — a heap address is
+                // exactly what a 32-bit-DMA NIC must never be given, and
+                // dropping a frame is legal (TCP retransmits, ARP retries).
+                let mut buf = vec![0u8; len];
+                let r = f(&mut buf);
+                self.dev.tx_dropped += 1;
+                r
+            }
+        }
     }
 }
 
@@ -639,7 +812,16 @@ impl Device for SnpDevice {
 
     fn receive(&mut self, _now: Instant) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
         self.reclaim();
-        let n = match self.snp.receive(&mut self.rx, None, None, None, None) {
+        let ptr = self.pool.slot_ptr(self.rx_slot);
+        let cap = self.pool.slot_size;
+        // SAFETY: `rx_slot` was taken out of the pool in `open()` and is never
+        // handed to anything else, so this is the only reference to it; `cap`
+        // is exactly one slot, inside the pool's allocation, which outlives
+        // this borrow. It is pinned under 4 GB because a driver may serve
+        // `Receive()` by DMA into the caller's buffer rather than by copying
+        // out of its own — see `DmaPool`.
+        let rx = unsafe { core::slice::from_raw_parts_mut(ptr, cap) };
+        let n = match self.snp.receive(rx, None, None, None, None) {
             Ok(n) => n,
             Err(e) => {
                 // NOT_READY is the normal "no packet waiting" answer and is not
@@ -651,10 +833,12 @@ impl Device for SnpDevice {
                 return None;
             }
         };
-        if n == 0 || n > self.rx.len() {
+        if n == 0 || n > cap {
             return None;
         }
-        let frame = self.rx[..n].to_vec();
+        // SAFETY: as above — the same slot, and `n <= cap` was just checked.
+        let rx = unsafe { core::slice::from_raw_parts(ptr, n) };
+        let frame = rx.to_vec();
         Some((SnpRxToken { frame }, SnpTxToken { dev: self }))
     }
 
