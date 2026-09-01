@@ -103,6 +103,13 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        "files-test" => match files_test(&flags) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("xtask: files-test failed: {e}");
+                ExitCode::from(1)
+            }
+        },
         "resident-test" => match resident_test(&flags) {
             Ok(code) => code,
             Err(e) => {
@@ -134,7 +141,7 @@ fn usage() {
         "xtask — A.L.I.C.E. / Aegis dev automation
 
 USAGE:
-    cargo xtask <boot-test|job-test|net-test|os-test|resident-test|job-budget-test>
+    cargo xtask <boot-test|job-test|net-test|os-test|resident-test|files-test|job-budget-test>
                 [--ci] [--debug] [--dhcp] [--pcap]
 
 SUBCOMMANDS:
@@ -2251,4 +2258,832 @@ fn find_efi(dir: &Path) -> Option<PathBuf> {
         }
     }
     best.map(|(_, p)| p)
+}
+
+// ---------------------------------------------------------------------------
+// files-test — AEFINITY OS phase 4 (design §7)
+// ---------------------------------------------------------------------------
+
+/// Hard deadline over the whole phase-4 exchange.
+///
+/// Larger than `resident-test`'s because this gate moves 64 MiB across the
+/// wire, writes it to FAT, reads it back for a digest, and then hashes it a
+/// third time for the `SHA` verb — under TCG, on a shared 6 GB box. Rule A:
+/// this is a harness bound, not a measurement, and nothing is recorded from it.
+const FILES_TIMEOUT_S: u64 = 3600;
+/// How long the harness keeps retrying for the READY banner.
+const FILES_READY_S: u64 = 1200;
+/// How long a short reply (`OK`, `ERR …`, `SEND`, a `LS` header) is given.
+const FILES_IO_S: u64 = 180;
+/// How long one bulk transfer step is given: the 64 MiB `PUT` payload, its
+/// readback digest, or a `SHA` over it.
+const FILES_BULK_S: u64 = 1500;
+/// How long QEMU gets to exit after the guest answers `BYE`.
+const FILES_EXIT_S: u64 = 240;
+/// The small round-trip payload: 256 KiB of deterministic pseudorandom bytes.
+const FILES_SMALL_BYTES: usize = 256 * 1024;
+/// The large payload (design §7): 64 MiB. A 256 KiB transfer proves nothing
+/// about a 1.8 GB one — this is the case that exercises §4.2's listener window
+/// and §8's per-chunk watchdog re-arm across a readback.
+const FILES_BIG_BYTES: usize = 64 * 1024 * 1024;
+/// The shared secret staged into `JOB.TXT`, so the gate can prove design
+/// §1.2's rule that a `TOKEN` gates **reads** as well as writes.
+const FILES_TOKEN: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+/// A name one byte over `NAME_MAX_BYTES` (31), for the `ERR bad-name` case.
+const FILES_LONG_NAME: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAA.BIN";
+/// A declared length over `PUT_MAX_BYTES` (2 GiB): 3 GiB.
+const FILES_OVER_LEN: u64 = 3 * 1024 * 1024 * 1024;
+
+/// A minimal FIPS 180-4 sha256, host side.
+///
+/// Deliberately a **second implementation**, not a call into `aegis-core`: the
+/// whole point of `SHA <NAME>` in this gate is that the guest's digest of the
+/// bytes on its volume equals a digest computed by something that is not the
+/// code under test (CLAUDE.md Rule D). It is cross-checked once per run
+/// against `sha256sum` where that binary exists, so a bug in *this* function
+/// cannot make the gate pass either.
+struct Sha256 {
+    state: [u32; 8],
+    buf: [u8; 64],
+    len: usize,
+    total: u64,
+}
+
+const SHA_K: [u32; 64] = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
+
+impl Sha256 {
+    fn new() -> Sha256 {
+        Sha256 {
+            state: [
+                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+                0x5be0cd19,
+            ],
+            buf: [0u8; 64],
+            len: 0,
+            total: 0,
+        }
+    }
+
+    fn update(&mut self, mut data: &[u8]) {
+        self.total += data.len() as u64;
+        while !data.is_empty() {
+            let take = (64 - self.len).min(data.len());
+            self.buf[self.len..self.len + take].copy_from_slice(&data[..take]);
+            self.len += take;
+            data = &data[take..];
+            if self.len == 64 {
+                let block = self.buf;
+                self.block(&block);
+                self.len = 0;
+            }
+        }
+    }
+
+    fn block(&mut self, b: &[u8; 64]) {
+        let mut w = [0u32; 64];
+        for i in 0..16 {
+            w[i] = u32::from_be_bytes([b[4 * i], b[4 * i + 1], b[4 * i + 2], b[4 * i + 3]]);
+        }
+        for i in 16..64 {
+            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16]
+                .wrapping_add(s0)
+                .wrapping_add(w[i - 7])
+                .wrapping_add(s1);
+        }
+        let mut h = self.state;
+        for i in 0..64 {
+            let s1 = h[4].rotate_right(6) ^ h[4].rotate_right(11) ^ h[4].rotate_right(25);
+            let ch = (h[4] & h[5]) ^ ((!h[4]) & h[6]);
+            let t1 = h[7]
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(SHA_K[i])
+                .wrapping_add(w[i]);
+            let s0 = h[0].rotate_right(2) ^ h[0].rotate_right(13) ^ h[0].rotate_right(22);
+            let maj = (h[0] & h[1]) ^ (h[0] & h[2]) ^ (h[1] & h[2]);
+            let t2 = s0.wrapping_add(maj);
+            h[7] = h[6];
+            h[6] = h[5];
+            h[5] = h[4];
+            h[4] = h[3].wrapping_add(t1);
+            h[3] = h[2];
+            h[2] = h[1];
+            h[1] = h[0];
+            h[0] = t1.wrapping_add(t2);
+        }
+        for (i, v) in h.iter().enumerate() {
+            self.state[i] = self.state[i].wrapping_add(*v);
+        }
+    }
+
+    fn finalize(mut self) -> [u8; 32] {
+        let bits = self.total * 8;
+        self.update(&[0x80]);
+        while self.len != 56 {
+            self.update(&[0u8]);
+        }
+        let block = {
+            let mut b = self.buf;
+            b[56..64].copy_from_slice(&bits.to_be_bytes());
+            b
+        };
+        self.block(&block);
+        let mut out = [0u8; 32];
+        for i in 0..8 {
+            out[4 * i..4 * i + 4].copy_from_slice(&self.state[i].to_be_bytes());
+        }
+        out
+    }
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    let mut h = Sha256::new();
+    h.update(data);
+    hex_of(&h.finalize())
+}
+
+fn hex_of(d: &[u8; 32]) -> String {
+    let mut s = String::with_capacity(64);
+    for b in d {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
+/// Deterministic pseudorandom bytes — an xorshift64* stream, so the payload is
+/// the same on every run and a `GET` that comes back byte-identical is a
+/// bit-exactness assertion (Rule D), not a coincidence.
+fn pseudorandom(n: usize, seed: u64) -> Vec<u8> {
+    let mut out = Vec::with_capacity(n);
+    let mut x = seed | 1;
+    while out.len() < n {
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        let v = x.wrapping_mul(0x2545_f491_4f6c_dd1d);
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    out.truncate(n);
+    out
+}
+
+impl ResidentConn {
+    /// Write raw bytes (a `DATA`/`PUT` payload). Separate from [`Self::send`]
+    /// because a payload is not a line and must not be `&str`.
+    fn send_bytes(&mut self, data: &[u8]) -> Result<(), String> {
+        use std::io::Write;
+        self.stream
+            .write_all(data)
+            .map_err(|e| format!("write {} bytes: {e}", data.len()))?;
+        self.stream.flush().map_err(|e| format!("flush: {e}"))
+    }
+
+    /// Read exactly `n` raw bytes, draining anything `read_line` over-read
+    /// first — the same residual-buffer discipline the server itself keeps.
+    fn read_exact(&mut self, n: usize, wait: Duration) -> Result<Vec<u8>, String> {
+        let deadline = Instant::now() + wait;
+        while self.pending.len() < n {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(format!(
+                    "only {} of {n} payload bytes within {}s",
+                    self.pending.len(),
+                    wait.as_secs()
+                ));
+            }
+            self.stream
+                .set_read_timeout(Some(left.min(Duration::from_secs(5))))
+                .map_err(|e| format!("set_read_timeout: {e}"))?;
+            let mut buf = vec![0u8; 64 * 1024];
+            match self.stream.read(&mut buf) {
+                Ok(0) => return Err("the guest closed the connection mid-payload".to_string()),
+                Ok(k) => self.pending.extend_from_slice(&buf[..k]),
+                Err(ref e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut => {}
+                Err(e) => return Err(format!("read: {e}")),
+            }
+        }
+        Ok(self.pending.drain(..n).collect())
+    }
+
+    /// Read a `DATA <len> <sha16>\n<bytes>END\n` frame (design §1.1) and hand
+    /// back the payload, having checked both halves of the header against it.
+    fn read_data_frame(&mut self, wait: Duration, bulk: Duration) -> Result<Vec<u8>, String> {
+        let head = self.read_line(wait)?;
+        let mut it = head.split_whitespace();
+        match (it.next(), it.next(), it.next(), it.next()) {
+            (Some("DATA"), Some(len), Some(sha16), None) => {
+                let len: usize = len
+                    .parse()
+                    .map_err(|_| format!("DATA length {len:?} does not parse"))?;
+                let body = self.read_exact(len, bulk)?;
+                let tail = self.read_exact(4, wait)?;
+                if tail != b"END\n" {
+                    return Err(format!("DATA frame did not end in END: {tail:?}"));
+                }
+                let got = sha256_hex(&body);
+                if !got.starts_with(sha16) {
+                    return Err(format!(
+                        "DATA header sha16={sha16} but the payload hashes to {got}"
+                    ));
+                }
+                Ok(body)
+            }
+            _ => Err(format!("expected a DATA frame, got {head:?}")),
+        }
+    }
+}
+
+/// One request/response step, printed as it goes so a failing gate says which
+/// verb failed rather than only that something did.
+fn files_step(
+    conn: &mut ResidentConn,
+    hard: Instant,
+    cmd: &str,
+    want: &str,
+) -> Result<String, String> {
+    conn.send(&format!("{cmd}\n"))?;
+    let line = conn.read_line(left(hard, FILES_IO_S)?)?;
+    if line == want || (want.ends_with('*') && line.starts_with(&want[..want.len() - 1])) {
+        println!("   ok   {cmd}  ->  {line}");
+        Ok(line)
+    } else {
+        Err(format!("{cmd} answered {line:?}, expected {want:?}"))
+    }
+}
+
+/// Drive one `PUT`: header, `SEND`, payload, trailer, answer.
+///
+/// `trailer` is what goes after the payload — `b"END\n"` for a well-formed
+/// frame, and something else for design §1.4's `bad-frame` case.
+fn files_put(
+    conn: &mut ResidentConn,
+    hard: Instant,
+    name: &str,
+    payload: &[u8],
+    declared_sha: &str,
+    trailer: &[u8],
+) -> Result<String, String> {
+    conn.send(&format!("PUT {name} {} {declared_sha}\n", payload.len()))?;
+    let first = conn.read_line(left(hard, FILES_IO_S)?)?;
+    if first != "SEND" {
+        // A refusal before `SEND` is a legitimate answer (§1.4: nothing
+        // written, connection kept), so it is handed back rather than treated
+        // as a protocol error — the caller decides whether it wanted one.
+        return Ok(first);
+    }
+    conn.send_bytes(payload)?;
+    conn.send_bytes(trailer)?;
+    conn.read_line(left(hard, FILES_BULK_S)?)
+}
+
+/// `SHA <NAME>` → the 64-hex digest the guest computed over its own copy.
+fn files_sha(conn: &mut ResidentConn, hard: Instant, name: &str) -> Result<(u64, String), String> {
+    conn.send(&format!("SHA {name}\n"))?;
+    let line = conn.read_line(left(hard, FILES_BULK_S)?)?;
+    let mut it = line.split_whitespace();
+    match (it.next(), it.next(), it.next(), it.next(), it.next()) {
+        (Some("SHA"), Some(got), Some(size), Some(hex), None) if got == name => {
+            let size: u64 = size
+                .parse()
+                .map_err(|_| format!("SHA size {size:?} does not parse"))?;
+            if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(format!("SHA digest {hex:?} is not 64 hex"));
+            }
+            Ok((size, hex.to_string()))
+        }
+        _ => Err(format!("SHA {name} answered {line:?}")),
+    }
+}
+
+fn files_test(flags: &[&str]) -> Result<ExitCode, String> {
+    let ci = flags.contains(&"--ci");
+    let debug = flags.contains(&"--debug");
+
+    let host_port = {
+        let probe = TcpListener::bind("127.0.0.1:0")
+            .map_err(|e| format!("cannot pick a host port: {e}"))?;
+        probe
+            .local_addr()
+            .map_err(|e| format!("cannot read the probe address: {e}"))?
+            .port()
+    };
+
+    // `TOKEN` is staged so the gate can prove design §1.2's rule that a token
+    // gates reads too. Every verb below therefore runs after an `AUTH`.
+    let job_txt = format!(
+        "# staged by `cargo xtask files-test` — AEFINITY OS phase 4 gate\n\
+         MODE resident\n\
+         NET static {NET_GUEST_CIDR} {NET_HOST_IP}\n\
+         LISTEN {RESIDENT_GUEST_PORT}\n\
+         TOKEN {FILES_TOKEN}\n"
+    );
+
+    let esp = stage("files-test", ci, debug, Some(&job_txt))?;
+
+    // Files a previous run left in the mirror would be inside the vvfat image
+    // this run boots, and a 64 MiB stray would eat the volume the gate needs.
+    for stray in ["TEST.BIN", "BIG.BIN", "BAD.BIN", "STAGE.PRT", "CURRENT.TXT"] {
+        if let Some(p) = find_ci(&esp.dir, stray) {
+            let _ = fs::remove_file(p);
+        }
+    }
+
+    // The host's own digest of the staged MODEL.SAF, which the guest's
+    // `SHA MODEL.SAF` has to equal.
+    let model_path = find_ci(&esp.dir, "MODEL.SAF")
+        .ok_or_else(|| format!("no MODEL.SAF staged under {}", esp.dir.display()))?;
+    let model_bytes =
+        fs::read(&model_path).map_err(|e| format!("reading {}: {e}", model_path.display()))?;
+    let model_sha = sha256_hex(&model_bytes);
+    let model_len = model_bytes.len() as u64;
+    drop(model_bytes);
+    println!("[3.5/4] host sha256 of the staged MODEL.SAF: {model_sha}");
+    match Command::new("sha256sum").arg(&model_path).output() {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let want = text.split_whitespace().next().unwrap_or("");
+            if want == model_sha {
+                println!("        cross-checked against sha256sum ✓");
+            } else {
+                return Err(format!(
+                    "the harness sha256 ({model_sha}) disagrees with sha256sum ({want}) — \
+                     the harness is wrong, not the guest"
+                ));
+            }
+        }
+        _ => println!("        (sha256sum not available; harness digest uncross-checked)"),
+    }
+
+    let extra = vec![
+        "-netdev".to_string(),
+        format!("user,id=n0,hostfwd=tcp:127.0.0.1:{host_port}-:{RESIDENT_GUEST_PORT}"),
+        "-device".to_string(),
+        "virtio-net-pci,netdev=n0".to_string(),
+        "-device".to_string(),
+        "virtio-rng-pci".to_string(),
+    ];
+
+    println!("[4/4] booting under OVMF with a virtio NIC and a host forward");
+    let (qemu_bin, mut cmd) = qemu_command(&esp, &extra);
+    println!("      $ {qemu_bin} -machine q35,accel=tcg -cpu max -m 2048 ...");
+    println!();
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("could not launch {qemu_bin}: {e}. Install qemu-system-x86."))?;
+
+    let hard = Instant::now() + Duration::from_secs(FILES_TIMEOUT_S);
+    let run = files_exchange(&mut child, host_port, hard, &model_sha, model_len);
+
+    let outcome = match &run {
+        Ok(_) => wait_for_exit(&mut child, Duration::from_secs(FILES_EXIT_S)),
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            Outcome::TimedOut
+        }
+    };
+
+    println!();
+    if let Some(text) = find_ci(&esp.dir, "BOOTLOG.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        println!("---- BOOTLOG.TXT (RESIDENT/JOB/RELOAD lines) ----");
+        for line in text.lines() {
+            if line.contains("RESIDENT:") || line.contains("RELOAD:") || line.contains("JOB:") {
+                println!("{line}");
+            }
+        }
+        println!("---- end ----");
+        println!();
+    }
+
+    let mut failures: Vec<String> = match run {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("== FAIL == {e}");
+            eprintln!("   The BOOTLOG lines above are the guest's own account of how far it got.");
+            return Ok(ExitCode::from(1));
+        }
+    };
+
+    match outcome {
+        Outcome::Exited(c) => {
+            println!("   ok   QEMU exited {c} (guest ResetSystem under -no-reboot)")
+        }
+        Outcome::Signalled => {
+            failures.push("QEMU terminated by a signal with no exit code".to_string())
+        }
+        Outcome::TimedOut => failures.push(format!(
+            "QEMU did not exit within {FILES_EXIT_S}s of the guest answering BYE to REBOOT"
+        )),
+    }
+
+    println!();
+    if failures.is_empty() {
+        println!(
+            "== PASS == the file plane served AUTH/LS/STAT/SHA/GET/PUT/RM/RELOAD/HEALTH/RUNID,"
+        );
+        println!("           refused every malformed case by its §1.3 slug, and reset.");
+        Ok(ExitCode::SUCCESS)
+    } else {
+        for f in &failures {
+            eprintln!("== FAIL == {f}");
+        }
+        Ok(ExitCode::from(1))
+    }
+}
+
+/// Drive design §1.2's verbs end to end against the running guest.
+///
+/// **Every assertion is on the guest's own `LS`/`SHA`/`STAT`, never on the
+/// host mirror** (design §7): QEMU's `fat:rw:` commits a guest write but not a
+/// guest unlink, so the staged directory cannot answer "is it gone".
+///
+/// Returns the list of assertion failures — an empty list is a pass. A
+/// protocol-level error (a connection that dies, a reply that never comes) is
+/// an `Err` instead, because from there the remaining steps mean nothing.
+fn files_exchange(
+    child: &mut Child,
+    host_port: u16,
+    hard: Instant,
+    model_sha: &str,
+    model_len: u64,
+) -> Result<Vec<String>, String> {
+    let (mut c, banner) = resident_ready(child, host_port, FILES_READY_S, hard)?;
+    let mut fail: Vec<String> = Vec::new();
+    println!("   ok   banner {banner}");
+    // Rule A: `env=vm` in the banner is the same statement the record makes.
+    if !banner.contains(" env=vm ") {
+        fail.push(format!(
+            "the READY banner does not carry env=vm: {banner:?}"
+        ));
+    }
+    if !banner.contains(" caps=") {
+        fail.push(format!("the READY banner does not carry caps=: {banner:?}"));
+    }
+
+    // ---- §1.2: a TOKEN gates reads, not only writes ----------------------
+    files_step(&mut c, hard, "GET BOOTLOG.TXT", "ERR auth")?;
+    files_step(&mut c, hard, "PING", "PONG")?;
+    files_step(
+        &mut c,
+        hard,
+        &format!("AUTH {}", "f".repeat(64)),
+        "ERR auth",
+    )?;
+    files_step(&mut c, hard, &format!("AUTH {FILES_TOKEN}"), "OK")?;
+
+    // ---- LS --------------------------------------------------------------
+    c.send("LS\n")?;
+    let head = c.read_line(left(hard, FILES_IO_S)?)?;
+    let mut it = head.split_whitespace();
+    let n: usize = match (it.next(), it.next(), it.next(), it.next()) {
+        (Some("LS"), Some(n), Some(state), None) if state == "ok" || state == "truncated" => n
+            .parse()
+            .map_err(|_| format!("LS count {n:?} does not parse"))?,
+        _ => return Err(format!("LS header was {head:?}")),
+    };
+    let mut names: Vec<String> = Vec::new();
+    for _ in 0..n {
+        let line = c.read_line(left(hard, FILES_IO_S)?)?;
+        names.push(
+            line.split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_string(),
+        );
+    }
+    let end = c.read_line(left(hard, FILES_IO_S)?)?;
+    if end != "END" {
+        return Err(format!("LS did not end in END: {end:?}"));
+    }
+    println!("   ok   LS  ->  {head}  [{}]", names.join(" "));
+    for want in ["MODEL.SAF", "EMBED.BIN", "VOCAB.BIN", "JOB.TXT"] {
+        if !names.iter().any(|x| x == want) {
+            fail.push(format!("LS does not list {want}"));
+        }
+    }
+
+    // ---- STAT / SHA of MODEL.SAF against the host's own digest ------------
+    files_step(
+        &mut c,
+        hard,
+        "STAT MODEL.SAF",
+        &format!("STAT MODEL.SAF {model_len}"),
+    )?;
+    let (size, hex) = files_sha(&mut c, hard, "MODEL.SAF")?;
+    if size != model_len || hex != model_sha {
+        fail.push(format!(
+            "SHA MODEL.SAF = {size}/{hex}; the host staged {model_len}/{model_sha}"
+        ));
+    } else {
+        println!("   ok   SHA MODEL.SAF matches the host's digest of the staged file");
+    }
+
+    // ---- GET of a file the guest wrote itself ----------------------------
+    c.send("GET BOOTLOG.TXT\n")?;
+    let log = c.read_data_frame(left(hard, FILES_IO_S)?, left(hard, FILES_BULK_S)?)?;
+    println!(
+        "   ok   GET BOOTLOG.TXT  ->  DATA frame of {} bytes, header sha16 matches",
+        log.len()
+    );
+
+    // ---- PUT 256 KiB, then GET it back byte-identical (Rule D) -----------
+    let small = pseudorandom(FILES_SMALL_BYTES, 0x5eed_0001);
+    let small_sha = sha256_hex(&small);
+    let ans = files_put(&mut c, hard, "TEST.BIN", &small, &small_sha, b"END\n")?;
+    let want = format!("OK TEST.BIN {} {}", small.len(), &small_sha[..16]);
+    if ans != want {
+        return Err(format!("PUT TEST.BIN answered {ans:?}, expected {want:?}"));
+    }
+    println!("   ok   PUT TEST.BIN  ->  {ans}");
+    c.send("GET TEST.BIN\n")?;
+    let back = c.read_data_frame(left(hard, FILES_IO_S)?, left(hard, FILES_BULK_S)?)?;
+    if back == small {
+        println!(
+            "   ok   GET TEST.BIN returned {} byte-identical bytes",
+            back.len()
+        );
+    } else {
+        fail.push(format!(
+            "GET TEST.BIN returned {} bytes that are not byte-identical to what was PUT",
+            back.len()
+        ));
+    }
+
+    // ---- PUT 64 MiB, then SHA it (design §7's real case) -----------------
+    let big = pseudorandom(FILES_BIG_BYTES, 0x5eed_0002);
+    let big_sha = sha256_hex(&big);
+    println!(
+        "   ..   PUT BIG.BIN ({} bytes) — this is the slow one",
+        big.len()
+    );
+    let ans = files_put(&mut c, hard, "BIG.BIN", &big, &big_sha, b"END\n")?;
+    let want = format!("OK BIG.BIN {} {}", big.len(), &big_sha[..16]);
+    if ans != want {
+        return Err(format!("PUT BIG.BIN answered {ans:?}, expected {want:?}"));
+    }
+    println!("   ok   PUT BIG.BIN  ->  {ans}");
+    let (bsize, bhex) = files_sha(&mut c, hard, "BIG.BIN")?;
+    if bsize != big.len() as u64 || bhex != big_sha {
+        fail.push(format!(
+            "SHA BIG.BIN = {bsize}/{bhex}; the harness sent {}/{big_sha}",
+            big.len()
+        ));
+    } else {
+        println!("   ok   SHA BIG.BIN matches what the harness sent");
+    }
+    drop(big);
+
+    // ---- §1.4: a wrong declared digest ------------------------------------
+    let other = pseudorandom(FILES_SMALL_BYTES, 0x5eed_0003);
+    let wrong = "0".repeat(64);
+    let ans = files_put(&mut c, hard, "TEST.BIN", &other, &wrong, b"END\n")?;
+    if ans != "ERR digest-mismatch" {
+        fail.push(format!(
+            "a PUT with a wrong declared digest answered {ans:?}, expected ERR digest-mismatch"
+        ));
+    } else {
+        println!("   ok   PUT with a wrong digest  ->  {ans}");
+    }
+    // §1.4: the target is untouched and the stage is gone.
+    let (_, still) = files_sha(&mut c, hard, "TEST.BIN")?;
+    if still != small_sha {
+        fail.push(format!(
+            "after a rejected PUT, SHA TEST.BIN is {still}; it should still be {small_sha}"
+        ));
+    } else {
+        println!("   ok   TEST.BIN still holds the bytes of the PUT that succeeded");
+    }
+
+    // ---- §1.4: a payload whose trailer is not END\n -----------------------
+    let ans = files_put(
+        &mut c,
+        hard,
+        "BAD.BIN",
+        &other,
+        &sha256_hex(&other),
+        b"XXXX",
+    )?;
+    if ans != "ERR bad-frame" {
+        fail.push(format!(
+            "a PUT with a wrong trailer answered {ans:?}, expected ERR bad-frame"
+        ));
+    } else {
+        println!("   ok   PUT with a wrong trailer  ->  {ans}");
+    }
+
+    // ---- §1.3: names, protection, lengths ---------------------------------
+    files_step(&mut c, hard, "PUT ../X 4 00", "ERR bad-name")?;
+    files_step(
+        &mut c,
+        hard,
+        &format!("PUT {FILES_LONG_NAME} 4 {}", "0".repeat(64)),
+        "ERR bad-name",
+    )?;
+    files_step(
+        &mut c,
+        hard,
+        &format!("PUT BOOTLOG.TXT 4 {}", "0".repeat(64)),
+        "ERR protected",
+    )?;
+    files_step(
+        &mut c,
+        hard,
+        &format!("PUT HUGE.BIN {FILES_OVER_LEN} {}", "0".repeat(64)),
+        "ERR bad-len",
+    )?;
+
+    // ---- LS is free of strays, HEALTH says parts=0 ------------------------
+    c.send("LS\n")?;
+    let head = c.read_line(left(hard, FILES_IO_S)?)?;
+    let n: usize = head
+        .split_whitespace()
+        .nth(1)
+        .and_then(|v| v.parse().ok())
+        .ok_or_else(|| format!("LS header was {head:?}"))?;
+    let mut after: Vec<String> = Vec::new();
+    for _ in 0..n {
+        let line = c.read_line(left(hard, FILES_IO_S)?)?;
+        after.push(
+            line.split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_string(),
+        );
+    }
+    let end = c.read_line(left(hard, FILES_IO_S)?)?;
+    if end != "END" {
+        return Err(format!("LS did not end in END: {end:?}"));
+    }
+    println!("   ok   LS after the failures  ->  [{}]", after.join(" "));
+    for stray in ["STAGE.PRT", "BAD.BIN", "HUGE.BIN"] {
+        if after.iter().any(|x| x == stray) {
+            fail.push(format!("LS shows a stray {stray} after an aborted PUT"));
+        }
+    }
+
+    c.send("HEALTH\n")?;
+    let health = c.read_line(left(hard, FILES_IO_S)?)?;
+    println!("   ok   HEALTH  ->  {health}");
+    for key in [
+        "up=",
+        "served=",
+        "last=",
+        "wd=",
+        "heapfree=",
+        "model=",
+        "reloads=",
+        "parts=",
+        "env=",
+    ] {
+        if !health.contains(key) {
+            fail.push(format!("HEALTH has no {key} field: {health:?}"));
+        }
+    }
+    if !health.contains("parts=0") {
+        fail.push(format!(
+            "HEALTH does not say parts=0 after the aborted PUTs: {health:?}"
+        ));
+    }
+    if !health.contains("env=vm") {
+        fail.push(format!("HEALTH does not carry env=vm: {health:?}"));
+    }
+    let health_model = health
+        .split_whitespace()
+        .find_map(|t| t.strip_prefix("model="))
+        .unwrap_or_default()
+        .to_string();
+
+    // ---- RM, then STAT says it is gone (guest-side, never the mirror) -----
+    files_step(&mut c, hard, "RM TEST.BIN", "OK TEST.BIN")?;
+    files_step(&mut c, hard, "STAT TEST.BIN", "ERR not-found")?;
+    files_step(&mut c, hard, "RM BIG.BIN", "OK BIG.BIN")?;
+
+    // ---- RUNID: NEW, a job, then REPLAY of the same id --------------------
+    files_step(&mut c, hard, "RUNID files-gate-1", "NEW")?;
+    c.send(&resident_job_block(4, None, "The capital of France is"))?;
+    let first = c.read_result(hard)?;
+    println!();
+    println!("---- RESULT (RUNID files-gate-1) ----");
+    print!("{first}");
+    println!("---- end ----");
+    for (k, want) in [
+        ("verdict", "OK"),
+        ("env", "vm"),
+        ("run_id", "files-gate-1"),
+        ("replay", "false"),
+    ] {
+        match record_value(&first, k) {
+            Some(v) if v == want => println!("   ok   record {k}={v}"),
+            Some(v) => fail.push(format!("record {k}={v}, expected {want}")),
+            None => fail.push(format!("record has no {k} key")),
+        }
+    }
+    for k in [
+        "artifacts",
+        "model_sha",
+        "reloads",
+        "uptime_s",
+        "served",
+        "files",
+        "merge_key",
+    ] {
+        match record_value(&first, k) {
+            Some(v) if !v.is_empty() => println!("   ok   record carries {k}={v}"),
+            _ => fail.push(format!("record has no {k} key")),
+        }
+    }
+    if let Some(mk) = record_value(&first, "merge_key") {
+        if mk.len() != 16 || !mk.bytes().all(|b| b.is_ascii_hexdigit()) {
+            fail.push(format!("merge_key={mk} is not 16 hex characters"));
+        }
+    }
+    let merge_key = record_value(&first, "merge_key")
+        .unwrap_or_default()
+        .to_string();
+
+    files_step(&mut c, hard, "RUNID files-gate-1", "REPLAY")?;
+    c.send(&resident_job_block(
+        4,
+        None,
+        "This body must be drained, not run",
+    ))?;
+    let replayed = c.read_result(hard)?;
+    match record_value(&replayed, "replay") {
+        Some("true") => println!("   ok   the replayed record says replay=true"),
+        other => fail.push(format!(
+            "the replayed record says replay={other:?}, expected true"
+        )),
+    }
+    if record_value(&replayed, "merge_key") == Some(merge_key.as_str()) {
+        println!("   ok   the replayed record is the cached one (same merge_key)");
+    } else {
+        fail.push("the replayed record is not the cached one — the job was re-run".to_string());
+    }
+
+    // ---- RELOAD, then a job still runs ------------------------------------
+    c.send("RELOAD\n")?;
+    let line = c.read_line(left(hard, FILES_IO_S)?)?;
+    if line != "RELOADING" {
+        return Err(format!("RELOAD answered {line:?}, expected RELOADING"));
+    }
+    let done = c.read_line(left(hard, FILES_BULK_S)?)?;
+    println!("   ok   RELOAD  ->  {done}");
+    let mut it = done.split_whitespace();
+    match (
+        it.next(),
+        it.next(),
+        it.next(),
+        it.next(),
+        it.next(),
+        it.next(),
+    ) {
+        (Some("OK"), Some("reload"), Some(m), Some(e), Some(v), None)
+            if m.starts_with("model=") && e.starts_with("embed=") && v.starts_with("vocab=") =>
+        {
+            let m = m.trim_start_matches("model=");
+            if m != health_model {
+                fail.push(format!(
+                    "RELOAD reports model={m} but HEALTH reported model={health_model}; \
+                     nothing on the volume changed, so the digests must agree"
+                ));
+            } else {
+                println!("   ok   RELOAD reports the same three digests the box already had");
+            }
+        }
+        _ => fail.push(format!("RELOAD finished with {done:?}")),
+    }
+    c.send(&resident_job_block(4, None, "After the reload"))?;
+    let after_reload = c.read_result(hard)?;
+    match record_value(&after_reload, "verdict") {
+        Some("OK") => println!("   ok   a job after RELOAD still runs (verdict=OK)"),
+        other => fail.push(format!("the job after RELOAD ended verdict={other:?}")),
+    }
+    match record_value(&after_reload, "reloads") {
+        Some("1") => println!("   ok   the record after RELOAD says reloads=1"),
+        other => fail.push(format!(
+            "after one RELOAD the record says reloads={other:?}"
+        )),
+    }
+
+    // ---- REBOOT ------------------------------------------------------------
+    c.send("REBOOT\n")?;
+    let bye = c.read_line(left(hard, FILES_IO_S)?)?;
+    if bye != "BYE" {
+        return Err(format!("REBOOT answered {bye:?}, expected BYE"));
+    }
+    println!("   ok   REBOOT  ->  BYE");
+    Ok(fail)
 }
