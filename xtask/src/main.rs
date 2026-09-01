@@ -18,12 +18,21 @@
 //! asserts the guest still writes a `RESULT.TXT` saying `verdict=FAIL budget`,
 //! rather than being killed by the firmware watchdog with nothing on the volume.
 //!
+//! `cargo xtask net-test` is the AEFINITY OS phase-1a gate (spec §6): it stands
+//! up a TCP listener on the host, boots the guest with a virtio NIC and a
+//! `JOB.TXT` carrying `NET static` + `NETCHECK`, and asserts that the guest's
+//! own TCP/IP stack reached the host and announced its MAC.
+//!
 //! No external crates: argument parsing is hand-rolled so this works offline.
 
 use std::env;
 use std::fs;
+use std::io::Read;
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitCode};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// QEMU exit status that means the unikernel signalled success via
@@ -68,6 +77,13 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        "net-test" => match net_test(&flags) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("xtask: net-test failed: {e}");
+                ExitCode::from(1)
+            }
+        },
         "job-budget-test" => match job_budget_test(&flags) {
             Ok(code) => code,
             Err(e) => {
@@ -92,7 +108,7 @@ fn usage() {
         "xtask — A.L.I.C.E. / Aegis dev automation
 
 USAGE:
-    cargo xtask <boot-test|job-test|job-budget-test> [--ci] [--debug]
+    cargo xtask <boot-test|job-test|net-test|job-budget-test> [--ci] [--debug] [--pcap]
 
 SUBCOMMANDS:
     boot-test    Build the UEFI unikernel, stage an ESP, boot under OVMF in QEMU.
@@ -105,6 +121,17 @@ SUBCOMMANDS:
                  {JOB_TIMEOUT_S}s because the guest reset, AND target/esp/RESULT.TXT parses
                  with verdict=OK, jobs=2, env=vm, aefinity_os=0.1. The record is
                  printed. Structure and exit codes only — never a timing figure.
+
+    net-test     AEFINITY OS phase 1a (program/AEFINITY_OS.md §6). Adds
+                 `-netdev user,id=n0 -device virtio-net-pci,netdev=n0
+                 -device virtio-rng-pci`, opens a host TCP listener on an
+                 ephemeral 127.0.0.1 port, and stages a JOB.TXT with
+                 `NET static {NET_GUEST_CIDR} {NET_HOST_IP}` and
+                 `NETCHECK {NET_HOST_IP}:<port>`. QEMU's user networking maps a
+                 guest connection to {NET_HOST_IP} onto the host loopback, so the
+                 listener is what the guest reaches. PASS = the harness receives
+                 a line beginning `HELLO ` followed by a 17-character MAC, AND
+                 RESULT.TXT carries job.1.ok=true with a matching mac=/ip=.
 
     job-budget-test
                  Budget-enforcement regression gate. Stages a JOB.TXT with a
@@ -124,6 +151,11 @@ SUBCOMMANDS:
 FLAGS:
     --ci         Non-interactive: fail fast with diagnostics instead of prompting.
     --debug      Build the debug profile instead of release.
+    --pcap       net-test only: also write every frame on the guest's NIC to
+                 target/net.pcap (`-object filter-dump`). Read it with
+                 `tcpdump -r target/net.pcap`. The first thing to look for when
+                 the guest never connects is whether QEMU's slirp answered the
+                 guest's ARP for {NET_HOST_IP}.
 
 ENVIRONMENT:
     AEGIS_UEFI_TARGET   Rust target triple (default: {DEFAULT_TARGET}).
@@ -529,6 +561,349 @@ fn job_test(flags: &[&str]) -> Result<ExitCode, String> {
         }
         Ok(ExitCode::from(1))
     }
+}
+
+// ---------------------------------------------------------------------------
+// net-test — AEFINITY OS phase 1a gate (program/AEFINITY_OS.md §6)
+// ---------------------------------------------------------------------------
+
+/// The guest's address on QEMU's user network, in the form the `NET static`
+/// directive takes. 10.0.2.15/24 is what slirp hands out and therefore the one
+/// static address that works without a DHCP server.
+const NET_GUEST_CIDR: &str = "10.0.2.15/24";
+/// The gateway on QEMU's user network. slirp answers ARP for it and proxies a
+/// TCP connection to it onto the **host loopback** on the same port, which is
+/// why the harness listener binds 127.0.0.1 and not 0.0.0.0.
+const NET_HOST_IP: &str = "10.0.2.2";
+/// `BUDGET` in the staged JOB.TXT. Same value and same reason as
+/// [`JOB_BUDGET_S`]: a wall-clock budget calibrated on iron does not survive
+/// the crossing into TCG (CLAUDE.md Rule A), and the model load alone eats
+/// most of a spec-sized budget before a directive runs.
+const NET_BUDGET_S: u64 = 900;
+/// Harness deadline for the whole boot — firmware, model load, NIC bring-up,
+/// the NETCHECK and the reset. Same value and same reason as
+/// [`JOB_TIMEOUT_S`]; a guest that never resets still fails here.
+const NET_TIMEOUT_S: u64 = 1200;
+/// The connection deadline, applied twice: the harness keeps accepting for
+/// this long after QEMU exits, and once a connection arrives this is the read
+/// timeout on it.
+///
+/// Spec §6 states the gate as "receives `HELLO <mac>` within 60 s". That is a
+/// figure for a booted box; here the accept runs *concurrently* with a boot
+/// that spends minutes in the model load under TCG, so the accept window is
+/// [`NET_TIMEOUT_S`] and this is the tail — how long a connection that has
+/// already been made gets to finish, and how long a late one gets to arrive.
+const NET_ACCEPT_S: u64 = 90;
+/// Most a single `HELLO` line can be. The guest sends 24 bytes; anything past
+/// this is a peer the gate should not be reading from.
+const NET_HELLO_MAX: usize = 4096;
+
+/// What the host listener saw.
+#[derive(Default)]
+struct Caught {
+    /// Bytes read from the first connection, up to [`NET_HELLO_MAX`].
+    bytes: Vec<u8>,
+    /// Whether a connection was accepted at all.
+    connected: bool,
+    /// Anything that went wrong on the host side.
+    note: Option<String>,
+}
+
+fn net_test(flags: &[&str]) -> Result<ExitCode, String> {
+    let ci = flags.contains(&"--ci");
+    let debug = flags.contains(&"--debug");
+    let pcap = flags.contains(&"--pcap");
+
+    // Port 0 lets the kernel choose; the guest is told the result. Binding
+    // loopback rather than 0.0.0.0 is deliberate: slirp proxies the guest's
+    // connection to NET_HOST_IP onto 127.0.0.1, and a gate that listened on
+    // every interface would also be reachable from off the box.
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|e| format!("cannot bind a host listener: {e}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| format!("cannot read the listener address: {e}"))?
+        .port();
+    listener
+        .set_nonblocking(true)
+        .map_err(|e| format!("cannot set the listener non-blocking: {e}"))?;
+
+    let caught = Arc::new(Mutex::new(Caught::default()));
+    let stop = Arc::new(AtomicBool::new(false));
+    let accept = {
+        let caught = Arc::clone(&caught);
+        let stop = Arc::clone(&stop);
+        std::thread::spawn(move || {
+            let hard_deadline = Instant::now() + Duration::from_secs(NET_TIMEOUT_S);
+            loop {
+                match listener.accept() {
+                    Ok((mut sock, peer)) => {
+                        let _ = sock.set_read_timeout(Some(Duration::from_secs(NET_ACCEPT_S)));
+                        let mut buf = Vec::new();
+                        // Read until the guest closes, the read times out, or
+                        // the cap is hit. `read_to_end` on a socket with a read
+                        // timeout returns what it has when the timeout fires.
+                        let mut chunk = [0u8; 1024];
+                        loop {
+                            match sock.read(&mut chunk) {
+                                Ok(0) => break,
+                                Ok(n) => {
+                                    buf.extend_from_slice(&chunk[..n]);
+                                    if buf.len() >= NET_HELLO_MAX {
+                                        break;
+                                    }
+                                }
+                                Err(_) => break,
+                            }
+                        }
+                        let mut c = match caught.lock() {
+                            Ok(c) => c,
+                            Err(p) => p.into_inner(),
+                        };
+                        c.connected = true;
+                        c.bytes = buf;
+                        c.note = Some(format!("connection from {peer}"));
+                        return;
+                    }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                    Err(e) => {
+                        let mut c = match caught.lock() {
+                            Ok(c) => c,
+                            Err(p) => p.into_inner(),
+                        };
+                        c.note = Some(format!("accept failed: {e}"));
+                        return;
+                    }
+                }
+                if stop.load(Ordering::Relaxed) || Instant::now() >= hard_deadline {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        })
+    };
+
+    let job_txt = format!(
+        "# staged by `cargo xtask net-test` — AEFINITY OS phase 1a gate\n\
+         BUDGET {NET_BUDGET_S}\n\
+         MODE oneshot\n\
+         NET static {NET_GUEST_CIDR} {NET_HOST_IP}\n\
+         NETCHECK {NET_HOST_IP}:{port}\n\
+         AFTER reset\n"
+    );
+
+    let esp = stage("net-test", ci, debug, Some(&job_txt))?;
+
+    // virtio-net-pci is the NIC Debian's OVMF has a driver for (VirtioNetDxe),
+    // and it publishes EFI_SIMPLE_NETWORK and nothing above it — which is the
+    // whole reason the unikernel carries smoltcp. virtio-rng-pci is present
+    // because OVMF's own entropy path wants an RNG whenever a NIC is attached.
+    let mut extra = vec![
+        "-netdev".to_string(),
+        "user,id=n0".to_string(),
+        "-device".to_string(),
+        "virtio-net-pci,netdev=n0".to_string(),
+        "-device".to_string(),
+        "virtio-rng-pci".to_string(),
+    ];
+    let pcap_path = esp.root.join("target/net.pcap");
+    if pcap {
+        extra.push("-object".to_string());
+        extra.push(format!(
+            "filter-dump,id=f0,netdev=n0,file={}",
+            pcap_path.display()
+        ));
+    }
+
+    println!("[4/4] booting under OVMF with a virtio NIC");
+    println!("      host listener : 127.0.0.1:{port} (guest dials {NET_HOST_IP}:{port})");
+    if pcap {
+        println!("      frame dump    : {}", pcap_path.display());
+    }
+    let outcome = qemu(&esp, &extra, Some(Duration::from_secs(NET_TIMEOUT_S)))?;
+
+    // QEMU is gone, so nothing more can connect; give the accept thread the
+    // tail deadline and then take what it has.
+    stop.store(true, Ordering::Relaxed);
+    let _ = accept.join();
+    let caught = match caught.lock() {
+        Ok(c) => Caught {
+            bytes: c.bytes.clone(),
+            connected: c.connected,
+            note: c.note.clone(),
+        },
+        Err(p) => {
+            let c = p.into_inner();
+            Caught {
+                bytes: c.bytes.clone(),
+                connected: c.connected,
+                note: c.note.clone(),
+            }
+        }
+    };
+
+    println!();
+    match outcome {
+        Outcome::Exited(c) => println!("   QEMU exited {c} (guest ResetSystem under -no-reboot)"),
+        Outcome::Signalled => {
+            eprintln!("== FAIL == QEMU terminated by a signal with no exit code.");
+            return Ok(ExitCode::from(1));
+        }
+        Outcome::TimedOut => {
+            eprintln!(
+                "== FAIL == the guest did not reset within {NET_TIMEOUT_S}s.\n\
+                 BOOTLOG.TXT on the staged ESP holds the NET: lines it reached."
+            );
+            return Ok(ExitCode::from(1));
+        }
+    }
+
+    // The guest's own account of what it did, printed before any verdict: on a
+    // failure these lines say whether the NIC came up, what MAC it read and
+    // whether the connect or the write was what failed.
+    if let Some(text) = find_ci(&esp.dir, "BOOTLOG.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        println!("---- BOOTLOG.TXT (NET/NETCHECK lines) ----");
+        for line in text.lines() {
+            if line.contains("NET:") || line.contains("NETCHECK:") {
+                println!("{line}");
+            }
+        }
+        println!("---- end ----");
+        println!();
+    }
+
+    if let Some(note) = &caught.note {
+        println!("   note {note}");
+    }
+
+    let mut failures: Vec<String> = Vec::new();
+
+    // ---- the assertion the phase exists for -------------------------------
+    let text = String::from_utf8_lossy(&caught.bytes).to_string();
+    if !caught.connected {
+        failures.push(format!(
+            "the guest never connected to {NET_HOST_IP}:{port}. Re-run with --pcap and \
+             read target/net.pcap: QEMU's slirp must answer the guest's ARP for {NET_HOST_IP}"
+        ));
+    } else {
+        println!("---- received on 127.0.0.1:{port} ----");
+        print!("{text}");
+        if !text.ends_with('\n') {
+            println!();
+        }
+        println!("---- end ----");
+    }
+
+    let hello = text.lines().find(|l| l.starts_with("HELLO "));
+    let mut guest_mac: Option<String> = None;
+    match hello {
+        Some(line) => {
+            let mac = line["HELLO ".len()..].trim_end();
+            if is_mac(mac) {
+                println!("   ok   HELLO line carries a 17-character MAC {mac}");
+                guest_mac = Some(mac.to_string());
+            } else {
+                failures.push(format!(
+                    "the HELLO line carries {mac:?}, which is not a 17-character \
+                     xx:xx:xx:xx:xx:xx MAC"
+                ));
+            }
+        }
+        None if caught.connected => {
+            failures.push("the connection carried no line starting `HELLO `".to_string());
+        }
+        None => {}
+    }
+
+    // ---- and the record the guest left behind -----------------------------
+    match find_ci(&esp.dir, "RESULT.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        Some(body) => {
+            println!();
+            println!("---- RESULT.TXT ----");
+            print!("{body}");
+            println!("---- end ----");
+            for (key, want) in [
+                ("aefinity_os", "0.1"),
+                ("env", "vm"),
+                ("jobs", "1"),
+                ("job.1.kind", "netcheck"),
+                ("job.1.ok", "true"),
+                ("verdict", "OK"),
+            ] {
+                match record_value(&body, key) {
+                    Some(got) if got == want => println!("   ok   {key}={got}"),
+                    Some(got) => failures.push(format!("{key}={got}, expected {want}")),
+                    None => failures.push(format!("{key} missing")),
+                }
+            }
+            // The address the JOB.TXT asked for must be the address the record
+            // reports; a guest that fell back to something else got its packets
+            // through by luck, not by the directive.
+            let want_ip = NET_GUEST_CIDR.split('/').next().unwrap_or("");
+            match record_value(&body, "ip") {
+                Some(got) if got == want_ip => println!("   ok   ip={got}"),
+                Some(got) => failures.push(format!("ip={got}, expected {want_ip}")),
+                None => failures.push("ip missing".to_string()),
+            }
+            // The MAC on the wire and the MAC in the record are two independent
+            // readings of the same NIC. They have to agree, or one of them is
+            // being made up.
+            match (record_value(&body, "mac"), guest_mac.as_deref()) {
+                (Some(rec), Some(wire)) if rec == wire => {
+                    println!("   ok   mac={rec} (record == wire)")
+                }
+                (Some(rec), Some(wire)) => {
+                    failures.push(format!("mac={rec} in RESULT.TXT but {wire} on the wire"))
+                }
+                (Some(rec), None) if is_mac(rec) => {
+                    println!("   ok   mac={rec} (no wire MAC to compare)")
+                }
+                (Some(rec), None) => failures.push(format!("mac={rec} is not a MAC")),
+                (None, _) => failures.push("mac missing".to_string()),
+            }
+        }
+        None => failures.push(format!(
+            "no RESULT.TXT under {} — the guest reset without writing a record",
+            esp.dir.display()
+        )),
+    }
+
+    match wip_cleared_check(&esp) {
+        Ok(line) => println!("   ok   {line}"),
+        Err(why) => failures.push(why),
+    }
+    wip_host_note(&esp);
+
+    println!();
+    if failures.is_empty() {
+        println!("== PASS == the guest's own TCP/IP stack reached the host and named its NIC.");
+        Ok(ExitCode::SUCCESS)
+    } else {
+        for f in &failures {
+            eprintln!("== FAIL == {f}");
+        }
+        if !pcap {
+            eprintln!("   hint: re-run with --pcap to capture the frames.");
+        }
+        Ok(ExitCode::from(1))
+    }
+}
+
+/// Exactly `xx:xx:xx:xx:xx:xx`, lower- or upper-case hex: 17 characters, six
+/// hex pairs, five colons. The gate asserts the shape, never the value — the
+/// MAC is whatever QEMU assigned.
+fn is_mac(s: &str) -> bool {
+    if s.len() != 17 {
+        return false;
+    }
+    let mut parts = 0;
+    for part in s.split(':') {
+        parts += 1;
+        if part.len() != 2 || !part.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return false;
+        }
+    }
+    parts == 6
 }
 
 // ---------------------------------------------------------------------------
