@@ -589,16 +589,27 @@ pub fn load(root: &mut Directory) -> Option<Job> {
     Some(job)
 }
 
+/// Name of the in-progress record (see [`write_progress_record`]). A separate
+/// file, deliberately: spec §3 says `RESULT.TXT` is written ONCE, at the end
+/// of the job, and a collector that can find a half-finished record under that
+/// name loses the guarantee that what it reads is a finished one.
+pub const WIP_NAME: &str = "RESULT.WIP";
+
 /// Write `RESULT.TXT` to the boot volume root: one create, one write, one
 /// flush, one close, overwriting rather than appending (spec §3).
+pub fn write_result_txt(root: &mut Directory, body: &str) -> bool {
+    write_named(root, "RESULT.TXT", body)
+}
+
+/// Write `body` to `name` on the boot volume root.
 ///
 /// The stale file is deleted first. Opening `CreateReadWrite` over a longer
 /// previous record and writing a shorter one would leave the previous run's
 /// tail on disk, and a collector reading that would see two records fused.
-pub fn write_result_txt(root: &mut Directory, body: &str) -> bool {
+fn write_named(root: &mut Directory, name: &str, body: &str) -> bool {
     use uefi::proto::media::file::{File, FileAttribute, FileMode, FileType};
     let mut namebuf = [0u16; 32];
-    let cstr = match uefi::CStr16::from_str_with_buf("RESULT.TXT", &mut namebuf) {
+    let cstr = match uefi::CStr16::from_str_with_buf(name, &mut namebuf) {
         Ok(c) => c,
         Err(_) => return false,
     };
@@ -619,6 +630,21 @@ pub fn write_result_txt(root: &mut Directory, body: &str) -> bool {
     let flushed = file.flush().is_ok();
     file.close();
     wrote && flushed
+}
+
+/// Remove `name` from the boot volume root if it is there. Absent, unopenable
+/// and undeletable all mean the same thing to the caller: nothing to do here.
+fn delete_named(root: &mut Directory, name: &str) {
+    use uefi::proto::media::file::{File, FileAttribute, FileMode, FileType};
+    let mut namebuf = [0u16; 32];
+    let Ok(cstr) = uefi::CStr16::from_str_with_buf(name, &mut namebuf) else {
+        return;
+    };
+    if let Ok(h) = root.open(cstr, FileMode::ReadWrite, FileAttribute::empty())
+        && let Ok(FileType::Regular(f)) = h.into_type()
+    {
+        let _ = f.delete();
+    }
 }
 
 /// `run_id` for the record: the value of a `run_id=` line in `RUN.ID` on the
@@ -666,13 +692,51 @@ fn elapsed_since(start: f64) -> Option<f64> {
     }
 }
 
+/// Write the record so far as [`WIP_NAME`], marked as an unfinished run of
+/// step `n`.
+///
+/// The firmware watchdog resets the box without running any of our code, so a
+/// step that overruns between two engine checkpoints leaves nothing behind
+/// unless something was written *first*. This is that something: after a
+/// watchdog reset the volume holds a record whose `verdict` names the step
+/// that did not come back, and `BOOTLOG.TXT` says whether it was still in
+/// prefill or already decoding. Silence is the one outcome a headless box
+/// must never produce; a stale-looking record that names its own step is
+/// strictly better.
+///
+/// `dispatch` deletes it once the real `RESULT.TXT` is on the volume, so its
+/// presence is itself the signal: a stick that comes home with a `RESULT.WIP`
+/// on it is a box that did not finish.
+///
+/// A failure to write is not fatal and not logged here — the next line in
+/// `BOOTLOG.TXT` after this one is the step starting either way, and
+/// `dispatch` logs the outcome of the real write.
+fn write_progress_record(rec: &ResultRecord, root: &mut Directory, n: usize) {
+    let mut wip = rec.clone();
+    wip.verdict = format!("FAIL incomplete: step {n} did not return");
+    let _ = write_named(root, WIP_NAME, &wip.render());
+}
+
 /// Run every directive in file order and build the record (spec §3).
 ///
-/// The budget is wall-clock, read from UEFI `GetTime()` at entry. The token
-/// callback checks it on every emitted token and asks the engine to stop
-/// generating once it is spent; the record is then marked `FAIL budget`. A
-/// job stopped this way still writes a complete `RESULT.TXT` — a truncated
+/// The budget is wall-clock, read from UEFI `GetTime()` at entry, and it is
+/// enforced in three places, because a headless box that overruns silently is
+/// the failure this module exists to prevent:
+///
+/// 1. **Before a step starts** — work that cannot finish is not begun.
+/// 2. **Inside the engine**, at coarse checkpoints in *both* phases
+///    (`process_intent_with_deadline`: twice per decoder layer during
+///    prefill, once per token during decode). Checking only the per-token
+///    decode callback is not enough: a spec-legal 4 KiB `PROMPT` can spend
+///    the whole budget in prefill, before the first token exists, and the
+///    software path then never runs at all.
+/// 3. **The firmware watchdog** at `BUDGET + WATCHDOG_MARGIN_S`, which is the
+///    backstop for a hang between checkpoints.
+///
+/// A job stopped by 1 or 2 still writes a complete `RESULT.TXT` — a truncated
 /// answer plus an honest verdict is worth more to the collector than silence.
+/// For 3 the unikernel is not running any more, so the record is written
+/// *before* the step instead: see [`write_progress_record`].
 pub fn run_job(
     job: &Job,
     root: &mut Directory,
@@ -739,23 +803,49 @@ pub fn run_job(
         };
 
         say(&format!("[JOB] {n}/{} {kind}: ", job.steps.len()));
-        crate::boot_log(root, &format!("JOB: step {n} {kind} tokens<={max_tokens}"));
+        crate::boot_log(
+            root,
+            &format!("JOB: step {n} {kind} tokens<={max_tokens}, prefill begin"),
+        );
+
+        // On-volume heartbeat before the work starts, so a step killed by the
+        // firmware watchdog still leaves a record naming the step instead of
+        // an empty volume. Overwritten by the real record at the end.
+        write_progress_record(&rec, root, n);
 
         let budget_s = job.budget_s as f64;
+        // The engine's deadline check. Copies only, so it borrows neither the
+        // engine nor `root`, and it is monotone: once the budget is spent it
+        // stays spent. A firmware with no usable clock (`started == None`)
+        // yields `false` for ever — the budget cannot be enforced, which was
+        // already logged, and the watchdog remains the guard.
+        let over_budget = move || match started {
+            Some(t0) => matches!(elapsed_since(t0), Some(el) if el >= budget_s),
+            None => false,
+        };
         let w0 = crate::wall_seconds();
         let c0 = unsafe { core::arch::x86_64::_rdtsc() };
         aegis_core::inference::clear_generation_stop();
-        engine.process_intent(&prompt, max_tokens, |tok| {
-            if tok.starts_with("[SYSTEM]") || tok.contains("[PERFORMANCE]") {
-                return;
-            }
-            if let Some(t0) = started
-                && let Some(el) = elapsed_since(t0)
-                && el >= budget_s
-            {
-                aegis_core::inference::request_generation_stop();
-            }
-        });
+        {
+            // One BOOTLOG line at the prefill→decode transition. It is what
+            // distinguishes "the watchdog killed us mid-prefill" from "mid
+            // decode" on a stick that comes home, and it costs one write per
+            // step because `announced` latches it.
+            let mut announced = false;
+            let log_root = &mut *root;
+            engine.process_intent_with_deadline(
+                &prompt,
+                max_tokens,
+                |tok| {
+                    if announced || tok.starts_with("[SYSTEM]") || tok.contains("[PERFORMANCE]") {
+                        return;
+                    }
+                    announced = true;
+                    crate::boot_log(log_root, &format!("JOB: step {n} prefill done, decoding"));
+                },
+                over_budget,
+            );
+        }
         let c1 = unsafe { core::arch::x86_64::_rdtsc() };
         let w1 = crate::wall_seconds();
         let stopped = aegis_core::inference::generation_stop_requested();
@@ -782,16 +872,21 @@ pub fn run_job(
             response,
         });
 
-        if ntok == 0 {
-            rec.fail("no tokens generated");
-        }
+        // Budget first: a step the budget cut short in prefill also produced
+        // no tokens, and "FAIL budget" is the reason a collector can act on.
+        // `ResultRecord::fail` keeps the first reason, so the order is the
+        // verdict.
         if stopped {
             rec.fail("budget");
+            let phase = if ntok == 0 { "prefill" } else { "decode" };
             crate::boot_log(
                 root,
-                &format!("JOB: step {n} stopped by budget after {ntok} tokens"),
+                &format!("JOB: step {n} stopped by budget in {phase} after {ntok} tokens"),
             );
             break;
+        }
+        if ntok == 0 {
+            rec.fail("no tokens generated");
         }
         let digest = match rec.steps.last() {
             Some(last) => last.digest.as_str(),
@@ -830,9 +925,20 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
     let body = rec.render();
 
     if write_result_txt(root, &body) {
+        // The finished record is on the volume, so the in-progress marker is
+        // no longer true. Removing it is what makes its presence meaningful.
+        // Whether the firmware actually took the delete is reported, not
+        // assumed: `RESULT.TXT` is the authoritative record either way, and a
+        // marker that could not be cleared is something the person reading
+        // the stick needs told rather than left to infer.
+        delete_named(root, WIP_NAME);
+        let cleared = read_small_file(root, WIP_NAME, JOB_MAX_BYTES).is_none();
         crate::boot_log(
             root,
-            &format!("JOB: RESULT.TXT written, verdict={}", rec.verdict),
+            &format!(
+                "JOB: RESULT.TXT written, verdict={}, {WIP_NAME} cleared={cleared}",
+                rec.verdict
+            ),
         );
     } else {
         crate::boot_log(root, "JOB: RESULT.TXT could not be written");
