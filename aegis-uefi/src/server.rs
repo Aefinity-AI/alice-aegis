@@ -59,6 +59,12 @@ const BODY_MAX_BYTES: usize = 64 * 1024;
 /// the value, not the whole line: the directive keyword is not the prompt.
 const PROMPT_MAX_BYTES: usize = 4 * 1024;
 /// A line longer than a whole legal body is over the cap whatever it is.
+///
+/// This is the accumulated-across-reads check; a single read that fills the
+/// stack's own `RECV_MAX_BYTES` without a newline is caught one layer down and
+/// arrives here as [`NetError::TooMuchData`]. Both land on
+/// [`LineErr::TooLong`], so the answer is `ERR too-large` either way and does
+/// not depend on which cap happens to be the smaller number.
 const LINE_MAX_BYTES: usize = BODY_MAX_BYTES;
 
 /// How long one read pass waits for bytes before it goes round again. Not a
@@ -592,9 +598,18 @@ impl Lines {
                         self.idle_ms = 0;
                     }
                 }
-                // Closed, reset, or over the stack's own receive cap. Whatever
-                // is in `pending` has no terminator, so there is no line to
-                // hand back and the connection is over.
+                // The stack refused to hold any more for one read and the
+                // delimiter still had not arrived, so this is one line longer
+                // than the stack itself will buffer — over the cap by
+                // definition, and the peer is owed `ERR too-large` (spec §4)
+                // rather than a silent drop. Distinguishing it from a real
+                // close is the whole reason `TooMuchData` exists: the two are
+                // numerically identical here (`RECV_MAX_BYTES` ==
+                // `LINE_MAX_BYTES`) and a shared error variant made an
+                // over-long line indistinguishable from a peer that vanished.
+                Err(NetError::TooMuchData) => return Err(LineErr::TooLong),
+                // Closed or reset. Whatever is in `pending` has no terminator,
+                // so there is no line to hand back and the connection is over.
                 Err(_) => return Err(LineErr::Closed),
             }
         }

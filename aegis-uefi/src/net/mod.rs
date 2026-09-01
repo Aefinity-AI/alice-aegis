@@ -105,6 +105,12 @@ const POLL_SLEEP_MS: u64 = 2;
 /// Bytes `tcp_recv_until` will accumulate before it stops, whatever the
 /// caller asked for. A peer that never sends the delimiter must not be able to
 /// exhaust the heap of a box that cannot be logged into.
+///
+/// Hitting it is reported as [`NetError::TooMuchData`], never as
+/// [`NetError::Closed`]: a caller that caps its own input — `server.rs` caps a
+/// command line and a job body — has to be able to tell "you sent too much"
+/// from "the peer vanished", because the first owes the peer an answer and the
+/// second has nobody left to answer.
 const RECV_MAX_BYTES: usize = 64 * 1024;
 
 // ---------------------------------------------------------------------------
@@ -125,6 +131,10 @@ pub enum NetError {
     Refused,
     /// The connection closed before the operation finished.
     Closed,
+    /// The peer sent more than this stack will hold for one read
+    /// ([`RECV_MAX_BYTES`]) without satisfying what the caller was waiting
+    /// for. The connection is still up; the read is not completable.
+    TooMuchData,
     /// The caller's timeout expired first.
     Timeout,
     /// A `JOB.TXT` value did not parse (`NET static …`, `NETCHECK host:port`).
@@ -140,6 +150,7 @@ impl NetError {
             NetError::NoAddress => "no ip",
             NetError::Refused => "refused",
             NetError::Closed => "closed",
+            NetError::TooMuchData => "too much data",
             NetError::Timeout => "timeout",
             NetError::BadAddress => "bad address",
         }
@@ -1057,6 +1068,7 @@ impl Net {
             self.poll();
 
             // Drain everything the socket is holding before deciding anything.
+            let mut capped = false;
             loop {
                 let s = self.sockets.get_mut::<tcp::Socket>(h.0);
                 if !s.can_recv() {
@@ -1068,7 +1080,8 @@ impl Net {
                     Err(_) => break,
                 }
                 if out.len() >= RECV_MAX_BYTES {
-                    return (out, Err(NetError::Closed));
+                    capped = true;
+                    break;
                 }
             }
 
@@ -1084,6 +1097,16 @@ impl Net {
                     }
                 }
                 Until::Close => {}
+            }
+
+            // The cap was reached and what the caller asked for is still not
+            // in the buffer, so it never will be: this read is over. It is
+            // reported as its own error rather than as `Closed` precisely
+            // because the connection is *not* closed — the caller may still
+            // answer on it (the resident server owes this peer
+            // `ERR too-large`, spec §4) before it drops it.
+            if capped {
+                return (out, Err(NetError::TooMuchData));
             }
 
             // The receive half has ended and we have drained what was in it.
