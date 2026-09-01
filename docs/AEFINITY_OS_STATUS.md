@@ -369,3 +369,172 @@ The critic's ordered list, minus what landed:
    The defensible description is a single-purpose appliance image with its own
    TCP/IP stack, a job protocol and a remote lifecycle. Renaming it in
    reviewer-facing prose is an open decision, not a code change.
+
+---
+
+## 9. Phase 4 — FILES
+
+Branch `os/p4-files`, built against
+`program/AEFINITY_OS_FLEET_DESIGN.md` (§1 protocol, §3 record, §4 modules,
+§4.1 `RELOAD`, §4.2 transport, §7 gate, §8 iron safety, §10 sequencing).
+Everything below ran under QEMU/TCG on `penguin` and **nothing here has run on
+iron.**
+
+### What phase 4 adds
+
+A **file plane** and the fleet verbs, on top of v0.1's resident protocol
+without changing any of it:
+
+```
+AUTH <64hex>            LS                     STAT <NAME>
+SHA <NAME>              GET <NAME>             PUT <NAME> <len> <64hex>
+RM <NAME>               RELOAD                 HEALTH        RUNID <id>
+```
+
+plus the `DATA <len> <sha16>\n<bytes>END\n` frame (§1.1) — the only binary on
+the wire, no base64.
+
+New modules: `aegis-uefi/src/files.rs` (the volume) and
+`aegis-uefi/src/reload.rs` (`EngineSlot`, the artifact pointer). `server.rs`
+dispatches; `net/mod.rs` gains `tcp_recv_exact`, `tcp_send_slice` and §4.2's
+listener buffers; `job.rs` gains §3's appended record keys and §3.1's
+`merge_key`; `main.rs` changes only inside its one existing job hook.
+
+### The three invariants, and where they are enforced
+
+- **`AUTH` gates every verb but `PING`/`AUTH`** when `JOB.TXT` carries a
+  `TOKEN` — **reads included**, because `GET MODEL.SAF` is exfiltration and a
+  `HEALTH` reply publishes artifact digests. The check is one arm of the
+  dispatch loop, so a verb added later cannot forget it. This closes item 3 of
+  §8's "what remains" list above. Absent a `TOKEN` the box is open, which is
+  exactly v0.1 behaviour — which is why no v0.1 gate changed.
+- **No verb returns a partial success** (§1.3). `PUT` never opens the target:
+  stage to `STAGE.PRT`, check the trailer, re-open and stream a sha256 over
+  the **readback**, and only then commit. Every abort path in §1.4's table
+  deletes the stage and leaves the target untouched.
+- **No frame is ever truncated on `GET`** (§1.4). The file is read twice: the
+  header's `sha16` comes from a full pass *before* the header goes out, so a
+  header that arrives is a promise the bytes were readable once. After that the
+  server cannot retract, and the only honest failure left is to close.
+
+### What works under QEMU
+
+`cargo xtask files-test` (design §7), PASS, 2 m 46 s wall:
+
+```
+ok   banner AEFINITY-OS 0.1 READY env=vm cpu=QEMU TCG CPU version 2.5+ caps=files
+ok   GET BOOTLOG.TXT  ->  ERR auth            (TOKEN set, not yet authenticated)
+ok   AUTH <wrong>  ->  ERR auth
+ok   AUTH <token>  ->  OK
+ok   LS  ->  LS 5 ok  [MODEL.SAF EMBED.BIN VOCAB.BIN JOB.TXT BOOTLOG.TXT]
+ok   STAT MODEL.SAF  ->  STAT MODEL.SAF 2797632
+ok   SHA MODEL.SAF matches the host's digest of the staged file
+ok   GET BOOTLOG.TXT  ->  DATA frame, header sha16 matches the payload
+ok   PUT TEST.BIN (256 KiB)  ->  OK …;  GET TEST.BIN byte-identical
+ok   PUT BIG.BIN (64 MiB)  ->  OK …;   SHA BIG.BIN matches what was sent
+ok   PUT with a wrong digest  ->  ERR digest-mismatch, TEST.BIN unchanged
+ok   PUT with a wrong trailer ->  ERR bad-frame
+ok   PUT ../X  ->  ERR bad-name;  32-byte name  ->  ERR bad-name
+ok   PUT BOOTLOG.TXT  ->  ERR protected
+ok   PUT of a 3 GiB declared length  ->  ERR bad-len (before any byte crosses)
+ok   LS free of strays;  HEALTH … parts=0 … env=vm
+ok   RM TEST.BIN;  STAT TEST.BIN  ->  ERR not-found
+ok   RUNID NEW → job → RUNID REPLAY returns the cached record, replay=true
+ok   RELOAD  ->  OK reload model=… embed=… vocab=…; a job after it still runs
+ok   REBOOT  ->  BYE;  QEMU exited 0
+```
+
+Regression, same tree: `resident-test` PASS (4 m 16 s), `job-test` PASS
+(3 m 45 s). `scripts/devloop.sh fmt` clean across all six crates.
+`./aegis-uefi/build_hardfloat.sh` + `scripts/check-efi-simd.sh` PASS
+(`ymm=504 vfmadd=210`). Clippy is unchanged against `os/aefinity-os-v0.1`:
+aegis-uefi **115 → 115**, xtask **0 → 0** (the ratchet baseline of 48 is still
+stale, as §8 item 5 records; the *count* is what this phase held).
+
+`boot-test` was **not run** in this pass — it takes ~28 minutes because of the
+MECH block and phase 4 does not touch the no-`JOB.TXT` path. `git diff` over
+`main.rs` is three hunks: two `mod` lines and the inside of the existing job
+hook. Someone should still run it before the merge.
+
+Every assertion above is on the guest's own `LS`/`SHA`/`STAT`, never the host
+mirror: QEMU `fat:rw:` commits a guest write but **not** a guest unlink, so
+the staged directory cannot answer "is it gone".
+
+### The `RELOAD` hazard statement
+
+`RELOAD` is the one genuinely dangerous verb, and it is dangerous in a way the
+gate cannot show.
+
+The engine borrows the three slabs allocated at STAGE 3 for the server's whole
+life. Overwriting a slab under a live engine would leave a box reporting a
+fresh `model_sha` while still inferring against layout state derived from the
+old bytes — a wrong answer wearing a correct-looking provenance line, which is
+the worst failure this program can ship. So §4.1's ownership change:
+`EngineSlot` **owns** the engine as an `Option`, and `RELOAD`
+
+1. refuses while a `STAGE.PRT` exists (`ERR busy-file`);
+2. checks every artifact against its slab capacity **first** — bigger is
+   `ERR reload-size` with **nothing touched**, and growing a slab means a
+   `REBOOT`, because a re-allocation attempt on a fragmented map is
+   `main.rs`'s `STAGE 3 FAILED: contiguous alloc` in ring 0;
+3. only then drops the engine, refills the slabs (watchdog re-armed per chunk)
+   and rebuilds;
+4. on a failed rebuild **cold-resets the box**, spending `BootNext` and
+   landing in Debian. It never returns to serving.
+
+**The hazard.** Step 3 has no undo. Between the drop and a successful rebuild
+the box holds bytes it cannot describe, and the only exit is the reset in step
+4. Under QEMU the gate exercises the *success* path only — it reloads the same
+three files and asserts the same three digests come back — so the failure path
+is **argued, not observed**: no run has yet dropped an engine and failed to
+rebuild it. On iron that reset costs a boot cycle and a `BootNext`, and a box
+whose Debian side is not reachable is then a box that needs hands. Two
+consequences for operators:
+
+- `PUT MODEL.SAF` + `REBOOT` — the already-tested boot loader — stays the
+  **default** path. `RELOAD` is an opt-in fast path for iteration.
+- Do not `RELOAD` a box you cannot power-cycle or reach over ssh on its Debian
+  side. `BOXES.md` saying `power-cycle: human` is the relevant line.
+
+### Deliberate deviations from the design, and why
+
+| design says | this build | why |
+|---|---|---|
+| banner `caps=files,lab` | `caps=files` | phase 5 has not landed; a box advertising `lab` would be telling a scheduler it can take `EVAL` work it will answer `ERR unknown` to. One constant changes in phase 5. |
+| §1.4: after `REPLAY` the client sends `JOB <len>\n<body>END\n` | the v0.1 `JOB\n<body>\nEND\n` framing, drained and discarded | §1 says `JOB` is unchanged from v0.1, so §1.4's `<len>` form is read as a slip. One code path reads `JOB` in every case and the stream is never left half-framed, which is what §1.4 is actually asking for. |
+| §1.2 shows no `RUNNING` on a replay | `RUNNING` is sent on the replay path too | a controller retrying blind after a dead TCP is exactly the client that must not need two code paths; it was already told `REPLAY` by the verb. `replay=true` in the record is where the honesty about not re-running lives. |
+| §1.3 protects `BOOTLOG.TXT`, `RESULT.TXT`, `RESULT.WIP`, `STAGE.PRT` | those **plus `BOOTX64.EFI` and `CURRENT.TXT`** | a `PUT` of the loader interrupted between the commit's delete and its rename leaves a box that will not boot and that nobody can dial to fix. §9 already leaves large-file provisioning to Debian; this makes the loader part of that rule. `CURRENT.TXT` is the artifact pointer the OS writes, so a client writing it could point boot at unverified bytes. |
+| §1.3's slug list includes `exists` | no producer | no verb here refuses a name for already being taken — `PUT` replaces and `RM` does not create. Left out rather than shipped as a variant nothing can build. |
+| §3.1 defines `<step-input>` for `cpuid`/`mech`/`membw`/`verify`/`eval` | phase 4 also defines it for `prompt`/`bench`/`netcheck` | those three are the kinds that exist today and §3.1's table does not cover them. `prompt` → the prompt text, `bench` → the token count, `netcheck` → the target. Empty would have been simpler and wrong: two different prompts would then share a `merge_key`, which is the one thing the key exists to prevent. The five lab kinds land in phase 5 unchanged. |
+
+### Untested on iron — the phase-4 list
+
+Everything in §5 above still stands. Phase 4 adds:
+
+1. **The 1.83 GB case.** The gate moves 64 MiB. §4.2's window arithmetic and
+   §8's claim that a full-size readback can outlast a single watchdog window
+   are both about a file 28× larger, on a USB FAT32 stick rather than QEMU
+   vvfat. Neither has been observed.
+2. **The artifact pointer swap** (§8). `PUT MODEL.SAF` writes the inactive half
+   of an A/B pair and rewrites `CURRENT.TXT`; boot and `RELOAD` read it and
+   fall back to the canonical name when it is absent, unparsable, or points at
+   a file that is not there. **No gate exercises this** — `files-test` PUTs
+   ordinary files, because a 1.8 GB PUT is not a gate on a 6 GB box — so the
+   swap is code that has been reasoned about and compiled, not code that has
+   run. It is the highest-value thing to exercise on first light.
+3. **`ERR no-space` and `ERR io` on a full volume.** §8 says the UEFI
+   `FileSystemInfo` free-space number is advisory on vendor FAT drivers, so
+   exhaustion may surface as a short write instead. `no-space` is best effort;
+   `io` is the guarantee. Neither has been provoked.
+4. **The `RELOAD` failure path**, above.
+5. **`XFER_STALL_MS` (no progress for 30 s ⇒ close, stage deleted, and the box
+   does **not** reboot).** Reasoned from §1.4, never provoked: the harness is a
+   cooperative client on loopback.
+6. **`sweep_parts` at boot.** The code deletes a stale `STAGE.PRT` and logs it,
+   but no run has yet been interrupted mid-`PUT` and rebooted, so `parts=1` has
+   only ever been observed as `parts=0`.
+7. **The `RUNID` ring across a reboot.** The ring is RAM only by design: a
+   reset empties it and a re-issued id then answers `NEW` and runs a second
+   time. At-most-once holds within one box uptime, nothing more. `HEALTH up=`
+   going backwards is how a scheduler is supposed to notice; that host-side
+   rule is phase 6 and does not exist yet.
