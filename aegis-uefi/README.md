@@ -14,7 +14,9 @@ CLAUDE.md ledger A14). Gate any `.efi` before staging it with
 Spec and build contract: [`../program/AEFINITY_OS.md`](../program/AEFINITY_OS.md).
 Phase 0 lives in `src/job.rs` (parser, runner, record, watchdog, reset) and
 `src/sysinfo.rs` (read-only CPUID identity), reached from a single hook in
-`src/main.rs` immediately before the interactive console.
+`src/main.rs` after the engine is online and before both the MECH diagnostic
+block and the interactive console — a box handed a job should do the job, not
+first run a ~100-token experiment nobody asked for.
 
 **If the boot volume root carries a `JOB.TXT`**, this box is a headless lab
 worker instead of a console: it parses the directives, runs them in file

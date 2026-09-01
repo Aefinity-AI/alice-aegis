@@ -463,7 +463,7 @@ impl ResultRecord {
 /// non-finite inputs cannot occur here (both operands of the division are
 /// non-negative and the divisor is checked), and are floored to `0.00`.
 fn fixed2(v: f64) -> String {
-    if !(v > 0.0) {
+    if v.is_nan() || v <= 0.0 {
         return String::from("0.00");
     }
     let hundredths = (v * 100.0) as u64;
@@ -847,5 +847,42 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
     }
     say("---- END ----\r\n");
 
+    settle_volume(root);
     after(job.after, root);
+}
+
+/// Read the record back off the volume before resetting the machine, and log
+/// what is actually there.
+///
+/// `flush()` returns when the firmware has handed the write on, not when the
+/// medium has taken it, and the next thing this code does is reset the
+/// machine. The load path already stalls a second after each big read for the
+/// same reason on USB. The read-back is the point: `write_result_txt`
+/// returning true says the firmware accepted the write, and only reopening
+/// the file says the record is on the volume — which is the difference
+/// between a headless box that reported a job and one that only thinks it
+/// did. The BOOTLOG line is what tells you which, on a stick that comes home.
+///
+/// Honesty note: an earlier reading of this failure blamed a lost write under
+/// QEMU's `fat:rw:`. It was not — the record was on the volume and on the
+/// host both times; the harness was looking for `RESULT.TXT` on a
+/// case-sensitive filesystem where vvfat had written `result.txt`. The stall
+/// and read-back stay because they are right on real hardware, not because
+/// they fixed that.
+fn settle_volume(root: &mut Directory) {
+    let _ = uefi::boot::stall(core::time::Duration::from_secs(3));
+    match read_small_file(root, "RESULT.TXT", JOB_MAX_BYTES) {
+        Some(bytes) => crate::boot_log(
+            root,
+            &format!(
+                "JOB: RESULT.TXT read-back OK, {} bytes on volume",
+                bytes.len()
+            ),
+        ),
+        None => crate::boot_log(
+            root,
+            "JOB: RESULT.TXT read-back FAILED — record not on volume",
+        ),
+    }
+    let _ = uefi::boot::stall(core::time::Duration::from_secs(1));
 }
