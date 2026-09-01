@@ -30,6 +30,7 @@
 //! | [`Net::mac`] / [`Net::mac_string`] | the NIC's hardware address |
 //! | [`Net::how`] | `dhcp` \| `static` \| `none` — where the address came from |
 //! | [`parse_host_port`], [`parse_ipv4`], [`parse_cidr`] | `JOB.TXT` string forms |
+//! | [`http::post`] | phase 1b: HTTP/1.1 POST built on the above |
 //!
 //! # Rules this file is written under
 //!
@@ -68,6 +69,10 @@ use uefi::proto::media::file::Directory;
 use uefi::proto::network::snp::{NetworkState, ReceiveFlags, SimpleNetwork};
 
 use crate::job::NetCfg;
+
+/// AEFINITY OS phase 1b — HTTP/1.1 POST client built on this module's `Net`
+/// (spec `program/AEFINITY_OS.md` §5, `net/http.rs`).
+pub mod http;
 
 // ---------------------------------------------------------------------------
 // Tunables

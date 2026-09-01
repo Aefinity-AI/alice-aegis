@@ -47,6 +47,13 @@ pub const NETCHECK_TIMEOUT_MS: u64 = 5_000;
 /// The four-way close afterwards. Short: the exchange is already over, and a
 /// peer that will not finish the close must not hold the job open.
 const NETCHECK_CLOSE_MS: u64 = 2_000;
+/// Bound for the whole `REPORT` POST — connect, write, and the read that
+/// follows — phase 1b (spec §5). It runs after the job's own `budget_s`
+/// window and the watchdog is armed at `BUDGET + WATCHDOG_MARGIN_S`, so this
+/// is carved from that same margin: long enough for a slow collector, short
+/// enough that a `REPORT` which will not finish cannot eat the watchdog's
+/// margin and turn a completed job into an unguarded hang before `AFTER`.
+const REPORT_TIMEOUT_MS: u64 = 30_000;
 /// Job bodies are capped (spec §4); the same cap guards the on-disk file.
 const JOB_MAX_BYTES: usize = 64 * 1024;
 /// A single `PROMPT` line is capped (spec §4).
@@ -847,11 +854,15 @@ fn write_progress_record(rec: &ResultRecord, root: &mut Directory, n: usize) {
 /// answer plus an honest verdict is worth more to the collector than silence.
 /// For 3 the unikernel is not running any more, so the record is written
 /// *before* the step instead: see [`write_progress_record`].
+///
+/// Returns the [`crate::net::Net`] this run brought up, if any, so
+/// [`dispatch`]'s `REPORT` step (phase 1b) can reuse an already-up NIC
+/// instead of bringing up a second one; the caller owns dropping it.
 pub fn run_job(
     job: &Job,
     root: &mut Directory,
     engine: &mut TernaryInferenceEngine,
-) -> ResultRecord {
+) -> (ResultRecord, Option<crate::net::Net>) {
     let rid = run_id(root);
     let mut rec = ResultRecord::new(job.budget_s, rid);
 
@@ -862,10 +873,13 @@ pub fn run_job(
         );
     }
 
-    // Brought up by the first directive that needs it (currently NETCHECK;
-    // phase 1b's REPORT joins it). Dropping it at the end of this function
-    // shuts the NIC down and releases the exclusive SNP open before the caller
-    // resets the machine — see `net::SnpDevice::drop`.
+    // Brought up by the first directive that needs it (currently NETCHECK).
+    // Returned to the caller rather than dropped here: phase 1b's REPORT step
+    // runs after this function returns (once RESULT.TXT is on the volume) and
+    // reuses this same NIC instead of bringing up a second one. Whichever
+    // caller ends up holding it must drop it — which shuts the NIC down and
+    // releases the exclusive SNP open (see `net::SnpDevice::drop`) — before
+    // the machine resets.
     let mut net: Option<crate::net::Net> = None;
 
     let started = crate::wall_seconds();
@@ -1054,7 +1068,7 @@ pub fn run_job(
     if rec.steps.is_empty() {
         rec.fail("no runnable directives");
     }
-    rec
+    (rec, net)
 }
 
 /// One `NETCHECK host:port`: connect, send `HELLO <mac>\n`, wait for the peer
@@ -1135,7 +1149,7 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
     }
 
     say("\r\n[AEFINITY OS] JOB.TXT found — running job\r\n");
-    let rec = run_job(job, root, engine);
+    let (rec, mut net) = run_job(job, root, engine);
     let body = rec.render();
 
     if write_result_txt(root, &body) {
@@ -1157,13 +1171,41 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
     }
 
     // Echo it: on a box with a serial console attached this is the result,
-    // and phase 1b will POST the identical bytes.
+    // and phase 1b posts the identical bytes below.
     say("\r\n---- RESULT.TXT ----\r\n");
     for line in body.lines() {
         say(line);
         say("\r\n");
     }
     say("---- END ----\r\n");
+
+    // ---- AEFINITY OS phase 1b: REPORT --------------------------------------
+    // Spec §5: POST the exact bytes already on the volume to `REPORT <url>`,
+    // after RESULT.TXT is written and before AFTER. Never rewrites
+    // RESULT.TXT — spec §3/§6 make the on-disk record predate the POST, so
+    // `report=` in it stays whatever `run_job` left there (`none`, unless a
+    // future step sets it). A failed report is logged and nothing else: a
+    // collector that is unreachable must never turn a completed job into a
+    // box that will not reset.
+    if let Some(url) = &job.report {
+        if net.is_none() {
+            net = crate::net::Net::bring_up(&job.net, root);
+        }
+        match net.as_mut() {
+            Some(nw) => match crate::net::http::post(nw, url, body.as_bytes(), REPORT_TIMEOUT_MS) {
+                Ok(status) => crate::boot_log(root, &format!("REPORT: ok {status}")),
+                Err(e) => crate::boot_log(root, &format!("REPORT: fail {}", e.as_str())),
+            },
+            None => crate::boot_log(
+                root,
+                &format!("REPORT: fail {}", crate::net::NetError::NoNic.as_str()),
+            ),
+        }
+    }
+    // Whatever NIC this job used — for NETCHECK, for REPORT, or both — comes
+    // down here, before the volume settle and the reset: `SnpDevice::drop`
+    // releases the exclusive SNP open the firmware needs back.
+    drop(net);
 
     settle_volume(root);
     after(job.after, root);
