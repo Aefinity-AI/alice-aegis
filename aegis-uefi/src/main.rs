@@ -15,6 +15,10 @@ mod gop;
 mod h3;
 mod job;
 mod mtrr_decode;
+// AEFINITY OS phase 1a: the unikernel's own TCP/IP stack over
+// EFI_SIMPLE_NETWORK. Reached only from `job.rs` (a NETCHECK/REPORT directive
+// asks for it); a boot with no JOB.TXT never touches it.
+mod net;
 mod sysinfo;
 mod verifier;
 // Provides `wcslen`, which LLVM emits for the uefi crate's UTF-16 scans once

@@ -21,6 +21,22 @@ uefi = { version = "0.38.0", features = ["alloc"] }   # boot services, protocols
 spin = "0.12.1"                                        # Mutex for the heap
 linked_list_allocator = "0.10.6"                       # the heap itself
 
+# AEFINITY OS phase 1a: the unikernel's own TCP/IP stack (program/AEFINITY_OS.md
+# §5). Debian's OVMF 2025.02 ships no EDK2 network stack — only VirtioNetDxe,
+# which publishes EFI_SIMPLE_NETWORK and nothing above it — so ARP, IPv4, ICMP,
+# UDP, DHCP and TCP are ours to run. `default-features = false` drops `std`,
+# `log` and every protocol we do not speak; what is left is the exact feature
+# set spec §5 names.
+smoltcp = { version = "0.12.0", default-features = false, features = [
+    "medium-ethernet",
+    "proto-ipv4",
+    "proto-dhcpv4",
+    "socket-tcp",
+    "socket-udp",
+    "socket-dhcpv4",
+    "alloc",
+] }
+
 [features]
 default = ["gop"]
 qemu-test = []
