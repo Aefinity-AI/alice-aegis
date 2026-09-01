@@ -136,3 +136,18 @@ penguin under `flock`; `build_hardfloat.sh` produces an `.efi` that passes
 opened with the gate output pasted; host tooling pushed; roadmap merged.
 Hardware first-light is Justin's step with the flashed stick and is **not**
 claimed here.
+
+## 9. Roadmap beyond v0.1 (added 2026-08-31 after Justin's fleet directive)
+Justin: "always be able to remote into any of them and run all the labs, pull data, build
+projects, even pool CPUs for AI building." Mapped honestly onto the two bodies of each box:
+
+| phase | body | delivers | why it is possible |
+|---|---|---|---|
+| **4 FILES** | unikernel | resident protocol verbs `GET <path>` / `PUT <path> <len>` / `LS` / `SHA <path>` over the boot volume — pull `BOOTLOG.TXT`, push a new `JOB.TXT`, **swap `MODEL.SAF` remotely and `RELOAD`** without touching the stick | FAT32 write path already exists (`boot_log`); smoltcp TCP from 1a |
+| **5 LAB** | unikernel | job kinds beyond PROMPT/BENCH: `EVAL <corpus>` (perplexity slices), `VERIFY <receipt>` (existing `verifier.rs`), `MEMBW`, `CPUID`, `MECH` — the existing lab suites become directives, results in `RESULT.TXT` with digests | suites exist in `aegis-uefi`/`aegis-eval`; this is plumbing |
+| **6 POOL** | fleet | `cm-os-job --pool`: shard a job list (prompts, eval slices, receipt batches, data-gen seeds) across every resident box, stream results to the collector, merge with per-shard digests; scheduler is host-side Python first, then a Rust `aefinity-ctl` | resident boxes are stateless workers; embarrassingly parallel work needs no interconnect |
+| **7 TRAIN-POOL** | Debian side first | pooled CPU *training* (own-model directive): torch/DDP over the boxes' Debian side via ssh + gloo, driven by `cm`; the unikernel joins only when `aegis-core` grows a backward pass (research item, not plumbing) | no_std training kernels are a separate research track; do not block the fleet on it |
+| **build projects** | Debian side | `cm-build` already runs sonnet builders on any ssh box; boxes register in `BOXES.md`; the unikernel has **no compiler** and should not grow one | keep the OS small; Debian is the recovery *and* the compiler |
+
+Order after v0.1 lands: 4 → 5 → 6 (each a verified branch with an xtask gate), 7 in parallel on the
+Debian side once two boxes exist.
