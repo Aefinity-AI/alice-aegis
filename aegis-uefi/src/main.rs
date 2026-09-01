@@ -13,7 +13,16 @@ mod font;
 #[cfg(feature = "gop")]
 mod gop;
 mod h3;
+mod job;
 mod mtrr_decode;
+// AEFINITY OS phase 1a: the unikernel's own TCP/IP stack over
+// EFI_SIMPLE_NETWORK. Reached only from `job.rs` (a NETCHECK/REPORT directive
+// asks for it); a boot with no JOB.TXT never touches it.
+mod net;
+// AEFINITY OS phase 2: the resident TCP job server (spec §4/§5). Reached only
+// from `job::dispatch` when JOB.TXT says `MODE resident`.
+mod server;
+mod sysinfo;
 mod verifier;
 // Provides `wcslen`, which LLVM emits for the uefi crate's UTF-16 scans once
 // SSE is on (hard-float target). No UEFI sysroot defines it. See wcs.rs.
@@ -912,6 +921,38 @@ fn main() -> uefi::Status {
             "[OPSEC] Attack Surface:   Minimal (Ring 0 Unikernel)\r\n\n",
             5,
         );
+    }
+
+    // ---- AEFINITY OS phase 0: the JOB.TXT hook -----------------------------
+    // The single hook the spec allows (program/AEFINITY_OS.md §5): a boot
+    // volume carrying JOB.TXT makes this box a headless lab worker. Parse the
+    // directives, run them, write RESULT.TXT, then ResetSystem (AFTER reset,
+    // which does not return) or fall back through here (AFTER halt).
+    //
+    // WITH NO JOB.TXT `load` returns None and nothing below changes: the
+    // MECH experiment, the qemu-test signal and the interactive console are
+    // all exactly what they were. `cargo xtask boot-test` still exiting 33 is
+    // the check on that.
+    //
+    // Placement. The spec says "immediately before the interactive console",
+    // which would put this after the MECH block. It goes BEFORE MECH instead,
+    // for two reasons, and the gate is the evidence for the second:
+    //   1. A box that was handed a job should do the job. MECH is an
+    //      unconditional hands-off diagnostic experiment that generates ~100
+    //      tokens across nine runs before the console is ever reached; on a
+    //      lab worker that is time charged to nobody's job and, in resident
+    //      mode later, would delay every reboot-and-serve cycle.
+    //   2. Under QEMU/TCG on the dev box MECH alone runs for >11 minutes
+    //      (measured 2026-08-31, 13m20s wall and still inside MECH v2), so
+    //      behind it the §6 `job-test` deadline of 300 s cannot be met by any
+    //      job, however small. Correctness gate, not a timing claim (Rule A).
+    // It is still ONE hook, still after the engine is loaded and before the
+    // interactive console (spec §2), and still before the qemu-test inference
+    // block below — which matters because job-test reuses the qemu-test
+    // binary and that block ends the guest through isa-debug-exit, which
+    // would pre-empt the job's ResetSystem.
+    if let Some(job) = job::load(&mut root) {
+        job::dispatch(&job, &mut root, &mut engine);
     }
 
     // ---- MECH: OS-advantage mechanism experiment, hands-off, one boot ------

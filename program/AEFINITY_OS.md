@@ -35,8 +35,25 @@ Unknown keys are logged to `BOOTLOG.TXT` and ignored. Read from the boot volume
 root by the unikernel **after** the engine is loaded and **before** the
 interactive console; if absent, behaviour is exactly as today (interactive).
 
+> **Erratum, 2026-09-01 (phase 0 as built).** v0.1 said "immediately before the
+> interactive console", which in `aegis-uefi/src/main.rs` would place the hook
+> *after* the unconditional MECH diagnostic block. It is placed **before MECH**
+> instead. Two reasons: (1) a box that was handed a job should do the job — MECH
+> is a hands-off experiment that generates ~100 tokens across nine runs and is
+> charged to nobody's job, and in resident mode (phase 2) it would sit in every
+> reboot-and-serve cycle; (2) under QEMU/TCG on the dev box MECH alone runs for
+> tens of minutes, so behind it no job could meet the §6 `job-test` deadline.
+> It is still ONE hook, still after the engine is loaded and before the
+> interactive console. `JOB.TXT` absent ⇒ `job::load` returns `None` and MECH,
+> the `qemu-test` block and the console are byte-for-byte what they were, which
+> is what `cargo xtask boot-test` still exiting 33 checks.
+
 ```
 BUDGET 240                 # seconds for the whole job (default 300). Watchdog armed at BUDGET+60.
+                           # Enforced before each step AND at coarse checkpoints inside the
+                           # engine in BOTH phases (prefill and decode), so a long PROMPT
+                           # with a small BUDGET still yields a RESULT.TXT with
+                           # verdict=FAIL budget rather than a watchdog reset and silence.
 MODE oneshot               # oneshot (default) | resident
 NET static 10.0.2.15/24 10.0.2.2     # or: NET dhcp   (default: dhcp; falls back to static if given)
 REPORT http://10.0.2.2:8787/aefinity/result   # optional. POST RESULT.TXT here before AFTER.
@@ -78,6 +95,39 @@ job.2.kind=bench
 report=ok|fail <reason>|none
 verdict=OK|FAIL <reason>
 ```
+**`RESULT.WIP`** (added 2026-09-01) is written to the same directory *before*
+each step starts, in the same format, with `verdict=FAIL incomplete: step N did
+not return`, and deleted once `RESULT.TXT` is on the volume. It exists for the
+one case the software budget cannot cover: the firmware watchdog resets the box
+without running any of our code, so the only record that can survive is one
+written beforehand. A stick that comes home carrying a `RESULT.WIP` is a box
+that did not finish, and the file names the step it was in; `BOOTLOG.TXT` says
+whether it was still in prefill or already decoding. `RESULT.TXT` is
+authoritative whenever both are present, and the controller stages a volume
+with neither file on it.
+
+> **Erratum, 2026-09-01 (the delete's confirmation).** As first built, the
+> delete was issued and the name re-opened in the next statement, and
+> `BOOTLOG.TXT` reported `cleared=` from that. That is the hand-off, not the
+> medium — the same distinction `settle_volume` exists for on the write side —
+> and the check also read "empty" and "unreadable" as "gone". The delete is now
+> issued when `RESULT.TXT` lands and *confirmed* after the settle stall, from
+> two independent probes (an `open` that distinguishes `NOT_FOUND` from
+> unreadable, and a walk of the root directory), with one retry if either still
+> sees it. The line reads
+> `JOB: RESULT.WIP cleared=<bool> (open=… dir=… retried=…)`.
+>
+> A gate-environment caveat, measured on 2026-09-01 and not a property of the
+> unikernel: under `cargo xtask job-test` / `job-budget-test` the host mirror of
+> the staged ESP still shows `result.wip` after a run in which both guest probes
+> reported it absent and the guest's later writes committed through. QEMU's
+> `fat:rw:` (vvfat) backend commits guest writes back to the host directory and
+> does not commit the unlink. A stick has no such mirror — the FAT directory the
+> firmware walks is the medium — so the gates assert the guest's BOOTLOG line
+> and print the host state as a note. "A stick that comes home carrying a
+> `RESULT.WIP`" is a statement about a stick, and it is unverified on iron until
+> hardware first light.
+
 `digest` is the CIS-style witness of *what was generated*; identical
 digests across two machines for the same JOB.TXT are the fleet check in §1/3.
 
@@ -98,12 +148,12 @@ idles indefinitely; a hung *job* is reset by firmware. Job bodies are capped at
 ## 5. Unikernel implementation map (`aegis-uefi/src`)
 | file | owner phase | contents |
 |---|---|---|
-| `job.rs` | 0 | `Job` parser, `run_job(&Job, &mut root, &mut engine) -> ResultRecord`, `write_result_txt`, budget accounting, `arm_watchdog(secs)`, `after(Reset|Halt)`, `escape()` |
+| `job.rs` | 0 | `Job` parser, `run_job(&Job, &mut root, &mut engine) -> ResultRecord`, `write_result_txt`, `RESULT.WIP` progress marker, budget accounting (pre-step + in-engine, both phases), `arm_watchdog(secs)`, `after(Reset|Halt)`, `escape()` |
 | `sysinfo.rs` | 0 | `env()` (hypervisor bit), `cpu_brand()`, `cpuid_sig()` — read-only CPUID, no numbers invented |
 | `net/mod.rs` | 1a | `SnpDevice` implementing `smoltcp::phy::Device` over `uefi::proto::network::snp::SimpleNetwork`; `Net::bring_up(cfg) -> Net` (static or DHCP with 10 s cap); `Net::poll(now)`; `Clock` from `wall_seconds()` (fallback: rdtsc calibrated against the UEFI stall) |
 | `net/http.rs` | 1b | `post(&mut Net, url, body, timeout) -> Result<u16 status, Err>` — HTTP/1.1, `Connection: close`, no TLS, no redirects |
 | `server.rs` | 2 | resident listener per §4, uses `job::run_job` |
-| `main.rs` | 0 | **one** hook, immediately before the interactive loop: `if let Some(job) = job::load(&mut root) { job::dispatch(job, &mut root, &mut engine) }` — `dispatch` never returns in oneshot/reset and only returns in oneshot/halt (falls through to the existing park loop) |
+| `main.rs` | 0 | **one** hook, after the engine is loaded and before the MECH diagnostic block and the interactive loop (see the §2 erratum): `if let Some(job) = job::load(&mut root) { job::dispatch(job, &mut root, &mut engine) }` — `dispatch` never returns in oneshot/reset and only returns in oneshot/halt (falls through to MECH and then the existing park loop) |
 
 Rules that bind every builder:
 - `no_std` + `alloc`; `uefi = 0.38` (`uefi::boot::set_watchdog_timer`, `uefi::runtime::reset`, `uefi::proto::network::snp`). smoltcp `0.12+` with features `["medium-ethernet","proto-ipv4","proto-dhcpv4","socket-tcp","socket-udp","socket-dhcpv4","alloc"]`, `default-features = false`. Add nothing else.
@@ -117,6 +167,7 @@ Rules that bind every builder:
 ## 6. xtask gates (`xtask/src/main.rs`)
 Reuse the existing `boot_test` staging (tiny assets from `model-lab/tinybit/m7_final_gate_work/artifacts`, `-m 2048`, TCG, `-serial stdio`, OVMF 4M). New subcommands share a helper `stage(job_txt: Option<&str>) -> EspDir` and a `qemu(args…, timeout)` runner:
 - `job-test` — stages `JOB.TXT` (`BUDGET 180`, `PROMPT`, `BENCH 8`, `AFTER reset`), runs with `-no-reboot`; PASS = QEMU exits (guest reset) **and** `target/esp/RESULT.TXT` exists with `verdict=OK`, `jobs=2`, `env=vm`. (`fat:rw:` writes land in the host dir.)
+- `job-budget-test` — stages a job whose `PROMPT` cannot be prefilled inside its `BUDGET`; PASS = QEMU exits (guest reset) **and** `RESULT.TXT` exists with a `verdict` of `FAIL budget`. This is the regression gate for budget enforcement during prefill: before it, such a job was killed by the firmware watchdog with no record written at all.
 - `net-test` — adds `-netdev user,id=n0 -device virtio-net-pci,netdev=n0 -device virtio-rng-pci`; starts a TCP listener on an ephemeral host port; stages `JOB.TXT` with `NET static 10.0.2.15/24 10.0.2.2` and a test directive `NETCHECK 10.0.2.2:<port>`; PASS = listener receives `HELLO <mac>\n` within 60 s.
 - `os-test` — like `net-test` but `REPORT http://10.0.2.2:<port>/aefinity/result`; harness runs a minimal HTTP server; PASS = POST body parses with `verdict=OK` and `report=ok 200` in the on-disk RESULT is **not** required (it was written before the POST) — assert on the received body.
 - `resident-test` — `MODE resident`, `-netdev user,…,hostfwd=tcp:127.0.0.1:<port>-:4242`; harness connects (retry ≤60 s), expects `READY`, sends `PING`→`PONG`, sends a JOB, receives RESULT with `verdict=OK`, sends `REBOOT`, expects QEMU exit.

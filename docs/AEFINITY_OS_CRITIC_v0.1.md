@@ -1,0 +1,33 @@
+# AEFINITY OS v0.1 — critical review (2026-09-01)
+
+**VERDICT: SHIP-WITH-FIXES** — merge the branch as a QEMU-verified harness; do **not** flash a stick or expose a resident box on the LAN until fixes 1–4 land.
+
+## Required fixes
+
+1. **TX frames can be DMA'd from above 4 GB.** `SnpTxToken::consume` boxes the frame on the global heap (`aegis-uefi/src/net/mod.rs:629`) and hands the raw pointer to `SNP.Transmit()` (`net/mod.rs:577`). `MultiHeap::alloc` falls through heap[0] into the large chunks (`aegis-uefi/src/allocator.rs:54-66`), which are deliberately **not** capped under 4 GB (`allocator.rs:135-138`) — while the repo's own model bounce buffer uses `MaxAddress(0xFFFFFFFF)` for exactly this reason (`aegis-uefi/src/main.rs:510-511`). A 32-bit-DMA NIC given a >4 GB address drops the frame or writes to a truncated physical address. QEMU at `-m 2048` can never show it. Allocate TX frames from a pinned <4 GB pool.
+2. **`REPORT` can blow the watchdog margin.** `job.rs:50-56` claims `REPORT_TIMEOUT_MS` bounds the whole exchange, but `http::post` gives the same 30 s to connect, send, recv **and** both closes (`net/http.rs:131,146,147,155,156`) — ~120 s, plus `settle_volume`'s 4 s (`job.rs:1315,1330`), against a 60 s margin (`job.rs:1162`). A slow collector turns a finished job into a firmware cold reset. Make it one deadline, not four.
+3. **Resident mode disarms the watchdog before the FAT write.** `server.rs:450` calls `arm_watchdog(0)` *before* `write_result_txt` (`server.rs:454`) and the 60 s RESULT send (`server.rs:470`). A FAT write that hangs on a real stick leaves the box wedged with no backstop. Move the disarm after the write.
+4. **The collector is an unauthenticated write endpoint on every interface.** `bin/cm-os-collector:176` defaults `--bind 0.0.0.0` and `systemd/cm-os-collector.service` never overrides it. Anyone routable can write `state/reports/uefi/`, append unescaped attacker-controlled `cpu_brand`/`verdict` text to `state/LOG.md` and `inbox.txt` (`cm-os-collector:138-154`), and push to Justin's phone via ntfy. Bind `127.0.0.1`, or require a token. Also: a non-numeric `Content-Length` raises an uncaught `ValueError` (`cm-os-collector:73`).
+5. **Two `unsafe` blocks with no `// SAFETY:` comment** — `job.rs:996` and `job.rs:1018` (every other rdtsc site has one). And `server.rs:702-704` claims `hlt` "returns at once" with interrupts masked; it halts until NMI/SMI. Fix the comment.
+
+## 1. Spec conformance §2–§7
+Structure, key order and the §4 protocol match; `Cargo.toml` adds only the smoltcp features §5 names. Deviations, all defensible: hook before MECH (`main.rs:926-951`, erratum written); `BUDGET 900`/`JOB_TIMEOUT_S 1200` vs §6's 180/300 (`xtask/src/main.rs:539,551`) — not a timing claim, though §6 still says 180 and was not errata'd; `REPORT` refused and `NETCHECK` failing `no nic` in resident jobs (`server.rs:387-398,430-434`), both consequences of the exclusive SNP open and refused out loud — right call. Undocumented: the `aegis-core` changes (chunked prefill, `stop_cb`, `last_generated_ids`) are absent from §5's map. Genuine gap: `report=` is unreachable except `none`, since `RESULT.TXT` predates the POST (`job.rs:1176,1211`) — §3 lists values nothing can produce.
+
+## 2. Rules A/B/C
+Clean on Rule C: nothing under `tests/golden/`, `docs/hardware_logs/` or the ledger is touched. Rule A holds where it matters — `tps`/`tsc_per_tok` are structural fields stamped `env=vm` (`job.rs:12-17`, `sysinfo.rs:38-45`), gates assert structure only (`xtask:613-620`), and neither PR body nor the status doc quotes a throughput figure. Three quotable soft edges, labelled, none a product claim: unlogged TCG wall-clocks in comments (`main.rs:938-941`, `xtask:545-546`) and `PREFILL_CHUNK_TOKENS`'s "it is **free**" (`inference.rs:71-76`), an unmeasured perf assertion in prose. `tps=50.0` (`tests/test_os_host.py:50`) is inert fixture data. The clippy ratchet is stale and unenforced (115 vs baseline 48) across ~4,700 new lines.
+
+## 3. Safety on iron
+Watchdog ordering is right except fix 3 (`main.rs:417`, `job.rs:552`). SNP start→initialize→receive_filters is correctly ordered with `ALREADY_STARTED` tolerated (`net/mod.rs:444-482`); `Drop` shuts the NIC down before the pending TX boxes are freed (`net/mod.rs:587-599`). Unexamined: `open_protocol_exclusive` (`net/mod.rs:431`) forcibly disconnects a real firmware's own network stack (MNP/IP4/TCP4), which OVMF does not have, and never restores it. `find_handles().first()` (`net/mod.rs:420`) picks an arbitrary NIC on a multi-NIC laptop; no link → 10 s DHCP timeout → resident mode falls through to the console, an unreachable box (`job.rs:1258-1281`). A resident DHCP lease that expires clears the address with no re-acquire (`net/mod.rs:1270-1274`) — silently unreachable forever. `write_named` deletes before creating (`job.rs:661-665`), so power loss leaves *neither* record. Buffers are bounded throughout; the `inference.rs:1057` underflow is guarded at `:997`.
+
+## 4. Security of the resident listener
+None, by design. Any LAN host gets `READY`, runs arbitrary prompts, and can send `HALT` — which parks in `hlt` with the watchdog off and the NIC down (`server.rs:692-709`): a permanent availability kill needing a physical power cycle. `REBOOT` is a free reset. Job bodies are unauthenticated input to the engine and the FAT write. Phase 4: a shared token in `JOB.TXT` checked via an `AUTH <token>` verb before any other command is honoured; a source-address allowlist; `HALT`/`REBOOT` gated even if `PING` is not; the same token on the collector POST.
+
+## 5. What a hostile reviewer says about "OS"
+That it is a firmware application, not an OS: no scheduler, no processes, no memory protection, no drivers of its own, one thread, one client, one program — and every I/O goes through UEFI boot services, which it never exits, so the real OS underneath it is the firmware. The defensible reply is that it is a **single-purpose appliance image** with its own TCP/IP stack, a job protocol and a remote lifecycle. The honest move is to stop calling it an OS in anything a reviewer reads.
+
+## 6. Next five, in order
+1. Pin TX/RX frames below 4 GB before any stick is flashed (fix 1).
+2. Make `REPORT` and the resident write/send paths watchdog-safe (fixes 2, 3).
+3. Bind the collector to localhost and add the shared-token auth to both the collector and the §4 protocol (fix 4 + phase-4 auth).
+4. Do hardware first light on one box and log it to `docs/hardware_logs/`: SNP, real-LAN DHCP, a real `SetWatchdogTimer` firing, a cold reset, FAT32 on a stick.
+5. Stand up the second box and produce the cross-machine `job.N.digest` comparison — the only claim this design exists to make.
