@@ -463,6 +463,101 @@ pub struct ResultRecord {
     pub report: String,
     /// `OK` | `FAIL <reason>`.
     pub verdict: String,
+    /// Design §3's phase-4 additions, rendered after `verdict=`. `None` on a
+    /// box that has no file plane in force (nothing does today; the field is
+    /// an `Option` so a record can still be rendered before the slot is
+    /// consulted).
+    pub fleet: Option<FleetInfo>,
+}
+
+/// The phase-4 additions to the record (design §3), carried as a unit so the
+/// v0.1 key order above is never disturbed: everything here renders **after**
+/// `verdict=`.
+///
+/// Optional because a oneshot boot has no listener and therefore no honest
+/// `uptime_s`/`served` to report — a `0` there would be a claim, not a
+/// default.
+#[derive(Clone, Debug)]
+pub struct FleetInfo {
+    /// `<model16>/<embed16>/<vocab16>` of the **resident** buffers.
+    pub artifacts: String,
+    /// Full sha256 of the resident `MODEL.SAF` buffer.
+    pub model_sha: String,
+    /// Full digests of all three, for [`merge_key`].
+    pub full: (String, String, String),
+    pub reloads: u64,
+    /// `(uptime_s, served)` — resident mode only.
+    pub resident: Option<(u64, u64)>,
+    /// Regular files the boot volume root holds.
+    pub files: usize,
+    /// `true` when this record came out of the `RUNID` ring rather than being
+    /// re-run (design §1.2/§1.4).
+    pub replay: bool,
+    /// `SEED` (design §2-ext) — parsed in phase 5; `None` here, and it is
+    /// serialised as the literal `none` inside [`merge_key`] either way, so
+    /// the key a phase-4 box computes is the key a phase-5 box computes for
+    /// the same seedless job.
+    pub seed: Option<u64>,
+}
+
+/// `merge_key` — the first 16 lower-case hex of sha256 over design §3.1's
+/// byte-exact input serialization.
+///
+/// NUL-terminated ASCII fields, in this order, **with no other separator**:
+///
+/// ```text
+/// "v1"  
+/// <model 64hex>   <embed 64hex>   <vocab 64hex>  
+/// <env>  
+/// <seed decimal, or "none">  
+///   for each step, dispatch order, N ascending:
+///     <N decimal>   <kind>   <step-input>  
+/// "END"  
+/// ```
+///
+/// It **excludes** `cpu_brand`, `shard`, `tag` and `run_id` — those are what
+/// the comparison is about — and **includes `env`**, so an `iron` record and a
+/// TCG record can never share a key and can never be presented as replicating
+/// each other (Rule A, enforced by the artifact).
+///
+/// `<step-input>` for the five lab kinds is §3.1's table and lands with phase
+/// 5. Phase 4 ships the three kinds that exist today, and they are **not** in
+/// §3.1's table, so this is the phase-4 extension of it, recorded here and in
+/// `docs/AEFINITY_OS_STATUS.md`: `prompt` → the prompt text, `bench` → the
+/// token count, `netcheck` → the target. Empty would have been simpler and
+/// wrong — two different prompts would then share a merge key, which is the
+/// one thing the key exists to prevent.
+#[must_use]
+pub fn merge_key(fleet: &FleetInfo, env: &str, steps: &[StepResult]) -> String {
+    let mut h = aegis_core::witness::Sha256::new();
+    let field = |h: &mut aegis_core::witness::Sha256, s: &str| {
+        h.update(s.as_bytes());
+        h.update(&[0u8]);
+    };
+    field(&mut h, "v1");
+    field(&mut h, &fleet.full.0);
+    field(&mut h, &fleet.full.1);
+    field(&mut h, &fleet.full.2);
+    field(&mut h, env);
+    match fleet.seed {
+        Some(v) => field(&mut h, &format!("{v}")),
+        None => field(&mut h, "none"),
+    }
+    for (i, st) in steps.iter().enumerate() {
+        field(&mut h, &format!("{}", i + 1));
+        field(&mut h, st.kind);
+        let input = match st.kind {
+            "prompt" => st.prompt.clone(),
+            "bench" => format!("{}", st.tokens),
+            _ => st.prompt.clone(),
+        };
+        field(&mut h, &input);
+    }
+    field(&mut h, "END");
+    let full = h.finalize();
+    let mut hex = [0u8; 64];
+    let n = aegis_core::witness::hex_lower(&full, &mut hex);
+    String::from_utf8_lossy(&hex[..n.min(16)]).into_owned()
 }
 
 impl ResultRecord {
@@ -481,6 +576,7 @@ impl ResultRecord {
             steps: Vec::new(),
             report: String::from("none"),
             verdict: String::from("OK"),
+            fleet: None,
         }
     }
 
@@ -527,6 +623,24 @@ impl ResultRecord {
         }
         s.push_str(&format!("report={}\n", self.report));
         s.push_str(&format!("verdict={}\n", self.verdict));
+        // ---- design §3: appended after the existing keys, never inside them.
+        // Every v0.1 assertion reads a key by name and the first match wins,
+        // so appending cannot move anything a v0.1 client was reading.
+        if let Some(f) = &self.fleet {
+            s.push_str(&format!("replay={}\n", f.replay));
+            s.push_str(&format!("artifacts={}\n", f.artifacts));
+            s.push_str(&format!("model_sha={}\n", f.model_sha));
+            s.push_str(&format!("reloads={}\n", f.reloads));
+            if let Some((up, served)) = f.resident {
+                s.push_str(&format!("uptime_s={up}\n"));
+                s.push_str(&format!("served={served}\n"));
+            }
+            s.push_str(&format!("files={}\n", f.files));
+            s.push_str(&format!(
+                "merge_key={}\n",
+                merge_key(f, self.env, &self.steps)
+            ));
+        }
         s
     }
 }
@@ -642,6 +756,22 @@ pub fn load(root: &mut Directory) -> Option<Job> {
         }
     };
     let job = parse(text);
+    // Design §8, "Orphans": a `STAGE.PRT` on the volume at boot is the
+    // wreckage of a `PUT` that a reset or a power loss interrupted. It is
+    // deleted here and named in `BOOTLOG.TXT`, and `HEALTH parts=1` (before
+    // this sweep runs, on the next boot) is what tells a scheduler the box is
+    // `SUSPECT`.
+    //
+    // Deliberately after the `JOB.TXT` read, not before it: a box with no
+    // `JOB.TXT` is not a fleet box, has no file plane, and its boot path is
+    // untouched by phase 4 — which is the one thing this phase promised not
+    // to change.
+    if crate::files::sweep_parts(root) {
+        crate::boot_log(
+            root,
+            "JOB: swept a stale STAGE.PRT left by an interrupted PUT",
+        );
+    }
     crate::boot_log(
         root,
         &format!(
@@ -1200,9 +1330,9 @@ fn netcheck(
 /// here only when the box could not be made reachable — no NIC, or no address
 /// — because a resident worker nobody can dial is not a resident worker, and
 /// falling back to the normal boot path leaves someone at the console a way in.
-pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEngine) {
+pub fn dispatch(job: &Job, root: &mut Directory, slot: &mut crate::reload::EngineSlot<'_>) {
     if job.mode == Mode::Resident {
-        dispatch_resident(job, root, engine);
+        dispatch_resident(job, root, slot);
         return;
     }
     let wd = job.budget_s.saturating_add(WATCHDOG_MARGIN_S);
@@ -1216,7 +1346,17 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
     }
 
     say("\r\n[AEFINITY OS] JOB.TXT found — running job\r\n");
-    let (rec, mut net) = run_job(job, root, engine);
+    let Some(engine) = slot.engine_mut() else {
+        // Unreachable in practice: the slot is handed over with the engine
+        // `main.rs` built, and the only code that empties it is
+        // `EngineSlot::reload`, which either refills it or cold-resets the box
+        // (design §4.1). Saying so beats an `expect` on a firmware-adjacent
+        // path where a panic is `panic = "abort"` — a dead box in a rack.
+        crate::boot_log(root, "JOB: no engine in the slot — cannot run");
+        return;
+    };
+    let (mut rec, mut net) = run_job(job, root, engine);
+    rec.fleet = Some(fleet_info(slot, root, None, false));
     let body = rec.render();
 
     if write_result_txt(root, &body) {
@@ -1299,7 +1439,7 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
 /// two forms — so a job that asked for DHCP has given no static address to
 /// fall back to, and this says so in `BOOTLOG.TXT` rather than inventing one.
 /// The fallback becomes reachable when the job format carries both.
-fn dispatch_resident(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEngine) {
+fn dispatch_resident(job: &Job, root: &mut Directory, slot: &mut crate::reload::EngineSlot<'_>) {
     arm_watchdog(0);
     crate::boot_log(
         root,
@@ -1341,7 +1481,33 @@ fn dispatch_resident(job: &Job, root: &mut Directory, engine: &mut TernaryInfere
         net.ip_string(),
         job.listen
     ));
-    crate::server::run(net, root, engine, job)
+    crate::server::run(net, root, slot, job)
+}
+
+/// Assemble design §3's phase-4 additions for one record.
+///
+/// `resident` is `(uptime_s, served)` in resident mode and `None` for a
+/// oneshot boot, which has no listener and so no honest uptime to quote.
+/// `files` is a live `LS` count — the cheapest way for a scheduler to see that
+/// a box it filled still holds what it was given.
+pub fn fleet_info(
+    slot: &crate::reload::EngineSlot<'_>,
+    root: &mut Directory,
+    resident: Option<(u64, u64)>,
+    replay: bool,
+) -> FleetInfo {
+    let d = slot.digests();
+    let files = crate::files::ls(root).map(|(v, _)| v.len()).unwrap_or(0);
+    FleetInfo {
+        artifacts: d.artifacts_line(),
+        model_sha: d.model.clone(),
+        full: (d.model.clone(), d.embed.clone(), d.vocab.clone()),
+        reloads: slot.reloads(),
+        resident,
+        files,
+        replay,
+        seed: None,
+    }
 }
 
 /// Read the record back off the volume before resetting the machine, confirm
