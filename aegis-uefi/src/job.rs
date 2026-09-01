@@ -635,6 +635,17 @@ pub fn write_result_txt(root: &mut Directory, body: &str) -> bool {
     write_named(root, "RESULT.TXT", body)
 }
 
+/// Remove the in-progress marker from the boot volume.
+///
+/// [`dispatch`] does this itself for a oneshot job. The resident server
+/// (`server.rs`) writes `RESULT.TXT` for each socket-delivered job without
+/// going through `dispatch`, and the marker means "this box did not finish"
+/// (spec §3) — a resident box that left one behind after a job it *did*
+/// finish would say something false about itself on the next harvest.
+pub fn clear_wip(root: &mut Directory) {
+    delete_named(root, WIP_NAME);
+}
+
 /// Write `body` to `name` on the boot volume root.
 ///
 /// The stale file is deleted first. Opening `CreateReadWrite` over a longer
@@ -1137,7 +1148,17 @@ fn netcheck(
 /// Arms the watchdog at `BUDGET + 60`, runs the job, writes `RESULT.TXT`,
 /// then performs `AFTER`. Does not return for `AFTER reset`; returns for
 /// `AFTER halt`, and the caller carries on with its normal boot path.
+///
+/// `MODE resident` (spec §4, phase 2) is the third case: the network comes up,
+/// [`crate::server::run`] takes the box over and never returns. It returns
+/// here only when the box could not be made reachable — no NIC, or no address
+/// — because a resident worker nobody can dial is not a resident worker, and
+/// falling back to the normal boot path leaves someone at the console a way in.
 pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEngine) {
+    if job.mode == Mode::Resident {
+        dispatch_resident(job, root, engine);
+        return;
+    }
     let wd = job.budget_s.saturating_add(WATCHDOG_MARGIN_S);
     if arm_watchdog(wd) {
         crate::boot_log(root, &format!("JOB: watchdog armed at {wd}s"));
@@ -1209,6 +1230,66 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
 
     settle_volume(root);
     after(job.after, root);
+}
+
+/// `MODE resident` (spec §4): bring the network up and hand the box to the
+/// listener.
+///
+/// The watchdog is explicitly *disarmed* first. Spec §4: "Watchdog is re-armed
+/// to `BUDGET+60` at `JOB` and to 0 (disabled) while idle — a resident box
+/// idles indefinitely; a hung *job* is reset by firmware." Arming it here, as
+/// the oneshot path does, would reset a perfectly healthy box that simply had
+/// no work yet. `server::run` is what arms and disarms it around each
+/// socket-delivered job.
+///
+/// The `NET` directive is applied as written. Spec §2 says `NET dhcp` "falls
+/// back to static if given", and a `JOB.TXT` carries one `NET` line in one of
+/// two forms — so a job that asked for DHCP has given no static address to
+/// fall back to, and this says so in `BOOTLOG.TXT` rather than inventing one.
+/// The fallback becomes reachable when the job format carries both.
+fn dispatch_resident(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEngine) {
+    arm_watchdog(0);
+    crate::boot_log(
+        root,
+        "RESIDENT: MODE resident — watchdog disarmed, bringing up the network",
+    );
+    say("\r\n[AEFINITY OS] MODE resident — bringing up the network\r\n");
+
+    let Some(net) = crate::net::Net::bring_up(&job.net, root) else {
+        crate::boot_log(
+            root,
+            "RESIDENT: no usable NIC — cannot listen, falling through to the boot path",
+        );
+        say("[AEFINITY OS] resident mode: no NIC, falling through\r\n");
+        return;
+    };
+    if net.ip().is_none() {
+        crate::boot_log(
+            root,
+            &format!(
+                "RESIDENT: NIC {} came up with no address ({}) — cannot listen, \
+                 falling through to the boot path",
+                net.mac_string(),
+                net.how()
+            ),
+        );
+        say("[AEFINITY OS] resident mode: no address, falling through\r\n");
+        // Dropping the Net shuts the NIC down and releases the exclusive SNP
+        // open, so the boot path that follows is the one it would have had.
+        drop(net);
+        return;
+    }
+
+    crate::boot_log(
+        root,
+        &format!("RESIDENT: listening {}:{}", net.ip_string(), job.listen),
+    );
+    say(&format!(
+        "[AEFINITY OS] RESIDENT: listening {}:{}\r\n",
+        net.ip_string(),
+        job.listen
+    ));
+    crate::server::run(net, root, engine, job)
 }
 
 /// Read the record back off the volume before resetting the machine, confirm

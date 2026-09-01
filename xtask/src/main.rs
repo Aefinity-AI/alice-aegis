@@ -29,6 +29,12 @@
 //! server, and asserts that the guest POSTed its `RESULT.TXT` bytes there
 //! before resetting.
 //!
+//! `cargo xtask resident-test` is the AEFINITY OS phase-2 gate (spec §4/§6):
+//! the guest boots into `MODE resident` and becomes a TCP job server, and the
+//! harness — the client, for once — talks the §4 line protocol to it through
+//! QEMU's `hostfwd`: READY, `PING`/`PONG`, two `JOB` blocks on one connection,
+//! a garbage line that must come back `ERR unknown`, and `REBOOT`.
+//!
 //! No external crates: argument parsing is hand-rolled so this works offline.
 
 use std::env;
@@ -97,6 +103,13 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        "resident-test" => match resident_test(&flags) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("xtask: resident-test failed: {e}");
+                ExitCode::from(1)
+            }
+        },
         "job-budget-test" => match job_budget_test(&flags) {
             Ok(code) => code,
             Err(e) => {
@@ -121,7 +134,8 @@ fn usage() {
         "xtask — A.L.I.C.E. / Aegis dev automation
 
 USAGE:
-    cargo xtask <boot-test|job-test|net-test|os-test|job-budget-test> [--ci] [--debug] [--dhcp] [--pcap]
+    cargo xtask <boot-test|job-test|net-test|os-test|resident-test|job-budget-test>
+                [--ci] [--debug] [--dhcp] [--pcap]
 
 SUBCOMMANDS:
     boot-test    Build the UEFI unikernel, stage an ESP, boot under OVMF in QEMU.
@@ -156,6 +170,23 @@ SUBCOMMANDS:
                  The on-disk RESULT.TXT is not required to carry `report=` (spec
                  §6: it predates the POST) — only the received body is asserted.
                  The received body is printed either way.
+
+    resident-test
+                 AEFINITY OS phase 2 (program/AEFINITY_OS.md §4/§6). Stages a
+                 JOB.TXT with `MODE resident` / `NET static {NET_GUEST_CIDR} {NET_HOST_IP}` /
+                 `LISTEN {RESIDENT_GUEST_PORT}`, boots with a virtio NIC and
+                 `-netdev user,...,hostfwd=tcp:127.0.0.1:<port>-:{RESIDENT_GUEST_PORT}`, then talks the
+                 §4 line protocol to the guest while it runs: retry until the
+                 READY banner (≤{RESIDENT_READY_S}s, each attempt ≤{RESIDENT_ATTEMPT_S}s), PING->PONG, a
+                 two-directive JOB, a second JOB on the same connection, a
+                 garbage line, one {RESIDENT_OVERLONG_BYTES}-byte line with no newline in it, and
+                 REBOOT. PASS = both RESULTs carry
+                 verdict=OK / env=vm with jobs=2 then jobs=1, garbage answered
+                 `ERR unknown`, the over-long line answered `ERR too-large` and
+                 then dropped with the listener coming back,
+                 REBOOT answered `BYE`, RESULT.TXT on the volume
+                 holds the LAST job, and QEMU exits because the guest reset.
+                 Both RESULTs are printed. Structure and exit codes only.
 
     job-budget-test
                  Budget-enforcement regression gate. Stages a JOB.TXT with a
@@ -368,10 +399,13 @@ fn stage(label: &str, ci: bool, debug: bool, job_txt: Option<&str>) -> Result<Es
     })
 }
 
-/// Boot a staged ESP under OVMF. `extra` is appended verbatim (net devices,
-/// hostfwd, …). `timeout` of `None` waits forever, which is what `boot-test`
-/// has always done — the unikernel signals through isa-debug-exit.
-fn qemu(esp: &Esp, extra: &[String], timeout: Option<Duration>) -> Result<Outcome, String> {
+/// Build the QEMU invocation every gate shares, returning the binary name and
+/// the ready-to-run `Command`.
+///
+/// Split out of [`qemu`] so a gate that has to *talk to* the guest while it
+/// runs (`resident-test`) spawns exactly the same machine as the gates that
+/// only wait for it to exit. One definition of the machine, not two.
+fn qemu_command(esp: &Esp, extra: &[String]) -> (String, Command) {
     let qemu_bin = env::var("QEMU").unwrap_or_else(|_| "qemu-system-x86_64".into());
     let esp_arg = format!("format=raw,file=fat:rw:{}", esp.dir.display());
     let code_arg = format!("if=pflash,format=raw,readonly=on,file={OVMF_CODE}");
@@ -395,7 +429,14 @@ fn qemu(esp: &Esp, extra: &[String], timeout: Option<Duration>) -> Result<Outcom
         // into the same job forever.
         .arg("-no-reboot");
     cmd.args(extra);
+    (qemu_bin, cmd)
+}
 
+/// Boot a staged ESP under OVMF. `extra` is appended verbatim (net devices,
+/// hostfwd, …). `timeout` of `None` waits forever, which is what `boot-test`
+/// has always done — the unikernel signals through isa-debug-exit.
+fn qemu(esp: &Esp, extra: &[String], timeout: Option<Duration>) -> Result<Outcome, String> {
+    let (qemu_bin, mut cmd) = qemu_command(esp, extra);
     println!("      $ {qemu_bin} -machine q35,accel=tcg -cpu max -m 2048 ...");
     println!();
 
@@ -961,6 +1002,639 @@ fn net_test(flags: &[&str]) -> Result<ExitCode, String> {
             eprintln!("   hint: re-run with --pcap to capture the frames.");
         }
         Ok(ExitCode::from(1))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// resident-test — AEFINITY OS phase 2 gate (program/AEFINITY_OS.md §4/§6)
+// ---------------------------------------------------------------------------
+
+/// The port the guest listens on, written into the staged `JOB.TXT` as
+/// `LISTEN` and used as the guest side of QEMU's `hostfwd`. Spec §2's default.
+const RESIDENT_GUEST_PORT: u16 = 4242;
+/// `BUDGET` written into each `JOB` body sent over the socket.
+///
+/// Spec §6 sketches this gate with a small budget. That is an iron figure and
+/// it does not cross into TCG (CLAUDE.md Rule A): the same two-directive job
+/// under `accel=tcg` needed more than 180 s when phase 0 measured it, which is
+/// why [`JOB_BUDGET_S`] is what it is. This gate uses the same constant for
+/// the same reason — a budget the emulator cannot meet turns a protocol gate
+/// into a budget gate, and `job-budget-test` already covers the budget.
+const RESIDENT_BUDGET_S: u64 = JOB_BUDGET_S;
+/// `TOKENS` for the first job's `PROMPT`, and `BENCH n` for its second
+/// directive — the two-step shape spec §6 asks for, so the record comes back
+/// with `jobs=2`.
+const RESIDENT_TOKENS: usize = JOB_TOKENS;
+/// `BENCH n` in the first job.
+const RESIDENT_BENCH_TOKENS: usize = JOB_BENCH_TOKENS;
+/// `TOKENS` for the second job. Deliberately tiny: the second job's purpose is
+/// to prove the server survived the first one and is still serving the same
+/// connection, not to run the work again.
+const RESIDENT_TOKENS_2: usize = 4;
+
+/// Hard deadline on the whole QEMU run: firmware, the model load, the listener
+/// coming up, two socket-delivered jobs and the reset. Larger than
+/// [`JOB_TIMEOUT_S`] because this gate runs *two* jobs on one boot where
+/// `job-test` runs one; it stays a real deadline, and a guest that never
+/// resets still fails here.
+const RESIDENT_TIMEOUT_S: u64 = 2700;
+/// How long the harness keeps retrying for the READY banner.
+///
+/// Spec §6 says "retry ≤60 s" and this gate was briefed at 90 s. Both are
+/// figures for a box that is already up. Here the retry runs *concurrently
+/// with the boot*, and under TCG the model load alone takes minutes before
+/// `job::dispatch` is reached — so the outer window is sized to the boot and
+/// the 90 s figure survives as [`RESIDENT_ATTEMPT_S`], the window one
+/// connection attempt gets. Rule A: this is a harness bound, not a
+/// measurement, and nothing is recorded from it.
+const RESIDENT_READY_S: u64 = 1200;
+/// How long a single connection attempt waits for the banner before it is
+/// dropped and retried.
+///
+/// QEMU's `hostfwd` accepts the harness's TCP connection on the host side
+/// immediately and only then tries to reach the guest, so a `connect` that
+/// succeeds proves nothing about the guest — the banner does. An attempt that
+/// does not produce one is a dead forward and is retried on a fresh socket.
+const RESIDENT_ATTEMPT_S: u64 = 90;
+/// How long a short reply (`PONG`, `RUNNING`, `BYE`, `ERR unknown`) is given.
+const RESIDENT_IO_S: u64 = 120;
+/// How long a `RESULT` is given to come back after `RUNNING`. This is the
+/// window the actual inference runs in, under emulation.
+const RESIDENT_JOB_S: u64 = 1500;
+/// How long QEMU gets to exit after the guest answered `BYE` to `REBOOT`.
+const RESIDENT_EXIT_S: u64 = 240;
+/// Bytes in the deliberately over-long command line, with no `\n` anywhere in
+/// it. Comfortably past the server's 64 KiB line cap (spec §4) so the case is
+/// unambiguous, and past the network stack's own per-read cap too — the two
+/// are the same number, and an over-long line has to be answered
+/// `ERR too-large` whichever of them notices first.
+const RESIDENT_OVERLONG_BYTES: usize = 70 * 1024;
+/// How long the over-long line is given to go out before the harness stops
+/// pushing and reads the answer. The guest stops reading once it has decided
+/// the line is over the cap, so the tail of this write is *expected* to stall
+/// or fail; that is the case being tested, not a harness fault.
+const RESIDENT_OVERLONG_WRITE_S: u64 = 30;
+/// How long the guest gets to come back up on the listener after it drops the
+/// over-long client. No boot happens here — only `tcp_close` and a re-listen.
+const RESIDENT_RELISTEN_S: u64 = 180;
+
+/// A line-oriented client for the resident protocol (spec §4).
+///
+/// The server writes whole lines but is free to coalesce them into one
+/// segment, so the harness buffers exactly the way the server does: a
+/// residual buffer, and a `read_line` that only ever consumes up to the next
+/// `\n`. Reading with `read_to_string` here would block until the guest closed
+/// the connection, which in resident mode it never does.
+struct ResidentConn {
+    stream: std::net::TcpStream,
+    pending: Vec<u8>,
+}
+
+impl ResidentConn {
+    fn connect(port: u16) -> Result<ResidentConn, String> {
+        let addr: std::net::SocketAddr = ([127, 0, 0, 1], port).into();
+        let stream = std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(5))
+            .map_err(|e| format!("connect 127.0.0.1:{port}: {e}"))?;
+        stream
+            .set_nodelay(true)
+            .map_err(|e| format!("set_nodelay: {e}"))?;
+        Ok(ResidentConn {
+            stream,
+            pending: Vec::new(),
+        })
+    }
+
+    fn send(&mut self, msg: &str) -> Result<(), String> {
+        use std::io::Write;
+        self.stream
+            .write_all(msg.as_bytes())
+            .map_err(|e| format!("write {msg:?}: {e}"))?;
+        self.stream.flush().map_err(|e| format!("flush: {e}"))
+    }
+
+    /// Next line, without its terminator. `wait` bounds the whole call.
+    fn read_line(&mut self, wait: Duration) -> Result<String, String> {
+        let deadline = Instant::now() + wait;
+        loop {
+            if let Some(i) = self.pending.iter().position(|&b| b == b'\n') {
+                let line: Vec<u8> = self.pending.drain(..=i).collect();
+                let text = String::from_utf8_lossy(&line[..line.len() - 1])
+                    .trim_end_matches('\r')
+                    .to_string();
+                return Ok(text);
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(format!("no line within {}s", wait.as_secs()));
+            }
+            // Cap each blocking read so the deadline is checked regularly and
+            // a stalled guest is reported as a stall rather than a hang.
+            let slice = left.min(Duration::from_secs(5));
+            self.stream
+                .set_read_timeout(Some(slice))
+                .map_err(|e| format!("set_read_timeout: {e}"))?;
+            let mut buf = [0u8; 4096];
+            match self.stream.read(&mut buf) {
+                Ok(0) => return Err("the guest closed the connection".to_string()),
+                Ok(n) => self.pending.extend_from_slice(&buf[..n]),
+                Err(ref e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut => {}
+                Err(e) => return Err(format!("read: {e}")),
+            }
+        }
+    }
+
+    /// Read the `RESULT\n<body>END\n` block of spec §4, returning the body.
+    /// `RUNNING` is consumed first because the server always sends it.
+    fn read_result(&mut self, hard_deadline: Instant) -> Result<String, String> {
+        let first = self.read_line(left(hard_deadline, RESIDENT_IO_S)?)?;
+        if first != "RUNNING" {
+            return Err(format!("expected RUNNING, got {first:?}"));
+        }
+        let head = self.read_line(left(hard_deadline, RESIDENT_JOB_S)?)?;
+        if head != "RESULT" {
+            return Err(format!("expected RESULT, got {head:?}"));
+        }
+        let mut body = String::new();
+        loop {
+            let line = self.read_line(left(hard_deadline, RESIDENT_IO_S)?)?;
+            if line == "END" {
+                return Ok(body);
+            }
+            if body.len() > 256 * 1024 {
+                return Err("RESULT body ran past 256 KiB with no END".to_string());
+            }
+            body.push_str(&line);
+            body.push('\n');
+        }
+    }
+}
+
+/// `want` seconds, or whatever is left before the run's hard deadline —
+/// whichever is shorter. An expired deadline is an error, not a zero wait, so
+/// the gate says the run overran instead of reporting the next read as a
+/// protocol failure.
+fn left(hard_deadline: Instant, want: u64) -> Result<Duration, String> {
+    let remaining = hard_deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        return Err(format!(
+            "the run passed its {RESIDENT_TIMEOUT_S}s hard deadline"
+        ));
+    }
+    Ok(remaining.min(Duration::from_secs(want)))
+}
+
+/// A `JOB … END` block for the wire (spec §4).
+fn resident_job_block(tokens: usize, bench: Option<usize>, prompt: &str) -> String {
+    let mut s = format!(
+        "JOB\n\
+         BUDGET {RESIDENT_BUDGET_S}\n\
+         TOKENS {tokens}\n\
+         PROMPT {prompt}\n"
+    );
+    if let Some(n) = bench {
+        s.push_str(&format!("BENCH {n}\n"));
+    }
+    s.push_str("END\n");
+    s
+}
+
+fn resident_test(flags: &[&str]) -> Result<ExitCode, String> {
+    let ci = flags.contains(&"--ci");
+    let debug = flags.contains(&"--debug");
+
+    // Ask the kernel for a free loopback port, then let go of it: QEMU's
+    // hostfwd has to be the one bound to it. The gap is a race in principle;
+    // in practice nothing else on this box claims an ephemeral port in the
+    // microseconds between, and a hostfwd that cannot bind makes QEMU exit
+    // immediately with a message rather than pass silently.
+    let host_port = {
+        let probe = TcpListener::bind("127.0.0.1:0")
+            .map_err(|e| format!("cannot pick a host port: {e}"))?;
+        probe
+            .local_addr()
+            .map_err(|e| format!("cannot read the probe address: {e}"))?
+            .port()
+    };
+
+    let job_txt = format!(
+        "# staged by `cargo xtask resident-test` — AEFINITY OS phase 2 gate\n\
+         MODE resident\n\
+         NET static {NET_GUEST_CIDR} {NET_HOST_IP}\n\
+         LISTEN {RESIDENT_GUEST_PORT}\n"
+    );
+
+    let esp = stage("resident-test", ci, debug, Some(&job_txt))?;
+
+    let extra = vec![
+        "-netdev".to_string(),
+        format!("user,id=n0,hostfwd=tcp:127.0.0.1:{host_port}-:{RESIDENT_GUEST_PORT}"),
+        "-device".to_string(),
+        "virtio-net-pci,netdev=n0".to_string(),
+        "-device".to_string(),
+        "virtio-rng-pci".to_string(),
+    ];
+
+    println!("[4/4] booting under OVMF with a virtio NIC and a host forward");
+    println!(
+        "      hostfwd : 127.0.0.1:{host_port} -> guest {NET_GUEST_CIDR} port {RESIDENT_GUEST_PORT}"
+    );
+    let (qemu_bin, mut cmd) = qemu_command(&esp, &extra);
+    println!("      $ {qemu_bin} -machine q35,accel=tcg -cpu max -m 2048 ...");
+    println!();
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("could not launch {qemu_bin}: {e}. Install qemu-system-x86."))?;
+
+    // One hard deadline over the whole exchange, so a guest that answers each
+    // step just inside its own window cannot walk the gate past every bound in
+    // small steps.
+    let hard_deadline = Instant::now() + Duration::from_secs(RESIDENT_TIMEOUT_S);
+    let run = resident_exchange(&mut child, host_port, hard_deadline);
+
+    // Whatever happened, QEMU must not be left running.
+    let outcome = match &run {
+        Ok(_) => wait_for_exit(&mut child, Duration::from_secs(RESIDENT_EXIT_S)),
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            Outcome::TimedOut
+        }
+    };
+
+    println!();
+    if let Some(text) = find_ci(&esp.dir, "BOOTLOG.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        println!("---- BOOTLOG.TXT (RESIDENT/NET lines) ----");
+        for line in text.lines() {
+            if line.contains("RESIDENT:") || line.contains("NET:") {
+                println!("{line}");
+            }
+        }
+        println!("---- end ----");
+        println!();
+    }
+
+    let session = match run {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("== FAIL == {e}");
+            eprintln!(
+                "   The BOOTLOG lines above are the guest's own account of how far it got.\n\
+                 No `RESIDENT: listening` line means the NIC or the address never came up."
+            );
+            return Ok(ExitCode::from(1));
+        }
+    };
+
+    let mut failures: Vec<String> = Vec::new();
+
+    println!("   ok   banner {}", session.banner);
+    // Structure only (Rule A). `env=vm` in the banner is the same statement
+    // the record makes: nothing this gate sees may be quoted as performance.
+    if !session.banner.contains(" env=vm ") && !session.banner.ends_with(" env=vm") {
+        failures.push(format!(
+            "the READY banner does not carry env=vm: {:?}",
+            session.banner
+        ));
+    }
+    if !session.banner.contains("cpu=") {
+        failures.push(format!(
+            "the READY banner does not carry cpu=: {:?}",
+            session.banner
+        ));
+    }
+
+    for (n, body) in session.results.iter().enumerate() {
+        println!();
+        println!("---- RESULT {} (over the socket) ----", n + 1);
+        print!("{body}");
+        println!("---- end ----");
+    }
+    println!();
+
+    let expects: [(&str, &str); 4] = [
+        ("aefinity_os", "0.1"),
+        ("verdict", "OK"),
+        ("jobs", "2"),
+        ("env", "vm"),
+    ];
+    match session.results.first() {
+        Some(body) => {
+            for (key, want) in expects {
+                match record_value(body, key) {
+                    Some(got) if got == want => println!("   ok   job 1 {key}={got}"),
+                    Some(got) => failures.push(format!("job 1 {key}={got}, expected {want}")),
+                    None => failures.push(format!("job 1 {key} missing")),
+                }
+            }
+        }
+        None => failures.push("the first JOB produced no RESULT".to_string()),
+    }
+    // The second job is the proof the server survived the first: same
+    // connection, same engine, one directive.
+    match session.results.get(1) {
+        Some(body) => {
+            for (key, want) in [("verdict", "OK"), ("jobs", "1"), ("env", "vm")] {
+                match record_value(body, key) {
+                    Some(got) if got == want => println!("   ok   job 2 {key}={got}"),
+                    Some(got) => failures.push(format!("job 2 {key}={got}, expected {want}")),
+                    None => failures.push(format!("job 2 {key} missing")),
+                }
+            }
+        }
+        None => failures.push("the second JOB produced no RESULT".to_string()),
+    }
+
+    // `RESULT.TXT` on the volume is the other half of the phase-2 contract:
+    // a Debian harvest of the same disk has to be able to see what the box
+    // last did without having been the client. It must be the *last* job's
+    // record, not the first.
+    match find_ci(&esp.dir, "RESULT.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        Some(body) => {
+            println!();
+            println!("---- RESULT.TXT (on the volume) ----");
+            print!("{body}");
+            println!("---- end ----");
+            // vvfat commits a guest write but not a guest unlink (the same
+            // mechanism `wip_host_note` documents), so the host mirror of a
+            // record that replaced a longer one can show the older record's
+            // tail after the newer one. `record_value` reads the first
+            // `key=` line, which is the record the guest actually wrote.
+            if body.matches("\nverdict=").count() > 1 {
+                println!("   note the host mirror of RESULT.TXT carries a previous record's tail.");
+                println!(
+                    "        QEMU `fat:rw:` commits the guest's write but not its unlink, so a"
+                );
+                println!(
+                    "        shorter record written over a longer one leaves the old bytes past"
+                );
+                println!("        its end in the mirror only. The assertions below read the first");
+                println!("        record, which is the one the guest wrote.");
+            }
+            match record_value(&body, "jobs") {
+                Some("1") => println!("   ok   the volume holds the last job's record (jobs=1)"),
+                Some(got) => failures.push(format!(
+                    "RESULT.TXT on the volume says jobs={got}; the last job ran one directive"
+                )),
+                None => failures.push("RESULT.TXT on the volume has no jobs= key".to_string()),
+            }
+        }
+        None => failures.push(format!(
+            "no RESULT.TXT under {} — the resident server never wrote the last job \
+             to the volume",
+            esp.dir.display()
+        )),
+    }
+
+    match outcome {
+        Outcome::Exited(c) => {
+            println!("   ok   QEMU exited {c} (guest ResetSystem under -no-reboot)")
+        }
+        Outcome::Signalled => {
+            failures.push("QEMU terminated by a signal with no exit code".to_string())
+        }
+        Outcome::TimedOut => failures.push(format!(
+            "QEMU did not exit within {RESIDENT_EXIT_S}s of the guest answering BYE to REBOOT"
+        )),
+    }
+
+    println!();
+    if failures.is_empty() {
+        println!("== PASS == the resident server served two jobs, refused garbage, and reset.");
+        Ok(ExitCode::SUCCESS)
+    } else {
+        for f in &failures {
+            eprintln!("== FAIL == {f}");
+        }
+        Ok(ExitCode::from(1))
+    }
+}
+
+/// What the harness got out of one resident session.
+struct ResidentSession {
+    banner: String,
+    results: Vec<String>,
+}
+
+/// Connect to the forwarded resident port and wait for the READY banner,
+/// retrying until `wait_s` seconds have passed or the run's hard deadline is
+/// reached.
+///
+/// Used twice: once for the guest's first boot into the listener, and once
+/// after the over-long-line case, which by spec §4 costs the client its
+/// connection and so has to be reconnected before the run can go on.
+fn resident_ready(
+    child: &mut Child,
+    host_port: u16,
+    wait_s: u64,
+    hard_deadline: Instant,
+) -> Result<(ResidentConn, String), String> {
+    let deadline = (Instant::now() + Duration::from_secs(wait_s)).min(hard_deadline);
+    let mut attempt = 0usize;
+    loop {
+        if let Ok(Some(status)) = child.try_wait() {
+            return Err(format!(
+                "QEMU exited ({status}) before the guest ever answered on 127.0.0.1:{host_port}"
+            ));
+        }
+        if Instant::now() >= deadline {
+            return Err(format!(
+                "no READY banner on 127.0.0.1:{host_port} within {wait_s}s \
+                 ({attempt} attempts)"
+            ));
+        }
+        attempt += 1;
+        match ResidentConn::connect(host_port) {
+            Ok(mut c) => match c.read_line(Duration::from_secs(RESIDENT_ATTEMPT_S)) {
+                Ok(line) if line.starts_with("AEFINITY-OS ") && line.contains(" READY ") => {
+                    println!("   attempt {attempt}: {line}");
+                    return Ok((c, line));
+                }
+                // A stale forward the guest accepted before this attempt was
+                // made is being served; it will be dropped when its peer (the
+                // previous attempt's socket) is seen to be gone. Retry.
+                Ok(line) => println!("   attempt {attempt}: got {line:?}, retrying"),
+                Err(e) => println!("   attempt {attempt}: {e}"),
+            },
+            Err(e) => println!("   attempt {attempt}: {e}"),
+        }
+        std::thread::sleep(Duration::from_secs(3));
+    }
+}
+
+/// Drive the protocol of spec §4 end to end against the running guest.
+fn resident_exchange(
+    child: &mut Child,
+    host_port: u16,
+    hard_deadline: Instant,
+) -> Result<ResidentSession, String> {
+    // ---- connect and wait for READY ---------------------------------------
+    let (mut conn, banner) = resident_ready(child, host_port, RESIDENT_READY_S, hard_deadline)?;
+
+    // ---- PING -> PONG -----------------------------------------------------
+    conn.send("PING\n")?;
+    let pong = conn.read_line(left(hard_deadline, RESIDENT_IO_S)?)?;
+    if pong != "PONG" {
+        return Err(format!("PING answered {pong:?}, expected PONG"));
+    }
+    println!("   ok   PING -> PONG");
+
+    // ---- a second concurrent connection must be refused (spec §4) --------
+    // Done while the first connection is idle, which is the case that matters:
+    // the server has to answer a second peer out of its own wait loop, not
+    // only when the first peer next says something.
+    match ResidentConn::connect(host_port) {
+        Ok(mut second) => match second.read_line(left(hard_deadline, RESIDENT_IO_S)?) {
+            Ok(line) if line == "BUSY" => println!("   ok   second connection -> BUSY"),
+            Ok(line) => {
+                return Err(format!(
+                    "a second concurrent connection was answered {line:?}, expected BUSY"
+                ));
+            }
+            Err(e) => return Err(format!("a second concurrent connection got no BUSY: {e}")),
+        },
+        Err(e) => return Err(format!("could not open a second connection: {e}")),
+    }
+
+    let mut results = Vec::new();
+
+    // ---- job 1: two directives -------------------------------------------
+    println!("   sending JOB 1 (PROMPT + BENCH {RESIDENT_BENCH_TOKENS})");
+    conn.send(&resident_job_block(
+        RESIDENT_TOKENS,
+        Some(RESIDENT_BENCH_TOKENS),
+        "The capital of France is",
+    ))?;
+    results.push(conn.read_result(hard_deadline)?);
+    println!("   ok   JOB 1 answered");
+
+    // ---- job 2: the server survived job 1 --------------------------------
+    println!("   sending JOB 2 on the same connection");
+    conn.send(&resident_job_block(RESIDENT_TOKENS_2, None, "Hello"))?;
+    results.push(conn.read_result(hard_deadline)?);
+    println!("   ok   JOB 2 answered — the server survived a job");
+
+    // ---- garbage -> ERR unknown ------------------------------------------
+    conn.send("ZORP not a command\n")?;
+    let err = conn.read_line(left(hard_deadline, RESIDENT_IO_S)?)?;
+    if err != "ERR unknown" {
+        return Err(format!("garbage answered {err:?}, expected `ERR unknown`"));
+    }
+    println!("   ok   garbage -> ERR unknown");
+
+    // ---- one over-long line -> ERR too-large (spec §4) --------------------
+    let mut conn = resident_overlong(child, host_port, conn, hard_deadline)?;
+
+    // ---- REBOOT -> BYE ----------------------------------------------------
+    conn.send("REBOOT\n")?;
+    let bye = conn.read_line(left(hard_deadline, RESIDENT_IO_S)?)?;
+    if bye != "BYE" {
+        return Err(format!("REBOOT answered {bye:?}, expected BYE"));
+    }
+    println!("   ok   REBOOT -> BYE");
+    drop(conn);
+
+    Ok(ResidentSession { banner, results })
+}
+
+/// Send one command line longer than the 64 KiB cap of spec §4 and assert the
+/// server answers `ERR too-large` instead of dropping the peer in silence.
+///
+/// This exists because it once did drop it in silence. The network stack's own
+/// per-read cap and the server's line cap are the same number, so the stack hit
+/// its cap first and reported the generic "closed", which the line reader could
+/// not tell from the peer having vanished — the client got zero bytes back and
+/// no way to know why. The regression is invisible to every other step in this
+/// gate, so it gets its own.
+///
+/// The write runs on its own thread: the guest stops reading at the cap, so the
+/// tail of an over-long line has nowhere to go, and the answer has to be read
+/// while the write is still stuck. Both fds have a timeout, so neither can hang
+/// the gate.
+///
+/// By spec the connection is spent afterwards, so this returns a fresh one.
+fn resident_overlong(
+    child: &mut Child,
+    host_port: u16,
+    mut conn: ResidentConn,
+    hard_deadline: Instant,
+) -> Result<ResidentConn, String> {
+    println!("   sending one {RESIDENT_OVERLONG_BYTES}-byte line with no newline in it");
+    let mut writer = conn
+        .stream
+        .try_clone()
+        .map_err(|e| format!("could not clone the connection to write on: {e}"))?;
+    writer
+        .set_write_timeout(Some(Duration::from_secs(RESIDENT_OVERLONG_WRITE_S)))
+        .map_err(|e| format!("set_write_timeout: {e}"))?;
+    let pusher = std::thread::spawn(move || {
+        use std::io::Write;
+        // A stalled or refused write is the expected ending here, so the
+        // result is deliberately dropped: what this case asserts is what came
+        // *back*, which the reader below has.
+        let blob = vec![b'X'; RESIDENT_OVERLONG_BYTES];
+        let _ = writer.write_all(&blob);
+    });
+
+    let answer = conn.read_line(left(hard_deadline, RESIDENT_IO_S)?);
+    let _ = pusher.join();
+    match answer {
+        Ok(line) if line == "ERR too-large" => {
+            println!("   ok   over-long line -> ERR too-large");
+        }
+        Ok(line) => {
+            return Err(format!(
+                "an over-long line was answered {line:?}, expected `ERR too-large`"
+            ));
+        }
+        Err(e) => {
+            return Err(format!(
+                "an over-long line got no `ERR too-large` back: {e} — the server must \
+                 answer before it drops the peer (spec §4)"
+            ));
+        }
+    }
+
+    // Spec §4: "the connection is dropped". Either ending is that drop — a
+    // clean close, or a reset once the guest tears down a socket the harness
+    // is still pushing into. What must not happen is the server carrying on
+    // taking commands on a connection it has already refused.
+    match conn.read_line(left(hard_deadline, RESIDENT_IO_S)?) {
+        Ok(line) => {
+            return Err(format!(
+                "the server kept serving after `ERR too-large` and sent {line:?}"
+            ));
+        }
+        Err(e) => println!("   ok   connection dropped after ERR too-large ({e})"),
+    }
+    drop(conn);
+
+    let (conn, banner) = resident_ready(child, host_port, RESIDENT_RELISTEN_S, hard_deadline)?;
+    println!("   ok   the server took a new connection afterwards: {banner}");
+    Ok(conn)
+}
+
+/// Wait for a spawned QEMU to exit, killing it if it overruns.
+fn wait_for_exit(child: &mut Child, limit: Duration) -> Outcome {
+    let deadline = Instant::now() + limit;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                return match status.code() {
+                    Some(c) => Outcome::Exited(c),
+                    None => Outcome::Signalled,
+                };
+            }
+            Ok(None) => {}
+            Err(_) => return Outcome::Signalled,
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Outcome::TimedOut;
+        }
+        std::thread::sleep(Duration::from_millis(200));
     }
 }
 

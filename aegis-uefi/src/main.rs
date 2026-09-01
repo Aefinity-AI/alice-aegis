@@ -19,6 +19,9 @@ mod mtrr_decode;
 // EFI_SIMPLE_NETWORK. Reached only from `job.rs` (a NETCHECK/REPORT directive
 // asks for it); a boot with no JOB.TXT never touches it.
 mod net;
+// AEFINITY OS phase 2: the resident TCP job server (spec §4/§5). Reached only
+// from `job::dispatch` when JOB.TXT says `MODE resident`.
+mod server;
 mod sysinfo;
 mod verifier;
 // Provides `wcslen`, which LLVM emits for the uefi crate's UTF-16 scans once
