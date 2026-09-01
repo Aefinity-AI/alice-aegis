@@ -1227,6 +1227,13 @@ fn do_job(
     // replay the body is simply discarded and the cached record goes back.
     if let Some((id, true)) = sess.runid.clone() {
         sess.runid = None;
+        // `RUNNING` goes out here too, so the `JOB` exchange has the same shape
+        // whichever way it went: a controller retrying blind after a dead TCP
+        // is exactly the client that must not need two code paths, and it was
+        // already told `REPLAY` by the verb above. The record itself carries
+        // `replay=true`, which is where the honesty about not re-running lives
+        // — `RUNNING` here means "the JOB exchange has begun", which is true.
+        let _ = send(net, conn, "RUNNING\n", SEND_MS);
         return match srv.replay_of(&id) {
             Some(cached) => {
                 srv.log(&format!(
