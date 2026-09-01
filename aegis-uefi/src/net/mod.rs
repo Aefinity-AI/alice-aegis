@@ -1035,12 +1035,25 @@ impl Net {
     /// rather than a reset, then removes the socket either way — a handle that
     /// outlived its socket is a bug the caller cannot see, so `TcpHandle` is
     /// consumed here.
+    ///
+    /// `TimeWait` counts as closed, and that is not a shortcut. The side that
+    /// closes first never reaches `Closed`: it sits in `TimeWait` for 2 MSL,
+    /// so a loop waiting for `Closed` burns its whole timeout on a connection
+    /// that shut down perfectly and then aborts it. The frame dump from the
+    /// run before this comment existed shows the cost — FIN, ACK, FIN, ACK,
+    /// and then a gratuitous RST pair two seconds later. Both FINs have been
+    /// exchanged and acknowledged by `TimeWait`; there is nothing left to wait
+    /// for. The wait that remains is for a peer that never answers our FIN,
+    /// and for that one the abort below is the right ending.
     pub fn tcp_close(&mut self, h: TcpHandle, timeout_ms: u64) {
         let deadline = self.clock.now_ms() + timeout_ms as i64;
         self.sockets.get_mut::<tcp::Socket>(h.0).close();
         loop {
             self.poll();
-            if self.sockets.get::<tcp::Socket>(h.0).state() == tcp::State::Closed {
+            if matches!(
+                self.sockets.get::<tcp::Socket>(h.0).state(),
+                tcp::State::Closed | tcp::State::TimeWait
+            ) {
                 break;
             }
             if self.clock.now_ms() >= deadline {
