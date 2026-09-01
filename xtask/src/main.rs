@@ -1315,6 +1315,22 @@ fn resident_test(flags: &[&str]) -> Result<ExitCode, String> {
             println!("---- RESULT.TXT (on the volume) ----");
             print!("{body}");
             println!("---- end ----");
+            // vvfat commits a guest write but not a guest unlink (the same
+            // mechanism `wip_host_note` documents), so the host mirror of a
+            // record that replaced a longer one can show the older record's
+            // tail after the newer one. `record_value` reads the first
+            // `key=` line, which is the record the guest actually wrote.
+            if body.matches("\nverdict=").count() > 1 {
+                println!("   note the host mirror of RESULT.TXT carries a previous record's tail.");
+                println!(
+                    "        QEMU `fat:rw:` commits the guest's write but not its unlink, so a"
+                );
+                println!(
+                    "        shorter record written over a longer one leaves the old bytes past"
+                );
+                println!("        its end in the mirror only. The assertions below read the first");
+                println!("        record, which is the one the guest wrote.");
+            }
             match record_value(&body, "jobs") {
                 Some("1") => println!("   ok   the volume holds the last job's record (jobs=1)"),
                 Some(got) => failures.push(format!(
@@ -1406,6 +1422,23 @@ fn resident_exchange(
         return Err(format!("PING answered {pong:?}, expected PONG"));
     }
     println!("   ok   PING -> PONG");
+
+    // ---- a second concurrent connection must be refused (spec §4) --------
+    // Done while the first connection is idle, which is the case that matters:
+    // the server has to answer a second peer out of its own wait loop, not
+    // only when the first peer next says something.
+    match ResidentConn::connect(host_port) {
+        Ok(mut second) => match second.read_line(left(hard_deadline, RESIDENT_IO_S)?) {
+            Ok(line) if line == "BUSY" => println!("   ok   second connection -> BUSY"),
+            Ok(line) => {
+                return Err(format!(
+                    "a second concurrent connection was answered {line:?}, expected BUSY"
+                ));
+            }
+            Err(e) => return Err(format!("a second concurrent connection got no BUSY: {e}")),
+        },
+        Err(e) => return Err(format!("could not open a second connection: {e}")),
+    }
 
     let mut results = Vec::new();
 

@@ -239,10 +239,7 @@ fn serve(
 
     let mut rd = Lines::new();
     loop {
-        // Answer anyone else who turned up while we were busy (spec §4).
-        busy_check(net, spare, port, root);
-
-        let line = match rd.read_line(net, conn) {
+        let line = match rd.read_line(net, conn, spare, port, root) {
             Ok(l) => l,
             Err(LineErr::Closed) => {
                 crate::boot_log(root, "RESIDENT: peer closed the connection");
@@ -277,7 +274,7 @@ fn serve(
                     return Outcome::Next;
                 }
             }
-            "JOB" => match do_job(net, conn, root, engine, cfg, &mut rd) {
+            "JOB" => match do_job(net, conn, spare, port, root, engine, cfg, &mut rd) {
                 JobOutcome::Served => {}
                 JobOutcome::Dropped => return Outcome::Next,
             },
@@ -328,9 +325,12 @@ enum JobOutcome {
 }
 
 /// `JOB\n<body>\nEND\n` (spec §4).
+#[allow(clippy::too_many_arguments)]
 fn do_job(
     net: &mut Net,
     conn: &TcpHandle,
+    spare: &mut Option<TcpHandle>,
+    port: u16,
     root: &mut Directory,
     engine: &mut TernaryInferenceEngine,
     cfg: &Job,
@@ -339,7 +339,7 @@ fn do_job(
     // ---- collect the body -------------------------------------------------
     let mut body = String::new();
     loop {
-        let line = match rd.read_line(net, conn) {
+        let line = match rd.read_line(net, conn, spare, port, root) {
             Ok(l) => l,
             Err(LineErr::Closed) => {
                 crate::boot_log(root, "RESIDENT: peer closed inside a JOB body");
@@ -537,7 +537,14 @@ impl Lines {
     /// Next line, without its terminator. `\r\n` and `\n` are both accepted —
     /// spec §2 says a job body may use either, and the command lines above it
     /// come from the same clients.
-    fn read_line(&mut self, net: &mut Net, conn: &TcpHandle) -> Result<String, LineErr> {
+    fn read_line(
+        &mut self,
+        net: &mut Net,
+        conn: &TcpHandle,
+        spare: &mut Option<TcpHandle>,
+        port: u16,
+        root: &mut Directory,
+    ) -> Result<String, LineErr> {
         loop {
             if let Some(i) = self.pending.iter().position(|&b| b == b'\n') {
                 let mut line: Vec<u8> = self.pending.drain(..=i).collect();
@@ -554,6 +561,19 @@ impl Lines {
             if self.pending.len() > LINE_MAX_BYTES {
                 return Err(LineErr::TooLong);
             }
+
+            // Answer a second peer here rather than between commands (spec
+            // §4). Checking only where a command is dispatched would make the
+            // `BUSY` answer depend on the *first* client saying something: a
+            // client that connects and waits would see silence, not a
+            // refusal, for as long as the first one stayed quiet. This is the
+            // wait, so this is where anyone else knocking gets an answer.
+            //
+            // It still cannot run *during* a job — `run_job` does not poll the
+            // stack — so a peer that arrives mid-job is told BUSY when the job
+            // ends. That is a delay, not a hang: its handshake completes, its
+            // answer is late.
+            busy_check(net, spare, port, root);
 
             let (got, res) = net.tcp_recv_until(conn, Until::Delim(b'\n'), READ_SLICE_MS);
             let empty = got.is_empty();
