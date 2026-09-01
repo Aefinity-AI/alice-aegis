@@ -870,7 +870,7 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
 /// and read-back stay because they are right on real hardware, not because
 /// they fixed that.
 fn settle_volume(root: &mut Directory) {
-    let _ = uefi::boot::stall(core::time::Duration::from_secs(3));
+    uefi::boot::stall(core::time::Duration::from_secs(3));
     match read_small_file(root, "RESULT.TXT", JOB_MAX_BYTES) {
         Some(bytes) => crate::boot_log(
             root,
@@ -884,5 +884,5 @@ fn settle_volume(root: &mut Directory) {
             "JOB: RESULT.TXT read-back FAILED — record not on volume",
         ),
     }
-    let _ = uefi::boot::stall(core::time::Duration::from_secs(1));
+    uefi::boot::stall(core::time::Duration::from_secs(1));
 }
