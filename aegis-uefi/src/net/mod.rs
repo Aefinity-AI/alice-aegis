@@ -848,8 +848,13 @@ impl Net {
             tcp::SocketBuffer::new(vec![0u8; TCP_RX_BYTES]),
             tcp::SocketBuffer::new(vec![0u8; TCP_TX_BYTES]),
         );
-        // smoltcp's own idle timeout, so a peer that goes silent mid-handshake
-        // is torn down by the stack even if the caller's loop is generous.
+        // smoltcp's own idle timeout. It bounds the handshake, and it keeps
+        // bounding the connection afterwards: `timeout_ms` of silence in
+        // either direction tears the socket down. That is deliberate on a box
+        // nobody can log into — a half-open connection to a peer that has gone
+        // away would otherwise sit in the socket set for ever — and it is why
+        // a caller that means to hold a connection open must pass a timeout
+        // that covers the whole exchange, not just the connect.
         sock.set_timeout(Some(SmolDuration::from_millis(timeout_ms)));
         let handle = self.sockets.add(sock);
 
@@ -982,12 +987,27 @@ impl Net {
                 Until::Close => {}
             }
 
-            // The peer sent FIN and we have drained what it sent. For
-            // `Until::Close` that is success; for the others the stream ended
-            // before the caller's condition was met.
-            if !self.sockets.get::<tcp::Socket>(h.0).may_recv() {
-                return match until {
-                    Until::Close => (out, Ok(())),
+            // The receive half has ended and we have drained what was in it.
+            //
+            // *Why* it ended is a different question from *that* it ended, and
+            // the two must not be reported as one. A peer that sent FIN leaves
+            // the socket in CloseWait (or, once we answer, LastAck / Closing /
+            // TimeWait). A connection torn down by this stack's own idle
+            // timeout — `set_timeout` in `tcp_connect`, armed with the caller's
+            // timeout — or by a reset goes straight to Closed without the peer
+            // having said anything. Only the first is "the peer closed", and
+            // `Until::Close` is only *satisfied* by the first.
+            let s = self.sockets.get::<tcp::Socket>(h.0);
+            if !s.may_recv() {
+                let peer_closed = matches!(
+                    s.state(),
+                    tcp::State::CloseWait
+                        | tcp::State::LastAck
+                        | tcp::State::Closing
+                        | tcp::State::TimeWait
+                );
+                return match (until, peer_closed) {
+                    (Until::Close, true) => (out, Ok(())),
                     _ => (out, Err(NetError::Closed)),
                 };
             }

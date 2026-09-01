@@ -1079,6 +1079,9 @@ fn netcheck(
 
     // Wait for the peer to close, or give up after the same bound. Either way
     // the line is already on the wire; this only decides what `detail` says.
+    // `Ok` here means the peer actually sent FIN — a connection that ended
+    // because this stack's own idle timeout fired reports `closed`, not `peer
+    // closed`, because those are different facts about the other end.
     let (echo, waited) = net.tcp_recv_until(&handle, Until::Close, NETCHECK_TIMEOUT_MS);
     net.tcp_close(handle, NETCHECK_CLOSE_MS);
 
