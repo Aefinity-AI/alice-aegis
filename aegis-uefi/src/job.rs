@@ -130,6 +130,13 @@ pub struct Job {
     pub net: NetCfg,
     /// `REPORT <url>` — phase 1b posts `RESULT.TXT` here.
     pub report: Option<String>,
+    /// `TOKEN <value>` — the shared secret a collector may require. Sent as
+    /// `X-Aefinity-Token` on the `REPORT` POST and on nothing else: a
+    /// collector reachable from a LAN is an unauthenticated write endpoint
+    /// without it (`docs/UEFI-REMOTE-LANE.md`, "Exposing the collector").
+    /// Not in spec §2's table; an addition, recorded in
+    /// `docs/AEFINITY_OS_STATUS.md`.
+    pub token: Option<String>,
     pub listen: u16,
     /// The `TOKENS` value left in force at end of file.
     pub tokens: usize,
@@ -148,6 +155,7 @@ impl Default for Job {
             mode: Mode::Oneshot,
             net: NetCfg::Dhcp,
             report: None,
+            token: None,
             listen: DEFAULT_LISTEN,
             tokens: DEFAULT_TOKENS,
             after: After::Reset,
@@ -237,6 +245,21 @@ pub fn parse(body: &str) -> Job {
                     job.unknown.push(String::from("REPORT (empty url)"));
                 } else {
                     job.report = Some(rest.to_string());
+                }
+            }
+            "TOKEN" => {
+                // A token is pasted into an HTTP header, so a control
+                // character in it would be header injection: refuse it here,
+                // where it becomes one BOOTLOG line, rather than on the wire.
+                if rest.is_empty() {
+                    understood = false;
+                    job.unknown.push(String::from("TOKEN (empty)"));
+                } else if rest.bytes().any(|b| b < 0x20 || b == 0x7F) {
+                    understood = false;
+                    job.unknown
+                        .push(String::from("TOKEN (control character in value)"));
+                } else {
+                    job.token = Some(rest.to_string());
                 }
             }
             "LISTEN" => match rest.parse::<u16>() {
@@ -1236,7 +1259,13 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
             net = crate::net::Net::bring_up(&job.net, root);
         }
         match net.as_mut() {
-            Some(nw) => match crate::net::http::post(nw, url, body.as_bytes(), REPORT_TIMEOUT_MS) {
+            Some(nw) => match crate::net::http::post(
+                nw,
+                url,
+                body.as_bytes(),
+                job.token.as_deref(),
+                REPORT_TIMEOUT_MS,
+            ) {
                 Ok(status) => crate::boot_log(root, &format!("REPORT: ok {status}")),
                 Err(e) => crate::boot_log(root, &format!("REPORT: fail {}", e.as_str())),
             },

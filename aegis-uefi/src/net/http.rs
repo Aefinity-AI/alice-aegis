@@ -118,6 +118,10 @@ fn parse_status(resp: &[u8]) -> Option<u16> {
 
 /// `POST url` with `body`, HTTP/1.1, `Connection: close` (spec §5).
 ///
+/// `token`, when present, is sent as `X-Aefinity-Token` — the shared secret a
+/// collector may require before it will accept a write (spec §7 host tooling;
+/// `JOB.TXT`'s `TOKEN` line).
+///
 /// `timeout_ms` bounds **the whole exchange**: connect, write, read and the
 /// close together, on one deadline taken before the first of them, with each
 /// phase given only what is left of it.
@@ -134,7 +138,13 @@ fn parse_status(resp: &[u8]) -> Option<u16> {
 /// whole reply (headers and body, up to `net::Net`'s own receive cap) has
 /// already been drained: `Connection: close` means the socket is not reused,
 /// so there is nothing left for a caller to read afterwards.
-pub fn post(net: &mut Net, url: &str, body: &[u8], timeout_ms: u64) -> Result<u16, HttpErr> {
+pub fn post(
+    net: &mut Net,
+    url: &str,
+    body: &[u8],
+    token: Option<&str>,
+    timeout_ms: u64,
+) -> Result<u16, HttpErr> {
     let u = parse_url(url)?;
 
     // One deadline for everything below. `now_ms` is monotone (it clamps), so
@@ -154,6 +164,15 @@ pub fn post(net: &mut Net, url: &str, body: &[u8], timeout_ms: u64) -> Result<u1
     req.push_str(&format!("Content-Length: {}\r\n", body.len()));
     req.push_str("Connection: close\r\n");
     req.push_str("User-Agent: aefinity-os/0.1\r\n");
+    // `TOKEN <value>` in JOB.TXT, when the collector requires one. `job::parse`
+    // has already refused any value with a control character in it, so this
+    // cannot break the header framing; the check is repeated here because the
+    // consequence of being wrong is request smuggling, not a bad header.
+    if let Some(t) = token {
+        if !t.is_empty() && !t.bytes().any(|b| b < 0x20 || b == 0x7F) {
+            req.push_str(&format!("X-Aefinity-Token: {t}\r\n"));
+        }
+    }
     req.push_str("\r\n");
 
     let mut wire = req.into_bytes();
