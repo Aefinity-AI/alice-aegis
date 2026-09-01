@@ -13,6 +13,11 @@
 //! figure produced under it may be recorded or quoted — TCG models neither the
 //! cache hierarchy nor DVFS. Performance numbers come from physical hardware.
 //!
+//! `cargo xtask job-budget-test` is the regression gate for budget enforcement:
+//! it stages a job whose `PROMPT` cannot be prefilled inside its `BUDGET` and
+//! asserts the guest still writes a `RESULT.TXT` saying `verdict=FAIL budget`,
+//! rather than being killed by the firmware watchdog with nothing on the volume.
+//!
 //! No external crates: argument parsing is hand-rolled so this works offline.
 
 use std::env;
@@ -63,6 +68,13 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        "job-budget-test" => match job_budget_test(&flags) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("xtask: job-budget-test failed: {e}");
+                ExitCode::from(1)
+            }
+        },
         "" | "-h" | "--help" | "help" => {
             usage();
             ExitCode::SUCCESS
@@ -80,7 +92,7 @@ fn usage() {
         "xtask — A.L.I.C.E. / Aegis dev automation
 
 USAGE:
-    cargo xtask <boot-test|job-test> [--ci] [--debug]
+    cargo xtask <boot-test|job-test|job-budget-test> [--ci] [--debug]
 
 SUBCOMMANDS:
     boot-test    Build the UEFI unikernel, stage an ESP, boot under OVMF in QEMU.
@@ -93,6 +105,15 @@ SUBCOMMANDS:
                  {JOB_TIMEOUT_S}s because the guest reset, AND target/esp/RESULT.TXT parses
                  with verdict=OK, jobs=2, env=vm, aefinity_os=0.1. The record is
                  printed. Structure and exit codes only — never a timing figure.
+
+    job-budget-test
+                 Budget-enforcement regression gate. Stages a JOB.TXT with a
+                 {BUDGET_PROMPT_BYTES}-byte PROMPT, TOKENS {BUDGET_TOKENS} and BUDGET {BUDGET_FAIL_S} — a job whose
+                 prompt cannot be prefilled inside its budget. PASS = QEMU exits
+                 within {BUDGET_TIMEOUT_S}s because the guest reset, AND RESULT.TXT exists with
+                 a verdict of `FAIL budget`. Before the prefill deadline check
+                 this case produced no record at all: the firmware watchdog reset
+                 the box mid-prefill and the volume stayed silent.
 
 FLAGS:
     --ci         Non-interactive: fail fast with diagnostics instead of prompting.
@@ -230,6 +251,11 @@ fn stage(label: &str, ci: bool, debug: bool, job_txt: Option<&str>) -> Result<Es
     // (see `find_ci`) so a stale record cannot pass a later gate.
     let esp_dir = out.join("esp");
     if let Some(stale) = find_ci(&esp_dir, "RESULT.TXT") {
+        let _ = fs::remove_file(stale);
+    }
+    // The guest's in-progress marker (aegis-uefi job::WIP_NAME). Left behind,
+    // it would make a later run look like it died mid-step.
+    if let Some(stale) = find_ci(&esp_dir, "RESULT.WIP") {
         let _ = fs::remove_file(stale);
     }
     if let Some(stale) = find_ci(&esp_dir, "JOB.TXT") {
@@ -485,6 +511,133 @@ fn job_test(flags: &[&str]) -> Result<ExitCode, String> {
     println!();
     if failures.is_empty() {
         println!("== PASS == RESULT.TXT satisfies the phase-0 contract.");
+        Ok(ExitCode::SUCCESS)
+    } else {
+        for f in &failures {
+            eprintln!("== FAIL == {f}");
+        }
+        Ok(ExitCode::from(1))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// job-budget-test — budget enforcement during prefill (regression gate)
+// ---------------------------------------------------------------------------
+
+/// `BUDGET` for the failing job. Small enough that a prompt of
+/// `BUDGET_PROMPT_BYTES` cannot be prefilled inside it under TCG, large enough
+/// that the *pre-step* budget check (which runs before the engine is entered)
+/// does not trip first on an idle box — this gate is about the checkpoints
+/// inside the engine. Either path still produces the asserted record, so a
+/// loaded box degrades the gate's specificity, never its verdict.
+const BUDGET_FAIL_S: u64 = 5;
+/// `TOKENS` for it: the spec's hard cap, so nothing about this job is short.
+const BUDGET_TOKENS: usize = 1024;
+/// Length of the staged `PROMPT`, the spec §4 per-line cap. This is the
+/// largest prompt a legal `JOB.TXT` may carry, which is the point.
+const BUDGET_PROMPT_BYTES: usize = 4096;
+/// Harness deadline. Generous: firmware, the model load and the guest's own
+/// watchdog (BUDGET + 60) all fit inside it, so a guest that never resets
+/// fails here rather than hanging the gate.
+const BUDGET_TIMEOUT_S: u64 = 600;
+
+fn job_budget_test(flags: &[&str]) -> Result<ExitCode, String> {
+    let ci = flags.contains(&"--ci");
+    let debug = flags.contains(&"--debug");
+
+    // One line, ASCII, no '#' (which would start a comment) and no newline.
+    let mut prompt = String::new();
+    while prompt.len() < BUDGET_PROMPT_BYTES {
+        prompt.push_str("the quick brown fox jumps over the lazy dog and then keeps going ");
+    }
+    prompt.truncate(BUDGET_PROMPT_BYTES);
+
+    // ZORP is deliberate: an unknown key must be logged and ignored, not
+    // turned into a parse failure that would mask what this gate measures.
+    let job_txt = format!(
+        "# staged by `cargo xtask job-budget-test` — budget enforcement gate\n\
+         BUDGET {BUDGET_FAIL_S}\n\
+         MODE oneshot\n\
+         TOKENS {BUDGET_TOKENS}\n\
+         ZORP this key does not exist\n\
+         PROMPT {prompt}\n\
+         AFTER reset\n"
+    );
+
+    let esp = stage("job-budget-test", ci, debug, Some(&job_txt))?;
+
+    println!("[4/4] booting under OVMF with an unmeetable BUDGET (AFTER reset, -no-reboot)");
+    let outcome = qemu(&esp, &[], Some(Duration::from_secs(BUDGET_TIMEOUT_S)))?;
+
+    println!();
+    match outcome {
+        Outcome::Exited(c) => println!("   QEMU exited {c} (guest ResetSystem under -no-reboot)"),
+        Outcome::Signalled => {
+            eprintln!("== FAIL == QEMU terminated by a signal with no exit code.");
+            return Ok(ExitCode::from(1));
+        }
+        Outcome::TimedOut => {
+            eprintln!(
+                "== FAIL == the guest did not reset within {BUDGET_TIMEOUT_S}s.\n\
+                 A budget-stopped job must still write its record and reset."
+            );
+            return Ok(ExitCode::from(1));
+        }
+    }
+
+    // The BOOTLOG lines are the diagnosis when this gate fails: they say
+    // whether the stop happened in prefill or in decode.
+    if let Some(text) = find_ci(&esp.dir, "BOOTLOG.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        println!("---- BOOTLOG.TXT (JOB/RESET lines) ----");
+        for line in text.lines() {
+            if line.contains("JOB:") || line.contains("RESET:") {
+                println!("{line}");
+            }
+        }
+        println!("---- end ----");
+        println!();
+    }
+
+    let Some(result_path) = find_ci(&esp.dir, "RESULT.TXT") else {
+        eprintln!(
+            "== FAIL == no RESULT.TXT under {}. A job that blows its budget must still\n\
+             leave a record — silence is the failure this gate exists to catch.",
+            esp.dir.display()
+        );
+        return Ok(ExitCode::from(1));
+    };
+    let body = match fs::read_to_string(&result_path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("== FAIL == cannot read {} ({e}).", result_path.display());
+            return Ok(ExitCode::from(1));
+        }
+    };
+
+    println!("---- {} ----", result_path.display());
+    print!("{body}");
+    println!("---- end ----");
+    println!();
+
+    let mut failures: Vec<String> = Vec::new();
+    for (key, want) in [("aefinity_os", "0.1"), ("env", "vm")] {
+        match record_value(&body, key) {
+            Some(got) if got == want => println!("   ok   {key}={got}"),
+            Some(got) => failures.push(format!("{key}={got}, expected {want}")),
+            None => failures.push(format!("{key} missing")),
+        }
+    }
+    match record_value(&body, "verdict") {
+        Some(got) if got.starts_with("FAIL budget") => println!("   ok   verdict={got}"),
+        Some(got) => failures.push(format!(
+            "verdict={got}, expected a verdict starting `FAIL budget`"
+        )),
+        None => failures.push("verdict missing".to_string()),
+    }
+
+    println!();
+    if failures.is_empty() {
+        println!("== PASS == the budget stopped the job and the record says so.");
         Ok(ExitCode::SUCCESS)
     } else {
         for f in &failures {
