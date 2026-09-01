@@ -229,7 +229,11 @@ impl GopConsole {
                 let color = if bit_set { fg } else { bg };
                 for sy in 0..self.scale {
                     for sx in 0..self.scale {
-                        self.put_pixel(base_x + col * self.scale + sx, base_y + row * self.scale + sy, color);
+                        self.put_pixel(
+                            base_x + col * self.scale + sx,
+                            base_y + row * self.scale + sy,
+                            color,
+                        );
                     }
                 }
             }
