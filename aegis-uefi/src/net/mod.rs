@@ -1029,6 +1029,20 @@ impl Net {
         self.ip
     }
 
+    /// Milliseconds on this stack's own monotonic clock (see [`Clock`]).
+    ///
+    /// Exposed so a caller running a multi-phase exchange can hold **one**
+    /// deadline across all of it instead of giving each phase a fresh
+    /// timeout — see [`http::post`], where four fresh 30 s timeouts added up
+    /// to four times the bound the caller thought it had set.
+    ///
+    /// Rule A: a protocol clock. Its output drives timers and never measures
+    /// anything.
+    #[must_use]
+    pub fn now_ms(&self) -> i64 {
+        self.clock.now_ms()
+    }
+
     /// The address in force as `a.b.c.d`, or `none` — the `RESULT.TXT` form
     /// (spec §3).
     #[must_use]

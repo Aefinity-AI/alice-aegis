@@ -118,17 +118,33 @@ fn parse_status(resp: &[u8]) -> Option<u16> {
 
 /// `POST url` with `body`, HTTP/1.1, `Connection: close` (spec §5).
 ///
-/// `timeout_ms` bounds the whole exchange — connect, write, and the read that
-/// follows — the same shape every other `net::Net` operation `job.rs` calls
-/// takes. On success, the peer's whole reply (headers and body, up to
-/// `net::Net`'s own receive cap) has already been drained: `Connection:
-/// close` means the socket is not reused, so there is nothing left for a
-/// caller to read afterwards.
+/// `timeout_ms` bounds **the whole exchange**: connect, write, read and the
+/// close together, on one deadline taken before the first of them, with each
+/// phase given only what is left of it.
+///
+/// That wording used to be a claim rather than a fact. Each phase was handed
+/// the same `timeout_ms` afresh, so a collector that stalled every phase cost
+/// `4 x timeout_ms` — 120 s against the 60 s of watchdog margin `job.rs`
+/// carves this out of, which turns a finished job into a firmware cold reset.
+/// One deadline is the fix; the arithmetic is in `job::REPORT_TIMEOUT_MS`.
+///
+/// A phase reached with the deadline already past still runs, with a
+/// zero-length budget: `Net`'s waits poll once and return `Timeout`, so the
+/// exchange unwinds and closes instead of hanging. On success, the peer's
+/// whole reply (headers and body, up to `net::Net`'s own receive cap) has
+/// already been drained: `Connection: close` means the socket is not reused,
+/// so there is nothing left for a caller to read afterwards.
 pub fn post(net: &mut Net, url: &str, body: &[u8], timeout_ms: u64) -> Result<u16, HttpErr> {
     let u = parse_url(url)?;
 
+    // One deadline for everything below. `now_ms` is monotone (it clamps), so
+    // `remaining` only ever shrinks and can never hand a phase more than the
+    // caller allowed.
+    let deadline = net.now_ms().saturating_add(timeout_ms as i64);
+    let remaining = |net: &Net| -> u64 { deadline.saturating_sub(net.now_ms()).max(0) as u64 };
+
     let handle = net
-        .tcp_connect(u.host, u.port, timeout_ms)
+        .tcp_connect(u.host, u.port, remaining(net))
         .map_err(HttpErr::Net)?;
 
     let mut req = String::new();
@@ -143,8 +159,8 @@ pub fn post(net: &mut Net, url: &str, body: &[u8], timeout_ms: u64) -> Result<u1
     let mut wire = req.into_bytes();
     wire.extend_from_slice(body);
 
-    if let Err(e) = net.tcp_send_all(&handle, &wire, timeout_ms) {
-        net.tcp_close(handle, timeout_ms);
+    if let Err(e) = net.tcp_send_all(&handle, &wire, remaining(net)) {
+        net.tcp_close(handle, remaining(net));
         return Err(HttpErr::Net(e));
     }
 
@@ -152,8 +168,8 @@ pub fn post(net: &mut Net, url: &str, body: &[u8], timeout_ms: u64) -> Result<u1
     // closes or the timeout expires (spec §5). A single `Until::Close` read
     // does both: the status line is the first line of whatever comes back,
     // and draining is what `Until::Close` already means.
-    let (resp, drained) = net.tcp_recv_until(&handle, Until::Close, timeout_ms);
-    net.tcp_close(handle, timeout_ms);
+    let (resp, drained) = net.tcp_recv_until(&handle, Until::Close, remaining(net));
+    net.tcp_close(handle, remaining(net));
 
     // Bytes already on hand are read either way: a peer that sent a full
     // reply and then let the idle timer fire (rather than sending FIN) still

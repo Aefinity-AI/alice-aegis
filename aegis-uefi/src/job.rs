@@ -47,12 +47,28 @@ pub const NETCHECK_TIMEOUT_MS: u64 = 5_000;
 /// The four-way close afterwards. Short: the exchange is already over, and a
 /// peer that will not finish the close must not hold the job open.
 const NETCHECK_CLOSE_MS: u64 = 2_000;
-/// Bound for the whole `REPORT` POST — connect, write, and the read that
-/// follows — phase 1b (spec §5). It runs after the job's own `budget_s`
-/// window and the watchdog is armed at `BUDGET + WATCHDOG_MARGIN_S`, so this
-/// is carved from that same margin: long enough for a slow collector, short
-/// enough that a `REPORT` which will not finish cannot eat the watchdog's
-/// margin and turn a completed job into an unguarded hang before `AFTER`.
+/// Bound for the whole `REPORT` POST — connect, write, read **and** close —
+/// phase 1b (spec §5). [`crate::net::http::post`] holds one deadline across
+/// all four phases, so this is the real ceiling on the exchange and not a
+/// per-phase timeout that four stalled phases multiply by four.
+///
+/// The arithmetic it has to satisfy. The watchdog is armed at
+/// `budget_s + WATCHDOG_MARGIN_S` before `run_job`, and `run_job` is itself
+/// bounded by `budget_s`, so in the worst case exactly `WATCHDOG_MARGIN_S`
+/// (60 s) of margin is left when the job's own window closes. Everything
+/// after it must fit inside that:
+///
+/// | after the job | worst case |
+/// |---|---|
+/// | `write_result_txt` + the WIP delete + BOOTLOG lines | firmware-bound, small |
+/// | `REPORT` POST (this constant) | 30 s |
+/// | [`settle_volume`]: a 3 s stall, the read-back, a 1 s stall | 4 s |
+/// | **total** | **~34 s of the 60 s** |
+///
+/// That leaves ~26 s of slack for the FAT writes and the console echo before
+/// `AFTER` runs, which is the point: a collector that will not answer must
+/// never turn a completed job into a firmware cold reset. Raising this
+/// constant without raising [`WATCHDOG_MARGIN_S`] spends that slack.
 const REPORT_TIMEOUT_MS: u64 = 30_000;
 /// Job bodies are capped (spec §4); the same cap guards the on-disk file.
 const JOB_MAX_BYTES: usize = 64 * 1024;
