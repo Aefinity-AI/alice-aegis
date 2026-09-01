@@ -647,6 +647,89 @@ fn delete_named(root: &mut Directory, name: &str) {
     }
 }
 
+/// What a probe of a name on the boot volume found.
+///
+/// Deliberately not `bool`, and deliberately not [`read_small_file`]: that
+/// returns `None` for absent, empty, oversized *and* unreadable alike, which
+/// is the right answer for "give me this file" and the wrong one for "is this
+/// file there". An empty `RESULT.WIP` is present. A firmware error that is
+/// not `NOT_FOUND` says nothing either way, and the marker's whole meaning is
+/// its presence, so a probe that reports it may not guess.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Presence {
+    Absent,
+    Present,
+    Unknown,
+}
+
+impl Presence {
+    fn as_str(self) -> &'static str {
+        match self {
+            Presence::Absent => "absent",
+            Presence::Present => "present",
+            Presence::Unknown => "unknown",
+        }
+    }
+}
+
+/// Probe `name` by opening it. `NOT_FOUND` is the only answer that means gone.
+fn presence(root: &mut Directory, name: &str) -> Presence {
+    use uefi::proto::media::file::{File, FileAttribute, FileMode};
+    let mut namebuf = [0u16; 32];
+    let Ok(cstr) = uefi::CStr16::from_str_with_buf(name, &mut namebuf) else {
+        return Presence::Unknown;
+    };
+    match root.open(cstr, FileMode::Read, FileAttribute::empty()) {
+        Ok(h) => {
+            h.close();
+            Presence::Present
+        }
+        Err(e) if e.status() == uefi::Status::NOT_FOUND => Presence::Absent,
+        Err(_) => Presence::Unknown,
+    }
+}
+
+/// Second, independent probe: does `name` appear in the boot volume root's
+/// directory listing?
+///
+/// `open` asks the firmware to resolve a name, which a driver may answer from
+/// its own state; this walks the directory the medium reports. One probe
+/// agreeing with itself is not evidence, so when the two disagree the BOOTLOG
+/// line prints both rather than picking one.
+fn dir_has(root: &mut Directory, name: &str) -> Presence {
+    if root.reset_entry_readout().is_err() {
+        return Presence::Unknown;
+    }
+    loop {
+        match root.read_entry_boxed() {
+            Ok(None) => return Presence::Absent,
+            Ok(Some(info)) => {
+                if cstr16_eq_ascii_ci(info.file_name(), name) {
+                    return Presence::Present;
+                }
+            }
+            Err(_) => return Presence::Unknown,
+        }
+    }
+}
+
+/// ASCII case-insensitive compare of a firmware-returned name against ours.
+/// FAT short names come back upper case; a non-ASCII name is not one of ours.
+fn cstr16_eq_ascii_ci(a: &uefi::CStr16, b: &str) -> bool {
+    let mut want = b.bytes();
+    for c in a.iter() {
+        let got = u16::from(*c);
+        if got > 0x7f {
+            return false;
+        }
+        match want.next() {
+            Some(w) if (got as u8).eq_ignore_ascii_case(&w) => {}
+            _ => return false,
+        }
+    }
+    want.next().is_none()
+}
+
 /// `run_id` for the record: the value of a `run_id=` line in `RUN.ID` on the
 /// boot volume, or `none`. The controller writes that file when it stages a
 /// stick, so a returned result can be tied to the run that asked for it.
@@ -927,18 +1010,16 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
     if write_result_txt(root, &body) {
         // The finished record is on the volume, so the in-progress marker is
         // no longer true. Removing it is what makes its presence meaningful.
-        // Whether the firmware actually took the delete is reported, not
-        // assumed: `RESULT.TXT` is the authoritative record either way, and a
-        // marker that could not be cleared is something the person reading
-        // the stick needs told rather than left to infer.
+        // The delete is only *issued* here; `settle_volume` confirms it after
+        // the same stall the `RESULT.TXT` read-back gets. `delete()` returns
+        // when the firmware has taken the request, not when the medium has,
+        // so a probe fired immediately after it reports the hand-off and not
+        // the volume — which is how this line came to claim `cleared=true`
+        // over a marker that was still there.
         delete_named(root, WIP_NAME);
-        let cleared = read_small_file(root, WIP_NAME, JOB_MAX_BYTES).is_none();
         crate::boot_log(
             root,
-            &format!(
-                "JOB: RESULT.TXT written, verdict={}, {WIP_NAME} cleared={cleared}",
-                rec.verdict
-            ),
+            &format!("JOB: RESULT.TXT written, verdict={}", rec.verdict),
         );
     } else {
         crate::boot_log(root, "JOB: RESULT.TXT could not be written");
@@ -957,8 +1038,9 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
     after(job.after, root);
 }
 
-/// Read the record back off the volume before resetting the machine, and log
-/// what is actually there.
+/// Read the record back off the volume before resetting the machine, confirm
+/// the in-progress marker really went with it, and log what is actually
+/// there.
 ///
 /// `flush()` returns when the firmware has handed the write on, not when the
 /// medium has taken it, and the next thing this code does is reset the
@@ -990,5 +1072,48 @@ fn settle_volume(root: &mut Directory) {
             "JOB: RESULT.TXT read-back FAILED — record not on volume",
         ),
     }
+    confirm_wip_cleared(root);
     uefi::boot::stall(core::time::Duration::from_secs(1));
+}
+
+/// Confirm — after the settle stall — that [`WIP_NAME`] really is off the
+/// volume, and say so in `BOOTLOG.TXT`.
+///
+/// Spec §3 defines the marker's presence to mean "this box did not finish",
+/// so a `cleared=true` that was never checked against the medium is worse
+/// than no line at all: it is the one claim on the stick that would be read
+/// as evidence. The delete was issued in `dispatch`, before the echo and the
+/// three-second stall, which is the same hand-off-versus-medium gap
+/// [`settle_volume`] exists for. A marker still there after all of that gets
+/// one more delete, one more stall and one more probe before it is reported
+/// uncleared — `RESULT.TXT` is authoritative either way (§3), so this line is
+/// a report, never a failure.
+///
+/// Both probes are printed because they answer different questions
+/// ([`presence`], [`dir_has`]) and because a host mirror can disagree with
+/// both: QEMU's `fat:rw:` block backend commits guest *writes* through to the
+/// host directory but need not commit an unlink, so under the xtask gates the
+/// staged ESP can still show a `RESULT.WIP` that the guest, the firmware and
+/// the FAT directory all agree is gone. What the guest can honestly report is
+/// what the volume it is holding says, and that is what this logs.
+fn confirm_wip_cleared(root: &mut Directory) {
+    let mut open_p = presence(root, WIP_NAME);
+    let mut dir_p = dir_has(root, WIP_NAME);
+    let mut retried = false;
+    if open_p != Presence::Absent || dir_p != Presence::Absent {
+        retried = true;
+        delete_named(root, WIP_NAME);
+        uefi::boot::stall(core::time::Duration::from_secs(1));
+        open_p = presence(root, WIP_NAME);
+        dir_p = dir_has(root, WIP_NAME);
+    }
+    let cleared = open_p == Presence::Absent && dir_p == Presence::Absent;
+    crate::boot_log(
+        root,
+        &format!(
+            "JOB: {WIP_NAME} cleared={cleared} (open={} dir={} retried={retried})",
+            open_p.as_str(),
+            dir_p.as_str()
+        ),
+    );
 }
