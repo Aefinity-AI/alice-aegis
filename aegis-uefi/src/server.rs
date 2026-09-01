@@ -77,6 +77,17 @@ const SEND_MS: u64 = 15_000;
 /// How long the `RESULT` body is given. Larger than [`SEND_MS`] because the
 /// body is the one message that can be tens of kilobytes.
 const SEND_RESULT_MS: u64 = 60_000;
+/// Watchdog window covering the post-job record: the `RESULT.TXT` write to the
+/// boot volume and the `RESULT` send that follows it.
+///
+/// The job's own window (`budget_s + WATCHDOG_MARGIN_S`) may be entirely spent
+/// by the time the job ends, so this is armed fresh rather than inherited.
+/// Sized for what is actually left to do: [`SEND_RESULT_MS`] (60 s) for the
+/// send, plus the FAT write, plus slack. It is deliberately not `0` — a FAT
+/// write that hangs on a real stick, a USB controller that stops answering,
+/// a firmware `Flush()` that never returns, is precisely the failure a
+/// headless box in a rack has no other way out of.
+const RECORD_WATCHDOG_S: u64 = 120;
 /// The four-way close. Short: the exchange is over by then, and a peer that
 /// will not finish the close must not hold the listener.
 const CLOSE_MS: u64 = 2_000;
@@ -447,10 +458,23 @@ fn do_job(
     rec.net = net.how().to_string();
     let out = rec.render();
 
-    job::arm_watchdog(0);
-    crate::boot_log(root, "RESIDENT: JOB done, watchdog disarmed");
-
     // ---- the record: to the volume and to the socket ----------------------
+    // The watchdog stays armed across both of these, and is disarmed only
+    // once the record is on the volume and the answer is on the wire. It used
+    // to be disarmed here, before the write — which left the one FAT write
+    // this whole mode exists to produce running with no backstop at all.
+    if job::arm_watchdog(RECORD_WATCHDOG_S) {
+        crate::boot_log(
+            root,
+            &format!("RESIDENT: watchdog re-armed at {RECORD_WATCHDOG_S}s for the record"),
+        );
+    } else {
+        crate::boot_log(
+            root,
+            "RESIDENT: firmware refused the watchdog for the record — writing unguarded",
+        );
+    }
+
     if job::write_result_txt(root, &out) {
         job::clear_wip(root);
         crate::boot_log(
@@ -467,15 +491,27 @@ fn do_job(
     // `ResultRecord::render` always ends in a newline, so `END` starts its own
     // line without a separator being guessed at here.
     msg.push_str("END\n");
-    if send(net, conn, &msg, SEND_RESULT_MS).is_err() {
+    let sent = send(net, conn, &msg, SEND_RESULT_MS);
+
+    // Everything that had to reach the volume has reached it, and the answer
+    // is on the wire or gone. Both BOOTLOG lines are written while the
+    // watchdog is still armed — every FAT write this function makes is
+    // covered — and only then does the box go back to idle, where "no
+    // watchdog" is the contract (spec §4): a resident worker waiting for its
+    // next client must not reset itself for being idle.
+    let outcome = if sent.is_err() {
         crate::boot_log(
             root,
             "RESIDENT: peer went away before the RESULT — record is on the volume",
         );
-        return JobOutcome::Dropped;
-    }
-    crate::boot_log(root, "RESIDENT: RESULT sent");
-    JobOutcome::Served
+        JobOutcome::Dropped
+    } else {
+        crate::boot_log(root, "RESIDENT: RESULT sent");
+        JobOutcome::Served
+    };
+    crate::boot_log(root, "RESIDENT: JOB done, disarming watchdog");
+    job::arm_watchdog(0);
+    outcome
 }
 
 /// Why a job body may not take this line, or `None` if it may (spec §4).
