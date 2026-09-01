@@ -108,7 +108,7 @@ fn usage() {
         "xtask — A.L.I.C.E. / Aegis dev automation
 
 USAGE:
-    cargo xtask <boot-test|job-test|net-test|job-budget-test> [--ci] [--debug] [--pcap]
+    cargo xtask <boot-test|job-test|net-test|job-budget-test> [--ci] [--debug] [--dhcp] [--pcap]
 
 SUBCOMMANDS:
     boot-test    Build the UEFI unikernel, stage an ESP, boot under OVMF in QEMU.
@@ -151,6 +151,11 @@ SUBCOMMANDS:
 FLAGS:
     --ci         Non-interactive: fail fast with diagnostics instead of prompting.
     --debug      Build the debug profile instead of release.
+    --dhcp       net-test only: stage `NET dhcp` instead of `NET static`, so the
+                 directive spec §2 makes the default is exercised too. QEMU's
+                 slirp answers the DISCOVER; the gate then asserts that a lease
+                 was taken on 10.0.2.0/24, not which address slirp chose.
+
     --pcap       net-test only: also write every frame on the guest's NIC to
                  target/net.pcap (`-object filter-dump`). Read it with
                  `tcpdump -r target/net.pcap`. The first thing to look for when
@@ -294,6 +299,17 @@ fn stage(label: &str, ci: bool, debug: bool, job_txt: Option<&str>) -> Result<Es
     // The guest's in-progress marker (aegis-uefi job::WIP_NAME). Left behind,
     // it would make a later run look like it died mid-step.
     if let Some(stale) = find_ci(&esp_dir, "RESULT.WIP") {
+        let _ = fs::remove_file(stale);
+    }
+    // BOOTLOG.TXT is appended to, never rewritten, so across runs it becomes a
+    // pile of blocks — and `wip_cleared_check` and net-test both *assert* on
+    // lines they find in it. Measured on 2026-09-01: a net-test run whose
+    // RESULT.TXT committed to the host mirror had its BOOTLOG appends not
+    // commit at all, so the harness read four earlier runs and reported a
+    // `RESULT.WIP cleared=true` that belonged to none of them. A gate that can
+    // pass on a previous run's evidence is not a gate. Starting each run from
+    // an empty log makes a missing line show up as a missing line.
+    if let Some(stale) = find_ci(&esp_dir, "BOOTLOG.TXT") {
         let _ = fs::remove_file(stale);
     }
     if let Some(stale) = find_ci(&esp_dir, "JOB.TXT") {
@@ -613,6 +629,11 @@ fn net_test(flags: &[&str]) -> Result<ExitCode, String> {
     let ci = flags.contains(&"--ci");
     let debug = flags.contains(&"--debug");
     let pcap = flags.contains(&"--pcap");
+    // Spec §2 makes `NET dhcp` the default, and §6 shapes this gate around
+    // `NET static` — so without this flag the default path ships unexercised.
+    // QEMU's slirp runs a DHCP server on the same user netdev, so covering it
+    // costs one directive and one relaxed assertion.
+    let dhcp = flags.contains(&"--dhcp");
 
     // Port 0 lets the kernel choose; the guest is told the result. Binding
     // loopback rather than 0.0.0.0 is deliberate: slirp proxies the guest's
@@ -683,11 +704,16 @@ fn net_test(flags: &[&str]) -> Result<ExitCode, String> {
         })
     };
 
+    let net_line = if dhcp {
+        "NET dhcp".to_string()
+    } else {
+        format!("NET static {NET_GUEST_CIDR} {NET_HOST_IP}")
+    };
     let job_txt = format!(
         "# staged by `cargo xtask net-test` — AEFINITY OS phase 1a gate\n\
          BUDGET {NET_BUDGET_S}\n\
          MODE oneshot\n\
-         NET static {NET_GUEST_CIDR} {NET_HOST_IP}\n\
+         {net_line}\n\
          NETCHECK {NET_HOST_IP}:{port}\n\
          AFTER reset\n"
     );
@@ -838,12 +864,37 @@ fn net_test(flags: &[&str]) -> Result<ExitCode, String> {
             }
             // The address the JOB.TXT asked for must be the address the record
             // reports; a guest that fell back to something else got its packets
-            // through by luck, not by the directive.
-            let want_ip = NET_GUEST_CIDR.split('/').next().unwrap_or("");
-            match record_value(&body, "ip") {
-                Some(got) if got == want_ip => println!("   ok   ip={got}"),
-                Some(got) => failures.push(format!("ip={got}, expected {want_ip}")),
-                None => failures.push("ip missing".to_string()),
+            // through by luck, not by the directive. Under --dhcp the address
+            // is the server's to choose, so the assertion is that there is one
+            // and that it is on slirp's network — asserting slirp's particular
+            // choice would be a gate on QEMU, not on the unikernel.
+            match (record_value(&body, "ip"), dhcp) {
+                (Some(got), false) => {
+                    let want_ip = NET_GUEST_CIDR.split('/').next().unwrap_or("");
+                    if got == want_ip {
+                        println!("   ok   ip={got}");
+                    } else {
+                        failures.push(format!("ip={got}, expected {want_ip}"));
+                    }
+                }
+                (Some(got), true) => {
+                    if got != "none" && got.starts_with("10.0.2.") {
+                        println!("   ok   ip={got} (on slirp's network)");
+                    } else {
+                        failures.push(format!("ip={got}, expected a DHCP lease on 10.0.2.0/24"));
+                    }
+                }
+                (None, _) => failures.push("ip missing".to_string()),
+            }
+            // The address alone proves nothing about how it was obtained:
+            // slirp's first DHCP lease is 10.0.2.15, the same address
+            // NET_GUEST_CIDR asks for statically. `net=` is what separates a
+            // working DHCP client from a silent fallback.
+            let want_net = if dhcp { "dhcp" } else { "static" };
+            match record_value(&body, "net") {
+                Some(got) if got == want_net => println!("   ok   net={got}"),
+                Some(got) => failures.push(format!("net={got}, expected {want_net}")),
+                None => failures.push("net missing".to_string()),
             }
             // The MAC on the wire and the MAC in the record are two independent
             // readings of the same NIC. They have to agree, or one of them is

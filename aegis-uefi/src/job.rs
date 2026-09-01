@@ -401,6 +401,16 @@ pub struct ResultRecord {
     pub cpuid_sig: u32,
     pub mac: String,
     pub ip: String,
+    /// `net` — how [`ip`](Self::ip) was obtained: `dhcp` | `static` | `none`.
+    ///
+    /// Beyond the key list of spec §3, deliberately. The address alone cannot
+    /// say where it came from, and on QEMU's user network the static address
+    /// a job asks for (10.0.2.15) is byte-identical to the first address
+    /// slirp's DHCP server hands out — so a gate reading only `ip=` cannot
+    /// tell a working DHCP client from one that silently fell back, and
+    /// neither can a collector. This makes the provenance a fact in the
+    /// record instead of something only a BOOTLOG line knew.
+    pub net: String,
     pub budget_s: u64,
     pub steps: Vec<StepResult>,
     /// `ok` | `fail <reason>` | `none` (phase 1b fills the first two).
@@ -420,6 +430,7 @@ impl ResultRecord {
             cpuid_sig: crate::sysinfo::cpuid_sig(),
             mac: String::from("none"),
             ip: String::from("none"),
+            net: String::from("none"),
             budget_s,
             steps: Vec::new(),
             report: String::from("none"),
@@ -446,6 +457,7 @@ impl ResultRecord {
         s.push_str(&format!("cpuid_sig={:08x}\n", self.cpuid_sig));
         s.push_str(&format!("mac={}\n", self.mac));
         s.push_str(&format!("ip={}\n", self.ip));
+        s.push_str(&format!("net={}\n", self.net));
         s.push_str(&format!("budget_s={}\n", self.budget_s));
         s.push_str(&format!("jobs={}\n", self.steps.len()));
         for (i, j) in self.steps.iter().enumerate() {
@@ -897,6 +909,7 @@ pub fn run_job(
                 if let Some(nw) = net.as_ref() {
                     rec.mac = nw.mac_string();
                     rec.ip = nw.ip_string();
+                    rec.net = nw.how().to_string();
                 }
                 let (ok, detail) = match net.as_mut() {
                     Some(nw) => netcheck(nw, target, root),
