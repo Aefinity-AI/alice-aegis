@@ -1014,8 +1014,8 @@ pub fn dispatch(job: &Job, root: &mut Directory, engine: &mut TernaryInferenceEn
         // the same stall the `RESULT.TXT` read-back gets. `delete()` returns
         // when the firmware has taken the request, not when the medium has,
         // so a probe fired immediately after it reports the hand-off and not
-        // the volume — which is how this line came to claim `cleared=true`
-        // over a marker that was still there.
+        // the volume. The claim this line used to carry was never established,
+        // whether or not it happened to be true.
         delete_named(root, WIP_NAME);
         crate::boot_log(
             root,
