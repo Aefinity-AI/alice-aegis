@@ -23,6 +23,8 @@
 //! | [`Net::bring_up`] | find the NIC, start it, take an address (static or DHCP), never hang |
 //! | [`Net::poll`] | pump the stack once; call it whenever you are waiting |
 //! | [`Net::tcp_connect`] | open a client connection, bounded by a timeout |
+//! | [`Net::tcp_listen`] | open a listening socket on a port (phase 2) |
+//! | [`Net::tcp_accepted`] | has a peer completed a handshake on it yet (phase 2) |
 //! | [`Net::tcp_send_all`] | write a whole buffer, bounded by a timeout |
 //! | [`Net::tcp_recv_until`] | read until a delimiter, a byte count, or close |
 //! | [`Net::tcp_close`] | close one connection and release its buffers |
@@ -683,6 +685,17 @@ pub struct Net {
     dhcp: Option<SocketHandle>,
     /// Rotating source of ephemeral local ports.
     next_port: u16,
+    /// Sockets opened by [`Net::tcp_listen`], with the port each was told to
+    /// listen on.
+    ///
+    /// smoltcp's `reset()` clears a socket's `listen_endpoint`, so a listener
+    /// that a peer aborted mid-handshake forgets which port it was serving.
+    /// A resident box has to re-listen after every close (spec §4), and it
+    /// cannot ask the socket where it was listening — so the port is kept
+    /// here instead. A `Vec` and not a map: a resident server holds two of
+    /// these (the one being served and one backlog slot for the `BUSY`
+    /// answer), and a linear scan of two entries needs no hashing.
+    listeners: Vec<(SocketHandle, u16)>,
 }
 
 impl Net {
@@ -753,6 +766,7 @@ impl Net {
             dhcp: None,
             // Start somewhere in the ephemeral range, seeded per boot.
             next_port: 49152 + (seed % 16000) as u16,
+            listeners: Vec::new(),
         };
 
         match cfg {
@@ -840,6 +854,80 @@ impl Net {
     #[must_use]
     pub fn counters(&self) -> (u64, u64) {
         (self.dev.tx_dropped, self.dev.rx_errors)
+    }
+
+    /// Open a listening TCP socket on `port` (spec §4, phase 2).
+    ///
+    /// The socket is placed in `LISTEN` and stays there until a peer completes
+    /// a handshake on it; [`Net::tcp_accepted`] is how the caller finds out.
+    /// Once accepted, the same handle *is* the connection — smoltcp has no
+    /// separate accepted socket — so a server that wants to keep serving opens
+    /// a second listener as its backlog slot and promotes it when the first
+    /// connection ends. That is also what makes the `BUSY` answer of spec §4
+    /// possible: a second peer completes its handshake on the backlog socket
+    /// instead of being left unanswered.
+    ///
+    /// **No idle backstop is armed here**, unlike [`Net::tcp_connect`]. Spec
+    /// §4: "a resident box idles indefinitely". smoltcp's socket timeout
+    /// aborts a connection only when there is unacknowledged data in the
+    /// transmit buffer (or keep-alive is on), so it would not fire on a quiet
+    /// connection anyway — but a listener that expires while nobody is talking
+    /// to it is exactly the failure a resident box must not have, so the
+    /// timer is left off and the *server* bounds its own idle, where a
+    /// BOOTLOG line can say what happened.
+    pub fn tcp_listen(&mut self, port: u16) -> Result<TcpHandle, NetError> {
+        if port == 0 {
+            return Err(NetError::BadAddress);
+        }
+        let mut sock = tcp::Socket::new(
+            tcp::SocketBuffer::new(vec![0u8; TCP_RX_BYTES]),
+            tcp::SocketBuffer::new(vec![0u8; TCP_TX_BYTES]),
+        );
+        sock.set_timeout(None);
+        if sock.listen(port).is_err() {
+            return Err(NetError::BadAddress);
+        }
+        let handle = self.sockets.add(sock);
+        self.listeners.push((handle, port));
+        // One pass so a SYN already sitting in the NIC's receive queue is
+        // answered before the caller's first `tcp_accepted`.
+        self.poll();
+        Ok(TcpHandle(handle))
+    }
+
+    /// Has a peer completed a handshake on this listener?
+    ///
+    /// Polls the stack, so it is also the pump a server's accept loop needs;
+    /// call it in a loop with a short stall between passes.
+    ///
+    /// A listener whose handshake was aborted (a peer that sent SYN and then
+    /// RST, or a slirp forward whose far end went away) lands back in
+    /// `Closed`, which in smoltcp is a *dead* socket, not a listening one.
+    /// This re-arms it on the port it was opened with — the "re-listen after
+    /// each close" of spec §4 — so a box nobody is talking to cannot quietly
+    /// stop being reachable.
+    pub fn tcp_accepted(&mut self, h: &TcpHandle) -> bool {
+        self.poll();
+        let state = self.sockets.get::<tcp::Socket>(h.0).state();
+        match state {
+            // `CloseWait` too: a peer that connects and immediately sends FIN
+            // has still been accepted, and the caller must be told so it can
+            // close the socket rather than wait on a connection that is over.
+            tcp::State::Established | tcp::State::CloseWait => true,
+            tcp::State::Closed => {
+                self.relisten(h);
+                false
+            }
+            _ => false,
+        }
+    }
+
+    /// Put a dead listener back into `LISTEN` on the port it was opened with.
+    fn relisten(&mut self, h: &TcpHandle) {
+        let Some(&(_, port)) = self.listeners.iter().find(|(sh, _)| *sh == h.0) else {
+            return;
+        };
+        let _ = self.sockets.get_mut::<tcp::Socket>(h.0).listen(port);
     }
 
     /// Open a TCP connection.
@@ -1064,6 +1152,10 @@ impl Net {
             uefi::boot::stall(CoreDuration::from_millis(POLL_SLEEP_MS));
         }
         self.sockets.remove(h.0);
+        // If this was a listener, its port bookkeeping goes with it. Leaving
+        // the entry behind would let a later socket reuse the slot's index and
+        // inherit a port it was never opened on.
+        self.listeners.retain(|(sh, _)| *sh != h.0);
     }
 
     // -- internals ----------------------------------------------------------
