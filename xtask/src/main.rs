@@ -2657,6 +2657,12 @@ fn files_test(flags: &[&str]) -> Result<ExitCode, String> {
         "MODEL.NEW",
         "EMBED.NEW",
         "VOCAB.NEW",
+        // `files-soak` shares this ESP, and vvfat commits its writes to the
+        // host mirror. Its files are inert here, but a gate that boots with
+        // another gate's leftovers is not booting what it staged.
+        "SOAK1.BIN",
+        "SOAK2.BIN",
+        "SOAK3.BIN",
     ] {
         if let Some(p) = find_ci(&esp.dir, stray) {
             let _ = fs::remove_file(p);
