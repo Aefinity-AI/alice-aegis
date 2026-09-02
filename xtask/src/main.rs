@@ -103,6 +103,20 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        "files-test" => match files_test(&flags) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("xtask: files-test failed: {e}");
+                ExitCode::from(1)
+            }
+        },
+        "files-soak" => match files_soak(&flags) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("xtask: files-soak failed: {e}");
+                ExitCode::from(1)
+            }
+        },
         "resident-test" => match resident_test(&flags) {
             Ok(code) => code,
             Err(e) => {
@@ -134,8 +148,8 @@ fn usage() {
         "xtask — A.L.I.C.E. / Aegis dev automation
 
 USAGE:
-    cargo xtask <boot-test|job-test|net-test|os-test|resident-test|job-budget-test>
-                [--ci] [--debug] [--dhcp] [--pcap]
+    cargo xtask <boot-test|job-test|net-test|os-test|resident-test|files-test|files-soak|job-budget-test>
+                [--ci] [--debug] [--dhcp] [--pcap] [--vvfat]
 
 SUBCOMMANDS:
     boot-test    Build the UEFI unikernel, stage an ESP, boot under OVMF in QEMU.
@@ -188,6 +202,27 @@ SUBCOMMANDS:
                  holds the LAST job, and QEMU exits because the guest reset.
                  Both RESULTs are printed. Structure and exit codes only.
 
+    files-soak
+                 AEFINITY OS phase 4 INTEGRITY gate (design §7 / §8). {SOAK_CYCLES} PUT/RM/RELOAD
+                 cycles in ONE boot, mixing the three ordinary SOAK*.BIN names
+                 with the three artifacts, and after EVERY cycle a fresh
+                 guest-side `SHA` of every file present — checked against the
+                 host's own digest of the bytes that were sent, both by the
+                 client-visible name (through §8's pointer) and by the physical
+                 A/B half. First mismatch fails the gate and names the cycle.
+                 Also asserts, every cycle, `HEALTH parts=0 degraded=none` and
+                 that `RM` of an A/B half is `ERR protected`; late in the run,
+                 that `RM MODEL.SAF`-style artifact removal takes both halves
+                 and leaves no orphaned pointer.
+
+                 The boot volume is a REAL FAT32 image (`mformat` + `mcopy`,
+                 `-drive format=raw`), not QEMU's `fat:rw:`. vvfat synthesises a
+                 FAT filesystem over a host directory and is documented-fragile
+                 under create/rename/delete churn — it fails this soak inside
+                 `block/vvfat.c`, which is a fact about the emulator and not
+                 about the file plane. `--vvfat` selects it anyway, to
+                 reproduce that. See AEFINITY_OS_STATUS.md §9.
+
     job-budget-test
                  Budget-enforcement regression gate. Stages a JOB.TXT with a
                  {BUDGET_PROMPT_BYTES}-byte PROMPT, TOKENS {BUDGET_TOKENS} and BUDGET {BUDGET_FAIL_S} — a job whose
@@ -211,6 +246,11 @@ FLAGS:
                  slirp answers the DISCOVER; the gate then asserts that a lease
                  was taken on 10.0.2.0/24, not which address slirp chose.
 
+    --vvfat      files-soak only: boot the soak on QEMU's `fat:rw:` directory
+                 mapping instead of a real FAT image. Expected to fail, and the
+                 point of running it is to see HOW: a digest that moves under
+                 churn, or `block/vvfat.c` asserting and taking QEMU down.
+
     --pcap       net-test only: also write every frame on the guest's NIC to
                  target/net.pcap (`-object filter-dump`). Read it with
                  `tcpdump -r target/net.pcap`. The first thing to look for when
@@ -218,6 +258,7 @@ FLAGS:
                  guest's ARP for {NET_HOST_IP}.
 
 ENVIRONMENT:
+    AEGIS_SOAK_CYCLES   files-soak cycle count (default: {SOAK_CYCLES}).
     AEGIS_UEFI_TARGET   Rust target triple (default: {DEFAULT_TARGET}).
     QEMU                qemu binary (default: qemu-system-x86_64).
 
@@ -406,8 +447,24 @@ fn stage(label: &str, ci: bool, debug: bool, job_txt: Option<&str>) -> Result<Es
 /// runs (`resident-test`) spawns exactly the same machine as the gates that
 /// only wait for it to exit. One definition of the machine, not two.
 fn qemu_command(esp: &Esp, extra: &[String]) -> (String, Command) {
-    let qemu_bin = env::var("QEMU").unwrap_or_else(|_| "qemu-system-x86_64".into());
     let esp_arg = format!("format=raw,file=fat:rw:{}", esp.dir.display());
+    qemu_command_on(esp, extra, &esp_arg)
+}
+
+/// [`qemu_command`] with the boot volume named explicitly.
+///
+/// `fat:rw:` is QEMU's `vvfat`, which synthesises a FAT filesystem over a host
+/// directory on the fly. It is the right thing for a gate that wants to read
+/// the guest's writes back on the host, and it is **not** a filesystem: the
+/// mapping between directory entries and host files is rebuilt as the guest
+/// mutates it, and heavy create/rename/delete churn is a documented weak
+/// spot — `block/vvfat.c` will assert and take QEMU down with it.
+/// `files-soak` therefore points this at a real FAT image (`mformat` + `mcopy`)
+/// by default, so a digest mismatch under churn is evidence about the guest
+/// rather than about the emulator. See `AEFINITY_OS_STATUS.md` §9.
+fn qemu_command_on(esp: &Esp, extra: &[String], drive: &str) -> (String, Command) {
+    let qemu_bin = env::var("QEMU").unwrap_or_else(|_| "qemu-system-x86_64".into());
+    let esp_arg = drive.to_string();
     let code_arg = format!("if=pflash,format=raw,readonly=on,file={OVMF_CODE}");
     let vars_arg = format!("if=pflash,format=raw,file={}", esp.vars.display());
 
@@ -2251,4 +2308,1519 @@ fn find_efi(dir: &Path) -> Option<PathBuf> {
         }
     }
     best.map(|(_, p)| p)
+}
+
+// ---------------------------------------------------------------------------
+// files-test — AEFINITY OS phase 4 (design §7)
+// ---------------------------------------------------------------------------
+
+/// Hard deadline over the whole phase-4 exchange.
+///
+/// Larger than `resident-test`'s because this gate moves 64 MiB across the
+/// wire, writes it to FAT, reads it back for a digest, and then hashes it a
+/// third time for the `SHA` verb — under TCG, on a shared 6 GB box. Rule A:
+/// this is a harness bound, not a measurement, and nothing is recorded from it.
+const FILES_TIMEOUT_S: u64 = 3600;
+/// How long the harness keeps retrying for the READY banner.
+const FILES_READY_S: u64 = 1200;
+/// How long a short reply (`OK`, `ERR …`, `SEND`, a `LS` header) is given.
+const FILES_IO_S: u64 = 180;
+/// How long one bulk transfer step is given: the 64 MiB `PUT` payload, its
+/// readback digest, or a `SHA` over it.
+const FILES_BULK_S: u64 = 1500;
+/// How long QEMU gets to exit after the guest answers `BYE`.
+const FILES_EXIT_S: u64 = 240;
+/// The small round-trip payload: 256 KiB of deterministic pseudorandom bytes.
+const FILES_SMALL_BYTES: usize = 256 * 1024;
+/// The large payload (design §7): 64 MiB. A 256 KiB transfer proves nothing
+/// about a 1.8 GB one — this is the case that exercises §4.2's listener window
+/// and §8's per-chunk watchdog re-arm across a readback.
+const FILES_BIG_BYTES: usize = 64 * 1024 * 1024;
+/// The shared secret staged into `JOB.TXT`, so the gate can prove design
+/// §1.2's rule that a `TOKEN` gates **reads** as well as writes.
+const FILES_TOKEN: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+/// A name one byte over `NAME_MAX_BYTES` (31), for the `ERR bad-name` case.
+const FILES_LONG_NAME: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAA.BIN";
+/// A declared length over `PUT_MAX_BYTES` (2 GiB): 3 GiB.
+const FILES_OVER_LEN: u64 = 3 * 1024 * 1024 * 1024;
+
+/// A minimal FIPS 180-4 sha256, host side.
+///
+/// Deliberately a **second implementation**, not a call into `aegis-core`: the
+/// whole point of `SHA <NAME>` in this gate is that the guest's digest of the
+/// bytes on its volume equals a digest computed by something that is not the
+/// code under test (CLAUDE.md Rule D). It is cross-checked once per run
+/// against `sha256sum` where that binary exists, so a bug in *this* function
+/// cannot make the gate pass either.
+struct Sha256 {
+    state: [u32; 8],
+    buf: [u8; 64],
+    len: usize,
+    total: u64,
+}
+
+const SHA_K: [u32; 64] = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
+
+impl Sha256 {
+    fn new() -> Sha256 {
+        Sha256 {
+            state: [
+                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+                0x5be0cd19,
+            ],
+            buf: [0u8; 64],
+            len: 0,
+            total: 0,
+        }
+    }
+
+    fn update(&mut self, mut data: &[u8]) {
+        self.total += data.len() as u64;
+        while !data.is_empty() {
+            let take = (64 - self.len).min(data.len());
+            self.buf[self.len..self.len + take].copy_from_slice(&data[..take]);
+            self.len += take;
+            data = &data[take..];
+            if self.len == 64 {
+                let block = self.buf;
+                self.block(&block);
+                self.len = 0;
+            }
+        }
+    }
+
+    fn block(&mut self, b: &[u8; 64]) {
+        let mut w = [0u32; 64];
+        for i in 0..16 {
+            w[i] = u32::from_be_bytes([b[4 * i], b[4 * i + 1], b[4 * i + 2], b[4 * i + 3]]);
+        }
+        for i in 16..64 {
+            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16]
+                .wrapping_add(s0)
+                .wrapping_add(w[i - 7])
+                .wrapping_add(s1);
+        }
+        let mut h = self.state;
+        for i in 0..64 {
+            let s1 = h[4].rotate_right(6) ^ h[4].rotate_right(11) ^ h[4].rotate_right(25);
+            let ch = (h[4] & h[5]) ^ ((!h[4]) & h[6]);
+            let t1 = h[7]
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(SHA_K[i])
+                .wrapping_add(w[i]);
+            let s0 = h[0].rotate_right(2) ^ h[0].rotate_right(13) ^ h[0].rotate_right(22);
+            let maj = (h[0] & h[1]) ^ (h[0] & h[2]) ^ (h[1] & h[2]);
+            let t2 = s0.wrapping_add(maj);
+            h[7] = h[6];
+            h[6] = h[5];
+            h[5] = h[4];
+            h[4] = h[3].wrapping_add(t1);
+            h[3] = h[2];
+            h[2] = h[1];
+            h[1] = h[0];
+            h[0] = t1.wrapping_add(t2);
+        }
+        for (i, v) in h.iter().enumerate() {
+            self.state[i] = self.state[i].wrapping_add(*v);
+        }
+    }
+
+    fn finalize(mut self) -> [u8; 32] {
+        let bits = self.total * 8;
+        self.update(&[0x80]);
+        while self.len != 56 {
+            self.update(&[0u8]);
+        }
+        let block = {
+            let mut b = self.buf;
+            b[56..64].copy_from_slice(&bits.to_be_bytes());
+            b
+        };
+        self.block(&block);
+        let mut out = [0u8; 32];
+        for i in 0..8 {
+            out[4 * i..4 * i + 4].copy_from_slice(&self.state[i].to_be_bytes());
+        }
+        out
+    }
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    let mut h = Sha256::new();
+    h.update(data);
+    hex_of(&h.finalize())
+}
+
+fn hex_of(d: &[u8; 32]) -> String {
+    let mut s = String::with_capacity(64);
+    for b in d {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
+/// Deterministic pseudorandom bytes — an xorshift64* stream, so the payload is
+/// the same on every run and a `GET` that comes back byte-identical is a
+/// bit-exactness assertion (Rule D), not a coincidence.
+fn pseudorandom(n: usize, seed: u64) -> Vec<u8> {
+    let mut out = Vec::with_capacity(n);
+    let mut x = seed | 1;
+    while out.len() < n {
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        let v = x.wrapping_mul(0x2545_f491_4f6c_dd1d);
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    out.truncate(n);
+    out
+}
+
+impl ResidentConn {
+    /// Write raw bytes (a `DATA`/`PUT` payload). Separate from [`Self::send`]
+    /// because a payload is not a line and must not be `&str`.
+    fn send_bytes(&mut self, data: &[u8]) -> Result<(), String> {
+        use std::io::Write;
+        self.stream
+            .write_all(data)
+            .map_err(|e| format!("write {} bytes: {e}", data.len()))?;
+        self.stream.flush().map_err(|e| format!("flush: {e}"))
+    }
+
+    /// Read exactly `n` raw bytes, draining anything `read_line` over-read
+    /// first — the same residual-buffer discipline the server itself keeps.
+    fn read_exact(&mut self, n: usize, wait: Duration) -> Result<Vec<u8>, String> {
+        let deadline = Instant::now() + wait;
+        while self.pending.len() < n {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(format!(
+                    "only {} of {n} payload bytes within {}s",
+                    self.pending.len(),
+                    wait.as_secs()
+                ));
+            }
+            self.stream
+                .set_read_timeout(Some(left.min(Duration::from_secs(5))))
+                .map_err(|e| format!("set_read_timeout: {e}"))?;
+            let mut buf = vec![0u8; 64 * 1024];
+            match self.stream.read(&mut buf) {
+                Ok(0) => return Err("the guest closed the connection mid-payload".to_string()),
+                Ok(k) => self.pending.extend_from_slice(&buf[..k]),
+                Err(ref e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut => {}
+                Err(e) => return Err(format!("read: {e}")),
+            }
+        }
+        Ok(self.pending.drain(..n).collect())
+    }
+
+    /// Read a `DATA <len> <sha16>\n<bytes>END\n` frame (design §1.1) and hand
+    /// back the payload, having checked both halves of the header against it.
+    fn read_data_frame(&mut self, wait: Duration, bulk: Duration) -> Result<Vec<u8>, String> {
+        let head = self.read_line(wait)?;
+        let mut it = head.split_whitespace();
+        match (it.next(), it.next(), it.next(), it.next()) {
+            (Some("DATA"), Some(len), Some(sha16), None) => {
+                let len: usize = len
+                    .parse()
+                    .map_err(|_| format!("DATA length {len:?} does not parse"))?;
+                let body = self.read_exact(len, bulk)?;
+                let tail = self.read_exact(4, wait)?;
+                if tail != b"END\n" {
+                    return Err(format!("DATA frame did not end in END: {tail:?}"));
+                }
+                let got = sha256_hex(&body);
+                if !got.starts_with(sha16) {
+                    return Err(format!(
+                        "DATA header sha16={sha16} but the payload hashes to {got}"
+                    ));
+                }
+                Ok(body)
+            }
+            _ => Err(format!("expected a DATA frame, got {head:?}")),
+        }
+    }
+}
+
+/// One request/response step, printed as it goes so a failing gate says which
+/// verb failed rather than only that something did.
+fn files_step(
+    conn: &mut ResidentConn,
+    hard: Instant,
+    cmd: &str,
+    want: &str,
+) -> Result<String, String> {
+    conn.send(&format!("{cmd}\n"))?;
+    let line = conn.read_line(left(hard, FILES_IO_S)?)?;
+    if line == want || (want.ends_with('*') && line.starts_with(&want[..want.len() - 1])) {
+        println!("   ok   {cmd}  ->  {line}");
+        Ok(line)
+    } else {
+        Err(format!("{cmd} answered {line:?}, expected {want:?}"))
+    }
+}
+
+/// Drive one `PUT`: header, `SEND`, payload, trailer, answer.
+///
+/// `trailer` is what goes after the payload — `b"END\n"` for a well-formed
+/// frame, and something else for design §1.4's `bad-frame` case.
+fn files_put(
+    conn: &mut ResidentConn,
+    hard: Instant,
+    name: &str,
+    payload: &[u8],
+    declared_sha: &str,
+    trailer: &[u8],
+) -> Result<String, String> {
+    conn.send(&format!("PUT {name} {} {declared_sha}\n", payload.len()))?;
+    let first = conn.read_line(left(hard, FILES_IO_S)?)?;
+    if first != "SEND" {
+        // A refusal before `SEND` is a legitimate answer (§1.4: nothing
+        // written, connection kept), so it is handed back rather than treated
+        // as a protocol error — the caller decides whether it wanted one.
+        return Ok(first);
+    }
+    conn.send_bytes(payload)?;
+    conn.send_bytes(trailer)?;
+    conn.read_line(left(hard, FILES_BULK_S)?)
+}
+
+/// `SHA <NAME>` → the 64-hex digest the guest computed over its own copy.
+fn files_sha(conn: &mut ResidentConn, hard: Instant, name: &str) -> Result<(u64, String), String> {
+    conn.send(&format!("SHA {name}\n"))?;
+    let line = conn.read_line(left(hard, FILES_BULK_S)?)?;
+    let mut it = line.split_whitespace();
+    match (it.next(), it.next(), it.next(), it.next(), it.next()) {
+        (Some("SHA"), Some(got), Some(size), Some(hex), None) if got == name => {
+            let size: u64 = size
+                .parse()
+                .map_err(|_| format!("SHA size {size:?} does not parse"))?;
+            if hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(format!("SHA digest {hex:?} is not 64 hex"));
+            }
+            Ok((size, hex.to_string()))
+        }
+        _ => Err(format!("SHA {name} answered {line:?}")),
+    }
+}
+
+fn files_test(flags: &[&str]) -> Result<ExitCode, String> {
+    let ci = flags.contains(&"--ci");
+    let debug = flags.contains(&"--debug");
+
+    let host_port = {
+        let probe = TcpListener::bind("127.0.0.1:0")
+            .map_err(|e| format!("cannot pick a host port: {e}"))?;
+        probe
+            .local_addr()
+            .map_err(|e| format!("cannot read the probe address: {e}"))?
+            .port()
+    };
+
+    // `TOKEN` is staged so the gate can prove design §1.2's rule that a token
+    // gates reads too. Every verb below therefore runs after an `AUTH`.
+    let job_txt = format!(
+        "# staged by `cargo xtask files-test` — AEFINITY OS phase 4 gate\n\
+         MODE resident\n\
+         NET static {NET_GUEST_CIDR} {NET_HOST_IP}\n\
+         LISTEN {RESIDENT_GUEST_PORT}\n\
+         TOKEN {FILES_TOKEN}\n"
+    );
+
+    let esp = stage("files-test", ci, debug, Some(&job_txt))?;
+
+    // Files a previous run left in the mirror would be inside the vvfat image
+    // this run boots, and a 64 MiB stray would eat the volume the gate needs.
+    for stray in [
+        "TEST.BIN",
+        "BIG.BIN",
+        "BAD.BIN",
+        "STAGE.PRT",
+        "CURRENT.TXT",
+        // The A/B halves a previous run's pointer swap left behind. A stale
+        // `MODEL.NEW` with a stale `CURRENT.TXT` would boot this run pointed
+        // at the previous run's bytes.
+        "MODEL.NEW",
+        "EMBED.NEW",
+        "VOCAB.NEW",
+        // `files-soak` shares this ESP, and vvfat commits its writes to the
+        // host mirror. Its files are inert here, but a gate that boots with
+        // another gate's leftovers is not booting what it staged.
+        "SOAK1.BIN",
+        "SOAK2.BIN",
+        "SOAK3.BIN",
+    ] {
+        if let Some(p) = find_ci(&esp.dir, stray) {
+            let _ = fs::remove_file(p);
+        }
+    }
+
+    // The host's own digest of the staged MODEL.SAF, which the guest's
+    // `SHA MODEL.SAF` has to equal.
+    let model_path = find_ci(&esp.dir, "MODEL.SAF")
+        .ok_or_else(|| format!("no MODEL.SAF staged under {}", esp.dir.display()))?;
+    let model_bytes =
+        fs::read(&model_path).map_err(|e| format!("reading {}: {e}", model_path.display()))?;
+    let model_sha = sha256_hex(&model_bytes);
+    let model_len = model_bytes.len() as u64;
+    println!("[3.5/4] host sha256 of the staged MODEL.SAF: {model_sha}");
+    match Command::new("sha256sum").arg(&model_path).output() {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let want = text.split_whitespace().next().unwrap_or("");
+            if want == model_sha {
+                println!("        cross-checked against sha256sum ✓");
+            } else {
+                return Err(format!(
+                    "the harness sha256 ({model_sha}) disagrees with sha256sum ({want}) — \
+                     the harness is wrong, not the guest"
+                ));
+            }
+        }
+        _ => println!("        (sha256sum not available; harness digest uncross-checked)"),
+    }
+
+    let extra = vec![
+        "-netdev".to_string(),
+        format!("user,id=n0,hostfwd=tcp:127.0.0.1:{host_port}-:{RESIDENT_GUEST_PORT}"),
+        "-device".to_string(),
+        "virtio-net-pci,netdev=n0".to_string(),
+        "-device".to_string(),
+        "virtio-rng-pci".to_string(),
+    ];
+
+    println!("[4/4] booting under OVMF with a virtio NIC and a host forward");
+    let (qemu_bin, mut cmd) = qemu_command(&esp, &extra);
+    println!("      $ {qemu_bin} -machine q35,accel=tcg -cpu max -m 2048 ...");
+    println!();
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("could not launch {qemu_bin}: {e}. Install qemu-system-x86."))?;
+
+    let hard = Instant::now() + Duration::from_secs(FILES_TIMEOUT_S);
+    let run = files_exchange(
+        &mut child,
+        host_port,
+        hard,
+        &model_sha,
+        model_len,
+        &model_bytes,
+    );
+
+    let outcome = match &run {
+        Ok(_) => wait_for_exit(&mut child, Duration::from_secs(FILES_EXIT_S)),
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            Outcome::TimedOut
+        }
+    };
+
+    println!();
+    if let Some(text) = find_ci(&esp.dir, "BOOTLOG.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        println!("---- BOOTLOG.TXT (RESIDENT/JOB/RELOAD lines) ----");
+        for line in text.lines() {
+            if line.contains("RESIDENT:") || line.contains("RELOAD:") || line.contains("JOB:") {
+                println!("{line}");
+            }
+        }
+        println!("---- end ----");
+        println!();
+    }
+
+    let mut failures: Vec<String> = match run {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("== FAIL == {e}");
+            eprintln!("   The BOOTLOG lines above are the guest's own account of how far it got.");
+            return Ok(ExitCode::from(1));
+        }
+    };
+
+    match outcome {
+        Outcome::Exited(c) => {
+            println!("   ok   QEMU exited {c} (guest ResetSystem under -no-reboot)")
+        }
+        Outcome::Signalled => {
+            failures.push("QEMU terminated by a signal with no exit code".to_string())
+        }
+        Outcome::TimedOut => failures.push(format!(
+            "QEMU did not exit within {FILES_EXIT_S}s of the guest answering BYE to REBOOT"
+        )),
+    }
+
+    println!();
+    if failures.is_empty() {
+        println!(
+            "== PASS == the file plane served AUTH/LS/STAT/SHA/GET/PUT/RM/RELOAD/HEALTH/RUNID,"
+        );
+        println!("           refused every malformed case by its §1.3 slug, and reset.");
+        Ok(ExitCode::SUCCESS)
+    } else {
+        for f in &failures {
+            eprintln!("== FAIL == {f}");
+        }
+        Ok(ExitCode::from(1))
+    }
+}
+
+/// Drive design §1.2's verbs end to end against the running guest.
+///
+/// **Every assertion is on the guest's own `LS`/`SHA`/`STAT`, never on the
+/// host mirror** (design §7): QEMU's `fat:rw:` commits a guest write but not a
+/// guest unlink, so the staged directory cannot answer "is it gone".
+///
+/// Returns the list of assertion failures — an empty list is a pass. A
+/// protocol-level error (a connection that dies, a reply that never comes) is
+/// an `Err` instead, because from there the remaining steps mean nothing.
+fn files_exchange(
+    child: &mut Child,
+    host_port: u16,
+    hard: Instant,
+    model_sha: &str,
+    model_len: u64,
+    model_bytes: &[u8],
+) -> Result<Vec<String>, String> {
+    let (mut c, banner) = resident_ready(child, host_port, FILES_READY_S, hard)?;
+    let mut fail: Vec<String> = Vec::new();
+    println!("   ok   banner {banner}");
+    // Rule A: `env=vm` in the banner is the same statement the record makes.
+    if !banner.contains(" env=vm ") {
+        fail.push(format!(
+            "the READY banner does not carry env=vm: {banner:?}"
+        ));
+    }
+    if !banner.contains(" caps=") {
+        fail.push(format!("the READY banner does not carry caps=: {banner:?}"));
+    }
+
+    // ---- §1.2: a TOKEN gates reads, not only writes ----------------------
+    files_step(&mut c, hard, "GET BOOTLOG.TXT", "ERR auth")?;
+    files_step(&mut c, hard, "PING", "PONG")?;
+    files_step(
+        &mut c,
+        hard,
+        &format!("AUTH {}", "f".repeat(64)),
+        "ERR auth",
+    )?;
+    files_step(&mut c, hard, &format!("AUTH {FILES_TOKEN}"), "OK")?;
+
+    // ---- LS --------------------------------------------------------------
+    c.send("LS\n")?;
+    let head = c.read_line(left(hard, FILES_IO_S)?)?;
+    let mut it = head.split_whitespace();
+    let n: usize = match (it.next(), it.next(), it.next(), it.next()) {
+        (Some("LS"), Some(n), Some(state), None) if state == "ok" || state == "truncated" => n
+            .parse()
+            .map_err(|_| format!("LS count {n:?} does not parse"))?,
+        _ => return Err(format!("LS header was {head:?}")),
+    };
+    let mut names: Vec<String> = Vec::new();
+    for _ in 0..n {
+        let line = c.read_line(left(hard, FILES_IO_S)?)?;
+        names.push(
+            line.split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_string(),
+        );
+    }
+    let end = c.read_line(left(hard, FILES_IO_S)?)?;
+    if end != "END" {
+        return Err(format!("LS did not end in END: {end:?}"));
+    }
+    println!("   ok   LS  ->  {head}  [{}]", names.join(" "));
+    for want in ["MODEL.SAF", "EMBED.BIN", "VOCAB.BIN", "JOB.TXT"] {
+        if !names.iter().any(|x| x == want) {
+            fail.push(format!("LS does not list {want}"));
+        }
+    }
+
+    // ---- STAT / SHA of MODEL.SAF against the host's own digest ------------
+    files_step(
+        &mut c,
+        hard,
+        "STAT MODEL.SAF",
+        &format!("STAT MODEL.SAF {model_len}"),
+    )?;
+    let (size, hex) = files_sha(&mut c, hard, "MODEL.SAF")?;
+    if size != model_len || hex != model_sha {
+        fail.push(format!(
+            "SHA MODEL.SAF = {size}/{hex}; the host staged {model_len}/{model_sha}"
+        ));
+    } else {
+        println!("   ok   SHA MODEL.SAF matches the host's digest of the staged file");
+    }
+
+    // ---- GET of a file the guest wrote itself ----------------------------
+    c.send("GET BOOTLOG.TXT\n")?;
+    let log = c.read_data_frame(left(hard, FILES_IO_S)?, left(hard, FILES_BULK_S)?)?;
+    println!(
+        "   ok   GET BOOTLOG.TXT  ->  DATA frame of {} bytes, header sha16 matches",
+        log.len()
+    );
+
+    // ---- PUT 256 KiB, then GET it back byte-identical (Rule D) -----------
+    let small = pseudorandom(FILES_SMALL_BYTES, 0x5eed_0001);
+    let small_sha = sha256_hex(&small);
+    let ans = files_put(&mut c, hard, "TEST.BIN", &small, &small_sha, b"END\n")?;
+    let want = format!("OK TEST.BIN {} {}", small.len(), &small_sha[..16]);
+    if ans != want {
+        return Err(format!("PUT TEST.BIN answered {ans:?}, expected {want:?}"));
+    }
+    println!("   ok   PUT TEST.BIN  ->  {ans}");
+    c.send("GET TEST.BIN\n")?;
+    let back = c.read_data_frame(left(hard, FILES_IO_S)?, left(hard, FILES_BULK_S)?)?;
+    if back == small {
+        println!(
+            "   ok   GET TEST.BIN returned {} byte-identical bytes",
+            back.len()
+        );
+    } else {
+        fail.push(format!(
+            "GET TEST.BIN returned {} bytes that are not byte-identical to what was PUT",
+            back.len()
+        ));
+    }
+
+    // ---- PUT 64 MiB, then SHA it (design §7's real case) -----------------
+    let big = pseudorandom(FILES_BIG_BYTES, 0x5eed_0002);
+    let big_sha = sha256_hex(&big);
+    println!(
+        "   ..   PUT BIG.BIN ({} bytes) — this is the slow one",
+        big.len()
+    );
+    let ans = files_put(&mut c, hard, "BIG.BIN", &big, &big_sha, b"END\n")?;
+    let want = format!("OK BIG.BIN {} {}", big.len(), &big_sha[..16]);
+    if ans != want {
+        return Err(format!("PUT BIG.BIN answered {ans:?}, expected {want:?}"));
+    }
+    println!("   ok   PUT BIG.BIN  ->  {ans}");
+    let (bsize, bhex) = files_sha(&mut c, hard, "BIG.BIN")?;
+    if bsize != big.len() as u64 || bhex != big_sha {
+        fail.push(format!(
+            "SHA BIG.BIN = {bsize}/{bhex}; the harness sent {}/{big_sha}",
+            big.len()
+        ));
+    } else {
+        println!("   ok   SHA BIG.BIN matches what the harness sent");
+    }
+    drop(big);
+
+    // ---- §1.4: a wrong declared digest ------------------------------------
+    let other = pseudorandom(FILES_SMALL_BYTES, 0x5eed_0003);
+    let wrong = "0".repeat(64);
+    let ans = files_put(&mut c, hard, "TEST.BIN", &other, &wrong, b"END\n")?;
+    if ans != "ERR digest-mismatch" {
+        fail.push(format!(
+            "a PUT with a wrong declared digest answered {ans:?}, expected ERR digest-mismatch"
+        ));
+    } else {
+        println!("   ok   PUT with a wrong digest  ->  {ans}");
+    }
+    // §1.4: the target is untouched and the stage is gone.
+    let (_, still) = files_sha(&mut c, hard, "TEST.BIN")?;
+    if still != small_sha {
+        fail.push(format!(
+            "after a rejected PUT, SHA TEST.BIN is {still}; it should still be {small_sha}"
+        ));
+    } else {
+        println!("   ok   TEST.BIN still holds the bytes of the PUT that succeeded");
+    }
+
+    // ---- §1.4: a payload whose trailer is not END\n -----------------------
+    let ans = files_put(
+        &mut c,
+        hard,
+        "BAD.BIN",
+        &other,
+        &sha256_hex(&other),
+        b"XXXX",
+    )?;
+    if ans != "ERR bad-frame" {
+        fail.push(format!(
+            "a PUT with a wrong trailer answered {ans:?}, expected ERR bad-frame"
+        ));
+    } else {
+        println!("   ok   PUT with a wrong trailer  ->  {ans}");
+    }
+
+    // ---- §1.3: names, protection, lengths ---------------------------------
+    files_step(&mut c, hard, "PUT ../X 4 00", "ERR bad-name")?;
+    files_step(
+        &mut c,
+        hard,
+        &format!("PUT {FILES_LONG_NAME} 4 {}", "0".repeat(64)),
+        "ERR bad-name",
+    )?;
+    files_step(
+        &mut c,
+        hard,
+        &format!("PUT BOOTLOG.TXT 4 {}", "0".repeat(64)),
+        "ERR protected",
+    )?;
+    files_step(
+        &mut c,
+        hard,
+        &format!("PUT HUGE.BIN {FILES_OVER_LEN} {}", "0".repeat(64)),
+        "ERR bad-len",
+    )?;
+
+    // ---- §8: the A/B halves are not names a client may touch --------------
+    //
+    // `MODEL.NEW` and friends are internal: the protocol exposes `MODEL.SAF`
+    // and the box decides which half the bytes land on. A client that could
+    // name a half could delete the one `CURRENT.TXT` designates, and the
+    // pointer's canonical-name fallback would then answer every read verb out
+    // of the other, stale half reporting ordinary success. Both halves are
+    // refused, always — the inactive one too, because "you may delete this
+    // one but not that one, and which is which depends on how many times you
+    // have uploaded" is a footgun with no use case behind it.
+    for half in ["MODEL.NEW", "EMBED.NEW", "VOCAB.NEW"] {
+        files_step(
+            &mut c,
+            hard,
+            &format!("PUT {half} 4 {}", "0".repeat(64)),
+            "ERR protected",
+        )?;
+        files_step(&mut c, hard, &format!("RM {half}"), "ERR protected")?;
+    }
+
+    // ---- §8: a PUT of an artifact swaps the pointer ------------------------
+    //
+    // The same bytes go back up, so the digests do not move and the `RELOAD`
+    // assertion further down still has something to compare. What *does* move
+    // is `CURRENT.TXT`: after this, `model=MODEL.NEW`, and `MODEL.NEW` is the
+    // live model. So the `RM` below is a delete of the file the box would
+    // boot from, and it must still be refused.
+    println!("   ..   PUT MODEL.SAF ({model_len} bytes) — the §8 pointer swap");
+    let ans = files_put(&mut c, hard, "MODEL.SAF", model_bytes, model_sha, b"END\n")?;
+    let want = format!("OK MODEL.SAF {model_len} {}", &model_sha[..16]);
+    if ans != want {
+        return Err(format!("PUT MODEL.SAF answered {ans:?}, expected {want:?}"));
+    }
+    println!("   ok   PUT MODEL.SAF  ->  {ans}");
+    files_step(&mut c, hard, "RM MODEL.NEW", "ERR protected")?;
+    println!("   ok   RM of the now-LIVE half is still refused");
+
+    // The blocker's shape in one cycle: a commit-time readback that verified,
+    // then a fresh guest-side `SHA` of the same file. They must agree.
+    let (size, hex) = files_sha(&mut c, hard, "MODEL.SAF")?;
+    if size != model_len || hex != model_sha {
+        fail.push(format!(
+            "after the pointer swap, SHA MODEL.SAF = {size}/{hex}; the same bytes went up \
+             and the commit-time readback verified, so it must still be {model_len}/{model_sha}"
+        ));
+    } else {
+        println!("   ok   SHA MODEL.SAF after the swap still matches the host's digest");
+    }
+    files_step(
+        &mut c,
+        hard,
+        "STAT MODEL.SAF",
+        &format!("STAT MODEL.SAF {model_len}"),
+    )?;
+
+    // ---- LS is free of strays, HEALTH says parts=0 ------------------------
+    c.send("LS\n")?;
+    let head = c.read_line(left(hard, FILES_IO_S)?)?;
+    let n: usize = head
+        .split_whitespace()
+        .nth(1)
+        .and_then(|v| v.parse().ok())
+        .ok_or_else(|| format!("LS header was {head:?}"))?;
+    let mut after: Vec<String> = Vec::new();
+    for _ in 0..n {
+        let line = c.read_line(left(hard, FILES_IO_S)?)?;
+        after.push(
+            line.split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_string(),
+        );
+    }
+    let end = c.read_line(left(hard, FILES_IO_S)?)?;
+    if end != "END" {
+        return Err(format!("LS did not end in END: {end:?}"));
+    }
+    println!("   ok   LS after the failures  ->  [{}]", after.join(" "));
+    for stray in ["STAGE.PRT", "BAD.BIN", "HUGE.BIN"] {
+        if after.iter().any(|x| x == stray) {
+            fail.push(format!("LS shows a stray {stray} after an aborted PUT"));
+        }
+    }
+
+    c.send("HEALTH\n")?;
+    let health = c.read_line(left(hard, FILES_IO_S)?)?;
+    println!("   ok   HEALTH  ->  {health}");
+    for key in [
+        "up=",
+        "served=",
+        "last=",
+        "wd=",
+        "heapfree=",
+        "model=",
+        "reloads=",
+        "parts=",
+        "degraded=",
+        "env=",
+    ] {
+        if !health.contains(key) {
+            fail.push(format!("HEALTH has no {key} field: {health:?}"));
+        }
+    }
+    // §8: `degraded=pointer` is how the canonical-name fallback stops being
+    // silent. Nothing here has deleted a half out from under `CURRENT.TXT`,
+    // so it must be `none` — and if it is not, every digest above was read
+    // out of the wrong half of an A/B pair.
+    if !health.contains("degraded=none") {
+        fail.push(format!(
+            "HEALTH does not say degraded=none: {health:?}. The pointer designates an \
+             artifact file that is not on the volume."
+        ));
+    }
+    if !health.contains("parts=0") {
+        fail.push(format!(
+            "HEALTH does not say parts=0 after the aborted PUTs: {health:?}"
+        ));
+    }
+    if !health.contains("env=vm") {
+        fail.push(format!("HEALTH does not carry env=vm: {health:?}"));
+    }
+    let health_model = health
+        .split_whitespace()
+        .find_map(|t| t.strip_prefix("model="))
+        .unwrap_or_default()
+        .to_string();
+
+    // ---- RM, then STAT says it is gone (guest-side, never the mirror) -----
+    files_step(&mut c, hard, "RM TEST.BIN", "OK TEST.BIN")?;
+    files_step(&mut c, hard, "STAT TEST.BIN", "ERR not-found")?;
+    files_step(&mut c, hard, "RM BIG.BIN", "OK BIG.BIN")?;
+
+    // ---- RUNID: NEW, a job, then REPLAY of the same id --------------------
+    files_step(&mut c, hard, "RUNID files-gate-1", "NEW")?;
+    c.send(&resident_job_block(4, None, "The capital of France is"))?;
+    let first = c.read_result(hard)?;
+    println!();
+    println!("---- RESULT (RUNID files-gate-1) ----");
+    print!("{first}");
+    println!("---- end ----");
+    for (k, want) in [
+        ("verdict", "OK"),
+        ("env", "vm"),
+        ("run_id", "files-gate-1"),
+        ("replay", "false"),
+    ] {
+        match record_value(&first, k) {
+            Some(v) if v == want => println!("   ok   record {k}={v}"),
+            Some(v) => fail.push(format!("record {k}={v}, expected {want}")),
+            None => fail.push(format!("record has no {k} key")),
+        }
+    }
+    for k in [
+        "artifacts",
+        "model_sha",
+        "reloads",
+        "uptime_s",
+        "served",
+        "files",
+        "merge_key",
+    ] {
+        match record_value(&first, k) {
+            Some(v) if !v.is_empty() => println!("   ok   record carries {k}={v}"),
+            _ => fail.push(format!("record has no {k} key")),
+        }
+    }
+    if let Some(mk) = record_value(&first, "merge_key") {
+        if mk.len() != 16 || !mk.bytes().all(|b| b.is_ascii_hexdigit()) {
+            fail.push(format!("merge_key={mk} is not 16 hex characters"));
+        }
+    }
+    let merge_key = record_value(&first, "merge_key")
+        .unwrap_or_default()
+        .to_string();
+
+    files_step(&mut c, hard, "RUNID files-gate-1", "REPLAY")?;
+    c.send(&resident_job_block(
+        4,
+        None,
+        "This body must be drained, not run",
+    ))?;
+    let replayed = c.read_result(hard)?;
+    match record_value(&replayed, "replay") {
+        Some("true") => println!("   ok   the replayed record says replay=true"),
+        other => fail.push(format!(
+            "the replayed record says replay={other:?}, expected true"
+        )),
+    }
+    if record_value(&replayed, "merge_key") == Some(merge_key.as_str()) {
+        println!("   ok   the replayed record is the cached one (same merge_key)");
+    } else {
+        fail.push("the replayed record is not the cached one — the job was re-run".to_string());
+    }
+
+    // ---- RELOAD, then a job still runs ------------------------------------
+    c.send("RELOAD\n")?;
+    let line = c.read_line(left(hard, FILES_IO_S)?)?;
+    if line != "RELOADING" {
+        return Err(format!("RELOAD answered {line:?}, expected RELOADING"));
+    }
+    let done = c.read_line(left(hard, FILES_BULK_S)?)?;
+    println!("   ok   RELOAD  ->  {done}");
+    let mut it = done.split_whitespace();
+    match (
+        it.next(),
+        it.next(),
+        it.next(),
+        it.next(),
+        it.next(),
+        it.next(),
+    ) {
+        (Some("OK"), Some("reload"), Some(m), Some(e), Some(v), None)
+            if m.starts_with("model=") && e.starts_with("embed=") && v.starts_with("vocab=") =>
+        {
+            let m = m.trim_start_matches("model=");
+            if m != health_model {
+                fail.push(format!(
+                    "RELOAD reports model={m} but HEALTH reported model={health_model}; \
+                     nothing on the volume changed, so the digests must agree"
+                ));
+            } else {
+                println!("   ok   RELOAD reports the same three digests the box already had");
+            }
+        }
+        _ => fail.push(format!("RELOAD finished with {done:?}")),
+    }
+    c.send(&resident_job_block(4, None, "After the reload"))?;
+    let after_reload = c.read_result(hard)?;
+    match record_value(&after_reload, "verdict") {
+        Some("OK") => println!("   ok   a job after RELOAD still runs (verdict=OK)"),
+        other => fail.push(format!("the job after RELOAD ended verdict={other:?}")),
+    }
+    match record_value(&after_reload, "reloads") {
+        Some("1") => println!("   ok   the record after RELOAD says reloads=1"),
+        other => fail.push(format!(
+            "after one RELOAD the record says reloads={other:?}"
+        )),
+    }
+
+    // ---- REBOOT ------------------------------------------------------------
+    c.send("REBOOT\n")?;
+    let bye = c.read_line(left(hard, FILES_IO_S)?)?;
+    if bye != "BYE" {
+        return Err(format!("REBOOT answered {bye:?}, expected BYE"));
+    }
+    println!("   ok   REBOOT  ->  BYE");
+    Ok(fail)
+}
+
+// ---------------------------------------------------------------------------
+// files-soak — the phase 4 integrity gate under sustained churn
+// ---------------------------------------------------------------------------
+
+/// Default cycles. Fifteen because the failure this gate exists to catch was
+/// first seen around the tenth PUT/RM cycle of one boot; a gate that stopped at
+/// ten would have been green on the day the bug was found.
+const SOAK_CYCLES: usize = 15;
+/// Every `SOAK_RELOAD_EVERY`-th cycle also does a `RELOAD`, so the engine
+/// rebuild path is inside the churn rather than beside it.
+const SOAK_RELOAD_EVERY: usize = 5;
+/// The three ordinary files the cycles create, delete and recreate. Three so a
+/// name is always being reused while two others live, which is the directory
+/// pattern that broke `vvfat`.
+const SOAK_ORDINARY: [&str; 3] = ["SOAK1.BIN", "SOAK2.BIN", "SOAK3.BIN"];
+/// Size of the FAT image the raw-image path formats, in bytes. §8 requires
+/// ≥ 2× the artifact set resident at once; the staged M7 set is ~9 MB, so
+/// 256 MiB is that with room for the soak files and no reason to be tighter.
+const SOAK_IMG_BYTES: u64 = 256 * 1024 * 1024;
+/// Bytes per sector for the formatted image.
+const SOAK_SECTOR: u64 = 512;
+
+/// `files-soak` — 15 PUT/RM/RELOAD cycles in one boot, with a fresh guest-side
+/// `SHA` of every file present after every cycle.
+///
+/// The quick gates (`files-test`) prove each verb once. This one proves the
+/// volume still holds what it said it held after the directory has been
+/// churned, which is the only way the phase 4 file plane's central claim — a
+/// commit-time readback digest means the bytes are there — can be believed
+/// beyond a single transfer.
+///
+/// **The boot volume is a real FAT image by default** (`mformat` + `mcopy`,
+/// `-drive format=raw`). `--vvfat` selects QEMU's `fat:rw:` directory mapping
+/// instead, which is what the other gates use and what this gate was written
+/// to indict: it fails this soak, and it fails it inside `block/vvfat.c`.
+fn files_soak(flags: &[&str]) -> Result<ExitCode, String> {
+    let ci = flags.contains(&"--ci");
+    let debug = flags.contains(&"--debug");
+    let vvfat = flags.contains(&"--vvfat");
+    let cycles: usize = env::var("AEGIS_SOAK_CYCLES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(SOAK_CYCLES);
+
+    let host_port = {
+        let probe = TcpListener::bind("127.0.0.1:0")
+            .map_err(|e| format!("cannot pick a host port: {e}"))?;
+        probe
+            .local_addr()
+            .map_err(|e| format!("cannot read the probe address: {e}"))?
+            .port()
+    };
+
+    let job_txt = format!(
+        "# staged by `cargo xtask files-soak` — AEFINITY OS phase 4 integrity gate\n\
+         MODE resident\n\
+         NET static {NET_GUEST_CIDR} {NET_HOST_IP}\n\
+         LISTEN {RESIDENT_GUEST_PORT}\n\
+         TOKEN {FILES_TOKEN}\n"
+    );
+
+    let esp = stage("files-soak", ci, debug, Some(&job_txt))?;
+
+    // Anything a previous run left is inside the volume this run boots, and a
+    // stale `CURRENT.TXT` next to a stale half would start the soak already
+    // pointed at last run's bytes.
+    let mut strays: Vec<String> = vec![
+        "STAGE.PRT".into(),
+        "CURRENT.TXT".into(),
+        "MODEL.NEW".into(),
+        "EMBED.NEW".into(),
+        "VOCAB.NEW".into(),
+        "TEST.BIN".into(),
+        "BIG.BIN".into(),
+    ];
+    strays.extend(SOAK_ORDINARY.iter().map(|s| (*s).to_string()));
+    for stray in &strays {
+        if let Some(p) = find_ci(&esp.dir, stray) {
+            let _ = fs::remove_file(p);
+        }
+    }
+
+    // The host's own digest of each staged artifact. Every `SHA` the guest
+    // answers with is checked against these, so "the file is intact" is a
+    // statement about bytes the harness knows, not about self-consistency.
+    let mut artifacts: Vec<(String, Vec<u8>, String)> = Vec::new();
+    for name in BOOT_ASSETS {
+        let p = find_ci(&esp.dir, name)
+            .ok_or_else(|| format!("no {name} staged under {}", esp.dir.display()))?;
+        let bytes = fs::read(&p).map_err(|e| format!("reading {}: {e}", p.display()))?;
+        let sha = sha256_hex(&bytes);
+        println!("       host sha256 {name:<10} {} bytes  {sha}", bytes.len());
+        artifacts.push((name.to_string(), bytes, sha));
+    }
+
+    // `JOB.TXT` is the canary: nothing in the soak ever writes to it, so its
+    // digest is the one that can only change if the volume corrupted a file
+    // no verb touched.
+    let job_path = find_ci(&esp.dir, "JOB.TXT")
+        .ok_or_else(|| format!("no JOB.TXT staged under {}", esp.dir.display()))?;
+    let job_bytes =
+        fs::read(&job_path).map_err(|e| format!("reading {}: {e}", job_path.display()))?;
+    let untouched = (
+        "JOB.TXT".to_string(),
+        job_bytes.len() as u64,
+        sha256_hex(&job_bytes),
+    );
+    println!(
+        "       host sha256 {:<10} {} bytes  {}",
+        untouched.0, untouched.1, untouched.2
+    );
+
+    // ---- the boot volume ---------------------------------------------------
+    let drive = if vvfat {
+        println!();
+        println!("      volume  : QEMU vvfat (fat:rw:) — the FRAGILE path, by request");
+        format!("format=raw,file=fat:rw:{}", esp.dir.display())
+    } else {
+        let img = esp.root.join("target").join("soak.img");
+        build_fat_image(&esp.dir, &img)?;
+        println!(
+            "      volume  : real FAT32 image {} (no vvfat)",
+            img.display()
+        );
+        format!("format=raw,file={}", img.display())
+    };
+
+    let extra = vec![
+        "-netdev".to_string(),
+        format!("user,id=n0,hostfwd=tcp:127.0.0.1:{host_port}-:{RESIDENT_GUEST_PORT}"),
+        "-device".to_string(),
+        "virtio-net-pci,netdev=n0".to_string(),
+        "-device".to_string(),
+        "virtio-rng-pci".to_string(),
+    ];
+
+    println!("[4/4] booting for {cycles} PUT/RM/RELOAD cycles");
+    println!();
+    let (qemu_bin, mut cmd) = qemu_command_on(&esp, &extra, &drive);
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("could not launch {qemu_bin}: {e}. Install qemu-system-x86."))?;
+
+    let hard = Instant::now() + Duration::from_secs(FILES_TIMEOUT_S);
+    let run = soak_exchange(&mut child, host_port, hard, &artifacts, &untouched, cycles);
+
+    let outcome = match &run {
+        Ok(_) => wait_for_exit(&mut child, Duration::from_secs(FILES_EXIT_S)),
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            Outcome::TimedOut
+        }
+    };
+
+    println!();
+    println!("---- BOOTLOG.TXT (RESIDENT/RELOAD/ERROR lines) ----");
+    for line in soak_bootlog(&esp, vvfat).lines() {
+        if line.contains("RESIDENT:") || line.contains("RELOAD:") || line.contains("ERROR") {
+            println!("{line}");
+        }
+    }
+    println!("---- end ----");
+    println!();
+
+    let mut failures: Vec<String> = match run {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("== FAIL == {e}");
+            if vvfat {
+                eprintln!();
+                eprintln!(
+                    "   This is the --vvfat run. QEMU's vvfat rebuilds its directory mapping as\n   \
+                     the guest mutates it and is documented-fragile under create/rename/delete\n   \
+                     churn; `block/vvfat.c:1901: get_cluster_count_for_direntry: Assertion\n   \
+                     'mapping->mode & MODE_DELETED' failed` is the emulator, not the guest.\n   \
+                     Re-run WITHOUT --vvfat (a real FAT image) before believing anything here\n   \
+                     about the file plane."
+                );
+            }
+            return Ok(ExitCode::from(1));
+        }
+    };
+
+    match outcome {
+        Outcome::Exited(c) => println!("   ok   QEMU exited {c} (guest ResetSystem)"),
+        Outcome::Signalled => {
+            failures.push("QEMU terminated by a signal with no exit code".to_string())
+        }
+        Outcome::TimedOut => failures.push(format!(
+            "QEMU did not exit within {FILES_EXIT_S}s of the guest answering BYE"
+        )),
+    }
+
+    println!();
+    if failures.is_empty() {
+        println!("== PASS == {cycles} PUT/RM/RELOAD cycles in one boot, and after every one of");
+        println!("           them a fresh guest-side SHA of every file present matched the");
+        println!("           host's digest of the bytes that were sent.");
+        if !vvfat {
+            println!();
+            println!("           Volume: a real FAT32 image, not vvfat. The same soak under");
+            println!("           --vvfat is a known emulator failure (AEFINITY_OS_STATUS.md §9)");
+            println!("           and says nothing about the guest.");
+        }
+        Ok(ExitCode::SUCCESS)
+    } else {
+        for f in &failures {
+            eprintln!("== FAIL == {f}");
+        }
+        Ok(ExitCode::from(1))
+    }
+}
+
+/// Read `BOOTLOG.TXT` back off whichever volume the run used.
+///
+/// vvfat commits guest writes to the host mirror, so the staged directory has
+/// it. A raw image has to be opened with `mcopy`.
+fn soak_bootlog(esp: &Esp, vvfat: bool) -> String {
+    if vvfat {
+        return find_ci(&esp.dir, "BOOTLOG.TXT")
+            .and_then(|p| fs::read_to_string(p).ok())
+            .unwrap_or_default();
+    }
+    let img = esp.root.join("target").join("soak.img");
+    match Command::new("mcopy")
+        .args(["-n", "-i"])
+        .arg(&img)
+        .args(["::BOOTLOG.TXT", "-"])
+        .output()
+    {
+        Ok(out) => String::from_utf8_lossy(&out.stdout).into_owned(),
+        Err(e) => format!("(mcopy could not read BOOTLOG.TXT out of the image: {e})"),
+    }
+}
+
+/// Format a real FAT32 image and copy the staged ESP into it.
+///
+/// `mformat`, not `mkfs.fat`: mtools writes the filesystem into a plain file
+/// with no loop device and no privileges, which is the whole reason this path
+/// is usable in a gate. The image carries no partition table — EDK2's FAT
+/// driver binds to the block device directly — so `mcopy` and OVMF are looking
+/// at the same volume with no offset arithmetic between them.
+fn build_fat_image(esp_dir: &Path, img: &Path) -> Result<(), String> {
+    let sectors = SOAK_IMG_BYTES / SOAK_SECTOR;
+    let _ = fs::remove_file(img);
+    if let Some(parent) = img.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
+    }
+    println!(
+        "[3.5/4] formatting a real FAT32 volume: {} ({} MiB)",
+        img.display(),
+        SOAK_IMG_BYTES / (1024 * 1024)
+    );
+    // -C creates the file at -T sectors; -F forces FAT32; the geometry is the
+    // conventional 64 heads / 32 sectors so the total is a whole number of
+    // cylinders and mformat does not have to guess.
+    let out = Command::new("mformat")
+        .args(["-i"])
+        .arg(img)
+        .args([
+            "-C",
+            "-T",
+            &sectors.to_string(),
+            "-h",
+            "64",
+            "-s",
+            "32",
+            "-F",
+            "-v",
+            "ALICEUEFI",
+            "::",
+        ])
+        .output()
+        .map_err(|e| format!("mformat: {e}. Install mtools."))?;
+    if !out.status.success() {
+        return Err(format!(
+            "mformat failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    // Copy ONLY what this gate staged, by name. `target/esp/` is shared with
+    // the vvfat gates, and vvfat commits guest writes but not guest unlinks,
+    // so it leaves strays (e.g. a lowercase `vocab.bin`) that collide
+    // case-insensitively under mcopy and break this gate with an empty
+    // stderr. A whitelist keeps the raw-image gate hermetic. `-s` recurses,
+    // so EFI/BOOT/BOOTX64.EFI lands where the firmware looks for it.
+    let mut entries: Vec<PathBuf> = Vec::new();
+    for name in BOOT_ASSETS.iter().copied().chain(["JOB.TXT", "EFI"]) {
+        if let Some(p) = find_ci(esp_dir, name) {
+            entries.push(p);
+        }
+    }
+    entries.sort();
+    if entries.is_empty() {
+        return Err(format!("{} is empty — nothing to boot", esp_dir.display()));
+    }
+    let mut copy = Command::new("mcopy");
+    copy.args(["-s", "-i"]).arg(img);
+    for e in &entries {
+        copy.arg(e);
+    }
+    copy.arg("::");
+    let out = copy
+        .output()
+        .map_err(|e| format!("mcopy: {e}. Install mtools."))?;
+    if !out.status.success() {
+        return Err(format!(
+            "mcopy into {} failed: {}",
+            img.display(),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(())
+}
+
+/// What the harness believes is on the volume: client-visible name → (len, sha).
+type Expect = Vec<(String, u64, String)>;
+
+/// Drive the cycles and verify after every one.
+///
+/// Returns the assertion failures. A digest mismatch is **not** one of them —
+/// it is an `Err`, because once the volume has answered with bytes it was not
+/// given there is nothing informative left to assert and the cycle number is
+/// the finding.
+fn soak_exchange(
+    child: &mut Child,
+    host_port: u16,
+    hard: Instant,
+    artifacts: &[(String, Vec<u8>, String)],
+    untouched: &(String, u64, String),
+    cycles: usize,
+) -> Result<Vec<String>, String> {
+    let (mut c, banner) = resident_ready(child, host_port, FILES_READY_S, hard)?;
+    let mut fail: Vec<String> = Vec::new();
+    println!("   ok   banner {banner}");
+    files_step(&mut c, hard, &format!("AUTH {FILES_TOKEN}"), "OK")?;
+
+    // The artifacts are on the volume already, at their canonical names.
+    let mut expect: Expect = artifacts
+        .iter()
+        .map(|(n, b, s)| (n.clone(), b.len() as u64, s.clone()))
+        .collect();
+    expect.push(untouched.clone());
+    // Cycle 0: the baseline. If this does not hold, nothing after it means
+    // anything and the churn is not what broke it.
+    soak_verify(&mut c, hard, &expect, 0)?;
+
+    let mut reload_digests: Option<String> = None;
+
+    for cycle in 1..=cycles {
+        println!();
+        println!("== cycle {cycle}/{cycles} ==");
+
+        // ---- an ordinary file, at a size that is not a whole number of
+        // ---- XFER_CHUNKs, so the tail chunk moves from cycle to cycle.
+        let name = SOAK_ORDINARY[cycle % SOAK_ORDINARY.len()];
+        let len = 64 * 1024 * (1 + (cycle * 7) % 40) + cycle * 37;
+        let body = pseudorandom(len, 0x50a4_0000 + cycle as u64);
+        let sha = sha256_hex(&body);
+        let ans = files_put(&mut c, hard, name, &body, &sha, b"END\n")?;
+        let want = format!("OK {name} {len} {}", &sha[..16]);
+        if ans != want {
+            return Err(format!(
+                "cycle {cycle}: PUT {name} answered {ans:?}, expected {want:?}"
+            ));
+        }
+        println!("   ok   PUT {name} ({len} bytes)  ->  {ans}");
+        soak_remember(&mut expect, name, len as u64, &sha);
+
+        // ---- and delete the one two cycles back, so entries are being
+        // ---- created and released at the same time.
+        if cycle >= 2 {
+            let old = SOAK_ORDINARY[(cycle - 2) % SOAK_ORDINARY.len()];
+            if expect.iter().any(|(n, _, _)| n == old) {
+                files_step(&mut c, hard, &format!("RM {old}"), &format!("OK {old}"))?;
+                files_step(&mut c, hard, &format!("STAT {old}"), "ERR not-found")?;
+                expect.retain(|(n, _, _)| n != old);
+            }
+        }
+
+        // ---- one artifact per cycle, rotating: the pointer swaps every time,
+        // ---- so `CURRENT.TXT` is rewritten inside the churn too. The same
+        // ---- bytes go up each time, so the expected digest never moves and a
+        // ---- mismatch is unambiguous.
+        let (aname, abytes, asha) = &artifacts[cycle % artifacts.len()];
+        let ans = files_put(&mut c, hard, aname, abytes, asha, b"END\n")?;
+        let want = format!("OK {aname} {} {}", abytes.len(), &asha[..16]);
+        if ans != want {
+            return Err(format!(
+                "cycle {cycle}: PUT {aname} answered {ans:?}, expected {want:?}"
+            ));
+        }
+        println!("   ok   PUT {aname} ({} bytes)  ->  {ans}", abytes.len());
+        // §8: the half the pointer is not on is still not a name a client may
+        // touch, and the half it IS on is the live model — both refused.
+        let half = format!("{}.NEW", aname.split('.').next().unwrap_or(aname));
+        files_step(&mut c, hard, &format!("RM {half}"), "ERR protected")?;
+
+        // ---- an artifact RM, once, late: `remove_artifact` must clear the
+        // ---- pointer BEFORE the bytes go, or the canonical-name fallback
+        // ---- serves the stale other half and calls it success.
+        if cycle == cycles.saturating_sub(1) {
+            let (vname, vbytes, vsha) = &artifacts[2];
+            files_step(&mut c, hard, &format!("RM {vname}"), &format!("OK {vname}"))?;
+            files_step(&mut c, hard, &format!("STAT {vname}"), "ERR not-found")?;
+            let vhalf = format!("{}.NEW", vname.split('.').next().unwrap_or(vname));
+            files_step(&mut c, hard, &format!("STAT {vhalf}"), "ERR not-found")?;
+            println!("   ok   RM {vname} took BOTH halves and left no orphan pointer");
+            let ans = files_put(&mut c, hard, vname, vbytes, vsha, b"END\n")?;
+            if !ans.starts_with(&format!("OK {vname} ")) {
+                return Err(format!(
+                    "cycle {cycle}: re-PUT of {vname} after its RM answered {ans:?}"
+                ));
+            }
+            println!("   ok   re-PUT {vname}  ->  {ans}");
+        }
+
+        // ---- a RELOAD inside the churn, not beside it -----------------------
+        if cycle % SOAK_RELOAD_EVERY == 0 {
+            c.send("RELOAD\n")?;
+            let line = c.read_line(left(hard, FILES_IO_S)?)?;
+            if line != "RELOADING" {
+                return Err(format!(
+                    "cycle {cycle}: RELOAD answered {line:?}, expected RELOADING"
+                ));
+            }
+            let done = c.read_line(left(hard, FILES_BULK_S)?)?;
+            println!("   ok   RELOAD  ->  {done}");
+            if !done.starts_with("OK reload ") {
+                fail.push(format!("cycle {cycle}: RELOAD finished with {done:?}"));
+            } else {
+                let digests = done.trim_start_matches("OK reload ").to_string();
+                match &reload_digests {
+                    None => reload_digests = Some(digests),
+                    Some(first) if *first == digests => {
+                        println!("   ok   RELOAD reports the same three digests as the first one");
+                    }
+                    Some(first) => fail.push(format!(
+                        "cycle {cycle}: RELOAD reports {digests}, the first RELOAD reported \
+                         {first}. The same bytes were re-uploaded every cycle, so the engine \
+                         has been rebuilt from something the harness never sent."
+                    )),
+                }
+            }
+        }
+
+        // ---- and now the point of the whole gate ---------------------------
+        soak_verify(&mut c, hard, &expect, cycle)?;
+
+        let health = soak_health(&mut c, hard)?;
+        if !health.contains("parts=0") {
+            fail.push(format!(
+                "cycle {cycle}: HEALTH says {health:?}, not parts=0"
+            ));
+        }
+        if !health.contains("degraded=none") {
+            fail.push(format!(
+                "cycle {cycle}: HEALTH says {health:?}. degraded=pointer means CURRENT.TXT \
+                 designates a file that is gone and every read above came from the other half."
+            ));
+        }
+    }
+
+    println!();
+    c.send("REBOOT\n")?;
+    let bye = c.read_line(left(hard, FILES_IO_S)?)?;
+    if bye != "BYE" {
+        return Err(format!("REBOOT answered {bye:?}, expected BYE"));
+    }
+    println!("   ok   REBOOT  ->  BYE");
+    Ok(fail)
+}
+
+fn soak_health(c: &mut ResidentConn, hard: Instant) -> Result<String, String> {
+    c.send("HEALTH\n")?;
+    c.read_line(left(hard, FILES_IO_S)?)
+}
+
+/// Record (or replace) what a name is expected to hold.
+fn soak_remember(expect: &mut Expect, name: &str, len: u64, sha: &str) {
+    expect.retain(|(n, _, _)| n != name);
+    expect.push((name.to_string(), len, sha.to_string()));
+}
+
+/// `SHA` every file the harness put there, plus every physical name `LS`
+/// reports, and compare against the host's digests.
+///
+/// Both directions matter. Checking only what the harness expects would miss a
+/// stray `STAGE.PRT`; checking only what `LS` says would miss a file that
+/// vanished. The artifacts are queried by their **client-visible** name so the
+/// query goes through §8's pointer — which is exactly the resolution a `RELOAD`
+/// and a boot use, so a wrong answer here is a wrong model there.
+fn soak_verify(
+    c: &mut ResidentConn,
+    hard: Instant,
+    expect: &Expect,
+    cycle: usize,
+) -> Result<(), String> {
+    c.send("LS\n")?;
+    let head = c.read_line(left(hard, FILES_IO_S)?)?;
+    let n: usize = head
+        .split_whitespace()
+        .nth(1)
+        .and_then(|v| v.parse().ok())
+        .ok_or_else(|| format!("cycle {cycle}: LS header was {head:?}"))?;
+    let mut present: Vec<String> = Vec::new();
+    for _ in 0..n {
+        let line = c.read_line(left(hard, FILES_IO_S)?)?;
+        present.push(
+            line.split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_string(),
+        );
+    }
+    let end = c.read_line(left(hard, FILES_IO_S)?)?;
+    if end != "END" {
+        return Err(format!("cycle {cycle}: LS did not end in END: {end:?}"));
+    }
+    if present.iter().any(|x| x == "STAGE.PRT") {
+        return Err(format!(
+            "cycle {cycle}: LS shows a STAGE.PRT — a transfer committed and left its stage"
+        ));
+    }
+    // No orphans: every LS entry must be a name this harness expects, a known
+    // A/B half of one, or a server-owned file. A stray entry that is not
+    // STAGE.PRT would otherwise survive every per-name SHA below unnoticed.
+    for x in &present {
+        let known = expect.iter().any(|(n, _, _)| n == x)
+            || expect.iter().any(|(n, _, _)| {
+                n.rsplit_once('.')
+                    .is_some_and(|(stem, _)| format!("{stem}.NEW") == *x)
+            })
+            || [
+                "BOOTLOG.TXT",
+                "RESULT.TXT",
+                "RESULT.WIP",
+                "CURRENT.TXT",
+                "JOB.TXT",
+                "EFI",
+                "BOOTX64.EFI",
+            ]
+            .contains(&x.as_str());
+        if !known {
+            return Err(format!(
+                "cycle {cycle}: LS shows an orphan entry {x:?} that no verb should have left"
+            ));
+        }
+    }
+
+    let mut checked = 0usize;
+    for (name, len, sha) in expect {
+        let (got_len, got_sha) = files_sha(c, hard, name)?;
+        if got_len != *len || &got_sha != sha {
+            return Err(format!(
+                "cycle {cycle}: SHA {name} = {got_len}/{got_sha}, but the harness sent \
+                 {len}/{sha} and the commit-time readback verified it. The volume has \
+                 changed underneath a file nobody wrote to."
+            ));
+        }
+        checked += 1;
+    }
+
+    // The A/B halves, by physical name. Both halves hold the same bytes here
+    // (the same artifact is re-uploaded every cycle), so either one differing
+    // is corruption and not a version skew.
+    for (name, len, sha) in expect {
+        let Some(stem) = name
+            .strip_suffix(".SAF")
+            .or_else(|| name.strip_suffix(".BIN"))
+        else {
+            continue;
+        };
+        let half = format!("{stem}.NEW");
+        if !present.contains(&half) {
+            continue;
+        }
+        let (got_len, got_sha) = files_sha(c, hard, &half)?;
+        if got_len != *len || &got_sha != sha {
+            return Err(format!(
+                "cycle {cycle}: SHA {half} = {got_len}/{got_sha}, expected {len}/{sha}. \
+                 The inactive half of {name}'s A/B pair is not the bytes that were \
+                 committed to it."
+            ));
+        }
+        checked += 1;
+    }
+
+    println!(
+        "   ok   cycle {cycle}: {checked} fresh SHA(s) all match  [{}]",
+        present.join(" ")
+    );
+    Ok(())
 }

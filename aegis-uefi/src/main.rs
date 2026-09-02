@@ -9,6 +9,7 @@ use core::fmt::Write;
 mod allocator;
 mod console;
 mod cpu;
+mod files;
 mod font;
 #[cfg(feature = "gop")]
 mod gop;
@@ -21,6 +22,7 @@ mod mtrr_decode;
 mod net;
 // AEFINITY OS phase 2: the resident TCP job server (spec §4/§5). Reached only
 // from `job::dispatch` when JOB.TXT says `MODE resident`.
+mod reload;
 mod server;
 mod sysinfo;
 mod verifier;
@@ -952,7 +954,45 @@ fn main() -> uefi::Status {
     // binary and that block ends the guest through isa-debug-exit, which
     // would pre-empt the job's ResetSystem.
     if let Some(job) = job::load(&mut root) {
-        job::dispatch(&job, &mut root, &mut engine);
+        // AEFINITY OS phase 4 (design §4.1): the job path takes an
+        // `EngineSlot`, not a `&mut Engine`. The slot **owns** the engine, so
+        // `RELOAD` can drop it, refill the slabs allocated at STAGE 3 and
+        // build a new one — which is the only way a box can report a fresh
+        // `model_sha` and be telling the truth about what it is inferring
+        // with. Everything below stays inside this one hook, so the
+        // no-`JOB.TXT` boot path is byte-for-byte what it was.
+        //
+        // SAFETY (the three `Slab::adopt` calls): each address is exactly what
+        // `allocator::allocate_huge_pages` returned above, each capacity is
+        // that call's page count in bytes, and each length is the artifact
+        // size already loaded into it. None of the three is ever freed — this
+        // unikernel never releases tensor memory — and from here the slot is
+        // their only writer, which is what `adopt` is promised.
+        let slabs = unsafe {
+            reload::Slabs {
+                model: reload::Slab::adopt(model_addr, model_pages * 4096, model_size),
+                embed: reload::Slab::adopt(emb_addr, emb_pages * 4096, emb_size),
+                vocab: reload::Slab::adopt(vocab_addr, vocab_pages * 4096, vocab_size),
+            }
+        };
+        // The artifact digests are streamed once, here, because every record
+        // and every `HEALTH` reply for the rest of this uptime quotes them.
+        // The watchdog is re-armed per chunk (design §8): hashing 1.83 GB can
+        // outlast any single window.
+        let mut slot = reload::EngineSlot::adopt(engine, slabs, &mut || {
+            job::arm_watchdog(files::FILES_WD_S);
+        });
+        job::arm_watchdog(0);
+        job::dispatch(&job, &mut root, &mut slot);
+        // `dispatch` only returns for `AFTER halt` in oneshot mode. Take the
+        // engine back so the boot path below is the one it would have had.
+        match slot.take_engine() {
+            Some(e) => engine = e,
+            None => {
+                boot_log(&mut root, "JOB: the engine slot came back empty");
+                return fatal_error("FATAL: engine slot empty after the job\r\n");
+            }
+        }
     }
 
     // ---- MECH: OS-advantage mechanism experiment, hands-off, one boot ------

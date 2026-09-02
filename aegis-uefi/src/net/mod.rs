@@ -82,11 +82,31 @@ pub mod http;
 /// How long `NET dhcp` is given before the box gives up and carries on with no
 /// address (spec §2/§5: "DHCP with 10 s cap").
 pub const DHCP_TIMEOUT_MS: u64 = 10_000;
-/// Per-socket receive buffer. One MSS of slack over a 1500-byte path, which is
-/// all phase 1a's `HELLO` exchange and phase 1b's HTTP response need.
+/// Per-socket receive buffer for a **client** socket ([`Net::tcp_connect`]).
+/// One MSS of slack over a 1500-byte path, which is all phase 1a's `HELLO`
+/// exchange and phase 1b's HTTP response need.
 const TCP_RX_BYTES: usize = 4096;
-/// Per-socket transmit buffer.
+/// Per-socket transmit buffer for a client socket.
 const TCP_TX_BYTES: usize = 4096;
+/// Receive buffer for a **listening** socket (design §4.2).
+///
+/// 4 KiB is the receive window, and a window that small stalls the peer for an
+/// ACK roughly every 4 KiB: at a 1 ms LAN round trip that is a few megabytes a
+/// second, and a 1.83 GB `PUT` would spend minutes in pure window stall before
+/// a single byte of it was slow for any reason worth measuring. Phase 4 gives
+/// the listener a 256 KiB window so a bulk transfer is bounded by the medium
+/// rather than by the protocol.
+///
+/// This is a **protocol bound, not a performance claim** (Rule A): no number
+/// derived from it may be quoted, and the gates assert structure only.
+const TCP_RX_LISTEN_BYTES: usize = 262_144;
+/// Transmit buffer for a listening socket (design §4.2). `GET` streams out of
+/// it in [`XFER_CHUNK`] pieces, so 64 KiB keeps a whole chunk resident.
+const TCP_TX_LISTEN_BYTES: usize = 65_536;
+/// One transfer chunk on the wire. Equals [`RECV_MAX_BYTES`], the cap on a
+/// single `tcp_recv_until`, so the send and receive halves of a transfer agree
+/// on the unit that the watchdog is re-armed per (design §8).
+pub const XFER_CHUNK: usize = 65_536;
 /// Frames handed to the NIC and not yet recycled. Each one is a live DMA
 /// source, so the count is also the bound on how much memory an unresponsive
 /// NIC can pin: `MAX_PENDING_TX * (MTU)`, about 12 KiB.
@@ -170,14 +190,12 @@ impl NetError {
 
 /// What [`Net::tcp_recv_until`] is waiting for.
 ///
-/// `Delim` and `Len` carry `#[allow(dead_code)]` because phase 1a's only
-/// reader waits for the peer to close: an HTTP reader (phase 1b) ends its
-/// headers on a delimiter and its body on a length, and a resident server
-/// (phase 2) reads a line at a time. They are part of the surface those
-/// builders were promised, not code phase 1a exercises — which is why the
-/// allow says so instead of the variants being quietly deleted.
+/// All three variants are live as of phase 4: `Delim` reads a command line,
+/// `Len` reads a declared payload (design §1.1's `DATA` frame), and `Close`
+/// reads an HTTP response body. `Len` carried an `#[allow(dead_code)]` from
+/// phase 1a until phase 4's `Lines::take_bytes` became the caller it was put
+/// there for; the allow is gone with it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[allow(dead_code)]
 pub enum Until {
     /// Stop after this byte is seen (it is included in the returned data).
     Delim(u8),
@@ -1093,9 +1111,19 @@ impl Net {
         if port == 0 {
             return Err(NetError::BadAddress);
         }
+        // Design §4.2: the larger buffers are used **only** here, on the
+        // listener. `tcp_connect` keeps 4 KiB because a collector POST is
+        // small and a client socket that cost 320 KiB would be paid for on
+        // every oneshot boot as well.
+        //
+        // Pool cost: TCP_RX_LISTEN_BYTES + TCP_TX_LISTEN_BYTES = 320 KiB per
+        // listening socket, and `server.rs` holds two at a time (the served
+        // connection and the backlog socket that answers a second peer
+        // `BUSY`), so 640 KiB of UEFI pool while a client is connected. It is
+        // visible in `HEALTH heapfree=`, which is the point of that field.
         let mut sock = tcp::Socket::new(
-            tcp::SocketBuffer::new(vec![0u8; TCP_RX_BYTES]),
-            tcp::SocketBuffer::new(vec![0u8; TCP_TX_BYTES]),
+            tcp::SocketBuffer::new(vec![0u8; TCP_RX_LISTEN_BYTES]),
+            tcp::SocketBuffer::new(vec![0u8; TCP_TX_LISTEN_BYTES]),
         );
         sock.set_timeout(None);
         if sock.listen(port).is_err() {
@@ -1341,6 +1369,66 @@ impl Net {
             }
             uefi::boot::stall(CoreDuration::from_millis(POLL_SLEEP_MS));
         }
+    }
+
+    /// Read **at least** `n` bytes, or say why not.
+    ///
+    /// It is `at least` and not `exactly` on purpose: the drain loop below
+    /// empties whatever the socket is holding before it decides anything, so a
+    /// peer that wrote the next command into the same segment as the tail of a
+    /// payload has already had it read. Handing the excess back is what lets
+    /// the caller keep it — `server.rs`'s `Lines` puts it straight back into
+    /// its own `pending`, which is why a stream is never desynchronised by a
+    /// client that batches its writes.
+    ///
+    /// `n` may not exceed [`RECV_MAX_BYTES`] — that is the stack's own cap on
+    /// one read, and asking for more would be a request this layer cannot
+    /// satisfy however long it waited. Design §1.1's `DATA` frame is drained
+    /// through this a chunk at a time, never whole: a 64 MiB payload is 1024
+    /// calls, and no buffer above holds more than one chunk.
+    ///
+    /// Bytes already received come back even on `Err`, the same contract
+    /// [`Net::tcp_recv_until`] has, because a caller that must delete a
+    /// staging file before answering needs to know how far the peer got.
+    pub fn tcp_recv_exact(
+        &mut self,
+        h: &TcpHandle,
+        n: usize,
+        timeout_ms: u64,
+    ) -> (Vec<u8>, Result<(), NetError>) {
+        if n > RECV_MAX_BYTES {
+            return (Vec::new(), Err(NetError::TooMuchData));
+        }
+        if n == 0 {
+            return (Vec::new(), Ok(()));
+        }
+        self.tcp_recv_until(h, Until::Len(n), timeout_ms)
+    }
+
+    /// Write a whole buffer in [`XFER_CHUNK`] pieces, calling `rearm` before
+    /// each one.
+    ///
+    /// The hook is the watchdog (design §8): a `GET` of 1.83 GB cannot be
+    /// covered by one window sized for the whole transfer without that window
+    /// also being long enough to let a genuinely wedged box sit there, so the
+    /// window is short and progress refreshes it. `timeout_ms` bounds **one
+    /// chunk**, not the transfer, for the same reason — it is a no-progress
+    /// bound, not a duration budget.
+    ///
+    /// Nothing here is measured (Rule A); the chunking exists to bound
+    /// memory and to give the watchdog a heartbeat.
+    pub fn tcp_send_slice(
+        &mut self,
+        h: &TcpHandle,
+        data: &[u8],
+        timeout_ms: u64,
+        rearm: &mut dyn FnMut(),
+    ) -> Result<(), NetError> {
+        for part in data.chunks(XFER_CHUNK) {
+            rearm();
+            self.tcp_send_all(h, part, timeout_ms)?;
+        }
+        Ok(())
     }
 
     /// Close a connection and release its buffers.
