@@ -251,7 +251,7 @@ pub fn log2_q32_f32(bits: u32) -> u64 {
 /// under 2^20, so every caller in this program is far inside the range.
 pub fn log2_u64_q32(v: u64) -> u64 {
     assert!(
-        v >= 1 && v < 1 << 63,
+        (1..1u64 << 63).contains(&v),
         "log2_u64_q32: argument must be in [1, 2^63)"
     );
     let e = (63 - v.leading_zeros()) as u64; // floor(log2 v), 0..=62
