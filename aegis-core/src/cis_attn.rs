@@ -226,6 +226,50 @@ pub fn log2_q32_f32(bits: u32) -> u64 {
     (e << 32) | frac
 }
 
+/// `log2(v)` of an integer `v` in Q32.32 — **LOG2-I over u64**.
+///
+/// The same normative shift-and-square procedure as [`log2_q32_f32`], applied
+/// to an integer mantissa instead of an f32 one: decompose `v` into
+/// `M · 2^E` with `M ∈ [1, 2)` held in Q2.62, then extract 32 fraction bits by
+/// repeated squaring (RNE requant to Q2.62 each step; a renormalizing halving
+/// — also RNE — emits a 1 bit). Integer-only, parameter-free, no float
+/// anywhere: the digit sequence a box produces here is a property of the spec,
+/// not of its ISA.
+///
+/// Spec: `program/AEFINITY_OS_FLEET_DESIGN.md` §2.1 step 6. `EVAL`'s
+/// exact-integer NLL needs `ln(S / 2^31)` where `S` is the i64 softmax
+/// denominator; `log2_q32_f32` cannot be reused because routing an integer
+/// through an f32 would round it first.
+///
+/// # Panics
+///
+/// `v` must be in `[1, 2^63)`. The lower bound is `log2`'s domain. The upper
+/// bound is the grid's: `M` carries `E` fraction bits and Q2.62 holds 62, so
+/// `E = 63` is not representable without discarding a bit of `v` — and
+/// silently discarding it would make the result depend on something the caller
+/// cannot see. §2.1's own bound is `S ≤ V · 2^31 < 2^51` for any vocabulary
+/// under 2^20, so every caller in this program is far inside the range.
+pub fn log2_u64_q32(v: u64) -> u64 {
+    assert!(
+        v >= 1 && v < 1 << 63,
+        "log2_u64_q32: argument must be in [1, 2^63)"
+    );
+    let e = (63 - v.leading_zeros()) as u64; // floor(log2 v), 0..=62
+    // M · 2^62 with M = v / 2^e ∈ [1, 2): exact, because e ≤ 62 leaves at
+    // least one bit of headroom in the 62-bit fraction.
+    let mut m: u128 = (v as u128) << (62 - e); // Q2.62 ∈ [2^62, 2^63)
+    let mut frac: u64 = 0;
+    for _ in 0..32 {
+        m = rne_div((m * m) as i128, 1 << 62) as u128;
+        frac <<= 1;
+        if m >= 1 << 63 {
+            m = rne_div(m as i128, 2) as u128;
+            frac |= 1;
+        }
+    }
+    (e << 32) | frac
+}
+
 /// `(sin x, cos x)` for `x ∈ [0, 2π)` in Q2.62, results signed Q0.62.
 ///
 /// Normative procedure: quadrant reduction against the pinned π constants
@@ -490,6 +534,59 @@ mod tests {
         // The two RoPE bases in scope (M7: 10000.0, BitNet-2B: 500000.0).
         assert_eq!(log2_q32_f32(10000.0f32.to_bits()), 57070290108);
         assert_eq!(log2_q32_f32(500000.0f32.to_bits()), 81310467867);
+    }
+
+    #[test]
+    fn golden_log2_u64_q32() {
+        // LOG2-I over u64 (AEFINITY_OS_FLEET_DESIGN.md §2.1 step 6).
+        // Goldens from the INDEPENDENT big-int generator
+        // `scripts/cis_e2_golden_gen.py` ("== log2_u64_q32 =="), never from
+        // the Rust under test.
+        //
+        // Powers of two are exact: log2(2^k) = k << 32 with a zero fraction,
+        // which the shift-and-square loop produces without a special case.
+        assert_eq!(log2_u64_q32(1), 0);
+        assert_eq!(log2_u64_q32(2), 4294967296);
+        assert_eq!(log2_u64_q32(4), 8589934592);
+        assert_eq!(log2_u64_q32(1 << 31), 133143986176);
+        assert_eq!(log2_u64_q32(1 << 50), 214748364800);
+        assert_eq!(log2_u64_q32(1 << 62), 266287972352);
+        // Non-powers, including the softmax denominators `EVAL` feeds it:
+        // S ∈ [2^31, V·2^31] for a vocabulary V (8192 = M7, 128256 = 2B).
+        assert_eq!(log2_u64_q32(3), 6807362105);
+        assert_eq!(log2_u64_q32(5), 9972605231);
+        assert_eq!(log2_u64_q32(10), 14267572527);
+        assert_eq!(log2_u64_q32(1000003), 85605453752);
+        assert_eq!(log2_u64_q32((1 << 31) + 1), 133143986178);
+        assert_eq!(log2_u64_q32(3 << 31), 139951348281);
+        assert_eq!(log2_u64_q32(8192 << 31), 188978561024);
+        assert_eq!(log2_u64_q32(128256 << 31), 206023855109);
+        assert_eq!(log2_u64_q32((1 << 63) - 1), 270582939647);
+    }
+
+    #[test]
+    fn log2_u64_q32_is_monotone_and_bracketed() {
+        // Structural properties, not goldens: the integer part is exactly
+        // floor(log2 v), and the function is non-decreasing. Both are what
+        // §2.1 step 6 relies on when it subtracts `31 << 32` from the result
+        // and expects a non-negative remainder for S ≥ 2^31.
+        let mut state = 0xA1CE_5EED_0000_0002u64;
+        let mut prev = 0u64;
+        for k in 0..63u32 {
+            let v = 1u64 << k;
+            assert_eq!(log2_u64_q32(v) >> 32, k as u64, "floor(log2 2^{k})");
+            assert!(log2_u64_q32(v) >= prev);
+            prev = log2_u64_q32(v);
+        }
+        for _ in 0..512 {
+            let a = (lcg_next(&mut state) >> 1).max(1);
+            let b = (lcg_next(&mut state) >> 1).max(1);
+            let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+            assert!(
+                log2_u64_q32(lo) <= log2_u64_q32(hi),
+                "not monotone at ({lo}, {hi})"
+            );
+        }
     }
 
     #[test]

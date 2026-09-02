@@ -138,6 +138,9 @@ pub enum Step {
     /// `VERIFY <NAME>` — replay a witness receipt through
     /// [`crate::verifier::run`] (design §2).
     Verify { name: String },
+    /// `EVAL <NAME> <lo>:<hi>` — exact-integer NLL over the token slice
+    /// `[lo, hi)` of an `AEFCORP1` corpus on the volume (design §2.1).
+    Eval { name: String, lo: u64, hi: u64 },
     /// `MECH` — the diagnostic block of [`crate::lab::mech`], as a directive.
     ///
     /// **Moved last by the dispatcher regardless of file order** (design §2):
@@ -430,6 +433,14 @@ pub fn parse(body: &str) -> Job {
                     });
                 }
             }
+            "EVAL" => match parse_eval(rest) {
+                Some((name, lo, hi)) => job.steps.push(Step::Eval { name, lo, hi }),
+                None => {
+                    understood = false;
+                    job.unknown
+                        .push(format!("EVAL {rest:?} (want <NAME> <lo>:<hi>, lo < hi)"));
+                }
+            },
             "MECH" => {
                 // Argument-free. A trailing word is a typo, not a parameter,
                 // and running a 24-minute diagnostic because someone misspelt
@@ -497,6 +508,21 @@ pub fn valid_runid(s: &str) -> bool {
         && s.len() <= RUNID_MAX_BYTES
         && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-')
+}
+
+/// `EVAL <NAME> <lo>:<hi>` (design §2). The half-open slice must be
+/// non-empty; everything else about it — that it fits the corpus, that the
+/// corpus is a corpus — is the step's business, and is reported as a
+/// `job.N.err` rather than swallowed as an unparsed directive.
+fn parse_eval(rest: &str) -> Option<(String, u64, u64)> {
+    let (name, slice) = rest.split_once(char::is_whitespace)?;
+    let (a, b) = slice.trim().split_once(':')?;
+    let lo: u64 = a.trim().parse().ok()?;
+    let hi: u64 = b.trim().parse().ok()?;
+    if name.is_empty() || lo >= hi {
+        return None;
+    }
+    Some((name.to_string(), lo, hi))
 }
 
 /// `SHARD <i>/<n>` with `1 <= i <= n <= SHARD_MAX` (design §2).
@@ -1510,6 +1536,45 @@ pub fn run_job(
                     &format!(
                         "JOB: step {n} verify pass={:?} items={:?} err={:?} digest={}",
                         sr.pass, sr.items, sr.err, sr.digest
+                    ),
+                );
+                rec.steps.push(sr);
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
+                }
+                continue;
+            }
+            Step::Eval { name, lo, hi } => {
+                crate::boot_log(root, &format!("JOB: step {n} EVAL {name} {lo}:{hi}"));
+                write_progress_record(&rec, root, n);
+                let w0 = crate::wall_seconds();
+                let budget_s = job.budget_s as f64;
+                // The same monotone deadline the engine gets for a PROMPT:
+                // copies only, so it borrows neither the slot nor `root`, and
+                // once the budget is spent it stays spent. A firmware with no
+                // usable clock yields `false` for ever and the watchdog is the
+                // guard, which was already logged at entry.
+                let over = move || match started {
+                    Some(t0) => matches!(elapsed_since(t0), Some(el) if el >= budget_s),
+                    None => false,
+                };
+                let mut rearm = move || {
+                    arm_watchdog(wd_window);
+                };
+                let mut sr =
+                    crate::lab::eval(root, &*slot, name, *lo, *hi, rate_valid, &over, &mut rearm);
+                sr.wall_ms = wall_ms_between(w0, crate::wall_seconds());
+                // A budget that stopped an EVAL at a window boundary is the
+                // job's verdict, not just the step's: design §5 files such a
+                // record `PARTIAL` and re-queues the remainder.
+                if sr.partial.is_some_and(|k| k > 0) {
+                    rec.fail("budget");
+                }
+                crate::boot_log(
+                    root,
+                    &format!(
+                        "JOB: step {n} eval nll_q16={:?} ntok={:?} partial={:?} err={:?}",
+                        sr.nll_q16, sr.ntok, sr.partial, sr.err
                     ),
                 );
                 rec.steps.push(sr);

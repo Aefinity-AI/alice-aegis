@@ -26,6 +26,12 @@ use core::arch::x86_64::{__cpuid, __cpuid_count};
 use aegis_core::inference::TernaryInferenceEngine;
 use uefi::proto::media::file::Directory;
 
+use aegis_core::cis::rne_div;
+use aegis_core::cis_attn::{ExpLut, LOG2E_Q32, exp_neg_q31, log2_u64_q32};
+use aegis_core::cis_infer::{CisEngine, CisMode, CisModel, F, QScale64, SCORE_F};
+use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
+use aegis_core::witness::{WitnessChain, WitnessHeader};
+
 use crate::files::FileErr;
 use crate::job::StepResult;
 
@@ -450,4 +456,423 @@ pub fn verify(
     }
     sr.detail = Some(verdict.detail);
     sr
+}
+
+// ---------------------------------------------------------------------------
+// EVAL (design §2.1) — the AEFCORP1 container and the exact-integer NLL
+// ---------------------------------------------------------------------------
+
+/// `AEFCORP1` — the corpus container magic (design §2.1).
+pub const CORPUS_MAGIC: [u8; 8] = *b"AEFCORP1";
+/// The fixed 64-byte header the magic opens.
+pub const CORPUS_HEADER_BYTES: u64 = 64;
+/// Tokens one `EVAL` will hold in RAM. `[lo, hi)` is materialised as `u32`s,
+/// so this is a 4 MiB ceiling — enough for two thousand windows and small
+/// enough that a job cannot exhaust the pool by asking for a slice.
+const EVAL_SLICE_MAX: u64 = 1 << 20;
+
+/// `EVAL <NAME> <lo>:<hi>` — integer NLL over the token slice `[lo, hi)` of an
+/// `AEFCORP1` corpus on the boot volume (design §2.1).
+///
+/// **`nll_q16` is bit-exact by construction.** It does *not* call
+/// `CisEngine::calculate_perplexity_int`, which computes its NLL with
+/// `libm::exp`/`libm::log` on f64 and is not cross-box comparable. This reuses
+/// that function's exact-integer half — `logits_int_exact`'s rational
+/// `ActScale`, `QScale64::from_ratio`, `exp_neg_q31` — and replaces its float
+/// half with `log2_u64_q32` over the i64 softmax denominator. No `f32` or
+/// `f64` value exists anywhere in the accumulation, so two conforming boxes
+/// produce the same integer or CIS-1 is falsified.
+///
+/// The seven steps of §2.1, in the code below:
+///
+/// 1. `logits_int_exact()` fills the exact i64 logits and yields the logit
+///    unit as an exact rational at Q.`F`.
+/// 2. `m = max(logits)` (exact i64 compare); gaps `d_j = m − L_j ≥ 0`.
+/// 3. `g_j = qs.rescale(d_j)` onto the Q.24 score grid, where `qs` is built
+///    from that rational by `QScale64::from_ratio` — exact long division with
+///    round-to-nearest-even.
+/// 4. `e_j = exp_neg_q31(g_j << 8, lut)` — literally SOFTMAX-I step 2; the max
+///    element contributes exactly `2^31`.
+/// 5. `S = Σ e_j` in i64, ascending vocabulary index (exact: `V · 2^31 < 2^51`).
+/// 6. `nll_t = (g_t << 8) + rne_div((log2_u64_q32(S) − (31 << 32)) << 32,
+///    LOG2E_Q32)` in Q.32 nats.
+/// 7. `Σ nll_t` in `i128` at Q.32 in ascending (window, position) order, then
+///    exactly **one** rounding: `nll_q16 = rne_div(total, 1 << 16)`.
+///
+/// Underflow is declared, not accidental: a logit more than ~21.49 nats below
+/// the max contributes `e_j = 0` exactly (the `n ≥ 31` early return in
+/// `exp_neg_q31`) — identically on every box — and since step 6 never divides
+/// by `e_t`, a target in that tail still gets a finite, correct-by-definition
+/// NLL.
+#[allow(clippy::too_many_arguments)]
+pub fn eval(
+    root: &mut Directory,
+    slot: &crate::reload::EngineSlot<'_>,
+    name: &str,
+    lo: u64,
+    hi: u64,
+    rate_valid: bool,
+    over_budget: &dyn Fn() -> bool,
+    rearm: &mut dyn FnMut(),
+) -> StepResult {
+    let mut sr = StepResult::lab("eval", rate_valid);
+    let name = match crate::files::validate_name(name) {
+        Ok(n) => n,
+        Err(e) => return fail_step(sr, e.slug(), "the corpus name is not a legal <NAME>"),
+    };
+    // A provisional `<step-input>`: §3.1's form needs the corpus payload
+    // digest, and a step that never got to read its corpus has none. The
+    // requested slice is what it can honestly serialise, and it is still
+    // enough to keep two different failed `EVAL`s from sharing a `merge_key`.
+    sr.merge_input = Some(format!("{name}:{lo}:{hi}"));
+    if lo >= hi || hi - lo > EVAL_SLICE_MAX {
+        return fail_step(
+            sr,
+            FileErr::BadArgs.slug(),
+            "the slice is empty or over the per-step token ceiling",
+        );
+    }
+
+    // ---- the engine this EVAL scores with -------------------------------
+    // Built from the **resident** slices, exactly as `verifier::run` does, so
+    // the number is about the bytes the box is holding and not about whatever
+    // FAT would hand back on a re-read.
+    // The tokenizer's bytes are not needed: a corpus is already token ids.
+    let (model, embed, _vocab) = slot.slices();
+    let tensors = match SafeTensors::deserialize(model) {
+        Ok(t) => t,
+        Err(_) => return fail_step(sr, FileErr::Io.slug(), "MODEL.SAF did not parse"),
+    };
+    let config = match tensors
+        .metadata_field("aegis_config")
+        .ok()
+        .flatten()
+        .and_then(|j| ModelConfig::from_json(&j).ok())
+    {
+        Some(c) => c,
+        None => {
+            return fail_step(
+                sr,
+                FileErr::Io.slug(),
+                "MODEL.SAF carries no parseable aegis_config",
+            );
+        }
+    };
+    let pipeline = match FullBitNetPipeline::new(&tensors, embed, &config) {
+        Ok(p) => p,
+        Err(_) => return fail_step(sr, FileErr::Io.slug(), "pipeline build failed"),
+    };
+    let cis_model = match CisModel::new(&pipeline, &config) {
+        Ok(m) => m,
+        Err(_) => return fail_step(sr, FileErr::Io.slug(), "CIS model conversion failed"),
+    };
+
+    // ---- the corpus, validated in §2.1's exact order --------------------
+    let corpus = match load_corpus(root, &name, &config, lo, hi, rearm) {
+        Ok(c) => c,
+        Err(CorpusErr::Bad(why)) => return fail_step(sr, "bad-corpus", why),
+        Err(CorpusErr::Args(why)) => return fail_step(sr, FileErr::BadArgs.slug(), why),
+        Err(CorpusErr::File(e)) => return fail_step(sr, e.slug(), "could not read the corpus"),
+    };
+
+    // §2.1: `W = min(EVAL_WINDOW, config.max_position_embeddings)`. Stride is
+    // W — non-overlapping — because a sliding stride would score some
+    // positions with more context than others and make the number depend on a
+    // parameter nobody would remember.
+    let w = crate::job::EVAL_WINDOW
+        .min(config.max_position_embeddings)
+        .max(2);
+    // §3.1: `eval` → `<NAME>:<corpus payload 64hex>:<lo>:<hi>:<W>`.
+    sr.merge_input = Some(format!("{name}:{}:{lo}:{hi}:{w}", corpus.payload_sha_hex));
+
+    let mut engine = CisEngine::new_with_mode(&cis_model, CisMode::FullInt);
+    let lut = ExpLut::new();
+
+    // The witness genesis binds the digest to the artifacts, the slice length
+    // and the corpus itself: `prompt` is the payload's own sha256, so a fold
+    // over one corpus can never be presented as a fold over another.
+    let (mh, eh, vh) = {
+        let d = slot.digests();
+        (
+            unhex32(&d.model).unwrap_or([0u8; 32]),
+            unhex32(&d.embed).unwrap_or([0u8; 32]),
+            unhex32(&d.vocab).unwrap_or([0u8; 32]),
+        )
+    };
+    let header = WitnessHeader {
+        model_sha: &mh,
+        embed_sha: &eh,
+        vocab_sha: &vh,
+        max_new: hi - lo,
+        prompt: &corpus.payload_sha,
+    };
+    let mut chain = WitnessChain::from_header(&header);
+
+    let mut total_q32: i128 = 0;
+    let mut scored: u64 = 0;
+    let mut windows_done: u64 = 0;
+    let mut partial: Option<u64> = None;
+
+    for win in corpus.tokens.chunks(w) {
+        // A final short window of fewer than 2 tokens is dropped: it has no
+        // scored position (the first token of a window is context, never a
+        // prediction), so it can contribute nothing.
+        if win.len() < 2 {
+            break;
+        }
+        // Re-armed per window (design §8): one window of 2048 positions can
+        // outlast any single watchdog interval on a slow box.
+        rearm();
+        if over_budget() {
+            partial = Some(windows_done);
+            break;
+        }
+        // Each window resets the KV cache and runs positions `0..len`, so a
+        // window's score does not depend on where in the corpus it fell.
+        engine.reset_prefix(win.len());
+        engine.forward_step_int(win[0], 0);
+        for i in 0..win.len() - 1 {
+            let target = win[i + 1] as usize;
+            // ---- §2.1 step 1: exact rational, never the f64 --------------
+            let s = engine.logits_int_exact();
+            let logits = engine.logits();
+            chain.fold_step(win[i + 1], logits);
+            // ---- step 2 -------------------------------------------------
+            let m = logits.iter().copied().max().unwrap_or(0);
+            // ---- step 3: the Q.24 score grid, by exact long division -----
+            // A logit unit is `num / (den · 2^F)` real; the score grid is
+            // Q.SCORE_F, so one gap unit is `num · 2^SCORE_F / (den · 2^F)`.
+            let qs = QScale64::from_ratio(s.num << SCORE_F, s.den << F);
+            // ---- steps 4 and 5 ------------------------------------------
+            let mut sum: i64 = 0;
+            for &l in logits.iter() {
+                // `m` is the maximum, so `m - l >= 0` and the rescale of a
+                // non-negative by a non-negative scale is non-negative. The
+                // clamp is belt: `exp_neg_q31` takes a u128 and a negative
+                // cast would wrap into the underflow tail silently.
+                let g = qs.rescale(m - l).max(0); // Q.24
+                sum += exp_neg_q31((g as u128) << 8, &lut);
+            }
+            // The max element contributes exactly 2^31, so `sum ≥ 2^31` and
+            // step 6's subtraction of `31 << 32` cannot go negative.
+            let g_t = qs.rescale(m - logits[target]).max(0);
+            // ---- step 6: Q.32 nats, no float anywhere -------------------
+            let log2_s = log2_u64_q32(sum as u64) as i128;
+            let ln_ratio = rne_div((log2_s - (31i128 << 32)) << 32, LOG2E_Q32 as i128);
+            total_q32 += ((g_t as i128) << 8) + ln_ratio;
+            scored += 1;
+
+            engine.forward_step_int(win[i + 1], i + 1);
+        }
+        windows_done += 1;
+    }
+
+    // ---- step 7: exactly one rounding -----------------------------------
+    sr.nll_q16 = Some(rne_div(total_q32, 1 << 16).max(0) as u64);
+    sr.ntok = Some(scored);
+    sr.items = Some(windows_done);
+    sr.digest = crate::files::hex64(&chain.digest());
+    match partial {
+        Some(k) => {
+            sr.partial = Some(k);
+            sr.pass = Some(false);
+            // `budget` is not a §1.3 wire slug — no verb can return it — but
+            // it is what `job.N.err` has to say when a window boundary is
+            // where the job ran out of time. The accumulation above is over
+            // exactly the windows that finished, so the record is prefix
+            // evidence and still deterministic (design §5).
+            sr.err = Some(String::from("budget"));
+            sr.detail = Some(format!(
+                "budget spent after {k} of {} windows; nll is over those {k}",
+                corpus.windows(w)
+            ));
+        }
+        None => {
+            sr.partial = Some(0);
+            sr.pass = Some(true);
+            sr.err = Some(String::from("none"));
+            sr.detail = Some(format!(
+                "{scored} scored positions in {windows_done} window(s) of W={w}, \
+                 corpus ntok={} vocab={}",
+                corpus.ntok, config.vocab_size
+            ));
+        }
+    }
+    sr
+}
+
+/// A validated `AEFCORP1` corpus slice.
+struct Corpus {
+    /// Total tokens the container declares.
+    ntok: u64,
+    /// sha256 of the whole payload, and its hex rendering for `merge_key`.
+    payload_sha: [u8; 32],
+    payload_sha_hex: String,
+    /// The `[lo, hi)` slice, materialised.
+    tokens: Vec<u32>,
+}
+
+impl Corpus {
+    /// Windows of `w` the slice would produce if nothing stopped it — the
+    /// denominator `job.N.partial` is a numerator of.
+    fn windows(&self, w: usize) -> usize {
+        self.tokens.chunks(w).filter(|c| c.len() >= 2).count()
+    }
+}
+
+/// Why a corpus was refused.
+enum CorpusErr {
+    /// Design §2.1: every container-validation failure is one slug,
+    /// `bad-corpus`, whichever check caught it. The reason is in
+    /// `job.N.detail`; the slug is what a scheduler branches on, and "the
+    /// corpus is not usable" is one decision however it was reached.
+    Bad(&'static str),
+    /// The slice, not the container: `[lo, hi)` outside the corpus.
+    Args(&'static str),
+    /// The volume, not the file's content.
+    File(FileErr),
+}
+
+impl From<FileErr> for CorpusErr {
+    fn from(e: FileErr) -> CorpusErr {
+        CorpusErr::File(e)
+    }
+}
+
+/// Read and validate an `AEFCORP1` container, returning the `[lo, hi)` slice.
+///
+/// Validation order is design §2.1's, exactly: magic; `version == 1`;
+/// `token_width == 4`; `file_size == 64 + 4·ntok`; `vocab_size ==
+/// engine.config.vocab_size`; then payload sha256 **and** every id `< vocab`
+/// in one streamed pass — all before any forward pass, and all reported as
+/// `bad-corpus`.
+fn load_corpus(
+    root: &mut Directory,
+    name: &str,
+    config: &ModelConfig,
+    lo: u64,
+    hi: u64,
+    rearm: &mut dyn FnMut(),
+) -> Result<Corpus, CorpusErr> {
+    let mut bounce = crate::files::Bounce::new().ok_or(FileErr::Io)?;
+    let mut reader = crate::files::Reader::open(root, name)?;
+    let size = reader.size;
+    if size < CORPUS_HEADER_BYTES {
+        reader.close();
+        return Err(CorpusErr::Bad("file is shorter than the 64-byte header"));
+    }
+    let mut hdr = [0u8; 64];
+    {
+        let mut got = 0usize;
+        while got < 64 {
+            match reader.next(&mut hdr[got..]) {
+                Ok(0) => break,
+                Ok(n) => got += n,
+                Err(e) => {
+                    reader.close();
+                    return Err(CorpusErr::File(e));
+                }
+            }
+        }
+        if got != 64 {
+            reader.close();
+            return Err(CorpusErr::Bad("short read on the header"));
+        }
+    }
+    let u32at = |o: usize| u32::from_le_bytes([hdr[o], hdr[o + 1], hdr[o + 2], hdr[o + 3]]);
+    let u64at = |o: usize| {
+        u64::from_le_bytes([
+            hdr[o],
+            hdr[o + 1],
+            hdr[o + 2],
+            hdr[o + 3],
+            hdr[o + 4],
+            hdr[o + 5],
+            hdr[o + 6],
+            hdr[o + 7],
+        ])
+    };
+    let bad = |reader: crate::files::Reader, why: &'static str| -> CorpusErr {
+        reader.close();
+        CorpusErr::Bad(why)
+    };
+    if hdr[..8] != CORPUS_MAGIC {
+        return Err(bad(reader, "magic is not AEFCORP1"));
+    }
+    if u32at(8) != 1 {
+        return Err(bad(reader, "container version is not 1"));
+    }
+    if u32at(12) != 4 {
+        return Err(bad(reader, "token_width is not 4"));
+    }
+    let ntok = u64at(16);
+    let want = CORPUS_HEADER_BYTES.saturating_add(ntok.saturating_mul(4));
+    if size != want {
+        return Err(bad(reader, "file_size is not 64 + 4*ntok"));
+    }
+    let vocab_size = u32at(24) as usize;
+    if vocab_size != config.vocab_size {
+        return Err(bad(reader, "vocab_size does not match the resident model"));
+    }
+    let mut want_sha = [0u8; 32];
+    want_sha.copy_from_slice(&hdr[32..64]);
+
+    if hi > ntok {
+        reader.close();
+        return Err(CorpusErr::Args("[lo, hi) runs past the corpus"));
+    }
+
+    // One streamed pass: sha256 over the payload, every id bounds-checked,
+    // and the requested slice collected. `Reader::next` hands back whatever
+    // the firmware gave, which need not be a multiple of 4, so ids are
+    // assembled a byte at a time across chunk boundaries rather than assuming
+    // an alignment the file protocol never promised.
+    let mut h = aegis_core::witness::Sha256::new();
+    let mut tokens: Vec<u32> = Vec::with_capacity((hi - lo) as usize);
+    let mut pending = [0u8; 4];
+    let mut have = 0usize;
+    let mut index: u64 = 0;
+    loop {
+        rearm();
+        let n = match reader.next(bounce.buf()) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(e) => {
+                reader.close();
+                return Err(CorpusErr::File(e));
+            }
+        };
+        let chunk = &bounce.buf()[..n];
+        h.update(chunk);
+        for &byte in chunk {
+            pending[have] = byte;
+            have += 1;
+            if have < 4 {
+                continue;
+            }
+            have = 0;
+            let id = u32::from_le_bytes(pending);
+            if id as usize >= vocab_size {
+                return Err(bad(reader, "a token id is >= vocab_size"));
+            }
+            if index >= lo && index < hi {
+                tokens.push(id);
+            }
+            index += 1;
+        }
+    }
+    reader.close();
+    if have != 0 || index != ntok {
+        return Err(CorpusErr::Bad("payload is not 4*ntok bytes"));
+    }
+    let got_sha = h.finalize();
+    if got_sha != want_sha {
+        return Err(CorpusErr::Bad("payload sha256 does not match the header"));
+    }
+    Ok(Corpus {
+        ntok,
+        payload_sha: got_sha,
+        payload_sha_hex: crate::files::hex64(&got_sha),
+        tokens,
+    })
 }
