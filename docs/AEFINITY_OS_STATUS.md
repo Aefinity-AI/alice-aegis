@@ -738,6 +738,32 @@ and the record enforces that rather than relying on whoever reads it later.
 Every step now carries `job.N.rate_valid`, including the v0.1 kinds, so a
 reader never has to know which kinds can produce a rate.
 
+### The watchdog and the budget cover the *work*, not just the I/O
+
+Design §8 says a long step re-arms the firmware watchdog as it makes progress,
+and phase 4 already did that per `XFER_CHUNK` for `GET`/`PUT`/`RELOAD`. Phase 5
+holds the same line for compute, because in a lab step the file read is never
+the long part:
+
+| step | what is re-armed, and how often |
+|---|---|
+| `VERIFY <NAME>` | the receipt read (per `XFER_CHUNK`), **and inside `verifier::run`**: once per 1 MiB of the three artifact hashes — ~1.83 GB before the replay even starts — and once per prefill position and per decode step |
+| `EVAL <NAME> <lo>:<hi>` | the corpus load (per `XFER_CHUNK`) and once per window, where the budget is also re-read |
+| `MEMBW <mib>` | once per MiB in the write pass and once per MiB in the read+fold pass, where the budget is also re-read |
+
+`MEMBW 4096` moves 8 GiB of scalar traffic and a `VERIFY` hashes 1.83 GB before
+its first decode step; on a slow box either can outlast the interval armed when
+the job started. Without the re-arm the firmware would reset a machine that is
+healthy and making progress — and by §8 a box whose watchdog fires *leaves the
+fleet*, so the cost of getting this wrong is a lost box, not a lost step.
+
+A `MEMBW` the budget stopped is filed exactly as a stopped `EVAL` is —
+`job.N.pass=false`, `job.N.err=budget`, `job.N.partial=` the MiB actually
+folded, and the digest is the fold over exactly that prefix. `membw_mibs` is
+not computed for a stopped run at all: a rate over a truncated pass is not the
+answer to `MEMBW <mib>`. Only `partial=0` with `err=none` claims the full-run
+checksum.
+
 ### What works under QEMU
 
 `cargo xtask lab-test` (design §7) boots one resident guest, `PUT`s a corpus
@@ -767,11 +793,15 @@ Everything in §5 and §9 still stands. Phase 5 adds:
    has only ever taken its second branch, and the per-window watchdog re-arm
    has never had to save a run.
 4. **`job.N.partial` from a real budget overrun.** The partial-accumulation
-   path is reasoned from §5 and compiled; no gate provokes it, because a gate
-   that did would be timing something.
+   path — for `EVAL` at a window boundary and for `MEMBW` at a MiB boundary —
+   is reasoned from §5 and compiled; no gate provokes it, because a gate that
+   did would be timing something. The watchdog re-arms in `verifier::run`,
+   `lab::eval` and `lab::membw` are in the same position: they are called on
+   every run, but no run so far has been long enough to need one.
 5. **`MEMBW` at a size that matters.** The gate asks for 16 MiB — enough to
-   assert the digest and the gating, nowhere near enough to say anything about
-   a memory system, which is the point (Rule A).
+   assert the digest and the gating, and enough that both passes cross sixteen
+   chunk boundaries, but nowhere near enough to say anything about a memory
+   system, which is the point (Rule A).
 6. **`MECH` as a directive.** `lab::mech` is a pure move and `boot-test` still
    reports its 33 checks, so the *boot* path is covered. `MECH` reaching the
    dispatcher from a `JOB.TXT`, and being moved last by it, is exercised by a
@@ -784,7 +814,7 @@ Everything in §5 and §9 still stands. Phase 5 adds:
 | design says | this build | why |
 |---|---|---|
 | §3 lists `run_id`, `tag`, `shard`, `seed` together as additions | `run_id=` keeps its v0.1 position and `RUNID` in `JOB.TXT` sets its *value*; `tag=`/`shard=`/`seed=` are appended after `verdict=` | `run_id=` is already a v0.1 key. Emitting it twice would hand a collector two answers to one question, and moving it would disturb v0.1 key order, which §3-ext says never to do. |
-| §1.3's slug list is exhaustive | `job.N.err` can also read `budget` | §1.3 is the list of `ERR` slugs a *verb* may return on the wire. `job.N.err` is a different field, and a step that a budget stopped at a window boundary has to be able to say so. No verb can return `budget`. |
+| §1.3's slug list is exhaustive | `job.N.err` can also read `budget` | §1.3 is the list of `ERR` slugs a *verb* may return on the wire. `job.N.err` is a different field, and a step the budget stopped — an `EVAL` at a window boundary, a `MEMBW` at a MiB boundary — has to be able to say so. No verb can return `budget`. |
 | §3 shows `job.N.tps` on every block | lab blocks carry no `tps` and no `tsc_per_tok` | a `tps=0.00` on a `CPUID` step is a performance number where no measurement was made. The v0.1 kinds render exactly the v0.1 keys, unchanged. |
 | — | lab blocks *do* carry `job.N.wall_ms` | a duration is not a rate, it is what a host-side lease and deadline are computed from (design §5), and v0.1 has emitted `wall_ms` under `env=vm` since phase 0. It travels on a block that also says `rate_valid=false`, and no gate asserts it. It is still a wall-clock reading taken under TCG and may not be quoted as a measurement of anything (Rule A). |
 | §3 shows `job.N.digest=<64hex>` | `verify` and `eval` emit 64 hex (SHA-256 chains); `membw` emits **16** | §3 itself calls the `membw` value "the touch pattern's checksum", not a chain. It is a 64-bit FNV-1a fold rendered as 16 lowercase hex — the same width as `merge_key` and each third of `artifacts=`. What the field has to support is a byte-comparison between two boxes, and 64 bits of a pattern that depends only on `<mib>` does that; a SHA-256 over 16 MiB every time would not add to it. |
