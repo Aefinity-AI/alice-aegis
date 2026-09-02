@@ -419,7 +419,8 @@ listener buffers; `job.rs` gains §3's appended record keys and §3.1's
 
 ### What works under QEMU
 
-`cargo xtask files-test` (design §7), PASS, 2 m 46 s wall:
+`cargo xtask files-test` (design §7), PASS, 2 m 44 s wall (re-run 2026-09-01
+with the §8 protection cases added):
 
 ```
 ok   banner AEFINITY-OS 0.1 READY env=vm cpu=QEMU TCG CPU version 2.5+ caps=files
@@ -437,19 +438,36 @@ ok   PUT with a wrong trailer ->  ERR bad-frame
 ok   PUT ../X  ->  ERR bad-name;  32-byte name  ->  ERR bad-name
 ok   PUT BOOTLOG.TXT  ->  ERR protected
 ok   PUT of a 3 GiB declared length  ->  ERR bad-len (before any byte crosses)
-ok   LS free of strays;  HEALTH … parts=0 … env=vm
+ok   PUT/RM of MODEL.NEW, EMBED.NEW, VOCAB.NEW  ->  ERR protected  (both halves)
+ok   PUT MODEL.SAF (the same bytes) -> OK; the pointer swaps to MODEL.NEW
+ok   RM MODEL.NEW  ->  ERR protected  (the now-LIVE half)
+ok   SHA MODEL.SAF after the swap still matches the host's digest
+ok   LS free of strays;  HEALTH … parts=0 degraded=none … env=vm
 ok   RM TEST.BIN;  STAT TEST.BIN  ->  ERR not-found
 ok   RUNID NEW → job → RUNID REPLAY returns the cached record, replay=true
 ok   RELOAD  ->  OK reload model=… embed=… vocab=…; a job after it still runs
 ok   REBOOT  ->  BYE;  QEMU exited 0
 ```
 
-Regression, same tree: `resident-test` PASS (4 m 16 s), `job-test` PASS
-(3 m 45 s). `scripts/devloop.sh fmt` clean across all six crates.
+`cargo xtask files-soak` (new, below), PASS, 15/15 cycles.
+
+Regression, same tree: `resident-test` PASS (4 m 16 s, re-run 2026-09-01),
+`job-test` PASS (3 m 45 s). `scripts/devloop.sh fmt` clean across all six crates.
 `./aegis-uefi/build_hardfloat.sh` + `scripts/check-efi-simd.sh` PASS
 (`ymm=504 vfmadd=210`). Clippy is unchanged against `os/aefinity-os-v0.1`:
-aegis-uefi **115 → 115**, xtask **0 → 0** (the ratchet baseline of 48 is still
-stale, as §8 item 5 records; the *count* is what this phase held).
+aegis-uefi **115 → 115**, xtask **0 → 0**.
+
+On the clippy ratchet's own FAIL, since it has now been raised twice: it is
+**not phase 4's**. `scripts/devloop_clippy_baseline.tsv` records aegis-uefi at
+48; the count is 115 under the current toolchain. Measured both ends on
+2026-09-01 with clippy 0.1.98 / rustc 1.98.0 (2026-08-18): `os/aefinity-os-v0.1`
+at 5d7b516 gives aegis-uefi **115**, xtask **0**, and `os/p4-files` gives
+aegis-uefi **115**, xtask **0**. Identical. The 48 is clippy 1.98 lint drift
+against a baseline taken on an older toolchain, and it already has an owner:
+branch `chore/clippy-rebaseline-1.98` (1a75759, *"toolchain drift, no code
+change"*) rewrites the TSV to exactly 115 and has not been merged. Rebaselining
+from a bug-fix branch would bury a 67-error policy decision inside an unrelated
+diff, so this branch leaves the TSV alone and reports the measurement instead.
 
 `boot-test` was **not run** in this pass — it takes ~28 minutes because of the
 MECH block and phase 4 does not touch the no-`JOB.TXT` path. `git diff` over
@@ -459,6 +477,103 @@ hook. Someone should still run it before the merge.
 Every assertion above is on the guest's own `LS`/`SHA`/`STAT`, never the host
 mirror: QEMU `fat:rw:` commits a guest write but **not** a guest unlink, so
 the staged directory cannot answer "is it gone".
+
+### Adversarial review 2026-09-01, and what it changed
+
+Two findings, both fixed on this branch.
+
+**Finding 1 (MAJOR) — the A/B halves were nameable, and the fallback was
+silent.** `files::is_protected` held six literal names and never consulted
+`reload::current_names()`. So after a `PUT MODEL.SAF` flipped `CURRENT.TXT` to
+`model=MODEL.NEW`, a plain `RM MODEL.NEW` deleted the box's **live** model and
+was answered `OK MODEL.NEW` — verified live. `current_names()`' canonical-name
+fallback then repointed at the stale pre-swap file, and a later `RELOAD`
+reported ordinary success against old bytes. A model downgrade wearing a
+correct-looking provenance line, which is precisely what §8's swap exists to
+prevent.
+
+Fixed three ways: `reload::ALTERNATES` is the single definition of the `.NEW`
+names and `is_protected` consults it, so **both** halves are refused always
+(the inactive one too — "you may delete this half but not that one, and which
+is which depends on how many times you have uploaded" is a footgun with no use
+case behind it); `RM MODEL.SAF`, which is legal and must mean *the artifact is
+gone*, goes through `reload::remove_artifact`, which stops the pointer
+designating anything **before** either half is deleted and then takes both; and
+the fallback is no longer silent. A `CURRENT.TXT` that parses, names a legal
+file, and designates a file that is **not on the volume** now writes an `ERROR`
+line to `BOOTLOG.TXT` on the transition and shows as `degraded=pointer` in
+`HEALTH`. An absent or unparsable pointer is **not** degraded — §8 says in as
+many words that boot falls back then, so a box that has never swapped is in its
+normal state, not a damaged one.
+
+**Finding 2 (BLOCKER) — digests that moved under churn. It was the emulator.**
+
+Under sustained churn (~10 `PUT`/`RM`/`STAGE.PRT` cycles in one boot) a
+2.8 MB `PUT`'s commit-time readback digest verified but an immediately
+following `SHA` of the same file returned a different digest, and continued
+churn crashed QEMU itself inside
+`block/vvfat.c:1901: get_cluster_count_for_direntry: Assertion
+'mapping->mode & MODE_DELETED' failed`. The design treats the guest's own
+`SHA` as ground truth, so this could not be waved at the emulator — it had to
+be separated from "our commit path is wrong".
+
+`cargo xtask files-soak` is that separator, and is now the regression gate: 15
+`PUT`/`RM`/`RELOAD` cycles in **one boot**, mixing three ordinary `SOAK*.BIN`
+names with the three artifacts, and after **every** cycle a fresh guest-side
+`SHA` of **every** file present — checked against the host's own digest of the
+bytes that were sent, both by the client-visible name (through §8's pointer)
+and by the physical A/B half, with a `JOB.TXT` canary no verb ever writes to.
+First mismatch fails the gate and names the cycle.
+
+The two runs, same binary, same payloads, differing only in the boot volume:
+
+```
+$ cargo xtask files-soak --ci --vvfat        # QEMU fat:rw: directory mapping
+== cycle 3/15 ==
+   ok   PUT SOAK1.BIN (1441903 bytes)  ->  OK SOAK1.BIN 1441903 f2110a14d3156163
+   ok   RM SOAK2.BIN  ->  OK SOAK2.BIN
+   ok   PUT MODEL.SAF (2797632 bytes)  ->  OK MODEL.SAF 2797632 23cfad0a3c7de2b6
+   ok   RM MODEL.NEW  ->  ERR protected
+== FAIL == cycle 3: SHA MODEL.SAF = 2797632/da975f2e3562f7ab…, but the harness
+           sent 2797632/23cfad0a3c7de2b6… and the commit-time readback verified
+           it. The volume has changed underneath a file nobody wrote to.
+
+$ cargo xtask files-soak --ci                # a real FAT32 image, mformat+mcopy
+   ok   cycle 15: 9 fresh SHA(s) all match
+== PASS == 15 PUT/RM/RELOAD cycles in one boot, and after every one of them a
+           fresh guest-side SHA of every file present matched the host's digest
+           of the bytes that were sent.
+```
+
+**Verdict: the corruption is the harness's, not ours.** On a real FAT32 image
+15/15 cycles pass. On vvfat the same binary fails at cycle 3 — twice, at the
+same cycle, with the same wrong digest `da975f2e…` both times. Deterministic
+identical corruption is a mapping bug in the emulator, not medium corruption
+and not a race in the guest. QEMU's `vvfat` synthesises a FAT filesystem over a
+host directory and rebuilds that mapping as the guest mutates it; heavy
+create/rename/delete churn is a documented weak spot, and the assertion above
+is `vvfat` failing its own internal invariant.
+
+Consequently `files-soak` boots a **real FAT32 image** by default — `mformat`
++ `mcopy` from mtools, `-drive format=raw`, no partition table (EDK2's FAT
+driver binds the block device directly). `--vvfat` selects the fragile path on
+purpose, to reproduce the above. The quick gates (`files-test`,
+`resident-test`, `job-test`) keep `fat:rw:`, because reading the guest's writes
+back on the host is exactly what they need and their churn is one or two
+commits, not forty.
+
+**What this does not settle.** The soak is still QEMU/TCG, and iron behaviour
+is unverified either way: a vendor FAT driver on a USB stick is its own
+implementation with its own churn behaviour, and §8 already records that its
+free-space accounting is only advisory. First light will tell. Two low-churn
+courtesies were kept anyway, because they cost nothing and help on a real
+stick as much as on `vvfat`: `Stage::create` truncates an existing `STAGE.PRT`
+through `SetInfo`'s `FileSize` rather than deleting and recreating it (the
+directory entry stays; only the cluster chain is released, with a fallback to
+the old path for firmware that refuses), and `reload::set_pointer` skips the
+write entirely when `CURRENT.TXT` already holds exactly those bytes. Neither
+changes observable behaviour; both remove directory mutations from the hot
+path.
 
 ### The `RELOAD` hazard statement
 
@@ -515,13 +630,14 @@ Everything in §5 above still stands. Phase 4 adds:
    §8's claim that a full-size readback can outlast a single watchdog window
    are both about a file 28× larger, on a USB FAT32 stick rather than QEMU
    vvfat. Neither has been observed.
-2. **The artifact pointer swap** (§8). `PUT MODEL.SAF` writes the inactive half
-   of an A/B pair and rewrites `CURRENT.TXT`; boot and `RELOAD` read it and
-   fall back to the canonical name when it is absent, unparsable, or points at
-   a file that is not there. **No gate exercises this** — `files-test` PUTs
-   ordinary files, because a 1.8 GB PUT is not a gate on a 6 GB box — so the
-   swap is code that has been reasoned about and compiled, not code that has
-   run. It is the highest-value thing to exercise on first light.
+2. **The artifact pointer swap at full size** (§8). The swap itself is no
+   longer un-exercised: `files-test` now PUTs the real `MODEL.SAF` and asserts
+   the pointer moved, and `files-soak` swaps all three artifacts fifteen times
+   in one boot and re-hashes both halves after every cycle. What is still
+   untested is the swap **at 1.83 GB on a USB stick**: the staged M7 model is
+   2.8 MB, so §8's double-capacity requirement, the multi-window readback and
+   a vendor FAT driver's behaviour under the same churn are all unobserved.
+   Still the highest-value thing to exercise on first light.
 3. **`ERR no-space` and `ERR io` on a full volume.** §8 says the UEFI
    `FileSystemInfo` free-space number is advisory on vendor FAT drivers, so
    exhaustion may surface as a short write instead. `no-space` is best effort;

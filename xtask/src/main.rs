@@ -3349,7 +3349,10 @@ fn files_soak(flags: &[&str]) -> Result<ExitCode, String> {
     } else {
         let img = esp.root.join("target").join("soak.img");
         build_fat_image(&esp.dir, &img)?;
-        println!("      volume  : real FAT32 image {} (no vvfat)", img.display());
+        println!(
+            "      volume  : real FAT32 image {} (no vvfat)",
+            img.display()
+        );
         format!("format=raw,file={}", img.display())
     };
 
@@ -3672,7 +3675,9 @@ fn soak_exchange(
 
         let health = soak_health(&mut c, hard)?;
         if !health.contains("parts=0") {
-            fail.push(format!("cycle {cycle}: HEALTH says {health:?}, not parts=0"));
+            fail.push(format!(
+                "cycle {cycle}: HEALTH says {health:?}, not parts=0"
+            ));
         }
         if !health.contains("degraded=none") {
             fail.push(format!(
@@ -3761,11 +3766,14 @@ fn soak_verify(
     // (the same artifact is re-uploaded every cycle), so either one differing
     // is corruption and not a version skew.
     for (name, len, sha) in expect {
-        let Some(stem) = name.strip_suffix(".SAF").or_else(|| name.strip_suffix(".BIN")) else {
+        let Some(stem) = name
+            .strip_suffix(".SAF")
+            .or_else(|| name.strip_suffix(".BIN"))
+        else {
             continue;
         };
         let half = format!("{stem}.NEW");
-        if !present.iter().any(|x| *x == half) {
+        if !present.contains(&half) {
             continue;
         }
         let (got_len, got_sha) = files_sha(c, hard, &half)?;
@@ -3779,6 +3787,9 @@ fn soak_verify(
         checked += 1;
     }
 
-    println!("   ok   cycle {cycle}: {checked} fresh SHA(s) all match  [{}]", present.join(" "));
+    println!(
+        "   ok   cycle {cycle}: {checked} fresh SHA(s) all match  [{}]",
+        present.join(" ")
+    );
     Ok(())
 }
