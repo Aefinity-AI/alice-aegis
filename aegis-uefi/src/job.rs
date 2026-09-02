@@ -91,6 +91,16 @@ pub const EVAL_WINDOW: usize = 2048;
 pub const SHARD_MAX: u32 = 4096;
 /// `job.N.detail` is truncated to this many bytes *after* escaping (design §3).
 pub const DETAIL_MAX: usize = 1024;
+/// The `job.N.err` slug a step files when the whole-job wall budget ran out
+/// under it, and the reason string [`ResultRecord::fail`] records for the
+/// job-level `verdict=` in the same case (design §5).
+///
+/// One constant because the two ends have to agree: a lab step decides it was
+/// stopped and writes this into its own block, and `run_job` reads that same
+/// slug back to decide the job's verdict. When those were two independent
+/// string literals, a step whose stop left `partial=0` could file
+/// `job.N.err=budget` under a record that still said `verdict=OK`.
+pub const BUDGET_ERR: &str = "budget";
 
 /// The prompt `BENCH n` generates from. Fixed on purpose: a bench whose
 /// prompt varies between boxes is not a cross-machine comparison, and the
@@ -1453,7 +1463,7 @@ pub fn run_job(
             && let Some(el) = elapsed_since(t0)
             && el >= job.budget_s as f64
         {
-            rec.fail("budget");
+            rec.fail(BUDGET_ERR);
             crate::boot_log(
                 root,
                 &format!("JOB: budget spent before step {n} — stopping"),
@@ -1583,8 +1593,19 @@ pub fn run_job(
                 // A budget that stopped an EVAL at a window boundary is the
                 // job's verdict, not just the step's: design §5 files such a
                 // record `PARTIAL` and re-queues the remainder.
-                if sr.partial.is_some_and(|k| k > 0) {
-                    rec.fail("budget");
+                //
+                // Read off the slug, not off `partial`, for the same reason
+                // `MEMBW` below does: a stop before the *first* window folded
+                // leaves `partial=0`, which is byte-identical to the
+                // `partial=0` a completed EVAL files. A `partial > 0` test
+                // therefore let the one case that scored **nothing** through
+                // as `verdict=OK` — and §5 files a `verdict=OK` record as a
+                // completed unit, so an `nll_q16` folded over zero positions
+                // would have gone into `pool_digest` and into an `AGREE`
+                // comparison. With the slug it is `FAIL budget`, which §5
+                // ends `FAILED` and `--resume` dispatches again.
+                if sr.err.as_deref() == Some(BUDGET_ERR) {
+                    rec.fail(BUDGET_ERR);
                 }
                 crate::boot_log(
                     root,
@@ -1618,8 +1639,8 @@ pub fn run_job(
                 // (design §5), exactly as it is for a stopped EVAL. `partial`
                 // alone cannot say it — a stop before the first MiB folded
                 // leaves `partial=0` — so the slug is what is read here.
-                if sr.err.as_deref() == Some("budget") {
-                    rec.fail("budget");
+                if sr.err.as_deref() == Some(BUDGET_ERR) {
+                    rec.fail(BUDGET_ERR);
                 }
                 crate::boot_log(
                     root,
@@ -1759,7 +1780,7 @@ pub fn run_job(
         // `ResultRecord::fail` keeps the first reason, so the order is the
         // verdict.
         if stopped {
-            rec.fail("budget");
+            rec.fail(BUDGET_ERR);
             let phase = if ntok == 0 { "prefill" } else { "decode" };
             crate::boot_log(
                 root,

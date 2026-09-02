@@ -525,6 +525,12 @@ pub fn eval(
     rearm: &mut dyn FnMut(),
 ) -> StepResult {
     let mut sr = StepResult::lab("eval", rate_valid);
+    // Only for the log line below: how much of the job's budget the setup —
+    // the integer model conversion and the streamed corpus pass — spent
+    // before the first window's deadline check could run. Nothing in the
+    // record depends on it; it is what makes a budget stop at window 0
+    // readable in `BOOTLOG.TXT` instead of a guess.
+    let w0 = crate::wall_seconds();
     let name = match crate::files::validate_name(name) {
         Ok(n) => n,
         Err(e) => return fail_step(sr, e.slug(), "the corpus name is not a legal <NAME>"),
@@ -617,6 +623,15 @@ pub fn eval(
     };
     let mut chain = WitnessChain::from_header(&header);
 
+    crate::boot_log(
+        root,
+        &format!(
+            "JOB: eval setup ready in {} ms (W={w}, {} slice tokens)",
+            crate::job::wall_ms_between(w0, crate::wall_seconds()),
+            corpus.tokens.len()
+        ),
+    );
+
     let mut total_q32: i128 = 0;
     let mut scored: u64 = 0;
     let mut windows_done: u64 = 0;
@@ -690,7 +705,7 @@ pub fn eval(
             // where the job ran out of time. The accumulation above is over
             // exactly the windows that finished, so the record is prefix
             // evidence and still deterministic (design §5).
-            sr.err = Some(String::from("budget"));
+            sr.err = Some(String::from(crate::job::BUDGET_ERR));
             sr.detail = Some(format!(
                 "budget spent after {k} of {} windows; nll is over those {k}",
                 corpus.windows(w)
@@ -1021,7 +1036,7 @@ pub fn membw(
     } else {
         sr.partial = Some(done_mib);
         sr.pass = Some(false);
-        sr.err = Some(String::from("budget"));
+        sr.err = Some(String::from(crate::job::BUDGET_ERR));
     }
     // Computed only where it may be quoted, and only where there is something
     // to quote: on `env=vm` this stays `None`, on a run the budget stopped it
