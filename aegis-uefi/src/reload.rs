@@ -292,6 +292,22 @@ impl<'a> EngineSlot<'a> {
         self.engine.take()
     }
 
+    /// The three resident artifact buffers, as the engine sees them.
+    ///
+    /// Phase 5's `VERIFY` and `EVAL` build their own `CisEngine` over these —
+    /// the bytes this box is actually holding, never a re-read from FAT, which
+    /// is what makes `artifacts=` and a `job.N.digest` describe the same
+    /// world. The lifetime is the slabs' (see [`Slab::adopt`]): the box's
+    /// uptime.
+    #[must_use]
+    pub fn slices(&self) -> (&'a [u8], &'a [u8], &'a [u8]) {
+        (
+            self.slabs.model.as_slice(),
+            self.slabs.embed.as_slice(),
+            self.slabs.vocab.as_slice(),
+        )
+    }
+
     /// Digests of the three resident buffers.
     #[must_use]
     pub fn digests(&self) -> &Digests {

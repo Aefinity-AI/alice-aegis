@@ -663,3 +663,189 @@ Everything in §5 above still stands. Phase 4 adds:
    time. At-most-once holds within one box uptime, nothing more. `HEALTH up=`
    going backwards is how a scheduler is supposed to notice; that host-side
    rule is phase 6 and does not exist yet.
+
+---
+
+## 10. Phase 5 — LAB
+
+*Branch `os/p5-lab`, stacked on `os/p4-files`. Build contract:
+`program/AEFINITY_OS_FLEET_DESIGN.md` §2, §2.1, §3, §3.1, §4, §7, §8, §10.*
+
+Phase 5 adds **no protocol**. The lab suites become `JOB.TXT` directives and
+their answers become `job.N.*` blocks in the record phase 2 already returns
+down the socket and phase 0 already writes to the volume.
+
+### What it adds
+
+| directive | what the box does | what lands in `RESULT.TXT` |
+|---|---|---|
+| `CPUID` | reads CPUID leaves 0, 1, 7:0, 0x8000_0000, 0x8000_0001 | `job.N.pass=true`, `job.N.detail=` the escaped dump (≤1024 bytes) |
+| `VERIFY <NAME>` | replays a witness v1 receipt through `verifier::run` against the **resident** artifact slices | `job.N.pass`, `job.N.items` (decode steps replayed), `job.N.digest` (the chain this box computed) |
+| `EVAL <NAME> <lo>:<hi>` | validates an `AEFCORP1` container and scores `[lo, hi)` with the exact-integer NLL of §2.1 | `job.N.nll_q16`, `job.N.ntok`, `job.N.digest` (a `WitnessChain` fold over every scored step's full i64 logit vector), `job.N.partial` |
+| `MEMBW <mib>` | a deterministic write-then-read pass over `<mib>` MiB | `job.N.digest` (the checksum — comparable), `job.N.membw_mibs` (the rate — gated) |
+| `MECH` | the diagnostic block that used to sit inline in `main.rs` | `job.N.pass=true` |
+
+Plus the fleet directives of §2 that are not steps: `RUNID`, `TAG`,
+`SHARD <i>/<n>`, `SEED <u64>`, `STRICT on`. `TOKEN` was already parsed in
+phase 1b (the collector header) and phase 4 (the `AUTH` gate).
+
+`MECH` is **moved last by the dispatcher regardless of file order** (§2). It
+runs ~24 minutes under TCG and must never starve real work; `job.N` numbering
+follows dispatch order, and so does §3.1's `merge_key` serialisation, so the
+key describes what was run rather than what was written.
+
+### `nll_q16` is exact-integer and cross-box comparable by construction
+
+`EVAL` does **not** call `CisEngine::calculate_perplexity_int`: that function
+computes its NLL with `libm::exp`/`libm::log` on f64 and is not comparable
+across boxes. `EVAL` reuses its exact-integer half and replaces its float half:
+
+1. `logits_int_exact()` — new in `cis_infer.rs` — fills the exact i64 logits
+   and returns the logit unit as an **exact rational** `ActScale`. The f64 that
+   `logits_int` returns is never touched.
+2. `m = max(logits)`, exact i64 compare; gaps `d_j = m − L_j ≥ 0`.
+3. `g_j = qs.rescale(d_j)` onto the Q.24 score grid, `qs =
+   QScale64::from_ratio(num << 24, den << 20)` — exact long division, RNE.
+4. `e_j = exp_neg_q31(g_j << 8, lut)` — literally SOFTMAX-I step 2.
+5. `S = Σ e_j` in i64, ascending vocabulary index.
+6. `nll_t = (g_t << 8) + rne_div((log2_u64_q32(S) − (31 << 32)) << 32,
+   LOG2E_Q32)` in Q.32 nats, where `log2_u64_q32` is **new normative code** in
+   `cis_attn.rs` — LOG2-I over u64, the same shift-and-square procedure as
+   `log2_q32_f32` applied to an integer mantissa.
+7. `Σ nll_t` in `i128` at Q.32 in ascending (window, position) order, then
+   exactly **one** rounding to `nll_q16`.
+
+No `f32` or `f64` value exists anywhere in that path. Two conforming boxes
+therefore produce the same integer or CIS-1 is falsified — which is the claim,
+not a hope. `log2_u64_q32`'s goldens come from the independent big-integer
+generator `scripts/cis_e2_golden_gen.py` (`== log2_u64_q32 ==`), never from the
+Rust under test, and are pinned by `cargo test -p aegis-core`.
+
+Perplexity itself is `exp(nll_q16 / 2^16 / ntok)` and is rendered **host-side**
+for humans. It is an f64 render of two integers; the integers are the record.
+
+### `membw_mibs` is iron-only; its digest is not
+
+`job.N.digest` for a `membw` step is the checksum of the touched pattern. It
+depends only on `<mib>`, so it **is** comparable across boxes and is always
+emitted — two boxes disagreeing there disagree about arithmetic or about
+memory, and that is a finding. `job.N.membw_mibs` is a bandwidth number and is
+gated exactly like `tps`: `n/a` unless `job.N.rate_valid=true`, which is
+`false` on every `env=vm` record. A MiB/s figure taken under TCG models no
+cache hierarchy and no memory latency; CLAUDE.md Rule A forbids recording it,
+and the record enforces that rather than relying on whoever reads it later.
+
+Every step now carries `job.N.rate_valid`, including the v0.1 kinds, so a
+reader never has to know which kinds can produce a rate.
+
+### The watchdog and the budget cover the *work*, not just the I/O
+
+Design §8 says a long step re-arms the firmware watchdog as it makes progress,
+and phase 4 already did that per `XFER_CHUNK` for `GET`/`PUT`/`RELOAD`. Phase 5
+holds the same line for compute, because in a lab step the file read is never
+the long part:
+
+| step | what is re-armed, and how often |
+|---|---|
+| `VERIFY <NAME>` | the receipt read (per `XFER_CHUNK`), **and inside `verifier::run`**: once per 1 MiB of the three artifact hashes — ~1.83 GB before the replay even starts — and once per prefill position and per decode step |
+| `EVAL <NAME> <lo>:<hi>` | the corpus load (per `XFER_CHUNK`) and once per window, where the budget is also re-read |
+| `MEMBW <mib>` | once per MiB in the write pass and once per MiB in the read+fold pass, where the budget is also re-read |
+
+`MEMBW 4096` moves 8 GiB of scalar traffic and a `VERIFY` hashes 1.83 GB before
+its first decode step; on a slow box either can outlast the interval armed when
+the job started. Without the re-arm the firmware would reset a machine that is
+healthy and making progress — and by §8 a box whose watchdog fires *leaves the
+fleet*, so the cost of getting this wrong is a lost box, not a lost step.
+
+A `MEMBW` the budget stopped is filed exactly as a stopped `EVAL` is —
+`job.N.pass=false`, `job.N.err=budget`, `job.N.partial=` the MiB actually
+folded, and the digest is the fold over exactly that prefix. `membw_mibs` is
+not computed for a stopped run at all: a rate over a truncated pass is not the
+answer to `MEMBW <mib>`. Only `partial=0` with `err=none` claims the full-run
+checksum.
+
+**`partial` cannot carry that distinction on its own, and the job-level
+verdict does not ask it to.** A stop *before the first* window or MiB folded
+leaves `job.N.partial=0`, which is byte-identical to the `partial=0` a run
+that finished writes. Both `run_job` arms therefore read `job.N.err` — the
+`budget` slug, one `job::BUDGET_ERR` constant shared by the step that writes
+it and the arm that reads it — and never `partial`, so a step that scored
+nothing can never be filed under `verdict=OK`. §5 files a `verdict=OK` record
+as a *completed* unit, and an `nll_q16` folded over zero positions would
+otherwise have entered a `pool_digest` and an `AGREE` comparison as if it
+were an answer.
+
+### What works under QEMU
+
+`cargo xtask lab-test` (design §7) boots one resident guest, `PUT`s a corpus
+and two receipts — so the gate exercises phases **4 and 5 together** — and then
+sends four jobs over the socket. It asserts structure and exit codes only, and
+no value: `jobs=4`, every block carries `job.N.kind`, `job.2.pass=true`,
+`job.3.pass=false`, `job.4.nll_q16` present and parsing as a `u64`,
+`job.4.ntok=3`, `rate_valid=false`, `membw_mibs` absent or `n/a`, `artifacts=`
+and `merge_key` 16 lowercase hex, `verdict=OK`, `env=vm`; a corrupted-magic
+corpus ⇒ `job.N.err=bad-corpus`; `MEMBW 16` ⇒ a digest with
+`membw_mibs=n/a`; `STRICT on` with the bad receipt first ⇒ `verdict=FAIL
+verify` and `jobs=1`; a fifth job — `EVAL STOP.BIN 0:4` under `BUDGET 2`,
+where `STOP.BIN` is a 128 MiB container staged onto the ESP host-side ⇒
+`job.1.err=budget`, `job.1.partial=0`, `job.1.ntok=0`, `job.1.pass=false` and
+`verdict=FAIL budget`; then `REBOOT` → `BYE` → QEMU exits.
+
+That fifth job is the one place the gate leans on the guest being slower than
+a wall-clock bound, so it says how much room it has rather than hoping. The
+budget has to be spent *inside* the step — `run_job` refuses to **start** a
+step whose budget is already gone, so a stop before the first window can only
+come from the step's own setup outlasting it — and `lab::eval` writes
+`JOB: eval setup ready in <ms> ms` into `BOOTLOG.TXT` before its first window
+so the margin is in the log of every run. Measured on this box under TCG:
+5000 ms of setup against a 2000 ms budget, the 16 MiB container that preceded
+it measuring 1000 ms. Nothing is asserted about either number (Rule A); they
+are there so a host fast enough to close the gap reports it in the log instead
+of turning into a mystery.
+
+### Untested on iron — the phase-5 list
+
+Everything in §5 and §9 still stands. Phase 5 adds:
+
+1. **`rate_valid=true` has never been observed.** Every gate runs under TCG, so
+   every record this branch has produced says `rate_valid=false` and every
+   `membw_mibs` says `n/a`. The *iron* branch of that gate — the one that
+   actually prints a number — has been reasoned about and compiled, never run.
+2. **Cross-box agreement on `nll_q16`.** The claim is that two conforming boxes
+   produce the same integer. One box has produced one integer. Two boxes on
+   iron producing the same one is the phase-6 deliverable and Justin's step.
+3. **A full 2048-token `EVAL` window.** The gate scores three positions
+   against a 512-position model, so `W = min(2048, max_position_embeddings)`
+   has only ever taken its second branch, and the per-window watchdog re-arm
+   has never had to save a run.
+4. **`job.N.partial` > 0 from a real budget overrun.** `lab-test` job 5 now
+   provokes the *zero* case — an `EVAL` the budget stopped before its first
+   window, which is the case whose `partial=0` reads like a completed run —
+   and the job-level `verdict=FAIL budget` that has to follow it. The
+   **accumulating** case is still untested: no run has folded `k > 0` windows
+   or MiB and then been stopped, so the prefix digest and the `nll` over
+   exactly those `k` windows are reasoned from §5 and compiled, not observed.
+   The watchdog re-arms in `verifier::run`, `lab::eval` and `lab::membw` are
+   in the same position: they are called on every run, but no run so far has
+   been long enough to need one.
+5. **`MEMBW` at a size that matters.** The gate asks for 16 MiB — enough to
+   assert the digest and the gating, and enough that both passes cross sixteen
+   chunk boundaries, but nowhere near enough to say anything about a memory
+   system, which is the point (Rule A).
+6. **`MECH` as a directive.** `lab::mech` is a pure move and `boot-test` still
+   reports its 33 checks, so the *boot* path is covered. `MECH` reaching the
+   dispatcher from a `JOB.TXT`, and being moved last by it, is exercised by a
+   unit-level reading of `dispatch_order` and by nothing else: staging it in a
+   gate would add ~24 minutes of TCG to every run and §7 explicitly says no
+   gate stages `MECH`.
+
+### Deliberate deviations from the design, and why
+
+| design says | this build | why |
+|---|---|---|
+| §3 lists `run_id`, `tag`, `shard`, `seed` together as additions | `run_id=` keeps its v0.1 position and `RUNID` in `JOB.TXT` sets its *value*; `tag=`/`shard=`/`seed=` are appended after `verdict=` | `run_id=` is already a v0.1 key. Emitting it twice would hand a collector two answers to one question, and moving it would disturb v0.1 key order, which §3-ext says never to do. |
+| §1.3's slug list is exhaustive | `job.N.err` can also read `budget` | §1.3 is the list of `ERR` slugs a *verb* may return on the wire. `job.N.err` is a different field, and a step the budget stopped — an `EVAL` at a window boundary, a `MEMBW` at a MiB boundary — has to be able to say so. No verb can return `budget`. |
+| §3 shows `job.N.tps` on every block | lab blocks carry no `tps` and no `tsc_per_tok` | a `tps=0.00` on a `CPUID` step is a performance number where no measurement was made. The v0.1 kinds render exactly the v0.1 keys, unchanged. |
+| — | lab blocks *do* carry `job.N.wall_ms` | a duration is not a rate, it is what a host-side lease and deadline are computed from (design §5), and v0.1 has emitted `wall_ms` under `env=vm` since phase 0. It travels on a block that also says `rate_valid=false`, and no gate asserts it. It is still a wall-clock reading taken under TCG and may not be quoted as a measurement of anything (Rule A). |
+| §3 shows `job.N.digest=<64hex>` | `verify` and `eval` emit 64 hex (SHA-256 chains); `membw` emits **16** | §3 itself calls the `membw` value "the touch pattern's checksum", not a chain. It is a 64-bit FNV-1a fold rendered as 16 lowercase hex — the same width as `merge_key` and each third of `artifacts=`. What the field has to support is a byte-comparison between two boxes, and 64 bits of a pattern that depends only on `<mib>` does that; a SHA-256 over 16 MiB every time would not add to it. |
+| §2.1 does not say what a `VERIFY`/`EVAL` does when the model will not rebuild | `job.N.err=io` with the reason in `detail` | the container-validation failures are all `bad-corpus` by §2.1, but a model that will not parse is not a corpus fault. `io` is the honest slug on §1.3's list; `reload-engine` would tell a scheduler a `RELOAD` had happened. |

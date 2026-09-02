@@ -202,3 +202,15 @@ projects, even pool CPUs for AI building." Mapped honestly onto the two bodies o
 
 Order after v0.1 lands: 4 → 5 → 6 (each a verified branch with an xtask gate), 7 in parallel on the
 Debian side once two boxes exist.
+
+Design for phases 4–6: **`program/AEFINITY_OS_FLEET_DESIGN.md`** (judge-panel synthesis, revised after
+critic review 2026-09-01; drafts and the critic pass in `program/fleet-design-drafts/`). It is the build
+contract for `os/p4-files`, `os/p5-lab`, and the host-side `cm-os-pool`.
+
+**Status.** Phase **5 LAB is built** on `os/p5-lab` (stacked on `os/p4-files`): `CPUID`, `VERIFY
+<NAME>`, `EVAL <NAME> <lo>:<hi>`, `MEMBW <mib>` and `MECH` are `JOB.TXT` directives, the fleet
+directives `RUNID`/`TAG`/`SHARD`/`SEED`/`STRICT` parse, and `RESULT.TXT` carries §3's `job.N.*`
+fields plus `merge_key`. Gate: `cargo xtask lab-test`, under QEMU/TCG only. `EVAL`'s `nll_q16` is
+exact-integer and therefore comparable across boxes **by construction**; `membw_mibs` is iron-only
+and reads `n/a` on every record this branch has produced. What is and is not shown is in
+`docs/AEFINITY_OS_STATUS.md` §10 — nothing above is claimed on iron.

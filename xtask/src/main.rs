@@ -103,6 +103,13 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        "lab-test" => match lab_test(&flags) {
+            Ok(code) => code,
+            Err(e) => {
+                eprintln!("xtask: lab-test failed: {e}");
+                ExitCode::from(1)
+            }
+        },
         "files-test" => match files_test(&flags) {
             Ok(code) => code,
             Err(e) => {
@@ -148,7 +155,7 @@ fn usage() {
         "xtask — A.L.I.C.E. / Aegis dev automation
 
 USAGE:
-    cargo xtask <boot-test|job-test|net-test|os-test|resident-test|files-test|files-soak|job-budget-test>
+    cargo xtask <boot-test|job-test|net-test|os-test|resident-test|files-test|files-soak|lab-test|job-budget-test>
                 [--ci] [--debug] [--dhcp] [--pcap] [--vvfat]
 
 SUBCOMMANDS:
@@ -1205,11 +1212,22 @@ impl ResidentConn {
     /// Read the `RESULT\n<body>END\n` block of spec §4, returning the body.
     /// `RUNNING` is consumed first because the server always sends it.
     fn read_result(&mut self, hard_deadline: Instant) -> Result<String, String> {
+        self.read_result_within(hard_deadline, RESIDENT_JOB_S)
+    }
+
+    /// [`ResidentConn::read_result`] with a caller-chosen ceiling on the wait
+    /// for the `RESULT` line.
+    ///
+    /// Phase 5's `VERIFY` replays 64 decode steps through the scalar
+    /// full-integer engine under TCG, which is slower than anything phase 2
+    /// asked a guest to do. The bound is a hang detector and nothing else — no
+    /// gate times anything (Rule A).
+    fn read_result_within(&mut self, hard_deadline: Instant, job_s: u64) -> Result<String, String> {
         let first = self.read_line(left(hard_deadline, RESIDENT_IO_S)?)?;
         if first != "RUNNING" {
             return Err(format!("expected RUNNING, got {first:?}"));
         }
-        let head = self.read_line(left(hard_deadline, RESIDENT_JOB_S)?)?;
+        let head = self.read_line(left(hard_deadline, job_s)?)?;
         if head != "RESULT" {
             return Err(format!("expected RESULT, got {head:?}"));
         }
@@ -2461,6 +2479,14 @@ fn sha256_hex(data: &[u8]) -> String {
     let mut h = Sha256::new();
     h.update(data);
     hex_of(&h.finalize())
+}
+
+/// The raw 32-byte digest, for a container header that carries bytes rather
+/// than hex (design §2.1's `AEFCORP1`).
+fn sha256_raw(data: &[u8]) -> [u8; 32] {
+    let mut h = Sha256::new();
+    h.update(data);
+    h.finalize()
 }
 
 fn hex_of(d: &[u8; 32]) -> String {
@@ -3823,4 +3849,543 @@ fn soak_verify(
         present.join(" ")
     );
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// `lab-test` — AEFINITY OS phase 5 (design §7)
+// ---------------------------------------------------------------------------
+
+/// Whole-run ceiling. `VERIFY GOOD.RCP` replays 64 decode steps through the
+/// CIS-1 full-integer engine — scalar integer arithmetic with no SIMD
+/// dispatch — under TCG, and `EVAL` runs three more scored positions over the
+/// same path. Generous on purpose: this bounds a hang, it does not time
+/// anything (Rule A).
+const LAB_TIMEOUT_S: u64 = 10800;
+/// The guest has to load the artifacts and bring the NIC up before it answers.
+const LAB_READY_S: u64 = 1200;
+/// One short request/response on an idle guest.
+const LAB_IO_S: u64 = 240;
+/// One `JOB` — the `RESULT` line after `RUNNING`.
+const LAB_JOB_S: u64 = 5700;
+/// After `BYE`, how long QEMU gets to exit.
+const LAB_EXIT_S: u64 = 240;
+/// Tokens in the staged corpus. `EVAL TINY.BIN 0:4` takes the first four, one
+/// window (W = min(2048, max_position_embeddings) is far larger), and scores
+/// three of them — the first token of a window is context, not a prediction.
+const LAB_CORPUS_NTOK: usize = 8;
+/// The receipt fixture. It is the repository's own witness v1 golden for the
+/// M7 tinybit model, and `xtask stage` puts exactly those three artifacts on
+/// the ESP — so the receipt's `model`/`embed`/`vocab` lines already name the
+/// bytes the guest will be holding. Nothing is generated, and `tests/golden/`
+/// is read, never written (CLAUDE.md Rule C).
+const LAB_RECEIPT_GOLDEN: &str = "tests/golden/witness_v1_m7_once64.receipt";
+/// The `BUDGET` every job in this gate carries. `run_job` refuses to *start* a
+/// step once the budget is spent, so it has to cover a 64-step full-integer
+/// replay plus an `EVAL` behind it on an emulated CPU. It bounds a hang; it
+/// measures nothing (Rule A).
+const LAB_BUDGET_S: u64 = 5400;
+/// `MEMBW <mib>` the gate asks for. Small: the assertion is that a digest
+/// comes back and that the bandwidth field is gated, not how fast it was.
+const LAB_MEMBW_MIB: u32 = 16;
+/// The `BUDGET` job 5 runs its `EVAL` under, chosen so the budget is spent
+/// *inside* the step rather than before it.
+///
+/// `run_job` re-reads the clock at the top of every step and refuses to
+/// **start** one whose budget is already gone, so the only way to reach
+/// `lab::eval`'s own window-boundary check with nothing left is for the
+/// step's setup to outlast the budget. Two bounds have to hold at once:
+///
+/// * the step is *entered* — only one `BOOTLOG` line separates `run_job`'s
+///   clock read from the pre-step check, so the elapsed it sees is 0 and any
+///   budget ≥ 1 lets the step start;
+/// * the first window is *never reached* — the setup has to run past two
+///   whole seconds, which is why job 5 evaluates [`LAB_STOP_CORPUS_NTOK`]
+///   tokens' worth of container rather than `TINY.BIN`'s eight.
+///
+/// The firmware clock OVMF exposes ticks in whole seconds, so nothing finer
+/// than a second can be relied on here. `BOOTLOG.TXT`'s
+/// `JOB: eval setup ready in <ms> ms` line is the measured margin, written
+/// down by the run itself: if that number ever falls near this budget on some
+/// faster host, raise [`LAB_STOP_CORPUS_NTOK`], not this.
+const LAB_STOP_BUDGET_S: u64 = 2;
+/// Tokens in `STOP.BIN`, the corpus job 5 stops inside of — 128 MiB of
+/// payload.
+///
+/// `load_corpus` streams the **whole** payload before the first window: one
+/// sha256 over it and one bounds check per id, whatever `lo:hi` asks to
+/// score. That pass is the only part of `EVAL`'s setup that scales with
+/// anything the gate controls, so it is what puts the budget boundary inside
+/// the step. `EVAL STOP.BIN 0:4` still scores only four tokens, so a run that
+/// does *not* stop (the diagnosis for a too-small corpus) costs one window,
+/// not thirty-three million.
+///
+/// Calibrated, not guessed: on this box under TCG a 16 MiB container measured
+/// `eval setup ready in 1000 ms` and this one measures 5000 ms, against a
+/// 2 s budget. That margin is what the gate has; the guest writes the number
+/// into `BOOTLOG.TXT` on every run, so a host fast enough to shrink it says
+/// so in the log before the assertion fails.
+const LAB_STOP_CORPUS_NTOK: usize = 32 * 1024 * 1024;
+
+/// An `AEFCORP1` header (design §2.1) over an already-built payload.
+///
+/// 64 bytes, all integers little-endian: magic, `version` = 1,
+/// `token_width` = 4, `ntok`, `vocab_size`, one reserved zero word, then the
+/// sha256 of the payload. One function so the two callers below cannot drift
+/// into describing two different containers.
+fn lab_corpus_header(vocab_size: u32, ntok: usize, payload: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(64);
+    out.extend_from_slice(b"AEFCORP1");
+    out.extend_from_slice(&1u32.to_le_bytes());
+    out.extend_from_slice(&4u32.to_le_bytes());
+    out.extend_from_slice(&(ntok as u64).to_le_bytes());
+    out.extend_from_slice(&vocab_size.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&sha256_raw(payload));
+    out
+}
+
+/// Build an `AEFCORP1` container over `ids`; the payload is `ids` as u32 LE.
+fn lab_corpus(vocab_size: u32, ids: &[u32]) -> Vec<u8> {
+    let mut payload = Vec::with_capacity(ids.len() * 4);
+    for &id in ids {
+        payload.extend_from_slice(&id.to_le_bytes());
+    }
+    let mut out = lab_corpus_header(vocab_size, ids.len(), &payload);
+    out.extend_from_slice(&payload);
+    out
+}
+
+/// The same container, written straight onto the volume by repeating `ids`
+/// until it holds `ntok` tokens.
+///
+/// Streamed rather than returned: job 5's corpus is 128 MiB, and building it
+/// through [`lab_corpus`] would hold three copies of that in host memory on a
+/// 6 GB box to hand one of them back.
+fn lab_corpus_stage(path: &Path, vocab_size: u32, ids: &[u32], ntok: usize) -> Result<(), String> {
+    let fail = |e: std::io::Error| format!("staging {}: {e}", path.display());
+    let mut payload = Vec::with_capacity(ntok * 4);
+    for i in 0..ntok {
+        payload.extend_from_slice(&ids[i % ids.len()].to_le_bytes());
+    }
+    let header = lab_corpus_header(vocab_size, ntok, &payload);
+    let f = fs::File::create(path).map_err(fail)?;
+    let mut w = std::io::BufWriter::new(f);
+    w.write_all(&header).map_err(fail)?;
+    w.write_all(&payload).map_err(fail)?;
+    w.flush().map_err(fail)
+}
+
+/// `vocab_size` out of a `MODEL.SAF`'s safetensors `__metadata__`.
+///
+/// The header is an 8-byte LE length followed by that many bytes of JSON, and
+/// `aegis_config` inside it is a JSON *string* whose quotes are escaped — so
+/// the value reads as `\"vocab_size\":8192` in the raw bytes. xtask has no
+/// dependencies by design (`xtask/Cargo.toml`), so this scans for the key and
+/// takes the digits that follow rather than pulling in a JSON parser for one
+/// integer.
+fn model_vocab_size(bytes: &[u8]) -> Option<u32> {
+    if bytes.len() < 8 {
+        return None;
+    }
+    let n = u64::from_le_bytes(bytes[..8].try_into().ok()?) as usize;
+    let head = bytes.get(8..8 + n)?;
+    let at = find_subslice(head, b"vocab_size")? + b"vocab_size".len();
+    let rest = &head[at..];
+    let start = rest.iter().position(|b| b.is_ascii_digit())?;
+    let end = start
+        + rest[start..]
+            .iter()
+            .take_while(|b| b.is_ascii_digit())
+            .count();
+    core::str::from_utf8(&rest[start..end]).ok()?.parse().ok()
+}
+
+/// A `JOB … END` block for the wire out of a body fragment.
+fn lab_job_block(body: &str) -> String {
+    lab_job_block_budget(LAB_BUDGET_S, body)
+}
+
+/// The same, with a `BUDGET` of its own — for the one job that is *about* the
+/// budget running out.
+fn lab_job_block_budget(budget_s: u64, body: &str) -> String {
+    format!("JOB\nBUDGET {budget_s}\n{body}END\n")
+}
+
+fn lab_test(flags: &[&str]) -> Result<ExitCode, String> {
+    let ci = flags.contains(&"--ci");
+    let debug = flags.contains(&"--debug");
+
+    let host_port = {
+        let probe = TcpListener::bind("127.0.0.1:0")
+            .map_err(|e| format!("cannot pick a host port: {e}"))?;
+        probe
+            .local_addr()
+            .map_err(|e| format!("cannot read the probe address: {e}"))?
+            .port()
+    };
+
+    // No `TOKEN`: `files-test` already proves the auth gate, and a second copy
+    // of that proof here would only lengthen a gate that is about phase 5.
+    let job_txt = format!(
+        "# staged by `cargo xtask lab-test` — AEFINITY OS phase 5 gate\n\
+         MODE resident\n\
+         NET static {NET_GUEST_CIDR} {NET_HOST_IP}\n\
+         LISTEN {RESIDENT_GUEST_PORT}\n"
+    );
+
+    let esp = stage("lab-test", ci, debug, Some(&job_txt))?;
+
+    // Anything a previous run (or another gate sharing this ESP) left behind
+    // is inside the image this run boots. `RECEIPT.TXT` in particular would
+    // put the guest into boot-time verifier mode and it would never reach the
+    // job hook at all.
+    for stray in [
+        "TINY.BIN",
+        "STOP.BIN",
+        "BADMAG.BIN",
+        "GOOD.RCP",
+        "BAD.RCP",
+        "RECEIPT.TXT",
+        "STAGE.PRT",
+        "CURRENT.TXT",
+        "MODEL.NEW",
+        "EMBED.NEW",
+        "VOCAB.NEW",
+        "TEST.BIN",
+        "BIG.BIN",
+        "BAD.BIN",
+        "SOAK1.BIN",
+        "SOAK2.BIN",
+        "SOAK3.BIN",
+    ] {
+        if let Some(p) = find_ci(&esp.dir, stray) {
+            let _ = fs::remove_file(p);
+        }
+    }
+
+    // ---- the fixtures -----------------------------------------------------
+    let model_path = find_ci(&esp.dir, "MODEL.SAF")
+        .ok_or_else(|| format!("no MODEL.SAF staged under {}", esp.dir.display()))?;
+    let model_bytes =
+        fs::read(&model_path).map_err(|e| format!("reading {}: {e}", model_path.display()))?;
+    let vocab_size = model_vocab_size(&model_bytes).ok_or_else(|| {
+        "could not read vocab_size out of the staged MODEL.SAF metadata".to_string()
+    })?;
+    println!("[3.5/4] staged model vocab_size = {vocab_size}");
+
+    let root = repo_root();
+    let good = fs::read(root.join(LAB_RECEIPT_GOLDEN))
+        .map_err(|e| format!("reading {LAB_RECEIPT_GOLDEN}: {e}"))?;
+    // "GOOD with a flipped byte" (design §7). The flip lands in the receipt's
+    // `model` hash line, so the guest refuses it at artifact binding — the
+    // first thing `verifier::run` checks — and answers `pass=false` without
+    // spending a second 64-step replay under TCG. What the gate asserts is
+    // `pass=false`, and a receipt that does not name these artifacts is
+    // exactly a receipt this box must not pass.
+    let mut bad = good.clone();
+    let flip = find_subslice(&bad, b"model ")
+        .map(|i| i + 6)
+        .ok_or_else(|| "the golden receipt has no `model ` line to corrupt".to_string())?;
+    bad[flip] = if bad[flip] == b'a' { b'b' } else { b'a' };
+
+    // The first four ids are what `EVAL TINY.BIN 0:4` scores. They are taken
+    // from the golden receipt's own `token-ids`, so every one is a legal id
+    // for this vocabulary by construction.
+    let ids: Vec<u32> = [12u32, 407, 283, 259, 397, 484, 408, 411]
+        .into_iter()
+        .take(LAB_CORPUS_NTOK)
+        .collect();
+    let corpus = lab_corpus(vocab_size, &ids);
+    // A corpus whose only defect is its magic: design §7's `bad-corpus` case.
+    let mut bad_corpus = corpus.clone();
+    bad_corpus[0] = b'X';
+    // Job 5's corpus: the same eight legal ids, repeated until the streamed
+    // validation pass is long enough to outlast `LAB_STOP_BUDGET_S`. The ids
+    // are legal for this vocabulary for the same reason `TINY.BIN`'s are.
+    // Written onto the ESP directly rather than `PUT` down the socket: the
+    // assertion it serves is about `EVAL`'s budget, and phase 4's delivery
+    // path is already proved by the four fixtures above — sending 128 MiB a
+    // second time would only make the gate longer.
+    let stop_path = esp.dir.join("STOP.BIN");
+    lab_corpus_stage(&stop_path, vocab_size, &ids, LAB_STOP_CORPUS_NTOK)?;
+    println!(
+        "[3.5/4] staged STOP.BIN, {} tokens ({} MiB of payload)",
+        LAB_STOP_CORPUS_NTOK,
+        LAB_STOP_CORPUS_NTOK / (1024 * 1024 / 4)
+    );
+
+    let extra = vec![
+        "-netdev".to_string(),
+        format!("user,id=n0,hostfwd=tcp:127.0.0.1:{host_port}-:{RESIDENT_GUEST_PORT}"),
+        "-device".to_string(),
+        "virtio-net-pci,netdev=n0".to_string(),
+        "-device".to_string(),
+        "virtio-rng-pci".to_string(),
+    ];
+
+    println!("[4/4] booting under OVMF with a virtio NIC and a host forward");
+    let (qemu_bin, mut cmd) = qemu_command(&esp, &extra);
+    println!("      $ {qemu_bin} -machine q35,accel=tcg -cpu max -m 2048 ...");
+    println!();
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("could not launch {qemu_bin}: {e}. Install qemu-system-x86."))?;
+
+    let hard = Instant::now() + Duration::from_secs(LAB_TIMEOUT_S);
+    let run = lab_exchange(
+        &mut child,
+        host_port,
+        hard,
+        &corpus,
+        &bad_corpus,
+        &good,
+        &bad,
+    );
+
+    let outcome = match &run {
+        Ok(_) => wait_for_exit(&mut child, Duration::from_secs(LAB_EXIT_S)),
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            Outcome::TimedOut
+        }
+    };
+
+    println!();
+    if let Some(text) = find_ci(&esp.dir, "BOOTLOG.TXT").and_then(|p| fs::read_to_string(p).ok()) {
+        println!("---- BOOTLOG.TXT (RESIDENT/JOB lines) ----");
+        for line in text.lines() {
+            if line.contains("RESIDENT:") || line.contains("JOB:") {
+                println!("{line}");
+            }
+        }
+        println!("---- end ----");
+        println!();
+    }
+
+    let mut failures: Vec<String> = match run {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("== FAIL == {e}");
+            eprintln!("   The BOOTLOG lines above are the guest's own account of how far it got.");
+            return Ok(ExitCode::from(1));
+        }
+    };
+
+    match outcome {
+        Outcome::Exited(c) => {
+            println!("   ok   QEMU exited {c} (guest ResetSystem under -no-reboot)")
+        }
+        Outcome::Signalled => {
+            failures.push("QEMU terminated by a signal with no exit code".to_string())
+        }
+        Outcome::TimedOut => failures.push(format!(
+            "QEMU did not exit within {LAB_EXIT_S}s of the guest answering BYE to REBOOT"
+        )),
+    }
+
+    println!();
+    if failures.is_empty() {
+        println!("== PASS == the lab plane served CPUID/VERIFY/EVAL/MEMBW as JOB.TXT");
+        println!("           directives over PUT-delivered files, and reset.");
+        Ok(ExitCode::SUCCESS)
+    } else {
+        for f in &failures {
+            eprintln!("== FAIL == {f}");
+        }
+        Ok(ExitCode::from(1))
+    }
+}
+
+/// Drive design §7's phase-5 assertions against the running guest.
+///
+/// The corpus and both receipts arrive by `PUT` before any `JOB` is sent, so
+/// the gate exercises phases 4 and 5 **together** — which is the point of
+/// running them in one gate rather than two. Everything is asserted on the
+/// record the guest sends back down the socket; no value is asserted (Rule A).
+fn lab_exchange(
+    child: &mut Child,
+    host_port: u16,
+    hard: Instant,
+    corpus: &[u8],
+    bad_corpus: &[u8],
+    good: &[u8],
+    bad: &[u8],
+) -> Result<Vec<String>, String> {
+    let (mut c, banner) = resident_ready(child, host_port, LAB_READY_S, hard)?;
+    let mut fail: Vec<String> = Vec::new();
+    println!("   ok   banner {banner}");
+
+    // ---- phase 4: put the fixtures on the volume -------------------------
+    for (name, bytes) in [
+        ("TINY.BIN", corpus),
+        ("BADMAG.BIN", bad_corpus),
+        ("GOOD.RCP", good),
+        ("BAD.RCP", bad),
+    ] {
+        let sha = sha256_hex(bytes);
+        let line = files_put(&mut c, hard, name, bytes, &sha, b"END\n")?;
+        if !line.starts_with(&format!("OK {name} {}", bytes.len())) {
+            return Err(format!("PUT {name} answered {line:?}"));
+        }
+        println!("   ok   PUT {name} ({} bytes)  ->  {line}", bytes.len());
+    }
+
+    // ---- job 1: the §7 body ---------------------------------------------
+    c.send(&lab_job_block(
+        "SEED 1\nCPUID\nVERIFY GOOD.RCP\nVERIFY BAD.RCP\nEVAL TINY.BIN 0:4\n",
+    ))?;
+    let body = c.read_result_within(hard, LAB_JOB_S)?;
+    println!("---- RESULT.TXT (job 1) ----\n{body}---- end ----");
+
+    let want = [
+        ("jobs", "4"),
+        ("env", "vm"),
+        ("verdict", "OK"),
+        ("job.1.kind", "cpuid"),
+        ("job.2.kind", "verify"),
+        ("job.3.kind", "verify"),
+        ("job.4.kind", "eval"),
+        ("job.2.pass", "true"),
+        ("job.3.pass", "false"),
+        ("job.4.ntok", "3"),
+        ("job.1.rate_valid", "false"),
+        ("job.4.rate_valid", "false"),
+        ("seed", "1"),
+    ];
+    for (k, v) in want {
+        match record_value(&body, k) {
+            Some(got) if got == v => println!("   ok   {k}={got}"),
+            Some(got) => fail.push(format!("{k} is {got:?}, expected {v:?}")),
+            None => fail.push(format!("{k} is absent from the record")),
+        }
+    }
+    // `nll_q16` must be present and parse as a u64. Its VALUE is never
+    // asserted: it is an integer produced by the engine, and pinning it here
+    // would make the gate a golden test of the model rather than of the
+    // record's structure (Rule A / design §7).
+    match record_value(&body, "job.4.nll_q16").map(|v| v.parse::<u64>()) {
+        Some(Ok(_)) => println!("   ok   job.4.nll_q16 present and parses as u64"),
+        Some(Err(_)) => fail.push("job.4.nll_q16 does not parse as a u64".to_string()),
+        None => fail.push("job.4.nll_q16 is absent".to_string()),
+    }
+    // No `MEMBW` step ran, so the field must be absent everywhere; where it
+    // does appear (job 3 below) it must read `n/a` under `env=vm`.
+    for n in 1..=4 {
+        match record_value(&body, &format!("job.{n}.membw_mibs")) {
+            None | Some("n/a") => {}
+            Some(v) => fail.push(format!(
+                "job.{n}.membw_mibs is {v:?} on a record with no MEMBW step"
+            )),
+        }
+    }
+    println!("   ok   membw_mibs absent from every block of a job with no MEMBW");
+    // `artifacts=` is `<model16>/<embed16>/<vocab16>`; `merge_key` is 16
+    // lowercase hex (design §3/§3.1).
+    match record_value(&body, "artifacts") {
+        Some(a) if a.split('/').count() == 3 && a.split('/').all(is_hex16) => {
+            println!("   ok   artifacts={a}")
+        }
+        Some(a) => fail.push(format!("artifacts={a:?} is not <16hex>/<16hex>/<16hex>")),
+        None => fail.push("artifacts= is absent".to_string()),
+    }
+    match record_value(&body, "merge_key") {
+        Some(k) if is_hex16(k) => println!("   ok   merge_key={k}"),
+        Some(k) => fail.push(format!("merge_key={k:?} is not 16 lowercase hex")),
+        None => fail.push("merge_key= is absent".to_string()),
+    }
+
+    // ---- job 2: a corpus whose magic is wrong ----------------------------
+    c.send(&lab_job_block("EVAL BADMAG.BIN 0:4\n"))?;
+    let body = c.read_result_within(hard, LAB_JOB_S)?;
+    match record_value(&body, "job.1.err") {
+        Some("bad-corpus") => println!("   ok   corrupted magic  ->  job.1.err=bad-corpus"),
+        Some(e) => fail.push(format!("a corrupted-magic corpus answered err={e:?}")),
+        None => fail.push("a corrupted-magic corpus produced no job.1.err".to_string()),
+    }
+    if record_value(&body, "job.1.nll_q16").is_some() {
+        fail.push("a refused corpus still reported an nll_q16".to_string());
+    }
+
+    // ---- job 3: MEMBW, digest emitted and bandwidth gated ----------------
+    c.send(&lab_job_block(&format!("MEMBW {LAB_MEMBW_MIB}\n")))?;
+    let body = c.read_result_within(hard, LAB_JOB_S)?;
+    match record_value(&body, "job.1.digest") {
+        Some(d) if is_hex16(d) => println!("   ok   MEMBW digest={d}"),
+        Some(d) => fail.push(format!("MEMBW digest {d:?} is not 16 lowercase hex")),
+        None => fail.push("MEMBW produced no job.1.digest".to_string()),
+    }
+    match record_value(&body, "job.1.membw_mibs") {
+        Some("n/a") => println!("   ok   job.1.membw_mibs=n/a under env=vm (Rule A)"),
+        Some(v) => fail.push(format!(
+            "job.1.membw_mibs is {v:?} on an env=vm record — Rule A says n/a"
+        )),
+        None => fail.push("MEMBW produced no job.1.membw_mibs".to_string()),
+    }
+
+    // ---- job 4: STRICT on stops at the first failing step ----------------
+    c.send(&lab_job_block("STRICT on\nVERIFY BAD.RCP\nCPUID\n"))?;
+    let body = c.read_result_within(hard, LAB_JOB_S)?;
+    match record_value(&body, "verdict") {
+        Some("FAIL verify") => println!("   ok   STRICT on  ->  verdict=FAIL verify"),
+        Some(v) => fail.push(format!(
+            "STRICT on gave verdict={v:?}, expected FAIL verify"
+        )),
+        None => fail.push("the STRICT record carries no verdict".to_string()),
+    }
+    match record_value(&body, "jobs") {
+        Some("1") => println!("   ok   the step behind the failure was not run (jobs=1)"),
+        Some(v) => fail.push(format!("STRICT on ran {v} steps, expected 1")),
+        None => fail.push("the STRICT record carries no jobs=".to_string()),
+    }
+
+    // ---- job 5: the budget runs out before EVAL's first window -----------
+    // A step the budget stopped is the *job's* verdict, not just the step's:
+    // design §5 files a `verdict=OK` record as a completed unit, and an
+    // `nll_q16` folded over zero scored positions must never be one. The case
+    // that is easy to get wrong is this one — the stop lands before any
+    // window folded, so `job.1.partial` reads 0, exactly as a completed
+    // EVAL's does, and only `job.1.err` tells them apart.
+    c.send(&lab_job_block_budget(
+        LAB_STOP_BUDGET_S,
+        "EVAL STOP.BIN 0:4\n",
+    ))?;
+    let body = c.read_result_within(hard, LAB_JOB_S)?;
+    println!("---- RESULT.TXT (job 5, BUDGET {LAB_STOP_BUDGET_S}) ----\n{body}---- end ----");
+    for (k, v) in [
+        ("jobs", "1"),
+        ("job.1.kind", "eval"),
+        ("job.1.err", "budget"),
+        ("job.1.partial", "0"),
+        ("job.1.ntok", "0"),
+        ("job.1.pass", "false"),
+        ("verdict", "FAIL budget"),
+    ] {
+        match record_value(&body, k) {
+            Some(got) if got == v => println!("   ok   {k}={got}"),
+            Some(got) => fail.push(format!(
+                "budget-stopped EVAL: {k} is {got:?}, expected {v:?}"
+            )),
+            None => fail.push(format!(
+                "budget-stopped EVAL: {k} is absent from the record"
+            )),
+        }
+    }
+
+    // ---- and out ---------------------------------------------------------
+    c.send("REBOOT\n")?;
+    let bye = c.read_line(left(hard, LAB_IO_S)?)?;
+    if bye != "BYE" {
+        return Err(format!("REBOOT answered {bye:?}, expected BYE"));
+    }
+    println!("   ok   REBOOT  ->  BYE");
+    Ok(fail)
+}
+
+/// 16 lowercase hex characters — the shape of `merge_key`, of each third of
+/// `artifacts=`, and of the `MEMBW` checksum.
+fn is_hex16(s: &str) -> bool {
+    s.len() == 16
+        && s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }

@@ -157,8 +157,6 @@ const RECORD_MAX: usize = 8;
 /// line. The job is still not re-run — at-most-once is preserved — and the
 /// replay is honest about being incomplete (§1.4).
 const RECORD_MAX_BYTES: usize = 8_192;
-/// Longest `RUNID`, in bytes (§1.2: `[A-Za-z0-9._-]{1,64}`).
-const RUNID_MAX_BYTES: usize = 64;
 /// Bounds **no progress** on a transfer, not its duration (§1.3).
 const XFER_STALL_MS: u64 = 30_000;
 /// How long one chunk of a `GET` is given to reach the peer. The transfer as a
@@ -168,12 +166,12 @@ const XFER_SEND_MS: u64 = 30_000;
 
 /// The capability token in the READY banner (design §1).
 ///
-/// §1 fixes the banner as `caps=files,lab`. This build ships **`files` only**:
-/// phase 5 has not landed, and a box that advertises `lab` before `lab.rs`
-/// exists would be telling a scheduler it can take `EVAL` work it will answer
-/// `ERR unknown` to. Phase 5 changes this one constant. Recorded in
-/// `docs/AEFINITY_OS_STATUS.md` as a deliberate deviation.
-const CAPS: &str = "files";
+/// §1 fixes the banner as `caps=files,lab`. Phase 5 landed `lab.rs`, so the
+/// second token is now true: this box answers `CPUID`, `VERIFY`, `EVAL`,
+/// `MEMBW` and `MECH` as `JOB.TXT` directives rather than `ERR unknown`.
+/// Phase 4 shipped `files` alone and said so here, for exactly the reason the
+/// token exists — a box must not tell a scheduler it can take work it cannot.
+const CAPS: &str = "files,lab";
 
 // ---------------------------------------------------------------------------
 // Entry point (spec §5)
@@ -1104,7 +1102,7 @@ fn do_health(net: &mut Net, conn: &TcpHandle, srv: &mut Srv<'_, '_>) -> Step {
 /// A fact about the box, not a measurement (Rule A): design §4.2 sizes the
 /// listener buffers at 640 KiB of pool while a client is connected and says
 /// the cost is visible here, so it has to be visible here.
-fn free_pool_bytes() -> u64 {
+pub(crate) fn free_pool_bytes() -> u64 {
     use uefi::mem::memory_map::MemoryMap;
     let Ok(map) = uefi::boot::memory_map(uefi::boot::MemoryType::LOADER_DATA) else {
         return 0;
@@ -1131,7 +1129,7 @@ fn do_runid(
     sess: &mut Session,
     arg: &str,
 ) -> Step {
-    if !valid_runid(arg) {
+    if !job::valid_runid(arg) {
         return reply(net, conn, "ERR bad-runid\n");
     }
     let known = srv.ring.iter().any(|(k, _)| k == arg);
@@ -1143,14 +1141,6 @@ fn do_runid(
         srv.log(&format!("RESIDENT: RUNID {arg} — NEW"));
         reply(net, conn, "NEW\n")
     }
-}
-
-/// `[A-Za-z0-9._-]{1,64}` (design §1.2).
-fn valid_runid(s: &str) -> bool {
-    !s.is_empty()
-        && s.len() <= RUNID_MAX_BYTES
-        && s.bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-')
 }
 
 /// The watchdog re-arm hook handed to every streaming call in `files`/`reload`
@@ -1332,20 +1322,23 @@ fn do_job(
     // listener already holds the SNP open exclusively, so per the NOTE above
     // this is `None`; dropping it is what releases the open in the case where
     // the firmware did hand out a second one.
-    let Some(engine) = srv.slot.engine_mut() else {
+    if srv.slot.engine_mut().is_none() {
         // See `job::dispatch`: the slot is only ever empty inside
         // `EngineSlot::reload`, which cold-resets rather than returning here.
         srv.arm(0);
         srv.log("RESIDENT: no engine in the slot — cannot run the JOB");
         let _ = send(net, conn, "ERR reload-engine\n", SEND_MS);
         return JobOutcome::Dropped;
-    };
+    }
     // `srv.root` and `srv.slot` are two disjoint fields, but `run_job` wants
     // both at once and the borrow checker cannot see through a method. The
     // reborrow is spelled out rather than worked around with a clone, because
-    // there is nothing here to clone.
+    // there is nothing here to clone. Phase 5: `run_job` takes the whole slot,
+    // not just the engine — `VERIFY` and `EVAL` read the resident artifact
+    // slices, which only the slot can hand out.
     let root: &mut Directory = srv.root;
-    let (mut rec, sub_net) = job::run_job(&sub, root, engine);
+    let slot: &mut EngineSlot<'_> = srv.slot;
+    let (mut rec, sub_net) = job::run_job(&sub, root, slot);
     drop(sub_net);
     // The identity of the NIC this server is running over. `run_job` fills
     // these from the `Net` it brings up itself, and in resident mode it has
@@ -1369,6 +1362,7 @@ fn do_job(
         srv.root,
         Some((up, served)),
         false,
+        &sub,
     ));
     let out = rec.render();
     if let Some(id) = &run_id {

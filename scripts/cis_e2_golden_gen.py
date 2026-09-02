@@ -362,6 +362,29 @@ def log2_q32_f32(bits):
     return (e << 32) | frac
 
 
+
+def log2_u64_q32(v):
+    """LOG2-I over u64 (AEFINITY_OS_FLEET_DESIGN.md 2.1 step 6).
+
+    The same normative shift-and-square procedure as log2_q32_f32, applied to
+    an integer mantissa: M = v / 2^E with M in [1,2) held in Q2.62, then 32
+    fraction bits by repeated squaring (RNE requant each step; a
+    renormalizing halving emits a 1 bit). Domain [1, 2^63): Q2.62 holds 62
+    fraction bits, so E = 63 is not representable exactly.
+    """
+    assert 1 <= v < (1 << 63)
+    e = v.bit_length() - 1
+    m = v << (62 - e)  # Q2.62 in [2^62, 2^63)
+    frac = 0
+    for _ in range(32):
+        m = rne_div(m * m, 1 << 62)
+        frac <<= 1
+        if m >= 1 << 63:
+            m = rne_div(m, 2)
+            frac |= 1
+    return (e << 32) | frac
+
+
 def sincos_q62(x):
     assert 0 <= x < TWO_PI_Q62
     sign_s, sign_c = 1, 1
@@ -467,6 +490,15 @@ print(f"  LUT digest (u32 LE, i=0..1024) = 0x{d:016X}")
 print("== log2_q32_f32 ==")
 for v in [2.0, 4.0, 10000.0, 500000.0]:
     print(f"  log2({v}) -> {log2_q32_f32(f32_bits(v))}")
+
+print("== log2_u64_q32 (LOG2-I over u64) ==")
+# Powers of two must come back exact: log2(2^k) = k << 32, zero fraction.
+for v in [1, 2, 4, 1 << 31, 1 << 50, 1 << 62]:
+    print(f"  log2_u64_q32({v}) = {log2_u64_q32(v)}")
+# Non-powers, including the softmax denominators EVAL actually feeds it:
+# S in [2^31, V * 2^31] for a vocabulary V (8192 = M7, 128256 = BitNet-2B).
+for v in [3, 5, 10, 1000003, (1 << 31) + 1, 3 << 31, 8192 << 31, 128256 << 31, (1 << 63) - 1]:
+    print(f"  log2_u64_q32({v}) = {log2_u64_q32(v)}")
 
 print("== exp_neg_q31 ==")
 LN2_Q32 = rne_div(LN2_1E50 << 32, 10**50)

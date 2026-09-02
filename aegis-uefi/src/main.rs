@@ -15,6 +15,9 @@ mod font;
 mod gop;
 mod h3;
 mod job;
+// AEFINITY OS phase 5: the lab job kinds (CPUID/VERIFY/EVAL/MEMBW/MECH).
+// `mech` is the diagnostic block this file used to carry inline.
+mod lab;
 mod mtrr_decode;
 // AEFINITY OS phase 1a: the unikernel's own TCP/IP stack over
 // EFI_SIMPLE_NETWORK. Reached only from `job.rs` (a NETCHECK/REPORT directive
@@ -712,7 +715,16 @@ fn main() -> uefi::Status {
             );
             core::fmt::Result::Ok(())
         });
-        let verdict = verifier::run(model_slice, embeddings_slice, vocab_slice, &receipt_bytes);
+        // No watchdog is armed on this path — it was disabled above, before
+        // the artifacts were loaded — so the re-arm hook (design §8) is a
+        // no-op here and this boot behaves exactly as it did before phase 5.
+        let verdict = verifier::run(
+            model_slice,
+            embeddings_slice,
+            vocab_slice,
+            &receipt_bytes,
+            &mut || {},
+        );
         let _ = console::with_console(|st| {
             for line in verdict.detail.lines() {
                 let _ = st.write_str(line);
@@ -996,190 +1008,14 @@ fn main() -> uefi::Status {
     }
 
     // ---- MECH: OS-advantage mechanism experiment, hands-off, one boot ------
-    // Decomposes the 2026-07-31 Band-3 result (minimal Linux faster than this
-    // unikernel) into named mechanisms:
-    //   H1 — per-token firmware console output inside the timed region
-    //        (LOUD replicates the protocol path; QUIET buffers and prints
-    //        after timing stops; LOUD-QUIET = the console's share).
-    //   H2 — turbo-bin ceiling from hot-parked APs (AP-PARK sends them to
-    //        MWAIT C6, then QUIET2 reruns; clock%% delta = cpuidle's share).
-    // Greedy decode makes all three passes token-identical — every RESPONSE
-    // line is its own bit-exactness gate.
-    {
-        boot_log(
-            &mut root,
-            "==== MECH v1 (2026-08-01): H1 console / H2 cpuidle turbo-bin ====",
-        );
-        if let Some(raw) = cpu::turbo_ratio_limit_raw() {
-            boot_log(
-                &mut root,
-                &format!(
-                    "MECH MSR_TURBO_RATIO_LIMIT raw=0x{:016x} (byte0=1C bin, byte1=2C bin)",
-                    raw
-                ),
-            );
-        }
-        #[cfg(feature = "qemu-test")]
-        const MECH_MAX: usize = 8;
-        #[cfg(not(feature = "qemu-test"))]
-        const MECH_MAX: usize = 256;
-        const MECH_PROMPTS: [&str; 3] = ["hello alice", "how are you today?", "continue"];
-
-        macro_rules! mech_run {
-            ($tag:expr, $prompt:expr, $loud:expr) => {{
-                let mut ntok: u64 = 0;
-                // Preallocated BEFORE the timed region so QUIET adds no
-                // allocation cost that LOUD does not have.
-                let mut quiet_buf = alloc::string::String::with_capacity(8192);
-                let t0 = unsafe { core::arch::x86_64::_rdtsc() };
-                let g0 = cpu::perf_snapshot();
-                let response = engine.process_intent($prompt, MECH_MAX, |token_str| {
-                    if !token_str.starts_with("[SYSTEM]") && !token_str.contains("[PERFORMANCE]") {
-                        ntok += 1;
-                    }
-                    if $loud {
-                        let _ = console::with_console(|st| {
-                            let _ = st.write_str(token_str);
-                            core::fmt::Result::Ok(())
-                        });
-                    } else {
-                        quiet_buf.push_str(token_str);
-                    }
-                });
-                let g1 = cpu::perf_snapshot();
-                let dt = unsafe { core::arch::x86_64::_rdtsc() } - t0;
-                // QUIET output appears only after the timed region closes.
-                if !$loud {
-                    let _ = console::with_console(|st| {
-                        let _ = st.write_str(&quiet_buf);
-                        let _ = st.write_str("\r\n");
-                        core::fmt::Result::Ok(())
-                    });
-                }
-                let clock = match (g0, g1) {
-                    (Some(a), Some(b)) => cpu::actual_pct_of_nominal(a, b),
-                    _ => None,
-                };
-                boot_log(
-                    &mut root,
-                    &format!("MECH {} RESPONSE {:?}: {}", $tag, $prompt, response),
-                );
-                boot_log(
-                    &mut root,
-                    &format!(
-                        "MECH {} {:?}: {} tokens, {} ticks, {} ticks/token, clock {}",
-                        $tag,
-                        $prompt,
-                        ntok,
-                        dt,
-                        if ntok > 0 { dt / ntok } else { 0 },
-                        match clock {
-                            Some(p) => format!("{}%", p),
-                            None => alloc::string::String::from("?"),
-                        }
-                    ),
-                );
-            }};
-        }
-
-        for p in MECH_PROMPTS {
-            mech_run!("LOUD", p, true);
-        }
-        for p in MECH_PROMPTS {
-            mech_run!("QUIET", p, false);
-        }
-        park_aps_for_turbo(&mut root);
-        uefi::boot::stall(core::time::Duration::from_millis(200));
-        log_throttle_diag(&mut root, "mech-postpark");
-        for p in MECH_PROMPTS {
-            mech_run!("QUIET2", p, false);
-        }
-
-        // ---- MECH v2: preregistered n=N repeats under QUIET2 conditions ----
-        // APs are already parked (MWAIT C6) and the console is buffered during
-        // the timed region exactly like QUIET/QUIET2. Greedy decode means run 1
-        // defines the byte-exact reference; runs 2..N are compared against it,
-        // so every repeat doubles as a determinism gate (Rule D).
-        {
-            #[cfg(feature = "qemu-test")]
-            const MECHV2_N: usize = 2;
-            #[cfg(not(feature = "qemu-test"))]
-            const MECHV2_N: usize = 10;
-            boot_log(
-                &mut root,
-                "==== MECH v2 (2026-08-01): paired repeats under QUIET2 (APs parked) ====",
-            );
-            // One buffer reused across all runs: clear() keeps the capacity, so
-            // the timed region never allocates and heap churn stays at the v1
-            // level (one ~1KB response String per run, dropped each iteration).
-            let mut quiet_buf = alloc::string::String::with_capacity(8192);
-            for p in MECH_PROMPTS {
-                let mut reference: Option<alloc::string::String> = None;
-                for i in 1..=MECHV2_N {
-                    let mut ntok: u64 = 0;
-                    quiet_buf.clear();
-                    // SAFETY: RDTSC reads the timestamp counter; no memory is
-                    // accessed and no CPU state is modified.
-                    let t0 = unsafe { core::arch::x86_64::_rdtsc() };
-                    let g0 = cpu::perf_snapshot();
-                    let response = engine.process_intent(p, MECH_MAX, |token_str| {
-                        if !token_str.starts_with("[SYSTEM]")
-                            && !token_str.contains("[PERFORMANCE]")
-                        {
-                            ntok += 1;
-                        }
-                        quiet_buf.push_str(token_str);
-                    });
-                    let g1 = cpu::perf_snapshot();
-                    // SAFETY: RDTSC reads the timestamp counter; no memory is
-                    // accessed and no CPU state is modified.
-                    let dt = unsafe { core::arch::x86_64::_rdtsc() } - t0;
-                    // Buffered output is NOT echoed to the console here: the
-                    // timed region above is identical to QUIET2, and the full
-                    // response text is logged once per prompt below.
-                    let clock = match (g0, g1) {
-                        (Some(a), Some(b)) => cpu::actual_pct_of_nominal(a, b),
-                        _ => None,
-                    };
-                    boot_log(
-                        &mut root,
-                        &format!(
-                            "MECHV2 {:?} run {}/{}: {} tokens, {} ticks, {} ticks/token, clock {}",
-                            p,
-                            i,
-                            MECHV2_N,
-                            ntok,
-                            dt,
-                            if ntok > 0 { dt / ntok } else { 0 },
-                            match clock {
-                                Some(pct) => format!("{}%", pct),
-                                None => alloc::string::String::from("?"),
-                            }
-                        ),
-                    );
-                    match &reference {
-                        None => {
-                            boot_log(&mut root, &format!("MECHV2 RESPONSE {:?}: {}", p, response));
-                            reference = Some(response);
-                        }
-                        Some(r) => {
-                            boot_log(
-                                &mut root,
-                                &format!(
-                                    "MECHV2 EXACT {:?} run {}: {}",
-                                    p,
-                                    i,
-                                    r.as_bytes() == response.as_bytes()
-                                ),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        boot_log(&mut root, "==== MECH DONE ====");
-    }
+    // AEFINITY OS phase 5 (design §4): the block that used to sit inline here
+    // now lives in `lab::mech`, so the dispatcher can run it as a `MECH`
+    // directive — and, per design §2, run it **last** whatever order the
+    // `JOB.TXT` gave, because it is ~24 minutes under TCG and must never
+    // starve real work. This call is a pure move: same output, same order,
+    // same place in the boot path, so a stick with no `JOB.TXT` behaves
+    // exactly as it did (`cargo xtask boot-test`, 33 checks).
+    lab::mech(&mut root, &mut engine);
 
     #[cfg(feature = "qemu-test")]
     {

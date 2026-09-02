@@ -24,7 +24,6 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use aegis_core::inference::TernaryInferenceEngine;
 use uefi::proto::media::file::Directory;
 
 /// Whole-job wall budget when `JOB.TXT` does not say (spec §2).
@@ -79,6 +78,30 @@ const PROMPT_MAX_BYTES: usize = 4 * 1024;
 /// firmware-defined code in a post-mortem.
 const WATCHDOG_CODE: u64 = 0x1_0000;
 
+/// `RUNID <id>` is `[A-Za-z0-9._-]{1,64}` (design §1.2).
+pub const RUNID_MAX_BYTES: usize = 64;
+/// `TAG <text>` is free-form; this is the byte cap that keeps one directive
+/// from filling a record. Not a protocol constant — a bound.
+pub const TAG_MAX_BYTES: usize = 128;
+
+/// `EVAL_WINDOW` (design §1.3): the token window `EVAL` scores in, capped
+/// again by the model's own `max_position_embeddings` (§2.1).
+pub const EVAL_WINDOW: usize = 2048;
+/// `SHARD <i>/<n>`: `1 <= i <= n <= SHARD_MAX` (design §2).
+pub const SHARD_MAX: u32 = 4096;
+/// `job.N.detail` is truncated to this many bytes *after* escaping (design §3).
+pub const DETAIL_MAX: usize = 1024;
+/// The `job.N.err` slug a step files when the whole-job wall budget ran out
+/// under it, and the reason string [`ResultRecord::fail`] records for the
+/// job-level `verdict=` in the same case (design §5).
+///
+/// One constant because the two ends have to agree: a lab step decides it was
+/// stopped and writes this into its own block, and `run_job` reads that same
+/// slug back to decide the job's verdict. When those were two independent
+/// string literals, a step whose stop left `partial=0` could file
+/// `job.N.err=budget` under a record that still said `verdict=OK`.
+pub const BUDGET_ERR: &str = "budget";
+
 /// The prompt `BENCH n` generates from. Fixed on purpose: a bench whose
 /// prompt varies between boxes is not a cross-machine comparison, and the
 /// `digest` of its output is only a fleet witness if every box conditioned on
@@ -120,6 +143,23 @@ pub enum Step {
     Bench { tokens: usize },
     /// `NETCHECK host:port` — phase 1a. Recorded now, executed there.
     NetCheck { target: String },
+    /// `CPUID` — identity/leaf dump. No measurement (design §2).
+    Cpuid,
+    /// `VERIFY <NAME>` — replay a witness receipt through
+    /// [`crate::verifier::run`] (design §2).
+    Verify { name: String },
+    /// `EVAL <NAME> <lo>:<hi>` — exact-integer NLL over the token slice
+    /// `[lo, hi)` of an `AEFCORP1` corpus on the volume (design §2.1).
+    Eval { name: String, lo: u64, hi: u64 },
+    /// `MEMBW <mib>` — a deterministic touch pattern over `<mib>` MiB
+    /// (design §2). The checksum is comparable across boxes; the bandwidth
+    /// number is gated exactly like `tps`.
+    MemBw { mib: u64 },
+    /// `MECH` — the diagnostic block of [`crate::lab::mech`], as a directive.
+    ///
+    /// **Moved last by the dispatcher regardless of file order** (design §2):
+    /// it runs ~24 minutes under TCG and must never starve real work.
+    Mech,
 }
 
 /// A parsed `JOB.TXT`.
@@ -138,6 +178,30 @@ pub struct Job {
     /// `docs/AEFINITY_OS_STATUS.md`.
     pub token: Option<String>,
     pub listen: u16,
+    /// `RUNID <id>` (design §2) — the idempotency key, same grammar as the
+    /// `RUNID` verb. It names the record: `run_id=` in `RESULT.TXT` is this
+    /// when the file carries one, and the `RUN.ID` file otherwise, so the id a
+    /// controller dedupes on and the id in the record it stores are one string
+    /// and the v0.1 `run_id=` key keeps its v0.1 position.
+    pub run_id: Option<String>,
+    /// `TAG <text>` (design §2) — free-form, echoed into `RESULT.TXT` and the
+    /// ledger. Deliberately **outside** `merge_key` (§3.1): a tag is a label
+    /// for humans, not an input two boxes have to agree on.
+    pub tag: Option<String>,
+    /// `SHARD <i>/<n>` (design §2), `1 <= i <= n <= SHARD_MAX`.
+    ///
+    /// Informational to the box and load-bearing to the collector: the box
+    /// never computes its own slice — the controller writes concrete work into
+    /// the body — so a record can be attributed without trusting the
+    /// collector's bookkeeping alone. Outside `merge_key` for the same reason
+    /// as `tag`.
+    pub shard: Option<(u32, u32)>,
+    /// `SEED <u64>` (design §2) — inside `merge_key`, because two records that
+    /// used different seeds are not replications of each other.
+    pub seed: Option<u64>,
+    /// `STRICT on` (design §2): the first failing step stops the job with
+    /// `verdict=FAIL <step-kind>` and the steps behind it are not run.
+    pub strict: bool,
     /// The `TOKENS` value left in force at end of file.
     pub tokens: usize,
     pub after: After,
@@ -157,6 +221,11 @@ impl Default for Job {
             report: None,
             token: None,
             listen: DEFAULT_LISTEN,
+            run_id: None,
+            tag: None,
+            shard: None,
+            seed: None,
+            strict: false,
             tokens: DEFAULT_TOKENS,
             after: After::Reset,
             steps: Vec::new(),
@@ -310,6 +379,102 @@ pub fn parse(body: &str) -> Job {
                         .push(format!("AFTER {rest:?} (want reset|halt)"));
                 }
             }
+            // ---- design §2 (phase 5): the fleet directives ---------------
+            "RUNID" => {
+                if valid_runid(rest) {
+                    job.run_id = Some(rest.to_string());
+                } else {
+                    understood = false;
+                    job.unknown
+                        .push(format!("RUNID {rest:?} (want [A-Za-z0-9._-]{{1,64}})"));
+                }
+            }
+            "TAG" => {
+                if rest.is_empty() {
+                    understood = false;
+                    job.unknown.push(String::from("TAG (empty)"));
+                } else {
+                    job.tag = Some(truncate_bytes(rest, TAG_MAX_BYTES).to_string());
+                }
+            }
+            "SHARD" => match parse_shard(rest) {
+                Some(v) => job.shard = Some(v),
+                None => {
+                    understood = false;
+                    job.unknown.push(format!(
+                        "SHARD {rest:?} (want <i>/<n>, 1<=i<=n<={SHARD_MAX})"
+                    ));
+                }
+            },
+            "SEED" => match rest.parse::<u64>() {
+                Ok(v) => job.seed = Some(v),
+                Err(_) => {
+                    understood = false;
+                    job.unknown.push(format!("SEED {rest:?} (not a u64)"));
+                }
+            },
+            "STRICT" => {
+                if eq_ascii_ci(rest, "on") {
+                    job.strict = true;
+                } else if eq_ascii_ci(rest, "off") {
+                    job.strict = false;
+                } else {
+                    understood = false;
+                    job.unknown.push(format!("STRICT {rest:?} (want on|off)"));
+                }
+            }
+            "CPUID" => {
+                // Argument-free, like `MECH`.
+                if rest.is_empty() {
+                    job.steps.push(Step::Cpuid);
+                } else {
+                    understood = false;
+                    job.unknown
+                        .push(format!("CPUID {rest:?} (takes no argument)"));
+                }
+            }
+            "VERIFY" => {
+                // The `<NAME>` is validated by `files.rs`'s rules when the
+                // step runs, not here: a parse that rejected it would turn a
+                // typo into an ignored directive instead of a `job.N.err` the
+                // controller can read.
+                if rest.is_empty() {
+                    understood = false;
+                    job.unknown.push(String::from("VERIFY (empty name)"));
+                } else {
+                    job.steps.push(Step::Verify {
+                        name: rest.to_string(),
+                    });
+                }
+            }
+            "EVAL" => match parse_eval(rest) {
+                Some((name, lo, hi)) => job.steps.push(Step::Eval { name, lo, hi }),
+                None => {
+                    understood = false;
+                    job.unknown
+                        .push(format!("EVAL {rest:?} (want <NAME> <lo>:<hi>, lo < hi)"));
+                }
+            },
+            "MEMBW" => match rest.parse::<u64>() {
+                Ok(v) if v > 0 => job.steps.push(Step::MemBw { mib: v }),
+                _ => {
+                    understood = false;
+                    job.unknown
+                        .push(format!("MEMBW {rest:?} (not a positive integer)"));
+                }
+            },
+            "MECH" => {
+                // Argument-free. A trailing word is a typo, not a parameter,
+                // and running a 24-minute diagnostic because someone misspelt
+                // a directive is exactly what the unknown list is for.
+                if rest.is_empty() {
+                    job.steps.push(Step::Mech);
+                } else {
+                    understood = false;
+                    job.unknown
+                        .push(format!("MECH {rest:?} (takes no argument)"));
+                }
+            }
             "NETCHECK" => {
                 if rest.is_empty() {
                     understood = false;
@@ -354,6 +519,44 @@ fn eq_ascii_ci(a: &str, b: &str) -> bool {
         && a.bytes()
             .zip(b.bytes())
             .all(|(x, y)| x.eq_ignore_ascii_case(&y))
+}
+
+/// `[A-Za-z0-9._-]{1,64}` — the `RUNID` grammar of design §1.2, shared by the
+/// verb (`server.rs`) and the `JOB.TXT` directive so a controller cannot write
+/// an id into a file that the socket would refuse.
+#[must_use]
+pub fn valid_runid(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= RUNID_MAX_BYTES
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-')
+}
+
+/// `EVAL <NAME> <lo>:<hi>` (design §2). The half-open slice must be
+/// non-empty; everything else about it — that it fits the corpus, that the
+/// corpus is a corpus — is the step's business, and is reported as a
+/// `job.N.err` rather than swallowed as an unparsed directive.
+fn parse_eval(rest: &str) -> Option<(String, u64, u64)> {
+    let (name, slice) = rest.split_once(char::is_whitespace)?;
+    let (a, b) = slice.trim().split_once(':')?;
+    let lo: u64 = a.trim().parse().ok()?;
+    let hi: u64 = b.trim().parse().ok()?;
+    if name.is_empty() || lo >= hi {
+        return None;
+    }
+    Some((name.to_string(), lo, hi))
+}
+
+/// `SHARD <i>/<n>` with `1 <= i <= n <= SHARD_MAX` (design §2).
+fn parse_shard(rest: &str) -> Option<(u32, u32)> {
+    let (a, b) = rest.split_once('/')?;
+    let i: u32 = a.trim().parse().ok()?;
+    let n: u32 = b.trim().parse().ok()?;
+    if i >= 1 && i <= n && n <= SHARD_MAX {
+        Some((i, n))
+    } else {
+        None
+    }
 }
 
 /// Truncate to at most `max` bytes on a UTF-8 character boundary.
@@ -436,6 +639,87 @@ pub struct StepResult {
     /// rather than a generation (`netcheck`, phase 1a). `None` leaves the
     /// `prompt`/`bench` blocks byte-for-byte what phase 0 wrote.
     pub ok: Option<bool>,
+    // ---- design §3 (phase 5) --------------------------------------------
+    /// `job.N.rate_valid` — **false whenever `env=vm`** (design §3, Rule A
+    /// enforced by the artifact). Every step carries it, including the v0.1
+    /// kinds, so a reader never has to know which kinds can produce a rate.
+    pub rate_valid: bool,
+    /// `job.N.nll_q16` — `EVAL` only (§2.1). Exact integer; comparable across
+    /// boxes by construction, and never a performance figure.
+    pub nll_q16: Option<u64>,
+    /// `job.N.ntok` — `EVAL` only: scored positions, not tokens read.
+    pub ntok: Option<u64>,
+    /// `job.N.membw_mibs` — `MEMBW` only, and gated exactly like `tps`: `n/a`
+    /// unless [`StepResult::rate_valid`] (design §3).
+    pub membw_mibs: Option<u64>,
+    /// `job.N.pass` — the pass/fail kinds (`cpuid`, `verify`).
+    pub pass: Option<bool>,
+    /// `job.N.items` — how many units of work the step actually did
+    /// (`verify`: decode steps replayed).
+    pub items: Option<u64>,
+    /// `job.N.partial` — `0` when the step completed, `k` when a budget
+    /// overrun stopped it after `k` of the requested units (design §5,
+    /// "Partial results": prefix evidence, never a completed unit).
+    pub partial: Option<u64>,
+    /// `job.N.err` — `none` or one short slug (design §1.3).
+    pub err: Option<String>,
+    /// `job.N.detail` — escaped, capped at [`DETAIL_MAX`] bytes.
+    pub detail: Option<String>,
+    /// `<step-input>` for [`merge_key`] (§3.1), for the kinds whose input is
+    /// not derivable from the v0.1 fields. `None` falls back to the phase-4
+    /// derivation documented on [`merge_key`].
+    pub merge_input: Option<String>,
+}
+
+impl StepResult {
+    /// A step block with only the fields a lab kind fills, and every v0.1
+    /// generation field left at its zero.
+    ///
+    /// The v0.1 kinds keep building [`StepResult`] literally, so their blocks
+    /// stay byte-for-byte what phase 0 wrote (plus the one appended
+    /// `rate_valid` line).
+    #[must_use]
+    pub fn lab(kind: &'static str, rate_valid: bool) -> StepResult {
+        StepResult {
+            kind,
+            prompt: String::new(),
+            tokens: 0,
+            wall_ms: 0,
+            tps: 0.0,
+            tsc_per_tok: 0,
+            digest: String::new(),
+            response: String::new(),
+            ok: None,
+            rate_valid,
+            nll_q16: None,
+            ntok: None,
+            membw_mibs: None,
+            pass: None,
+            items: None,
+            partial: None,
+            err: None,
+            detail: None,
+            merge_input: None,
+        }
+    }
+
+    /// Is this one of the three kinds phase 0/1a shipped?
+    ///
+    /// Their blocks render exactly the v0.1 keys; a lab kind renders §3's
+    /// keys instead, because `job.N.tps=0.00` on a `CPUID` step would be a
+    /// performance number where no measurement was made (Rule A).
+    #[must_use]
+    fn is_v01(&self) -> bool {
+        matches!(self.kind, "prompt" | "bench" | "netcheck")
+    }
+
+    /// Did this step fail? The question `STRICT on` asks after every step.
+    #[must_use]
+    pub fn failed(&self) -> bool {
+        self.ok == Some(false)
+            || self.pass == Some(false)
+            || self.err.as_deref().is_some_and(|e| e != "none")
+    }
 }
 
 /// The whole `RESULT.TXT`, in the key order of spec §3.
@@ -493,11 +777,15 @@ pub struct FleetInfo {
     /// `true` when this record came out of the `RUNID` ring rather than being
     /// re-run (design §1.2/§1.4).
     pub replay: bool,
-    /// `SEED` (design §2-ext) — parsed in phase 5; `None` here, and it is
-    /// serialised as the literal `none` inside [`merge_key`] either way, so
-    /// the key a phase-4 box computes is the key a phase-5 box computes for
-    /// the same seedless job.
+    /// `SEED` (design §2-ext). Serialised as the literal `none` inside
+    /// [`merge_key`] when absent, so the key a phase-4 box computes is the key
+    /// a phase-5 box computes for the same seedless job.
     pub seed: Option<u64>,
+    /// `TAG <text>` (design §2). Echoed into the record and **excluded** from
+    /// [`merge_key`] (§3.1).
+    pub tag: Option<String>,
+    /// `SHARD <i>/<n>` (design §2). Echoed and excluded, as `tag` is.
+    pub shard: Option<(u32, u32)>,
 }
 
 /// `merge_key` — the first 16 lower-case hex of sha256 over design §3.1's
@@ -506,13 +794,13 @@ pub struct FleetInfo {
 /// NUL-terminated ASCII fields, in this order, **with no other separator**:
 ///
 /// ```text
-/// "v1"  
-/// <model 64hex>   <embed 64hex>   <vocab 64hex>  
-/// <env>  
-/// <seed decimal, or "none">  
+/// "v1" \0
+/// <model 64hex> \0 <embed 64hex> \0 <vocab 64hex> \0
+/// <env> \0
+/// <seed decimal, or "none"> \0
 ///   for each step, dispatch order, N ascending:
-///     <N decimal>   <kind>   <step-input>  
-/// "END"  
+///     <N decimal> \0 <kind> \0 <step-input> \0
+/// "END" \0
 /// ```
 ///
 /// It **excludes** `cpu_brand`, `shard`, `tag` and `run_id` — those are what
@@ -520,13 +808,18 @@ pub struct FleetInfo {
 /// TCG record can never share a key and can never be presented as replicating
 /// each other (Rule A, enforced by the artifact).
 ///
-/// `<step-input>` for the five lab kinds is §3.1's table and lands with phase
-/// 5. Phase 4 ships the three kinds that exist today, and they are **not** in
-/// §3.1's table, so this is the phase-4 extension of it, recorded here and in
-/// `docs/AEFINITY_OS_STATUS.md`: `prompt` → the prompt text, `bench` → the
-/// token count, `netcheck` → the target. Empty would have been simpler and
-/// wrong — two different prompts would then share a merge key, which is the
-/// one thing the key exists to prevent.
+/// `<step-input>` by kind is §3.1's table for the lab kinds — `cpuid` and
+/// `mech` empty, `membw` the MiB decimal, `verify` `<NAME>:<receipt 64hex>`,
+/// `eval` `<NAME>:<corpus payload 64hex>:<lo>:<hi>:<W>` — carried on the step
+/// as [`StepResult::merge_input`] because a receipt's or a corpus's digest is
+/// not derivable from the v0.1 fields.
+///
+/// The three v0.1 kinds are **not** in §3.1's table, so this is the phase-4
+/// extension of it, recorded here and in `docs/AEFINITY_OS_STATUS.md`:
+/// `prompt` → the prompt text, `bench` → the token count, `netcheck` → the
+/// target. Empty would have been simpler and wrong — two different prompts
+/// would then share a merge key, which is the one thing the key exists to
+/// prevent.
 #[must_use]
 pub fn merge_key(fleet: &FleetInfo, env: &str, steps: &[StepResult]) -> String {
     let mut h = aegis_core::witness::Sha256::new();
@@ -546,10 +839,16 @@ pub fn merge_key(fleet: &FleetInfo, env: &str, steps: &[StepResult]) -> String {
     for (i, st) in steps.iter().enumerate() {
         field(&mut h, &format!("{}", i + 1));
         field(&mut h, st.kind);
-        let input = match st.kind {
-            "prompt" => st.prompt.clone(),
-            "bench" => format!("{}", st.tokens),
-            _ => st.prompt.clone(),
+        // §3.1's table for the lab kinds is carried on the step itself —
+        // `verify` needs the receipt file's digest and `eval` the corpus
+        // payload's, neither of which is derivable from the v0.1 fields.
+        let input = match &st.merge_input {
+            Some(v) => v.clone(),
+            None => match st.kind {
+                "prompt" => st.prompt.clone(),
+                "bench" => format!("{}", st.tokens),
+                _ => st.prompt.clone(),
+            },
         };
         field(&mut h, &input);
     }
@@ -608,18 +907,68 @@ impl ResultRecord {
             if let Some(ok) = j.ok {
                 s.push_str(&format!("job.{n}.ok={ok}\n"));
             }
-            // Spec §3 caps `response`, not `prompt`; a PROMPT line is
-            // already bounded to 4 KiB at parse time.
-            s.push_str(&format!("job.{n}.prompt={}\n", escape(&j.prompt)));
-            s.push_str(&format!("job.{n}.tokens={}\n", j.tokens));
-            s.push_str(&format!("job.{n}.wall_ms={}\n", j.wall_ms));
-            s.push_str(&format!("job.{n}.tps={}\n", fixed2(j.tps)));
-            s.push_str(&format!("job.{n}.tsc_per_tok={}\n", j.tsc_per_tok));
-            s.push_str(&format!("job.{n}.digest={}\n", j.digest));
-            s.push_str(&format!(
-                "job.{n}.response={}\n",
-                escape_capped(&j.response, RESPONSE_MAX)
-            ));
+            if j.is_v01() {
+                // Spec §3 caps `response`, not `prompt`; a PROMPT line is
+                // already bounded to 4 KiB at parse time.
+                s.push_str(&format!("job.{n}.prompt={}\n", escape(&j.prompt)));
+                s.push_str(&format!("job.{n}.tokens={}\n", j.tokens));
+                s.push_str(&format!("job.{n}.wall_ms={}\n", j.wall_ms));
+                s.push_str(&format!("job.{n}.tps={}\n", fixed2(j.tps)));
+                s.push_str(&format!("job.{n}.tsc_per_tok={}\n", j.tsc_per_tok));
+                s.push_str(&format!("job.{n}.digest={}\n", j.digest));
+                s.push_str(&format!(
+                    "job.{n}.response={}\n",
+                    escape_capped(&j.response, RESPONSE_MAX)
+                ));
+            } else {
+                // A lab block quotes no `tps` and no `tsc_per_tok`: no rate
+                // was measured, and a `0.00` there would read as one (Rule A).
+                s.push_str(&format!("job.{n}.wall_ms={}\n", j.wall_ms));
+                if !j.digest.is_empty() {
+                    s.push_str(&format!("job.{n}.digest={}\n", j.digest));
+                }
+            }
+            // ---- design §3, appended after the v0.1 keys of the block ----
+            s.push_str(&format!("job.{n}.rate_valid={}\n", j.rate_valid));
+            if let Some(v) = j.nll_q16 {
+                s.push_str(&format!("job.{n}.nll_q16={v}\n"));
+            }
+            if let Some(v) = j.ntok {
+                s.push_str(&format!("job.{n}.ntok={v}\n"));
+            }
+            // The key appears on every `membw` block whatever happened, so a
+            // reader never has to tell "absent because vm" from "absent
+            // because the step did not run" — but the *value* is only ever a
+            // number the box actually measured.
+            if j.kind == "membw" || j.membw_mibs.is_some() {
+                // Gated exactly like `tps` (design §3): a bandwidth number
+                // measured under TCG is meaningless, so the record says so
+                // rather than printing it and relying on someone reading
+                // `env=`.
+                let v = match (j.rate_valid, j.membw_mibs) {
+                    (true, Some(v)) => format!("{v}"),
+                    _ => String::from("n/a"),
+                };
+                s.push_str(&format!("job.{n}.membw_mibs={v}\n"));
+            }
+            if let Some(v) = j.pass {
+                s.push_str(&format!("job.{n}.pass={v}\n"));
+            }
+            if let Some(v) = j.items {
+                s.push_str(&format!("job.{n}.items={v}\n"));
+            }
+            if let Some(v) = j.partial {
+                s.push_str(&format!("job.{n}.partial={v}\n"));
+            }
+            if let Some(v) = &j.err {
+                s.push_str(&format!("job.{n}.err={v}\n"));
+            }
+            if let Some(v) = &j.detail {
+                s.push_str(&format!(
+                    "job.{n}.detail={}\n",
+                    escape_capped(v, DETAIL_MAX)
+                ));
+            }
         }
         s.push_str(&format!("report={}\n", self.report));
         s.push_str(&format!("verdict={}\n", self.verdict));
@@ -627,6 +976,20 @@ impl ResultRecord {
         // Every v0.1 assertion reads a key by name and the first match wins,
         // so appending cannot move anything a v0.1 client was reading.
         if let Some(f) = &self.fleet {
+            // Design §3 renders `run_id`, `tag`, `shard`, `seed` together.
+            // `run_id=` is a v0.1 key and keeps its v0.1 position above —
+            // `RUNID` in `JOB.TXT` sets its *value*, and emitting it twice
+            // would give a collector two answers to one question. The other
+            // three are new and land here, ahead of `replay=`, in §3's order.
+            if let Some(t) = &f.tag {
+                s.push_str(&format!("tag={}\n", escape(t)));
+            }
+            if let Some((i, n)) = f.shard {
+                s.push_str(&format!("shard={i}/{n}\n"));
+            }
+            if let Some(v) = f.seed {
+                s.push_str(&format!("seed={v}\n"));
+            }
             s.push_str(&format!("replay={}\n", f.replay));
             s.push_str(&format!("artifacts={}\n", f.artifacts));
             s.push_str(&format!("model_sha={}\n", f.model_sha));
@@ -1041,10 +1404,18 @@ fn write_progress_record(rec: &ResultRecord, root: &mut Directory, n: usize) {
 pub fn run_job(
     job: &Job,
     root: &mut Directory,
-    engine: &mut TernaryInferenceEngine,
+    slot: &mut crate::reload::EngineSlot<'_>,
 ) -> (ResultRecord, Option<crate::net::Net>) {
-    let rid = run_id(root);
+    // Design §2: `RUNID` in the file names the record; `RUN.ID` on the volume
+    // is the fallback the controller has used since phase 0.
+    let rid = match &job.run_id {
+        Some(v) => v.clone(),
+        None => run_id(root),
+    };
     let mut rec = ResultRecord::new(job.budget_s, rid);
+    // Rule A, enforced by the artifact (design §3): no step made under
+    // `env=vm` may carry a rate, and every step says so in its own block.
+    let rate_valid = rec.env == "iron";
 
     if job.mode == Mode::Resident {
         crate::boot_log(
@@ -1070,8 +1441,21 @@ pub fn run_job(
         );
     }
 
-    for (i, step) in job.steps.iter().enumerate() {
+    // The watchdog window this job is running under. Every lab step re-arms
+    // it as it makes progress (design §8): a long `VERIFY` or a 2048-token
+    // `EVAL` window can outlast the interval that was armed when the job
+    // started, and a healthy box that is still working must not be reset for
+    // taking a while.
+    let wd_window = job.budget_s.saturating_add(WATCHDOG_MARGIN_S);
+
+    // Design §2: MECH is moved **last by the dispatcher regardless of file
+    // order**. `job.N` numbering follows dispatch order, which is also what
+    // §3.1 serialises into `merge_key`, so the key describes what was run.
+    let order = dispatch_order(&job.steps);
+
+    for (i, &si) in order.iter().enumerate() {
         let n = i + 1;
+        let step = &job.steps[si];
 
         // Out of budget before this step even starts: record it and stop
         // rather than begin work that cannot finish.
@@ -1079,7 +1463,7 @@ pub fn run_job(
             && let Some(el) = elapsed_since(t0)
             && el >= job.budget_s as f64
         {
-            rec.fail("budget");
+            rec.fail(BUDGET_ERR);
             crate::boot_log(
                 root,
                 &format!("JOB: budget spent before step {n} — stopping"),
@@ -1132,9 +1516,165 @@ pub fn run_job(
                     digest: token_digest(&[]),
                     response: detail,
                     ok: Some(ok),
+                    rate_valid,
+                    nll_q16: None,
+                    ntok: None,
+                    membw_mibs: None,
+                    pass: None,
+                    items: None,
+                    partial: None,
+                    err: None,
+                    detail: None,
+                    merge_input: None,
                 });
                 if !ok {
                     rec.fail("netcheck");
+                }
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
+                }
+                continue;
+            }
+            Step::Cpuid => {
+                crate::boot_log(root, &format!("JOB: step {n} CPUID"));
+                let sr = crate::lab::cpuid(rate_valid);
+                crate::boot_log(
+                    root,
+                    &format!("JOB: step {n} cpuid {}", sr.detail.as_deref().unwrap_or("")),
+                );
+                rec.steps.push(sr);
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
+                }
+                continue;
+            }
+            Step::Verify { name } => {
+                crate::boot_log(root, &format!("JOB: step {n} VERIFY {name}"));
+                write_progress_record(&rec, root, n);
+                let w0 = crate::wall_seconds();
+                let mut rearm = move || {
+                    arm_watchdog(wd_window);
+                };
+                let mut sr = crate::lab::verify(root, &*slot, name, rate_valid, &mut rearm);
+                sr.wall_ms = wall_ms_between(w0, crate::wall_seconds());
+                crate::boot_log(
+                    root,
+                    &format!(
+                        "JOB: step {n} verify pass={:?} items={:?} err={:?} digest={}",
+                        sr.pass, sr.items, sr.err, sr.digest
+                    ),
+                );
+                rec.steps.push(sr);
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
+                }
+                continue;
+            }
+            Step::Eval { name, lo, hi } => {
+                crate::boot_log(root, &format!("JOB: step {n} EVAL {name} {lo}:{hi}"));
+                write_progress_record(&rec, root, n);
+                let w0 = crate::wall_seconds();
+                let budget_s = job.budget_s as f64;
+                // The same monotone deadline the engine gets for a PROMPT:
+                // copies only, so it borrows neither the slot nor `root`, and
+                // once the budget is spent it stays spent. A firmware with no
+                // usable clock yields `false` for ever and the watchdog is the
+                // guard, which was already logged at entry.
+                let over = move || match started {
+                    Some(t0) => matches!(elapsed_since(t0), Some(el) if el >= budget_s),
+                    None => false,
+                };
+                let mut rearm = move || {
+                    arm_watchdog(wd_window);
+                };
+                let mut sr =
+                    crate::lab::eval(root, &*slot, name, *lo, *hi, rate_valid, &over, &mut rearm);
+                sr.wall_ms = wall_ms_between(w0, crate::wall_seconds());
+                // A budget that stopped an EVAL at a window boundary is the
+                // job's verdict, not just the step's: design §5 files such a
+                // record `PARTIAL` and re-queues the remainder.
+                //
+                // Read off the slug, not off `partial`, for the same reason
+                // `MEMBW` below does: a stop before the *first* window folded
+                // leaves `partial=0`, which is byte-identical to the
+                // `partial=0` a completed EVAL files. A `partial > 0` test
+                // therefore let the one case that scored **nothing** through
+                // as `verdict=OK` — and §5 files a `verdict=OK` record as a
+                // completed unit, so an `nll_q16` folded over zero positions
+                // would have gone into `pool_digest` and into an `AGREE`
+                // comparison. With the slug it is `FAIL budget`, which §5
+                // ends `FAILED` and `--resume` dispatches again.
+                if sr.err.as_deref() == Some(BUDGET_ERR) {
+                    rec.fail(BUDGET_ERR);
+                }
+                crate::boot_log(
+                    root,
+                    &format!(
+                        "JOB: step {n} eval nll_q16={:?} ntok={:?} partial={:?} err={:?}",
+                        sr.nll_q16, sr.ntok, sr.partial, sr.err
+                    ),
+                );
+                rec.steps.push(sr);
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
+                }
+                continue;
+            }
+            Step::MemBw { mib } => {
+                crate::boot_log(root, &format!("JOB: step {n} MEMBW {mib}"));
+                write_progress_record(&rec, root, n);
+                let budget_s = job.budget_s as f64;
+                // Same copies-only deadline EVAL gets: `MEMBW 4096` moves
+                // 8 GiB of scalar traffic and has to answer to the budget at
+                // its own chunk boundaries, not only before it starts.
+                let over = move || match started {
+                    Some(t0) => matches!(elapsed_since(t0), Some(el) if el >= budget_s),
+                    None => false,
+                };
+                let mut rearm = move || {
+                    arm_watchdog(wd_window);
+                };
+                let sr = crate::lab::membw(*mib, rate_valid, &over, &mut rearm);
+                // A budget that stopped the passes is the job's verdict too
+                // (design §5), exactly as it is for a stopped EVAL. `partial`
+                // alone cannot say it — a stop before the first MiB folded
+                // leaves `partial=0` — so the slug is what is read here.
+                if sr.err.as_deref() == Some(BUDGET_ERR) {
+                    rec.fail(BUDGET_ERR);
+                }
+                crate::boot_log(
+                    root,
+                    &format!(
+                        "JOB: step {n} membw digest={} err={:?} rate_valid={rate_valid}",
+                        sr.digest, sr.err
+                    ),
+                );
+                rec.steps.push(sr);
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
+                }
+                continue;
+            }
+            Step::Mech => {
+                crate::boot_log(root, &format!("JOB: step {n} MECH"));
+                write_progress_record(&rec, root, n);
+                let w0 = crate::wall_seconds();
+                let Some(engine) = slot.engine_mut() else {
+                    rec.fail("no engine");
+                    crate::boot_log(root, "JOB: no engine in the slot — MECH skipped");
+                    break;
+                };
+                crate::lab::mech(root, engine);
+                let w1 = crate::wall_seconds();
+                let mut sr = StepResult::lab("mech", rate_valid);
+                sr.wall_ms = wall_ms_between(w0, w1);
+                sr.pass = Some(true);
+                sr.err = Some(String::from("none"));
+                // §3.1: `mech` has an empty `<step-input>`.
+                sr.merge_input = Some(String::new());
+                rec.steps.push(sr);
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
                 }
                 continue;
             }
@@ -1160,6 +1700,13 @@ pub fn run_job(
         let over_budget = move || match started {
             Some(t0) => matches!(elapsed_since(t0), Some(el) if el >= budget_s),
             None => false,
+        };
+        let Some(engine) = slot.engine_mut() else {
+            // Unreachable in practice: the slot is only ever empty inside
+            // `EngineSlot::reload`, which cold-resets rather than returning.
+            rec.fail("no engine");
+            crate::boot_log(root, &format!("JOB: no engine in the slot at step {n}"));
+            break;
         };
         let w0 = crate::wall_seconds();
         // SAFETY: RDTSC is unprivileged, takes no operands and has no side
@@ -1216,6 +1763,16 @@ pub fn run_job(
             digest: token_digest(&ids),
             response,
             ok: None,
+            rate_valid,
+            nll_q16: None,
+            ntok: None,
+            membw_mibs: None,
+            pass: None,
+            items: None,
+            partial: None,
+            err: None,
+            detail: None,
+            merge_input: None,
         });
 
         // Budget first: a step the budget cut short in prefill also produced
@@ -1223,7 +1780,7 @@ pub fn run_job(
         // `ResultRecord::fail` keeps the first reason, so the order is the
         // verdict.
         if stopped {
-            rec.fail("budget");
+            rec.fail(BUDGET_ERR);
             let phase = if ntok == 0 { "prefill" } else { "decode" };
             crate::boot_log(
                 root,
@@ -1242,6 +1799,9 @@ pub fn run_job(
             root,
             &format!("JOB: step {n} done, {ntok} tokens, digest={digest}"),
         );
+        if strict_stop(job, &mut rec, root, n) {
+            break;
+        }
     }
 
     if let Some(nw) = net.as_ref() {
@@ -1256,6 +1816,63 @@ pub fn run_job(
         rec.fail("no runnable directives");
     }
     (rec, net)
+}
+
+/// Dispatch order for a step list: file order, with every `MECH` moved to the
+/// end (design §2), each group stable.
+///
+/// The box never reorders anything else. `MECH` is singled out because it runs
+/// ~24 minutes under TCG and is a hands-off diagnostic — a `JOB.TXT` that put
+/// it first would starve the work someone actually asked for, and the same
+/// reasoning put v0.1's job hook before the MECH block in `main.rs`.
+fn dispatch_order(steps: &[Step]) -> Vec<usize> {
+    let mut order: Vec<usize> = Vec::with_capacity(steps.len());
+    for (i, st) in steps.iter().enumerate() {
+        if !matches!(st, Step::Mech) {
+            order.push(i);
+        }
+    }
+    for (i, st) in steps.iter().enumerate() {
+        if matches!(st, Step::Mech) {
+            order.push(i);
+        }
+    }
+    order
+}
+
+/// `STRICT on` (design §2): if the step just pushed failed, record
+/// `verdict=FAIL <step-kind>` and tell the caller to stop.
+///
+/// Returns `false` — carry on — when `STRICT` is off, when there is no step to
+/// judge, or when the step passed. `ResultRecord::fail` keeps the first
+/// reason, so a budget overrun that also produced a failing step is still
+/// reported as the overrun.
+fn strict_stop(job: &Job, rec: &mut ResultRecord, root: &mut Directory, n: usize) -> bool {
+    if !job.strict {
+        return false;
+    }
+    let Some(last) = rec.steps.last() else {
+        return false;
+    };
+    if !last.failed() {
+        return false;
+    }
+    let kind = last.kind;
+    rec.fail(kind);
+    crate::boot_log(
+        root,
+        &format!("JOB: STRICT on — step {n} ({kind}) failed, stopping the job"),
+    );
+    true
+}
+
+/// Milliseconds between two `wall_seconds()` readings, or `0` when the
+/// firmware has no usable clock. Never negative and never a guess.
+pub(crate) fn wall_ms_between(w0: Option<f64>, w1: Option<f64>) -> u64 {
+    match (w0, w1) {
+        (Some(a), Some(b)) if b >= a => ((b - a) * 1000.0) as u64,
+        _ => 0,
+    }
 }
 
 /// One `NETCHECK host:port`: connect, send `HELLO <mac>\n`, wait for the peer
@@ -1346,7 +1963,7 @@ pub fn dispatch(job: &Job, root: &mut Directory, slot: &mut crate::reload::Engin
     }
 
     say("\r\n[AEFINITY OS] JOB.TXT found — running job\r\n");
-    let Some(engine) = slot.engine_mut() else {
+    if slot.engine_mut().is_none() {
         // Unreachable in practice: the slot is handed over with the engine
         // `main.rs` built, and the only code that empties it is
         // `EngineSlot::reload`, which either refills it or cold-resets the box
@@ -1354,9 +1971,9 @@ pub fn dispatch(job: &Job, root: &mut Directory, slot: &mut crate::reload::Engin
         // path where a panic is `panic = "abort"` — a dead box in a rack.
         crate::boot_log(root, "JOB: no engine in the slot — cannot run");
         return;
-    };
-    let (mut rec, mut net) = run_job(job, root, engine);
-    rec.fleet = Some(fleet_info(slot, root, None, false));
+    }
+    let (mut rec, mut net) = run_job(job, root, slot);
+    rec.fleet = Some(fleet_info(slot, root, None, false, job));
     let body = rec.render();
 
     if write_result_txt(root, &body) {
@@ -1495,6 +2112,7 @@ pub fn fleet_info(
     root: &mut Directory,
     resident: Option<(u64, u64)>,
     replay: bool,
+    job: &Job,
 ) -> FleetInfo {
     let d = slot.digests();
     let files = crate::files::ls(root).map(|(v, _)| v.len()).unwrap_or(0);
@@ -1506,7 +2124,9 @@ pub fn fleet_info(
         resident,
         files,
         replay,
-        seed: None,
+        seed: job.seed,
+        tag: job.tag.clone(),
+        shard: job.shard,
     }
 }
 

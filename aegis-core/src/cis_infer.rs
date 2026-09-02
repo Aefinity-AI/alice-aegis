@@ -1286,10 +1286,15 @@ impl<'m, 'a> CisEngine<'m, 'a> {
     }
 
     /// Final norm + integer LM head over the current residual state.
-    /// Fills `self.logits` (exact i64) and returns the real-value scale of
-    /// one logit unit (for NLL only; argmax and the witness digest use the
-    /// integer logits directly).
-    fn logits_int(&mut self) -> f64 {
+    /// Fills `self.logits` (exact i64) and returns the **exact rational**
+    /// value of one logit unit: `logit_real = acc · num / (den · 2^F)`.
+    ///
+    /// This is the whole of the computation; [`CisEngine::logits_int`] is
+    /// this plus one lossy f64 division. Callers that must be bit-identical
+    /// across boxes take the rational — `AEFINITY_OS_FLEET_DESIGN.md` §2.1
+    /// step 1 — and never the float, because an f64 quotient of two u128s is
+    /// the one place a cross-ISA claim could quietly stop holding.
+    pub fn logits_int_exact(&mut self) -> ActScale {
         let c = &self.model.config;
         let hidden = c.hidden_size;
         let vocab = c.vocab_size;
@@ -1301,6 +1306,32 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         for (j, l) in self.logits[..vocab].iter_mut().enumerate() {
             *l = dot_i8_bf16q(&self.codes[..hidden], self.model.head_row(j, hidden));
         }
+        s
+    }
+
+    /// The vocabulary-sized exact i64 logits of the last
+    /// [`CisEngine::logits_int_exact`] / [`CisEngine::decode_logits`] call.
+    ///
+    /// Read-only, so a caller can hold the logits and the scale at once
+    /// without the borrow checker forcing a copy of a 128 k-entry vector.
+    pub fn logits(&self) -> &[i64] {
+        &self.logits[..self.model.config.vocab_size]
+    }
+
+    /// Zero the KV cache prefix for a fresh window of `len` positions.
+    ///
+    /// Exactly what [`CisEngine::calculate_perplexity_int`] does between
+    /// samples, exposed because §2.1's non-overlapping windows each start
+    /// from position 0 with no context carried over — that is what makes a
+    /// window's score independent of where in the corpus it fell.
+    pub fn reset_prefix(&mut self, len: usize) {
+        self.kv.reset_prefix(len);
+    }
+
+    /// [`CisEngine::logits_int_exact`], reduced to the f64 scale of one logit
+    /// unit. Perplexity's float half only; nothing bit-exact may use it.
+    fn logits_int(&mut self) -> f64 {
+        let s = self.logits_int_exact();
         if s.num == 0 {
             return 0.0;
         }
