@@ -784,13 +784,13 @@ pub struct FleetInfo {
 /// NUL-terminated ASCII fields, in this order, **with no other separator**:
 ///
 /// ```text
-/// "v1"  
-/// <model 64hex>   <embed 64hex>   <vocab 64hex>  
-/// <env>  
-/// <seed decimal, or "none">  
+/// "v1" \0
+/// <model 64hex> \0 <embed 64hex> \0 <vocab 64hex> \0
+/// <env> \0
+/// <seed decimal, or "none"> \0
 ///   for each step, dispatch order, N ascending:
-///     <N decimal>   <kind>   <step-input>  
-/// "END"  
+///     <N decimal> \0 <kind> \0 <step-input> \0
+/// "END" \0
 /// ```
 ///
 /// It **excludes** `cpu_brand`, `shard`, `tag` and `run_id` — those are what
