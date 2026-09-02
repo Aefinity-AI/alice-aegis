@@ -638,18 +638,27 @@ Everything in §5 above still stands. Phase 4 adds:
    2.8 MB, so §8's double-capacity requirement, the multi-window readback and
    a vendor FAT driver's behaviour under the same churn are all unobserved.
    Still the highest-value thing to exercise on first light.
-3. **`ERR no-space` and `ERR io` on a full volume.** §8 says the UEFI
+3. **`HEALTH degraded=pointer` itself.** The gates assert `degraded=none`
+   every cycle, which is the assertion that matters, but the *degraded*
+   branch has never been observed — and after finding 1's fix it is no longer
+   reachable through the protocol at all: `RM` of an A/B half is refused, and
+   `RM` of an artifact clears the pointer before it deletes anything. It is
+   reachable only from outside the protocol — a half lost to a torn directory
+   entry, `fsck.vfat`, or a Debian-side hand — which is exactly the case it
+   exists for and exactly the case no gate on this box can stage. Reasoned
+   about and compiled, not run.
+4. **`ERR no-space` and `ERR io` on a full volume.** §8 says the UEFI
    `FileSystemInfo` free-space number is advisory on vendor FAT drivers, so
    exhaustion may surface as a short write instead. `no-space` is best effort;
    `io` is the guarantee. Neither has been provoked.
-4. **The `RELOAD` failure path**, above.
-5. **`XFER_STALL_MS` (no progress for 30 s ⇒ close, stage deleted, and the box
+5. **The `RELOAD` failure path**, above.
+6. **`XFER_STALL_MS` (no progress for 30 s ⇒ close, stage deleted, and the box
    does **not** reboot).** Reasoned from §1.4, never provoked: the harness is a
    cooperative client on loopback.
-6. **`sweep_parts` at boot.** The code deletes a stale `STAGE.PRT` and logs it,
+7. **`sweep_parts` at boot.** The code deletes a stale `STAGE.PRT` and logs it,
    but no run has yet been interrupted mid-`PUT` and rebooted, so `parts=1` has
    only ever been observed as `parts=0`.
-7. **The `RUNID` ring across a reboot.** The ring is RAM only by design: a
+8. **The `RUNID` ring across a reboot.** The ring is RAM only by design: a
    reset empties it and a re-issued id then answers `NEW` and runs a second
    time. At-most-once holds within one box uptime, nothing more. `HEALTH up=`
    going backwards is how a scheduler is supposed to notice; that host-side
