@@ -624,22 +624,55 @@ pub struct Stage {
 }
 
 impl Stage {
-    /// Create (or truncate) `STAGE.PRT`.
+    /// Create `STAGE.PRT`, or reuse the directory entry a previous transfer
+    /// left, truncated to zero.
     ///
-    /// A stale stage is deleted first rather than written over: opening
-    /// `CreateReadWrite` on a longer previous stage and writing a shorter
-    /// payload would leave the old tail past the end, and the readback would
-    /// then hash bytes this transfer never sent.
+    /// Truncating **must** happen one way or another: `CreateReadWrite` on an
+    /// existing file does not shorten it, so a shorter payload written over a
+    /// longer stale stage would leave the old tail past its end and the
+    /// readback would hash bytes this transfer never sent.
+    ///
+    /// It is done by `SetInfo`'s `FileSize` rather than by deleting the file
+    /// and making a new one, because delete-then-create is two directory
+    /// mutations where truncation is none: the entry stays, only its cluster
+    /// chain is released. That is worth having on a journal-less filesystem
+    /// under the churn a `PUT`/`RM` loop generates — QEMU's `vvfat` is
+    /// demonstrably fragile under exactly that pattern (see
+    /// `AEFINITY_OS_STATUS.md` §9), and §8 already notes that vendor FAT
+    /// drivers on real sticks are not uniformly better.
+    ///
+    /// Firmware that refuses the truncation falls back to delete-then-create,
+    /// which is what this always did: correctness first, churn second.
     pub fn create(root: &mut Directory) -> Result<Stage, FileErr> {
-        let _ = delete(root, STAGE_NAME);
         let mut buf = [0u16; 32];
         let c = cstr(STAGE_NAME, &mut buf)?;
         let handle = root
             .open(c, FileMode::CreateReadWrite, FileAttribute::empty())
             .map_err(|_| FileErr::Io)?;
-        match handle.into_type() {
-            Ok(FileType::Regular(file)) => Ok(Stage { file, written: 0 }),
-            _ => Err(FileErr::Io),
+        let mut file = match handle.into_type() {
+            Ok(FileType::Regular(f)) => f,
+            _ => return Err(FileErr::Io),
+        };
+        match truncate_to_zero(&mut file) {
+            Ok(()) => Ok(Stage { file, written: 0 }),
+            Err(e) => {
+                file.close();
+                if e != FileErr::FwError {
+                    return Err(e);
+                }
+                // The old path, unchanged, for firmware whose `SetInfo` will
+                // not shorten a file.
+                let _ = delete(root, STAGE_NAME);
+                let mut buf = [0u16; 32];
+                let c = cstr(STAGE_NAME, &mut buf)?;
+                let handle = root
+                    .open(c, FileMode::CreateReadWrite, FileAttribute::empty())
+                    .map_err(|_| FileErr::Io)?;
+                match handle.into_type() {
+                    Ok(FileType::Regular(file)) => Ok(Stage { file, written: 0 }),
+                    _ => Err(FileErr::Io),
+                }
+            }
         }
     }
 
@@ -760,6 +793,45 @@ fn rename_stage(root: &mut Directory, target: &str) -> Result<(), FileErr> {
     let res = file.set_info(info);
     file.close();
     res.map_err(|_| FileErr::Io)
+}
+
+/// Shorten an open `STAGE.PRT` to nothing through `SetInfo`'s `FileSize`.
+///
+/// [`FileErr::FwError`] specifically when the firmware refused the `SetInfo`,
+/// so [`Stage::create`] can tell "this firmware will not truncate" (fall back
+/// to delete-then-create) from "this volume is broken" (fail the `PUT`).
+///
+/// `PhysicalSize` is read-only per the UEFI spec's `EFI_FILE_INFO` table and
+/// is ignored on `SetInfo`; the name, times and attributes are read back and
+/// handed straight back so nothing but the length changes.
+fn truncate_to_zero(file: &mut RegularFile) -> Result<(), FileErr> {
+    let mut read_buf = [0u8; 512];
+    let (size, create, access, modify, attr) = match file.get_info::<FileInfo>(&mut read_buf) {
+        Ok(i) => (
+            i.file_size(),
+            *i.create_time(),
+            *i.last_access_time(),
+            *i.modification_time(),
+            i.attribute(),
+        ),
+        Err(_) => return Err(FileErr::Io),
+    };
+    if size == 0 {
+        // Freshly created, or a previous transfer that wrote nothing. There
+        // is no cluster chain to release, so there is nothing to do.
+        return Ok(());
+    }
+    let mut namebuf = [0u16; 32];
+    let name = cstr(STAGE_NAME, &mut namebuf)?;
+    let mut store = InfoBuf([0u64; 64]);
+    let bytes = store.bytes();
+    let info = FileInfo::new(bytes, 0, 0, create, access, modify, attr, name)
+        .map_err(|_| FileErr::FwError)?;
+    file.set_info(info).map_err(|_| FileErr::FwError)?;
+    // `SetInfo` does not move the file position, and a shortened file leaves
+    // it past the new end, where a write would re-extend the file with a hole
+    // of undefined bytes in front of the payload.
+    file.set_position(0).map_err(|_| FileErr::Io)
 }
 
 /// 512 bytes of 8-byte-aligned scratch for [`FileInfo::new`].

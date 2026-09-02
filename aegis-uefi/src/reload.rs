@@ -532,6 +532,18 @@ pub fn set_pointer(root: &mut Directory, key: &str, name: &str) -> Result<(), Fi
         };
         body.push_str(&format!("{k}={v}\n"));
     }
+    // A pointer that already says this is left alone. Every write here is a
+    // directory-entry delete plus a create on a filesystem with no journal,
+    // and the churn is not free: the `RM` path asks for the canonical name
+    // whether or not the pointer is already on it, and `PUT` of an artifact
+    // that failed and is retried asks for the same half twice. Skipping the
+    // no-op keeps those from costing entries, on QEMU's vvfat and on a vendor
+    // FAT driver alike. Compared byte for byte against what is on the volume,
+    // not against `names`, so a `CURRENT.TXT` that parses to the right answer
+    // but is malformed on disk still gets rewritten clean.
+    if read_pointer(root).as_deref() == Some(body.as_str()) {
+        return Ok(());
+    }
     files::write_small(root, CURRENT_NAME, body.as_bytes())
 }
 
