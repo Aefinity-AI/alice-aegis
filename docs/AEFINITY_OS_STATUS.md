@@ -764,6 +764,17 @@ not computed for a stopped run at all: a rate over a truncated pass is not the
 answer to `MEMBW <mib>`. Only `partial=0` with `err=none` claims the full-run
 checksum.
 
+**`partial` cannot carry that distinction on its own, and the job-level
+verdict does not ask it to.** A stop *before the first* window or MiB folded
+leaves `job.N.partial=0`, which is byte-identical to the `partial=0` a run
+that finished writes. Both `run_job` arms therefore read `job.N.err` — the
+`budget` slug, one `job::BUDGET_ERR` constant shared by the step that writes
+it and the arm that reads it — and never `partial`, so a step that scored
+nothing can never be filed under `verdict=OK`. §5 files a `verdict=OK` record
+as a *completed* unit, and an `nll_q16` folded over zero positions would
+otherwise have entered a `pool_digest` and an `AGREE` comparison as if it
+were an answer.
+
 ### What works under QEMU
 
 `cargo xtask lab-test` (design §7) boots one resident guest, `PUT`s a corpus
@@ -775,7 +786,22 @@ no value: `jobs=4`, every block carries `job.N.kind`, `job.2.pass=true`,
 and `merge_key` 16 lowercase hex, `verdict=OK`, `env=vm`; a corrupted-magic
 corpus ⇒ `job.N.err=bad-corpus`; `MEMBW 16` ⇒ a digest with
 `membw_mibs=n/a`; `STRICT on` with the bad receipt first ⇒ `verdict=FAIL
-verify` and `jobs=1`; then `REBOOT` → `BYE` → QEMU exits.
+verify` and `jobs=1`; a fifth job — `EVAL STOP.BIN 0:4` under `BUDGET 2`,
+where `STOP.BIN` is a 128 MiB container staged onto the ESP host-side ⇒
+`job.1.err=budget`, `job.1.partial=0`, `job.1.ntok=0`, `job.1.pass=false` and
+`verdict=FAIL budget`; then `REBOOT` → `BYE` → QEMU exits.
+
+That fifth job is the one place the gate leans on the guest being slower than
+a wall-clock bound, so it says how much room it has rather than hoping. The
+budget has to be spent *inside* the step — `run_job` refuses to **start** a
+step whose budget is already gone, so a stop before the first window can only
+come from the step's own setup outlasting it — and `lab::eval` writes
+`JOB: eval setup ready in <ms> ms` into `BOOTLOG.TXT` before its first window
+so the margin is in the log of every run. Measured on this box under TCG:
+5000 ms of setup against a 2000 ms budget, the 16 MiB container that preceded
+it measuring 1000 ms. Nothing is asserted about either number (Rule A); they
+are there so a host fast enough to close the gap reports it in the log instead
+of turning into a mystery.
 
 ### Untested on iron — the phase-5 list
 
@@ -792,12 +818,16 @@ Everything in §5 and §9 still stands. Phase 5 adds:
    against a 512-position model, so `W = min(2048, max_position_embeddings)`
    has only ever taken its second branch, and the per-window watchdog re-arm
    has never had to save a run.
-4. **`job.N.partial` from a real budget overrun.** The partial-accumulation
-   path — for `EVAL` at a window boundary and for `MEMBW` at a MiB boundary —
-   is reasoned from §5 and compiled; no gate provokes it, because a gate that
-   did would be timing something. The watchdog re-arms in `verifier::run`,
-   `lab::eval` and `lab::membw` are in the same position: they are called on
-   every run, but no run so far has been long enough to need one.
+4. **`job.N.partial` > 0 from a real budget overrun.** `lab-test` job 5 now
+   provokes the *zero* case — an `EVAL` the budget stopped before its first
+   window, which is the case whose `partial=0` reads like a completed run —
+   and the job-level `verdict=FAIL budget` that has to follow it. The
+   **accumulating** case is still untested: no run has folded `k > 0` windows
+   or MiB and then been stopped, so the prefix digest and the `nll` over
+   exactly those `k` windows are reasoned from §5 and compiled, not observed.
+   The watchdog re-arms in `verifier::run`, `lab::eval` and `lab::membw` are
+   in the same position: they are called on every run, but no run so far has
+   been long enough to need one.
 5. **`MEMBW` at a size that matters.** The gate asks for 16 MiB — enough to
    assert the digest and the gating, and enough that both passes cross sixteen
    chunk boundaries, but nowhere near enough to say anything about a memory

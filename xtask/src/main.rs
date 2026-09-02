@@ -3887,6 +3887,44 @@ const LAB_BUDGET_S: u64 = 5400;
 /// `MEMBW <mib>` the gate asks for. Small: the assertion is that a digest
 /// comes back and that the bandwidth field is gated, not how fast it was.
 const LAB_MEMBW_MIB: u32 = 16;
+/// The `BUDGET` job 5 runs its `EVAL` under, chosen so the budget is spent
+/// *inside* the step rather than before it.
+///
+/// `run_job` re-reads the clock at the top of every step and refuses to
+/// **start** one whose budget is already gone, so the only way to reach
+/// `lab::eval`'s own window-boundary check with nothing left is for the
+/// step's setup to outlast the budget. Two bounds have to hold at once:
+///
+/// * the step is *entered* — only one `BOOTLOG` line separates `run_job`'s
+///   clock read from the pre-step check, so the elapsed it sees is 0 and any
+///   budget ≥ 1 lets the step start;
+/// * the first window is *never reached* — the setup has to run past two
+///   whole seconds, which is why job 5 evaluates [`LAB_STOP_CORPUS_NTOK`]
+///   tokens' worth of container rather than `TINY.BIN`'s eight.
+///
+/// The firmware clock OVMF exposes ticks in whole seconds, so nothing finer
+/// than a second can be relied on here. `BOOTLOG.TXT`'s
+/// `JOB: eval setup ready in <ms> ms` line is the measured margin, written
+/// down by the run itself: if that number ever falls near this budget on some
+/// faster host, raise [`LAB_STOP_CORPUS_NTOK`], not this.
+const LAB_STOP_BUDGET_S: u64 = 2;
+/// Tokens in `STOP.BIN`, the corpus job 5 stops inside of — 128 MiB of
+/// payload.
+///
+/// `load_corpus` streams the **whole** payload before the first window: one
+/// sha256 over it and one bounds check per id, whatever `lo:hi` asks to
+/// score. That pass is the only part of `EVAL`'s setup that scales with
+/// anything the gate controls, so it is what puts the budget boundary inside
+/// the step. `EVAL STOP.BIN 0:4` still scores only four tokens, so a run that
+/// does *not* stop (the diagnosis for a too-small corpus) costs one window,
+/// not thirty-three million.
+///
+/// Calibrated, not guessed: on this box under TCG a 16 MiB container measured
+/// `eval setup ready in 1000 ms` and this one measures 5000 ms, against a
+/// 2 s budget. That margin is what the gate has; the guest writes the number
+/// into `BOOTLOG.TXT` on every run, so a host fast enough to shrink it says
+/// so in the log before the assertion fails.
+const LAB_STOP_CORPUS_NTOK: usize = 32 * 1024 * 1024;
 
 /// Build an `AEFCORP1` container (design §2.1) over `ids`.
 ///
@@ -3908,6 +3946,33 @@ fn lab_corpus(vocab_size: u32, ids: &[u32]) -> Vec<u8> {
     out.extend_from_slice(&sha256_raw(&payload));
     out.extend_from_slice(&payload);
     out
+}
+
+/// The same container, written straight onto the volume by repeating `ids`
+/// until it holds `ntok` tokens.
+///
+/// Streamed rather than returned: job 5's corpus is 128 MiB, and building it
+/// through [`lab_corpus`] would hold three copies of that in host memory on a
+/// 6 GB box to hand one of them back.
+fn lab_corpus_stage(path: &Path, vocab_size: u32, ids: &[u32], ntok: usize) -> Result<(), String> {
+    let fail = |e: std::io::Error| format!("staging {}: {e}", path.display());
+    let mut payload = Vec::with_capacity(ntok * 4);
+    for i in 0..ntok {
+        payload.extend_from_slice(&ids[i % ids.len()].to_le_bytes());
+    }
+    let mut header = Vec::with_capacity(64);
+    header.extend_from_slice(b"AEFCORP1");
+    header.extend_from_slice(&1u32.to_le_bytes());
+    header.extend_from_slice(&4u32.to_le_bytes());
+    header.extend_from_slice(&(ntok as u64).to_le_bytes());
+    header.extend_from_slice(&vocab_size.to_le_bytes());
+    header.extend_from_slice(&0u32.to_le_bytes());
+    header.extend_from_slice(&sha256_raw(&payload));
+    let f = fs::File::create(path).map_err(fail)?;
+    let mut w = std::io::BufWriter::new(f);
+    w.write_all(&header).map_err(fail)?;
+    w.write_all(&payload).map_err(fail)?;
+    w.flush().map_err(fail)
 }
 
 /// `vocab_size` out of a `MODEL.SAF`'s safetensors `__metadata__`.
@@ -3937,7 +4002,13 @@ fn model_vocab_size(bytes: &[u8]) -> Option<u32> {
 
 /// A `JOB … END` block for the wire out of a body fragment.
 fn lab_job_block(body: &str) -> String {
-    format!("JOB\nBUDGET {LAB_BUDGET_S}\n{body}END\n")
+    lab_job_block_budget(LAB_BUDGET_S, body)
+}
+
+/// The same, with a `BUDGET` of its own — for the one job that is *about* the
+/// budget running out.
+fn lab_job_block_budget(budget_s: u64, body: &str) -> String {
+    format!("JOB\nBUDGET {budget_s}\n{body}END\n")
 }
 
 fn lab_test(flags: &[&str]) -> Result<ExitCode, String> {
@@ -3970,6 +4041,7 @@ fn lab_test(flags: &[&str]) -> Result<ExitCode, String> {
     // job hook at all.
     for stray in [
         "TINY.BIN",
+        "STOP.BIN",
         "BADMAG.BIN",
         "GOOD.RCP",
         "BAD.RCP",
@@ -4027,6 +4099,20 @@ fn lab_test(flags: &[&str]) -> Result<ExitCode, String> {
     // A corpus whose only defect is its magic: design §7's `bad-corpus` case.
     let mut bad_corpus = corpus.clone();
     bad_corpus[0] = b'X';
+    // Job 5's corpus: the same eight legal ids, repeated until the streamed
+    // validation pass is long enough to outlast `LAB_STOP_BUDGET_S`. The ids
+    // are legal for this vocabulary for the same reason `TINY.BIN`'s are.
+    // Written onto the ESP directly rather than `PUT` down the socket: the
+    // assertion it serves is about `EVAL`'s budget, and phase 4's delivery
+    // path is already proved by the four fixtures above — sending 128 MiB a
+    // second time would only make the gate longer.
+    let stop_path = esp.dir.join("STOP.BIN");
+    lab_corpus_stage(&stop_path, vocab_size, &ids, LAB_STOP_CORPUS_NTOK)?;
+    println!(
+        "[3.5/4] staged STOP.BIN, {} tokens ({} MiB of payload)",
+        LAB_STOP_CORPUS_NTOK,
+        LAB_STOP_CORPUS_NTOK / (1024 * 1024 / 4)
+    );
 
     let extra = vec![
         "-netdev".to_string(),
@@ -4251,6 +4337,39 @@ fn lab_exchange(
         Some("1") => println!("   ok   the step behind the failure was not run (jobs=1)"),
         Some(v) => fail.push(format!("STRICT on ran {v} steps, expected 1")),
         None => fail.push("the STRICT record carries no jobs=".to_string()),
+    }
+
+    // ---- job 5: the budget runs out before EVAL's first window -----------
+    // A step the budget stopped is the *job's* verdict, not just the step's:
+    // design §5 files a `verdict=OK` record as a completed unit, and an
+    // `nll_q16` folded over zero scored positions must never be one. The case
+    // that is easy to get wrong is this one — the stop lands before any
+    // window folded, so `job.1.partial` reads 0, exactly as a completed
+    // EVAL's does, and only `job.1.err` tells them apart.
+    c.send(&lab_job_block_budget(
+        LAB_STOP_BUDGET_S,
+        "EVAL STOP.BIN 0:4\n",
+    ))?;
+    let body = c.read_result_within(hard, LAB_JOB_S)?;
+    println!("---- RESULT.TXT (job 5, BUDGET {LAB_STOP_BUDGET_S}) ----\n{body}---- end ----");
+    for (k, v) in [
+        ("jobs", "1"),
+        ("job.1.kind", "eval"),
+        ("job.1.err", "budget"),
+        ("job.1.partial", "0"),
+        ("job.1.ntok", "0"),
+        ("job.1.pass", "false"),
+        ("verdict", "FAIL budget"),
+    ] {
+        match record_value(&body, k) {
+            Some(got) if got == v => println!("   ok   {k}={got}"),
+            Some(got) => fail.push(format!(
+                "budget-stopped EVAL: {k} is {got:?}, expected {v:?}"
+            )),
+            None => fail.push(format!(
+                "budget-stopped EVAL: {k} is absent from the record"
+            )),
+        }
     }
 
     // ---- and out ---------------------------------------------------------
