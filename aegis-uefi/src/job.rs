@@ -926,7 +926,11 @@ impl ResultRecord {
             if let Some(v) = j.ntok {
                 s.push_str(&format!("job.{n}.ntok={v}\n"));
             }
-            if j.membw_mibs.is_some() {
+            // The key appears on every `membw` block whatever happened, so a
+            // reader never has to tell "absent because vm" from "absent
+            // because the step did not run" — but the *value* is only ever a
+            // number the box actually measured.
+            if j.kind == "membw" || j.membw_mibs.is_some() {
                 // Gated exactly like `tps` (design §3): a bandwidth number
                 // measured under TCG is meaningless, so the record says so
                 // rather than printing it and relying on someone reading

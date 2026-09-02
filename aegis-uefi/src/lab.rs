@@ -959,21 +959,17 @@ pub fn membw(mib: u64, rate_valid: bool) -> StepResult {
     sr.pass = Some(true);
     sr.err = Some(String::from("none"));
     sr.wall_ms = crate::job::wall_ms_between(w0, w1);
-    // Computed only where it may be quoted. On `env=vm` the field is `None`
-    // and the record prints `n/a`; on iron it is MiB/s over the wall clock the
-    // firmware reports.
+    // Computed only where it may be quoted, and only where there is something
+    // to quote: on `env=vm` this stays `None`, and on iron with a firmware
+    // whose clock did not move it stays `None` too, because a `0` there would
+    // be a bandwidth measurement of zero rather than the absence of one.
+    // `render` prints `n/a` for both, and prints the key on every `membw`
+    // block either way.
     sr.membw_mibs = if rate_valid && sr.wall_ms > 0 {
         Some(moved / (1 << 20) * 1000 / sr.wall_ms)
     } else {
         None
     };
-    // `membw_mibs` must appear on every `membw` block, `n/a` or not, so a
-    // reader never has to distinguish "absent because vm" from "absent
-    // because the step did not run". `Some(0)` is the marker that the field
-    // is in play; `render` prints `n/a` whenever `rate_valid` is false.
-    if sr.membw_mibs.is_none() {
-        sr.membw_mibs = Some(0);
-    }
     sr.detail = Some(format!(
         "touched {mib} MiB twice (write then read+fold), {} bytes moved",
         moved
