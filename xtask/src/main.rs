@@ -3510,12 +3510,18 @@ fn build_fat_image(esp_dir: &Path, img: &Path) -> Result<(), String> {
             String::from_utf8_lossy(&out.stderr).trim()
         ));
     }
-    // Copy the staged tree in. `-s` recurses, so EFI/BOOT/BOOTX64.EFI lands
-    // where the firmware looks for it.
-    let mut entries: Vec<PathBuf> = fs::read_dir(esp_dir)
-        .map_err(|e| format!("reading {}: {e}", esp_dir.display()))?
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .collect();
+    // Copy ONLY what this gate staged, by name. `target/esp/` is shared with
+    // the vvfat gates, and vvfat commits guest writes but not guest unlinks,
+    // so it leaves strays (e.g. a lowercase `vocab.bin`) that collide
+    // case-insensitively under mcopy and break this gate with an empty
+    // stderr. A whitelist keeps the raw-image gate hermetic. `-s` recurses,
+    // so EFI/BOOT/BOOTX64.EFI lands where the firmware looks for it.
+    let mut entries: Vec<PathBuf> = Vec::new();
+    for name in BOOT_ASSETS.iter().copied().chain(["JOB.TXT", "EFI"]) {
+        if let Some(p) = find_ci(esp_dir, name) {
+            entries.push(p);
+        }
+    }
     entries.sort();
     if entries.is_empty() {
         return Err(format!("{} is empty — nothing to boot", esp_dir.display()));
@@ -3747,6 +3753,31 @@ fn soak_verify(
         return Err(format!(
             "cycle {cycle}: LS shows a STAGE.PRT — a transfer committed and left its stage"
         ));
+    }
+    // No orphans: every LS entry must be a name this harness expects, a known
+    // A/B half of one, or a server-owned file. A stray entry that is not
+    // STAGE.PRT would otherwise survive every per-name SHA below unnoticed.
+    for x in &present {
+        let known = expect.iter().any(|(n, _, _)| n == x)
+            || expect.iter().any(|(n, _, _)| {
+                n.rsplit_once('.')
+                    .is_some_and(|(stem, _)| format!("{stem}.NEW") == *x)
+            })
+            || [
+                "BOOTLOG.TXT",
+                "RESULT.TXT",
+                "RESULT.WIP",
+                "CURRENT.TXT",
+                "JOB.TXT",
+                "EFI",
+                "BOOTX64.EFI",
+            ]
+            .contains(&x.as_str());
+        if !known {
+            return Err(format!(
+                "cycle {cycle}: LS shows an orphan entry {x:?} that no verb should have left"
+            ));
+        }
     }
 
     let mut checked = 0usize;
