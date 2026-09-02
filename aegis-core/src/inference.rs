@@ -1001,6 +1001,204 @@ impl<'a> TernaryInferenceEngine<'a> {
     /// read of it, so the replay overwrites the batch pass's cache in place.
     /// Diagnostic path — allocates a copy of the batch hidden states; never
     /// call it from the hot loop.
+    /// Final-norm + LM head over whatever is currently in
+    /// `arena.hidden_state`; returns the greedy token. Same three ops, in the
+    /// same order, that `process_intent` and `calculate_perplexity` already
+    /// use — sharing it is what lets the batched verify path and the
+    /// sequential path be compared for byte-identity rather than "closeness".
+    fn argmax_final(&mut self) -> u32 {
+        crate::ops::rmsnorm(
+            &mut self.arena.hidden_state,
+            self.pipeline.final_norm.data(),
+            self.config.rms_norm_eps,
+        );
+        crate::ops::f32_dot_argmax(
+            &mut self.arena.logits,
+            &self.arena.hidden_state,
+            self.pipeline.lm_head_bytes(),
+            self.config.vocab_size,
+            self.pipeline.hidden_dim,
+        )
+    }
+
+    /// The three turn terminators `process_intent` honours. `<|im_end|>` stays
+    /// an `Option` so a vocabulary without it never stops on a real id-0
+    /// token by accident.
+    fn stop_ids(&self) -> (u32, u32, Option<u32>) {
+        (
+            self.tokenizer.get_token_id("<|end_of_text|>").unwrap_or(0),
+            self.tokenizer.get_token_id("<|eot_id|>").unwrap_or(0),
+            self.tokenizer.get_token_id("<|im_end|>"),
+        )
+    }
+
+    #[inline]
+    fn is_stop(tok: u32, eos: u32, eot: u32, imend: Option<u32>) -> bool {
+        tok == eos || tok == eot || Some(tok) == imend
+    }
+
+    /// Load `arena.hidden_state` from row `row` of the last batched forward.
+    #[inline]
+    fn load_batch_row(&mut self, row: usize) {
+        let emb_dim = self.pipeline.hidden_dim;
+        let o = row * emb_dim;
+        self.arena
+            .hidden_state
+            .copy_from_slice(&self.arena.batch_hidden_state[o..o + emb_dim]);
+    }
+
+    /// Plain greedy decode: batched prefill, then one `forward_step` per
+    /// token. NO repetition penalty and no sampling — this is the reference
+    /// stream `speculative_decode` must reproduce byte for byte, so it must
+    /// contain nothing that speculation could not also reproduce.
+    ///
+    /// Stops on `<|end_of_text|>` / `<|eot_id|>` / `<|im_end|>` (the stop
+    /// token itself is never emitted), at `max_new_tokens`, or at the KV/RoPE
+    /// window — whichever comes first.
+    pub fn greedy_decode(&mut self, prompt_tokens: &[u32], max_new_tokens: usize) -> Vec<u32> {
+        let mut out = Vec::new();
+        let window = self.config.max_position_embeddings;
+        if prompt_tokens.is_empty() || max_new_tokens == 0 || window == 0 {
+            return out;
+        }
+        let prompt: &[u32] = if prompt_tokens.len() > window {
+            &prompt_tokens[prompt_tokens.len() - window..]
+        } else {
+            prompt_tokens
+        };
+
+        self.kv_cache.truncate(0);
+        self.forward_batch(prompt, 0, |_| {});
+        self.load_batch_row(prompt.len() - 1);
+        let mut next = self.argmax_final();
+        let mut pos = prompt.len();
+        let (eos, eot, imend) = self.stop_ids();
+
+        loop {
+            if Self::is_stop(next, eos, eot, imend) {
+                break;
+            }
+            out.push(next);
+            if out.len() >= max_new_tokens || pos >= window {
+                break;
+            }
+            self.forward_step(next, pos);
+            pos += 1;
+            next = self.argmax_final();
+        }
+        out
+    }
+
+    /// Prompt-lookup speculative decoding.
+    ///
+    /// Each round drafts up to `cfg.k` tokens with zero parameters — the
+    /// continuation of the most recent earlier occurrence of the context's
+    /// own suffix (see [`prompt_lookup_draft`]) — and verifies them in ONE
+    /// batched forward over `[current, draft_1..draft_K]` against the live KV
+    /// cache, reusing the `batch_size > 1` prefill path. A row is accepted
+    /// only when the model's own greedy token at that position equals the
+    /// draft, so the emitted stream is the greedy stream by construction; the
+    /// KV entries written for the rejected tail are rolled back with
+    /// [`KVCache::truncate`].
+    ///
+    /// Returns the tokens and the [`SpecDecodeStats`] counters. Rule A: the
+    /// headline is a COUNT (tokens per full-model pass), never a rate.
+    pub fn speculative_decode(
+        &mut self,
+        prompt_tokens: &[u32],
+        max_new_tokens: usize,
+        cfg: SpecDecodeConfig,
+    ) -> (Vec<u32>, SpecDecodeStats) {
+        let mut out = Vec::new();
+        let mut stats = SpecDecodeStats::default();
+        let window = self.config.max_position_embeddings;
+        if prompt_tokens.is_empty() || max_new_tokens == 0 || window == 0 {
+            return (out, stats);
+        }
+        let mut ctx: Vec<u32> = if prompt_tokens.len() > window {
+            prompt_tokens[prompt_tokens.len() - window..].to_vec()
+        } else {
+            prompt_tokens.to_vec()
+        };
+
+        self.kv_cache.truncate(0);
+        self.forward_batch(&ctx, 0, |_| {});
+        self.load_batch_row(ctx.len() - 1);
+        let mut next = self.argmax_final();
+        let mut pos = ctx.len();
+        let (eos, eot, imend) = self.stop_ids();
+
+        'emit: loop {
+            if Self::is_stop(next, eos, eot, imend) {
+                break;
+            }
+            out.push(next);
+            ctx.push(next);
+            if out.len() >= max_new_tokens || pos >= window {
+                break;
+            }
+
+            // Draft budget: never past the window, and never more rows than
+            // the caller could still emit (the round always yields row 0's
+            // own token on top of the accepted drafts).
+            let room_ctx = window - 1 - pos;
+            let room_budget = (max_new_tokens - out.len()).saturating_sub(1);
+            let cap = cfg.k.min(room_ctx).min(room_budget);
+            let draft = if cap == 0 {
+                Vec::new()
+            } else {
+                prompt_lookup_draft(&ctx, cap, cfg.ngram_min, cfg.ngram_max)
+            };
+
+            let mut batch = Vec::with_capacity(draft.len() + 1);
+            batch.push(next);
+            batch.extend_from_slice(&draft);
+            self.forward_batch(&batch, pos, |_| {});
+            stats.passes += 1;
+            stats.drafted += draft.len() as u64;
+
+            // Verify row by row, stopping at the first mismatch: a row past
+            // the first rejection is conditioned on a token the model did not
+            // choose, so its prediction is meaningless and its LM head is
+            // never evaluated.
+            let mut m = 0usize;
+            let nxt;
+            loop {
+                self.load_batch_row(m);
+                let p = self.argmax_final();
+                stats.lm_head_evals += 1;
+                if m < draft.len() && p == draft[m] {
+                    m += 1;
+                    continue;
+                }
+                nxt = p;
+                break;
+            }
+            stats.accepted += m as u64;
+            stats.committed += m as u64 + 1;
+
+            for &t in &draft[..m] {
+                if Self::is_stop(t, eos, eot, imend) {
+                    break 'emit;
+                }
+                out.push(t);
+                ctx.push(t);
+                if out.len() >= max_new_tokens {
+                    break 'emit;
+                }
+            }
+
+            // Rows 0..=m held the accepted tokens; everything above them was
+            // written by this pass for drafts the model rejected.
+            pos += m + 1;
+            self.kv_cache.truncate(pos);
+            next = nxt;
+        }
+
+        stats.emitted = out.len() as u64;
+        (out, stats)
+    }
+
     pub fn prefill_decode_parity(&mut self, tokens: &[u32]) -> f32 {
         let emb_dim = self.pipeline.hidden_dim;
         assert!(!tokens.is_empty(), "parity needs at least one token");
@@ -1024,4 +1222,110 @@ impl<'a> TernaryInferenceEngine<'a> {
         }
         max_diff
     }
+}
+
+// ---------------------------------------------------------------------------
+// Prompt-lookup speculative decoding (leg E-A)
+// ---------------------------------------------------------------------------
+
+/// Draft/verify knobs for [`TernaryInferenceEngine::speculative_decode`].
+#[derive(Clone, Copy, Debug)]
+pub struct SpecDecodeConfig {
+    /// Draft length: how many lookup tokens are appended to the verify batch.
+    /// The batched forward runs over `1 + k` rows.
+    pub k: usize,
+    /// Longest suffix (in tokens) tried when searching the context for a
+    /// previous occurrence.
+    pub ngram_max: usize,
+    /// Shortest suffix tried before giving up and drafting nothing.
+    pub ngram_min: usize,
+}
+
+impl Default for SpecDecodeConfig {
+    fn default() -> Self {
+        Self {
+            k: 4,
+            ngram_max: 3,
+            ngram_min: 1,
+        }
+    }
+}
+
+/// Counts from one `speculative_decode` call. Counts only — Rule A: no
+/// timing or throughput figure originates from this path.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SpecDecodeStats {
+    /// Batched verify forwards run (one full weight pass each). Prefill is
+    /// not counted here.
+    pub passes: u64,
+    /// Draft tokens appended to verify batches.
+    pub drafted: u64,
+    /// Draft tokens that matched the model's own greedy token and were
+    /// therefore committed without a dedicated forward pass.
+    pub accepted: u64,
+    /// Tokens determined by verify passes (`passes + accepted`): every pass
+    /// yields its own row-0 token plus whatever draft prefix it confirmed.
+    pub committed: u64,
+    /// LM-head evaluations (argmax over the vocabulary). One per verified
+    /// row: `accepted + passes`, i.e. equal to `committed`, kept separate so
+    /// the head cost of verification is never hidden inside "one pass".
+    pub lm_head_evals: u64,
+    /// Tokens actually returned to the caller (`committed` minus whatever a
+    /// stop token or the `max_new_tokens` budget cut off, plus the token the
+    /// prefill produced).
+    pub emitted: u64,
+}
+
+impl SpecDecodeStats {
+    /// Committed tokens per batched full-model pass. 1.0 = no better than
+    /// sequential decode. Returns 0.0 when no pass ran.
+    pub fn tokens_per_pass(&self) -> f64 {
+        if self.passes == 0 {
+            0.0
+        } else {
+            self.committed as f64 / self.passes as f64
+        }
+    }
+
+    /// Fraction of drafted tokens that were accepted. 0.0 when nothing was
+    /// drafted.
+    pub fn draft_acceptance(&self) -> f64 {
+        if self.drafted == 0 {
+            0.0
+        } else {
+            self.accepted as f64 / self.drafted as f64
+        }
+    }
+}
+
+/// Zero-parameter draft: the longest suffix of `ctx` (length `ngram_max` down
+/// to `ngram_min`) that occurred earlier in `ctx`, continued by up to `k` of
+/// the tokens that followed that earlier occurrence. The most RECENT earlier
+/// occurrence wins, which is what makes a repeated loop or a copied span
+/// draft itself. No match at any length -> empty draft, and the verify batch
+/// degenerates to a single row (exactly sequential decode).
+pub fn prompt_lookup_draft(ctx: &[u32], k: usize, ngram_min: usize, ngram_max: usize) -> Vec<u32> {
+    let mut out = Vec::new();
+    if k == 0 || ngram_min == 0 || ngram_max < ngram_min {
+        return out;
+    }
+    let len = ctx.len();
+    let mut n = ngram_max.min(len.saturating_sub(1));
+    while n >= ngram_min && n > 0 {
+        let pattern = &ctx[len - n..];
+        // Search backwards: the most recent earlier occurrence is the one a
+        // repetition is currently unrolling.
+        let mut i = len - n; // exclusive upper bound of candidate starts
+        while i > 0 {
+            i -= 1;
+            if &ctx[i..i + n] == pattern {
+                let start = i + n;
+                let end = (start + k).min(len);
+                out.extend_from_slice(&ctx[start..end]);
+                return out;
+            }
+        }
+        n -= 1;
+    }
+    out
 }
