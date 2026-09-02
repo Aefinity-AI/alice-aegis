@@ -1,0 +1,22 @@
+# leg E-A — prompt-lookup speculative decode gate
+# host: penguin (i5-10210U, Comet Lake, crosvm) — Rule A: counts only, no timing
+# scope: systemd --user CPUQuota=60% MemoryMax=1800M, heavy lane lock
+# date: 2026-09-02
+# corpus: /home/justinbrianthompson/projects/alice-aegis-ea/prompts/ea_natural.txt
+# available RAM at start (MB): 1969
+# engine commit: 6552fb1be0934df711988a4bfdf1b57a32dd718b
+
+== E-A specdecode gate ==
+tag              : bitnet2b_natural
+model            : /home/justinbrianthompson/projects/alice-aegis/aegis_pruned_model.safetensors
+config           : 30 layers, hidden 2560, heads 20/5, inter 6912, vocab 50256, window 2048, Relu2
+max_new_tokens   : 32
+K set            : [2, 4, 8]
+ngram_min/max    : 1/3
+
+prompts          : 20 from /home/justinbrianthompson/projects/alice-aegis-ea/prompts/ea_natural.txt
+
+prompt 00 | in   4 tok | ref out  32 tok | ref digest 02d4072689e7db7e
+   K=2  IDENTICAL | digest 02d4072689e7db7e | out  32 | passes   31 committed   31 drafted   16 accepted    0 lm_head   31 | tok/pass 1.0000
+   K=4  IDENTICAL | digest 02d4072689e7db7e | out  32 | passes   31 committed   31 drafted   29 accepted    0 lm_head   31 | tok/pass 1.0000
+   K=8  IDENTICAL | digest 02d4072689e7db7e | out  32 | passes   31 committed   31 drafted   39 accepted    0 lm_head   31 | tok/pass 1.0000

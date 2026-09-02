@@ -290,3 +290,62 @@ fn lookup_draft_is_clipped_to_the_context_end_and_may_overlap_the_pattern() {
     // A shorter draft budget clips the same continuation.
     assert_eq!(prompt_lookup_draft(&ctx, 2, 1, 3), vec![3, 1]);
 }
+
+#[test]
+fn streams_agree_at_the_context_window_edge() {
+    // A prompt that leaves only a handful of positions before the KV/RoPE
+    // window ends: both paths must stop at the same place, and the drafter
+    // must never propose a row past the window. An off-by-one in the draft
+    // budget shows up here and nowhere else.
+    let (embed, model, vocab) = engine();
+    let mut eng = TernaryInferenceEngine::new(&embed, &model, &vocab).expect("synthetic model");
+    for tail in [1usize, 2, 5, 9] {
+        let prompt: Vec<u32> = (0..(MAX_SEQ - tail) as u32).map(|i| i % 20).collect();
+        let reference = eng.greedy_decode(&prompt, 64);
+        for k in [1usize, 2, 4, 8] {
+            let (spec, stats) = eng.speculative_decode(
+                &prompt,
+                64,
+                SpecDecodeConfig {
+                    k,
+                    ngram_max: 3,
+                    ngram_min: 1,
+                },
+            );
+            assert_eq!(
+                spec, reference,
+                "window edge (tail {}) diverged at K={}",
+                tail, k
+            );
+            // Positions consumed is at most the window. The final token is
+            // predicted from the last occupied position and emitted without
+            // ever being fed, so the TOKEN count may exceed the window by
+            // exactly one; anything beyond that is an off-by-one.
+            assert!(
+                prompt.len() + spec.len() <= MAX_SEQ + 1,
+                "generation ran past the window: {} + {}",
+                prompt.len(),
+                spec.len()
+            );
+            assert_eq!(stats.committed, stats.passes + stats.accepted);
+        }
+    }
+}
+
+#[test]
+fn an_over_long_prompt_is_truncated_the_same_way_by_both_paths() {
+    let (embed, model, vocab) = engine();
+    let mut eng = TernaryInferenceEngine::new(&embed, &model, &vocab).expect("synthetic model");
+    let prompt: Vec<u32> = (0..(MAX_SEQ as u32 + 17)).map(|i| i % 19).collect();
+    let reference = eng.greedy_decode(&prompt, 8);
+    let (spec, _) = eng.speculative_decode(
+        &prompt,
+        8,
+        SpecDecodeConfig {
+            k: 4,
+            ngram_max: 3,
+            ngram_min: 1,
+        },
+    );
+    assert_eq!(spec, reference, "over-long prompt handled differently");
+}
