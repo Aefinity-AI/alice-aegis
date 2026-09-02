@@ -24,7 +24,6 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use aegis_core::inference::TernaryInferenceEngine;
 use uefi::proto::media::file::Directory;
 
 /// Whole-job wall budget when `JOB.TXT` does not say (spec §2).
@@ -134,6 +133,11 @@ pub enum Step {
     Bench { tokens: usize },
     /// `NETCHECK host:port` — phase 1a. Recorded now, executed there.
     NetCheck { target: String },
+    /// `CPUID` — identity/leaf dump. No measurement (design §2).
+    Cpuid,
+    /// `VERIFY <NAME>` — replay a witness receipt through
+    /// [`crate::verifier::run`] (design §2).
+    Verify { name: String },
     /// `MECH` — the diagnostic block of [`crate::lab::mech`], as a directive.
     ///
     /// **Moved last by the dispatcher regardless of file order** (design §2):
@@ -400,6 +404,30 @@ pub fn parse(body: &str) -> Job {
                 } else {
                     understood = false;
                     job.unknown.push(format!("STRICT {rest:?} (want on|off)"));
+                }
+            }
+            "CPUID" => {
+                // Argument-free, like `MECH`.
+                if rest.is_empty() {
+                    job.steps.push(Step::Cpuid);
+                } else {
+                    understood = false;
+                    job.unknown
+                        .push(format!("CPUID {rest:?} (takes no argument)"));
+                }
+            }
+            "VERIFY" => {
+                // The `<NAME>` is validated by `files.rs`'s rules when the
+                // step runs, not here: a parse that rejected it would turn a
+                // typo into an ignored directive instead of a `job.N.err` the
+                // controller can read.
+                if rest.is_empty() {
+                    understood = false;
+                    job.unknown.push(String::from("VERIFY (empty name)"));
+                } else {
+                    job.steps.push(Step::Verify {
+                        name: rest.to_string(),
+                    });
                 }
             }
             "MECH" => {
@@ -1361,6 +1389,13 @@ pub fn run_job(
         );
     }
 
+    // The watchdog window this job is running under. Every lab step re-arms
+    // it as it makes progress (design §8): a long `VERIFY` or a 2048-token
+    // `EVAL` window can outlast the interval that was armed when the job
+    // started, and a healthy box that is still working must not be reset for
+    // taking a while.
+    let wd_window = job.budget_s.saturating_add(WATCHDOG_MARGIN_S);
+
     // Design §2: MECH is moved **last by the dispatcher regardless of file
     // order**. `job.N` numbering follows dispatch order, which is also what
     // §3.1 serialises into `merge_key`, so the key describes what was run.
@@ -1443,6 +1478,41 @@ pub fn run_job(
                 if !ok {
                     rec.fail("netcheck");
                 }
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
+                }
+                continue;
+            }
+            Step::Cpuid => {
+                crate::boot_log(root, &format!("JOB: step {n} CPUID"));
+                let sr = crate::lab::cpuid(rate_valid);
+                crate::boot_log(
+                    root,
+                    &format!("JOB: step {n} cpuid {}", sr.detail.as_deref().unwrap_or("")),
+                );
+                rec.steps.push(sr);
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
+                }
+                continue;
+            }
+            Step::Verify { name } => {
+                crate::boot_log(root, &format!("JOB: step {n} VERIFY {name}"));
+                write_progress_record(&rec, root, n);
+                let w0 = crate::wall_seconds();
+                let mut rearm = move || {
+                    arm_watchdog(wd_window);
+                };
+                let mut sr = crate::lab::verify(root, &*slot, name, rate_valid, &mut rearm);
+                sr.wall_ms = wall_ms_between(w0, crate::wall_seconds());
+                crate::boot_log(
+                    root,
+                    &format!(
+                        "JOB: step {n} verify pass={:?} items={:?} err={:?} digest={}",
+                        sr.pass, sr.items, sr.err, sr.digest
+                    ),
+                );
+                rec.steps.push(sr);
                 if strict_stop(job, &mut rec, root, n) {
                     break;
                 }
@@ -1661,7 +1731,7 @@ fn strict_stop(job: &Job, rec: &mut ResultRecord, root: &mut Directory, n: usize
 
 /// Milliseconds between two `wall_seconds()` readings, or `0` when the
 /// firmware has no usable clock. Never negative and never a guess.
-fn wall_ms_between(w0: Option<f64>, w1: Option<f64>) -> u64 {
+pub(crate) fn wall_ms_between(w0: Option<f64>, w1: Option<f64>) -> u64 {
     match (w0, w1) {
         (Some(a), Some(b)) if b >= a => ((b - a) * 1000.0) as u64,
         _ => 0,

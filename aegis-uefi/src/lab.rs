@@ -18,9 +18,16 @@
 //! performance figure and never becomes one.
 
 use alloc::format;
+use alloc::string::String;
+use alloc::vec::Vec;
+
+use core::arch::x86_64::{__cpuid, __cpuid_count};
 
 use aegis_core::inference::TernaryInferenceEngine;
 use uefi::proto::media::file::Directory;
+
+use crate::files::FileErr;
+use crate::job::StepResult;
 
 // ---------------------------------------------------------------------------
 // MECH (design §2: `MECH`, moved last by the dispatcher)
@@ -223,4 +230,224 @@ pub fn mech(root: &mut Directory, engine: &mut TernaryInferenceEngine<'_>) {
 
         crate::boot_log(root, "==== MECH DONE ====");
     }
+}
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+/// Mark a step failed with a §1.3 slug and a human line, and stop.
+///
+/// `pass=false` and a slug together are what a scheduler reads: `pass` says
+/// the step did not succeed, the slug says whether that is the job's fault
+/// (`bad-corpus`, `bad-args`) or the box's (`io`, `fw-error`).
+fn fail_step(mut sr: StepResult, slug: &str, why: &str) -> StepResult {
+    sr.pass = Some(false);
+    sr.err = Some(String::from(slug));
+    sr.partial = Some(0);
+    sr.detail = Some(String::from(why));
+    sr
+}
+
+/// Read a whole file from the boot volume root through the phase-4 streaming
+/// reader and its DMA-reachable bounce buffer, capped at `max` bytes.
+///
+/// The cap is checked against the file's own size **before** any bytes are
+/// pulled, so an oversized file costs one `open` and no memory. `rearm` is
+/// called once per chunk (design §8).
+fn read_file(
+    root: &mut Directory,
+    name: &str,
+    max: u64,
+    rearm: &mut dyn FnMut(),
+) -> Result<Vec<u8>, FileErr> {
+    let mut bounce = crate::files::Bounce::new().ok_or(FileErr::Io)?;
+    let mut reader = crate::files::Reader::open(root, name)?;
+    if reader.size > max {
+        reader.close();
+        return Err(FileErr::BadLen);
+    }
+    let mut out = Vec::with_capacity(reader.size as usize);
+    loop {
+        rearm();
+        match reader.next(bounce.buf()) {
+            Ok(0) => break,
+            Ok(n) => out.extend_from_slice(&bounce.buf()[..n]),
+            Err(e) => {
+                reader.close();
+                return Err(e);
+            }
+        }
+    }
+    reader.close();
+    Ok(out)
+}
+
+/// Decode 64 lowercase hex characters into the 32 bytes they name.
+///
+/// [`crate::reload::Digests`] stores the artifact hashes as hex because that
+/// is what every record and every `HEALTH` reply quotes; `WitnessHeader` wants
+/// the bytes. Re-hashing 1.83 GB to get them back would be absurd, so this
+/// inverts the rendering instead. `None` on anything that is not 64 hex.
+fn unhex32(s: &str) -> Option<[u8; 32]> {
+    if s.len() != 64 {
+        return None;
+    }
+    let b = s.as_bytes();
+    let mut out = [0u8; 32];
+    for (i, o) in out.iter_mut().enumerate() {
+        let hi = (b[i * 2] as char).to_digit(16)?;
+        let lo = (b[i * 2 + 1] as char).to_digit(16)?;
+        *o = (hi * 16 + lo) as u8;
+    }
+    Some(out)
+}
+
+// ---------------------------------------------------------------------------
+// CPUID (design §2)
+// ---------------------------------------------------------------------------
+
+/// `CPUID` — identity and leaf dump, no measurement.
+///
+/// The cheapest directive there is, and the one a fleet needs first: a
+/// `merge_key` deliberately excludes `cpu_brand` (§3.1) so that two *different*
+/// CPUs can share one, and `AGREE` is defined as identical digests from
+/// **different** `cpuid_sig`s (§5). Something has to carry the identity the
+/// comparison is about, and this is it.
+///
+/// Everything below is a register read. `pass` is always `true`: CPUID is
+/// architecturally present on every CPU this unikernel can boot on, so there
+/// is no failure to report — an absent extended leaf is reported as absent,
+/// which is a fact about the silicon, not an error.
+pub fn cpuid(rate_valid: bool) -> StepResult {
+    let mut sr = StepResult::lab("cpuid", rate_valid);
+    let mut vendor_buf = [0u8; 12];
+    let vendor = crate::cpu::vendor_string(&mut vendor_buf);
+    let mut brand_buf = [0u8; 48];
+    let brand = crate::cpu::brand_string(&mut brand_buf);
+    let (family, model, stepping) = crate::cpu::family_model_stepping();
+    let (avx2, fma, sse2) = crate::cpu::identity_feats();
+
+    // Leaf 0 reports the highest basic leaf; leaf 0x8000_0000 the highest
+    // extended one. Both are architecturally defined, and `__cpuid` is a
+    // register read with no memory operand — safe on this target.
+    let l0 = __cpuid(0);
+    let l1 = __cpuid(1);
+    let lx = __cpuid(0x8000_0000);
+    let l7 = if l0.eax >= 7 {
+        __cpuid_count(7, 0)
+    } else {
+        core::arch::x86_64::CpuidResult {
+            eax: 0,
+            ebx: 0,
+            ecx: 0,
+            edx: 0,
+        }
+    };
+    let lx1 = if lx.eax >= 0x8000_0001 {
+        __cpuid(0x8000_0001)
+    } else {
+        core::arch::x86_64::CpuidResult {
+            eax: 0,
+            ebx: 0,
+            ecx: 0,
+            edx: 0,
+        }
+    };
+
+    let detail = format!(
+        "vendor={vendor} brand=\"{brand}\" family={family} model={model} stepping={stepping} \
+         env={env} sig={sig:08x} maxleaf={maxb:x}/{maxe:x} \
+         l1.ebx={l1ebx:08x} l1.ecx={l1ecx:08x} l1.edx={l1edx:08x} \
+         l7_0.ebx={l7ebx:08x} l7_0.ecx={l7ecx:08x} l7_0.edx={l7edx:08x} \
+         l8000_0001.ecx={x1ecx:08x} l8000_0001.edx={x1edx:08x} \
+         feats=<avx2:{a},fma:{f},sse2:{s}>",
+        env = crate::sysinfo::env().as_str(),
+        sig = l1.eax,
+        maxb = l0.eax,
+        maxe = lx.eax,
+        l1ebx = l1.ebx,
+        l1ecx = l1.ecx,
+        l1edx = l1.edx,
+        l7ebx = l7.ebx,
+        l7ecx = l7.ecx,
+        l7edx = l7.edx,
+        x1ecx = lx1.ecx,
+        x1edx = lx1.edx,
+        a = avx2 as u8,
+        f = fma as u8,
+        s = sse2 as u8,
+    );
+
+    sr.pass = Some(true);
+    sr.err = Some(String::from("none"));
+    sr.items = Some(1);
+    sr.partial = Some(0);
+    // `escape_capped` at `DETAIL_MAX` happens in `ResultRecord::render`; the
+    // string is stored raw so the cap is applied in exactly one place.
+    sr.detail = Some(detail);
+    // §3.1: `cpuid` has an empty `<step-input>` — the dump is an output, and
+    // putting it in the key would mean two boxes could never share one, which
+    // is the opposite of what the key is for.
+    sr.merge_input = Some(String::new());
+    sr
+}
+
+// ---------------------------------------------------------------------------
+// VERIFY (design §2)
+// ---------------------------------------------------------------------------
+
+/// A receipt is a text file of a few KiB. This is the ceiling a `VERIFY` will
+/// read; anything larger is not a witness v1 receipt and is refused before the
+/// bytes are pulled off the volume.
+const RECEIPT_MAX_BYTES: u64 = 1 << 20;
+
+/// `VERIFY <NAME>` — replay a witness receipt through [`crate::verifier::run`].
+///
+/// The file arrives by `PUT` (phase 4) and the name goes through
+/// [`crate::files::validate_name`], so `LAB` composes with `FILES` without
+/// either knowing about the other. The verification itself is unchanged
+/// machinery: the same `verifier::run` the boot-time `RECEIPT.TXT` path has
+/// used since the Provable AI Kit, against the **resident** artifact slices —
+/// the bytes the engine is actually holding, never a re-read from FAT.
+pub fn verify(
+    root: &mut Directory,
+    slot: &crate::reload::EngineSlot<'_>,
+    name: &str,
+    rate_valid: bool,
+    rearm: &mut dyn FnMut(),
+) -> StepResult {
+    let mut sr = StepResult::lab("verify", rate_valid);
+    let name = match crate::files::validate_name(name) {
+        Ok(n) => n,
+        Err(e) => return fail_step(sr, e.slug(), "the receipt name is not a legal <NAME>"),
+    };
+    // Provisional `<step-input>`: §3.1's form needs the receipt's own digest,
+    // which a step that could not read the file does not have. The name alone
+    // is what it can honestly serialise.
+    sr.merge_input = Some(name.clone());
+    let bytes = match read_file(root, &name, RECEIPT_MAX_BYTES, rearm) {
+        Ok(b) => b,
+        Err(e) => return fail_step(sr, e.slug(), "could not read the receipt"),
+    };
+    // §3.1: `verify` → `<NAME>:<receipt file 64hex>`. The digest is over the
+    // bytes actually replayed, so a controller cannot swap a receipt under a
+    // name and have two records still look like replications.
+    let receipt_sha = crate::files::hex64(&aegis_core::witness::sha256(&bytes));
+    sr.merge_input = Some(format!("{name}:{receipt_sha}"));
+
+    let (model, embed, vocab) = slot.slices();
+    let verdict = crate::verifier::run(model, embed, vocab, &bytes);
+    sr.pass = Some(verdict.pass);
+    sr.items = Some(verdict.items);
+    sr.partial = Some(0);
+    // A `VERIFY` that ran and said FAIL is a *result*, not a fault of the box:
+    // §1.3's slugs describe an unhealthy box, and this box is healthy. So the
+    // slug stays `none` and the verdict lives in `pass`.
+    sr.err = Some(String::from("none"));
+    if let Some(d) = verdict.digest {
+        sr.digest = d;
+    }
+    sr.detail = Some(verdict.detail);
+    sr
 }

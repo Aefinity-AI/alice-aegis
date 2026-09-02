@@ -26,6 +26,29 @@ pub struct Verdict {
     /// Human-readable transcript of the verification, console- and
     /// BOOTLOG-ready.
     pub detail: String,
+    /// Decode steps actually replayed. `AEFINITY OS` renders it as
+    /// `job.N.items` (design §3) — a `VERIFY` that refused the receipt before
+    /// the replay reports `0`, which is the difference between "disagreed
+    /// after 64 steps" and "would not start".
+    pub items: u64,
+    /// The full 64-hex chained SHA-256 this machine computed over the replay,
+    /// when there was one. `None` when the receipt never reached the replay
+    /// (bad UTF-8, unparseable, artifact mismatch, model that would not
+    /// build), because there is no digest to report and a zero one would be a
+    /// claim. Rendered as `job.N.digest`.
+    pub digest: Option<String>,
+}
+
+impl Verdict {
+    /// A refusal that never reached the replay: no steps, no digest.
+    fn refused(detail: String) -> Verdict {
+        Verdict {
+            pass: false,
+            detail,
+            items: 0,
+            digest: None,
+        }
+    }
 }
 
 fn hex32(d: &[u8; 32]) -> String {
@@ -114,19 +137,13 @@ pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Ve
     let text = match core::str::from_utf8(receipt_bytes) {
         Ok(t) => t,
         Err(_) => {
-            return Verdict {
-                pass: false,
-                detail: String::from("RECEIPT.TXT is not valid UTF-8"),
-            };
+            return Verdict::refused(String::from("RECEIPT.TXT is not valid UTF-8"));
         }
     };
     let r = match parse_receipt(text) {
         Some(r) => r,
         None => {
-            return Verdict {
-                pass: false,
-                detail: String::from("RECEIPT.TXT does not parse as witness v1"),
-            };
+            return Verdict::refused(String::from("RECEIPT.TXT does not parse as witness v1"));
         }
     };
 
@@ -147,10 +164,7 @@ pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Ve
                 &claimed[..16.min(claimed.len())],
                 &local[..16]
             );
-            return Verdict {
-                pass: false,
-                detail: d,
-            };
+            return Verdict::refused(d);
         }
     }
     let _ = writeln!(d, "artifacts: 3/3 hashes match the receipt");
@@ -161,10 +175,7 @@ pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Ve
         Ok(t) => t,
         Err(_) => {
             d.push_str("FAIL: MODEL.SAF did not parse");
-            return Verdict {
-                pass: false,
-                detail: d,
-            };
+            return Verdict::refused(d);
         }
     };
     let config = match tensors
@@ -176,30 +187,21 @@ pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Ve
         Some(c) => c,
         None => {
             d.push_str("FAIL: MODEL.SAF carries no parseable aegis_config");
-            return Verdict {
-                pass: false,
-                detail: d,
-            };
+            return Verdict::refused(d);
         }
     };
     let pipeline = match FullBitNetPipeline::new(&tensors, embed, &config) {
         Ok(p) => p,
         Err(_) => {
             d.push_str("FAIL: pipeline build");
-            return Verdict {
-                pass: false,
-                detail: d,
-            };
+            return Verdict::refused(d);
         }
     };
     let cis_model = match CisModel::new(&pipeline, &config) {
         Ok(m) => m,
         Err(_) => {
             d.push_str("FAIL: CIS model conversion");
-            return Verdict {
-                pass: false,
-                detail: d,
-            };
+            return Verdict::refused(d);
         }
     };
     let mut engine = CisEngine::new_with_mode(&cis_model, CisMode::FullInt);
@@ -208,19 +210,13 @@ pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Ve
         Ok(t) => t,
         Err(_) => {
             d.push_str("FAIL: VOCAB.BIN did not parse");
-            return Verdict {
-                pass: false,
-                detail: d,
-            };
+            return Verdict::refused(d);
         }
     };
     let prompt_ids = tokenizer.encode(&r.prompt);
     if prompt_ids.is_empty() || prompt_ids.len() + r.maxtok > config.max_position_embeddings {
         d.push_str("FAIL: prompt empty or exceeds context");
-        return Verdict {
-            pass: false,
-            detail: d,
-        };
+        return Verdict::refused(d);
     }
 
     let header = WitnessHeader {
@@ -277,6 +273,8 @@ pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Ve
         Verdict {
             pass: true,
             detail: d,
+            items: generated.len() as u64,
+            digest: Some(local_chain),
         }
     } else {
         if generated != r.token_ids {
@@ -287,6 +285,8 @@ pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Ve
         Verdict {
             pass: false,
             detail: d,
+            items: generated.len() as u64,
+            digest: Some(local_chain),
         }
     }
 }
