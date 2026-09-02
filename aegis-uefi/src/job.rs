@@ -141,6 +141,10 @@ pub enum Step {
     /// `EVAL <NAME> <lo>:<hi>` — exact-integer NLL over the token slice
     /// `[lo, hi)` of an `AEFCORP1` corpus on the volume (design §2.1).
     Eval { name: String, lo: u64, hi: u64 },
+    /// `MEMBW <mib>` — a deterministic touch pattern over `<mib>` MiB
+    /// (design §2). The checksum is comparable across boxes; the bandwidth
+    /// number is gated exactly like `tps`.
+    MemBw { mib: u64 },
     /// `MECH` — the diagnostic block of [`crate::lab::mech`], as a directive.
     ///
     /// **Moved last by the dispatcher regardless of file order** (design §2):
@@ -439,6 +443,14 @@ pub fn parse(body: &str) -> Job {
                     understood = false;
                     job.unknown
                         .push(format!("EVAL {rest:?} (want <NAME> <lo>:<hi>, lo < hi)"));
+                }
+            },
+            "MEMBW" => match rest.parse::<u64>() {
+                Ok(v) if v > 0 => job.steps.push(Step::MemBw { mib: v }),
+                _ => {
+                    understood = false;
+                    job.unknown
+                        .push(format!("MEMBW {rest:?} (not a positive integer)"));
                 }
             },
             "MECH" => {
@@ -1575,6 +1587,23 @@ pub fn run_job(
                     &format!(
                         "JOB: step {n} eval nll_q16={:?} ntok={:?} partial={:?} err={:?}",
                         sr.nll_q16, sr.ntok, sr.partial, sr.err
+                    ),
+                );
+                rec.steps.push(sr);
+                if strict_stop(job, &mut rec, root, n) {
+                    break;
+                }
+                continue;
+            }
+            Step::MemBw { mib } => {
+                crate::boot_log(root, &format!("JOB: step {n} MEMBW {mib}"));
+                write_progress_record(&rec, root, n);
+                let sr = crate::lab::membw(*mib, rate_valid);
+                crate::boot_log(
+                    root,
+                    &format!(
+                        "JOB: step {n} membw digest={} err={:?} rate_valid={rate_valid}",
+                        sr.digest, sr.err
                     ),
                 );
                 rec.steps.push(sr);

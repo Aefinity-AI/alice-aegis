@@ -876,3 +876,107 @@ fn load_corpus(
         tokens,
     })
 }
+
+// ---------------------------------------------------------------------------
+// MEMBW (design §2, §3)
+// ---------------------------------------------------------------------------
+
+/// Hard ceiling on `MEMBW <mib>`, independent of how much memory is free.
+const MEMBW_MAX_MIB: u64 = 4096;
+/// `u64` words in one MiB.
+const WORDS_PER_MIB: u64 = (1 << 20) / 8;
+/// The pattern's odd multiplier (the 64-bit golden ratio). Odd, so the map
+/// `i -> i * K` is a bijection on `u64` and no two words share a value by
+/// construction — a checksum over it therefore witnesses *every* word.
+const MEMBW_K: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// `MEMBW <mib>` — a deterministic touch pattern over `<mib>` MiB.
+///
+/// Two facts come out of this, and they are gated differently on purpose
+/// (design §3):
+///
+/// * `job.N.digest` is the checksum of the touched pattern. It depends only
+///   on `mib`, so it **is** comparable across boxes: two boxes that disagree
+///   here disagree about arithmetic or about memory, and that is a finding.
+///   It is always emitted.
+/// * `job.N.membw_mibs` is a bandwidth number, and is gated exactly like
+///   `tps`: `n/a` unless `rate_valid` — which is `false` on every `env=vm`
+///   record. A MiB/s figure taken under TCG models no cache hierarchy and no
+///   memory latency, and CLAUDE.md Rule A forbids recording it at all.
+///
+/// The pattern is a sequential write pass followed by a sequential read pass
+/// that folds the checksum. Sequential is the honest shape for a bandwidth
+/// probe — it is what a streaming kernel does — and the read pass consumes
+/// the write pass, so neither can be optimised away without changing the
+/// digest.
+pub fn membw(mib: u64, rate_valid: bool) -> StepResult {
+    let mut sr = StepResult::lab("membw", rate_valid);
+    // §3.1: `membw` → `<mib decimal>`.
+    sr.merge_input = Some(format!("{mib}"));
+    if mib == 0 || mib > MEMBW_MAX_MIB {
+        return fail_step(sr, FileErr::BadArgs.slug(), "mib must be 1..=MEMBW_MAX_MIB");
+    }
+    let bytes = mib << 20;
+    // Bounded by free memory, and by half of it rather than all: this box is
+    // also holding a 1.83 GB engine and a listener, and a `MEMBW` that
+    // succeeded by exhausting the pool would take the box out to answer one
+    // directive.
+    let free = crate::server::free_pool_bytes();
+    if free != 0 && bytes > free / 2 {
+        return fail_step(
+            sr,
+            FileErr::BadArgs.slug(),
+            "mib is over half of the free conventional memory",
+        );
+    }
+    let words = (mib * WORDS_PER_MIB) as usize;
+    let mut buf: Vec<u64> = Vec::new();
+    if buf.try_reserve_exact(words).is_err() {
+        return fail_step(
+            sr,
+            FileErr::BadArgs.slug(),
+            "the allocator refused a buffer that size",
+        );
+    }
+
+    let w0 = crate::wall_seconds();
+    for i in 0..words {
+        buf.push((i as u64).wrapping_mul(MEMBW_K));
+    }
+    let mut fold: u64 = aegis_core::cis_infer::FNV1A64_OFFSET;
+    for &v in buf.iter() {
+        fold = aegis_core::cis_infer::fnv1a64(fold, &v.to_le_bytes());
+    }
+    let w1 = crate::wall_seconds();
+    drop(buf);
+
+    // Both passes moved `bytes`; the number below is what was touched, not
+    // what a benchmark would quote.
+    let moved = bytes.saturating_mul(2);
+    sr.digest = format!("{fold:016x}");
+    sr.items = Some(mib);
+    sr.partial = Some(0);
+    sr.pass = Some(true);
+    sr.err = Some(String::from("none"));
+    sr.wall_ms = crate::job::wall_ms_between(w0, w1);
+    // Computed only where it may be quoted. On `env=vm` the field is `None`
+    // and the record prints `n/a`; on iron it is MiB/s over the wall clock the
+    // firmware reports.
+    sr.membw_mibs = if rate_valid && sr.wall_ms > 0 {
+        Some(moved / (1 << 20) * 1000 / sr.wall_ms)
+    } else {
+        None
+    };
+    // `membw_mibs` must appear on every `membw` block, `n/a` or not, so a
+    // reader never has to distinguish "absent because vm" from "absent
+    // because the step did not run". `Some(0)` is the marker that the field
+    // is in play; `render` prints `n/a` whenever `rate_valid` is false.
+    if sr.membw_mibs.is_none() {
+        sr.membw_mibs = Some(0);
+    }
+    sr.detail = Some(format!(
+        "touched {mib} MiB twice (write then read+fold), {} bytes moved",
+        moved
+    ));
+    sr
+}

@@ -166,12 +166,12 @@ const XFER_SEND_MS: u64 = 30_000;
 
 /// The capability token in the READY banner (design §1).
 ///
-/// §1 fixes the banner as `caps=files,lab`. This build ships **`files` only**:
-/// phase 5 has not landed, and a box that advertises `lab` before `lab.rs`
-/// exists would be telling a scheduler it can take `EVAL` work it will answer
-/// `ERR unknown` to. Phase 5 changes this one constant. Recorded in
-/// `docs/AEFINITY_OS_STATUS.md` as a deliberate deviation.
-const CAPS: &str = "files";
+/// §1 fixes the banner as `caps=files,lab`. Phase 5 landed `lab.rs`, so the
+/// second token is now true: this box answers `CPUID`, `VERIFY`, `EVAL`,
+/// `MEMBW` and `MECH` as `JOB.TXT` directives rather than `ERR unknown`.
+/// Phase 4 shipped `files` alone and said so here, for exactly the reason the
+/// token exists — a box must not tell a scheduler it can take work it cannot.
+const CAPS: &str = "files,lab";
 
 // ---------------------------------------------------------------------------
 // Entry point (spec §5)
@@ -1102,7 +1102,7 @@ fn do_health(net: &mut Net, conn: &TcpHandle, srv: &mut Srv<'_, '_>) -> Step {
 /// A fact about the box, not a measurement (Rule A): design §4.2 sizes the
 /// listener buffers at 640 KiB of pool while a client is connected and says
 /// the cost is visible here, so it has to be visible here.
-fn free_pool_bytes() -> u64 {
+pub(crate) fn free_pool_bytes() -> u64 {
     use uefi::mem::memory_map::MemoryMap;
     let Ok(map) = uefi::boot::memory_map(uefi::boot::MemoryType::LOADER_DATA) else {
         return 0;
