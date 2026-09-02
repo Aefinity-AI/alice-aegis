@@ -3926,24 +3926,31 @@ const LAB_STOP_BUDGET_S: u64 = 2;
 /// so in the log before the assertion fails.
 const LAB_STOP_CORPUS_NTOK: usize = 32 * 1024 * 1024;
 
-/// Build an `AEFCORP1` container (design §2.1) over `ids`.
+/// An `AEFCORP1` header (design §2.1) over an already-built payload.
 ///
-/// 64-byte header, all integers little-endian: magic, `version` = 1,
+/// 64 bytes, all integers little-endian: magic, `version` = 1,
 /// `token_width` = 4, `ntok`, `vocab_size`, one reserved zero word, then the
-/// sha256 of the payload; the payload is `ids` as u32 LE.
+/// sha256 of the payload. One function so the two callers below cannot drift
+/// into describing two different containers.
+fn lab_corpus_header(vocab_size: u32, ntok: usize, payload: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(64);
+    out.extend_from_slice(b"AEFCORP1");
+    out.extend_from_slice(&1u32.to_le_bytes());
+    out.extend_from_slice(&4u32.to_le_bytes());
+    out.extend_from_slice(&(ntok as u64).to_le_bytes());
+    out.extend_from_slice(&vocab_size.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&sha256_raw(payload));
+    out
+}
+
+/// Build an `AEFCORP1` container over `ids`; the payload is `ids` as u32 LE.
 fn lab_corpus(vocab_size: u32, ids: &[u32]) -> Vec<u8> {
     let mut payload = Vec::with_capacity(ids.len() * 4);
     for &id in ids {
         payload.extend_from_slice(&id.to_le_bytes());
     }
-    let mut out = Vec::with_capacity(64 + payload.len());
-    out.extend_from_slice(b"AEFCORP1");
-    out.extend_from_slice(&1u32.to_le_bytes());
-    out.extend_from_slice(&4u32.to_le_bytes());
-    out.extend_from_slice(&(ids.len() as u64).to_le_bytes());
-    out.extend_from_slice(&vocab_size.to_le_bytes());
-    out.extend_from_slice(&0u32.to_le_bytes());
-    out.extend_from_slice(&sha256_raw(&payload));
+    let mut out = lab_corpus_header(vocab_size, ids.len(), &payload);
     out.extend_from_slice(&payload);
     out
 }
@@ -3960,14 +3967,7 @@ fn lab_corpus_stage(path: &Path, vocab_size: u32, ids: &[u32], ntok: usize) -> R
     for i in 0..ntok {
         payload.extend_from_slice(&ids[i % ids.len()].to_le_bytes());
     }
-    let mut header = Vec::with_capacity(64);
-    header.extend_from_slice(b"AEFCORP1");
-    header.extend_from_slice(&1u32.to_le_bytes());
-    header.extend_from_slice(&4u32.to_le_bytes());
-    header.extend_from_slice(&(ntok as u64).to_le_bytes());
-    header.extend_from_slice(&vocab_size.to_le_bytes());
-    header.extend_from_slice(&0u32.to_le_bytes());
-    header.extend_from_slice(&sha256_raw(&payload));
+    let header = lab_corpus_header(vocab_size, ntok, &payload);
     let f = fs::File::create(path).map_err(fail)?;
     let mut w = std::io::BufWriter::new(f);
     w.write_all(&header).map_err(fail)?;
