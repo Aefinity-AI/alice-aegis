@@ -8,13 +8,26 @@ name: c1-active-set
 # literal digests pinned from the local (i5-10210U crosvm) run and fails on
 # any mismatch, on both architectures, in both modes.
 #
+# CA2 (2026-09-02 lab plan, state/reports/2026-09-02-LAB-PLAN-four-axes.md
+# §2.5, branch cm/ca2-c1-falcon-e stacked here): the same harness against a
+# SECOND model family, Falcon-E-1B (24L, hidden 2048, SwiGLU/silu — an
+# architecturally different activation from BitNet-2B), to test whether the
+# sparsity-determinism property is a fact about the CIS-1 spec or an accident
+# of BitNet's activation statistics. This box (penguin) is RAM-constrained
+# (light lane, <=400MB RSS budget) and does not run the ~665MB Falcon-E-1B
+# artifact set locally, so there is no pinned local ACTIVE_SET digest to
+# assert against up front — falcon-e-1b-compare below establishes agreement
+# by comparing the four GH-runner results (x86 fast/scalar, arm fast/scalar)
+# against EACH OTHER instead, and checks CIS_DECODE against E13's already
+# locally-verified digest (docs/hardware_logs/*falcon_e_1b*2026-08-28.log).
+#
 # CLAUDE.md Rule A: identity/correctness artifact ONLY. No timing figure from
 # this job may ever be recorded or quoted; CI hardware is shared and unnamed.
 # Rule B: every assert below is instrument-backed by this run's own log.
 
 on:
   push:
-    branches: ["cm/c1-sparsity-determinism"]
+    branches: ["cm/c1-sparsity-determinism", "cm/ca2-c1-falcon-e"]
   workflow_dispatch:
 
 env:
@@ -26,6 +39,14 @@ env:
   # Pinned from the local run (docs/hardware_logs/c1_active_set_digest_i5-10210U_crosvm_2026-08-29.log).
   ACTIVE_SET_DIGEST: 42ea01ca62a8f54f42ba2e3a8d6d6cbbe2988c6de929456ffbb94d4bd7a82374
   CIS_DECODE_DIGEST: cab11400d737ac4a
+  # Falcon-E-1B leg (CA2). Release created 2026-09-02 from the same artifacts
+  # E13/A41 used (docs/hardware_logs/*falcon_e_1b*2026-08-28.log).
+  FALCON_RELEASE_TAG: artifacts-falcon-e-1b-2026-08-28
+  FALCON_MODEL_SHA: 6ebdb9e0b2a099beb2befb71dd4b58deac1f72a1a22aa604788e302f612c92ff
+  FALCON_EMBED_SHA: 8951f5725b709b9763f4f6eadfedf17629a3861fe71f192399dfb7b4e94bc0c6
+  FALCON_VOCAB_SHA: e8f860844bc1a0759bf412f15c206ac839333844e4f4eaf153b166ca59184989
+  # E13/A41 x86_64 decode digest (docs/hardware_logs/*falcon_e_1b_x86_i5-10210U_crosvm_2026-08-28.log).
+  FALCON_CIS_DECODE_DIGEST: 3e21adb66d7a17d6
 
 jobs:
   active-set-x86:
@@ -149,3 +170,160 @@ jobs:
           path: |
             c1-fast-arm.log
             c1-scalar-arm.log
+
+  # --- CA2: second model family (Falcon-E-1B) --------------------------
+
+  falcon-e-1b-x86:
+    name: Falcon-E-1B — x86_64 active-set digest (fast + scalar)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm x86_64
+        run: |
+          uname -m
+          test "$(uname -m)" = "x86_64"
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-c1-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-c1-cargo-
+      - name: Download Falcon-E-1B artifacts from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p falcon-artifacts
+          gh release download "$FALCON_RELEASE_TAG" --repo ${{ github.repository }} --dir falcon-artifacts --clobber
+      - name: Verify artifact hashes
+        run: |
+          set -euo pipefail
+          cd falcon-artifacts
+          echo "$FALCON_MODEL_SHA  falcon_e_1b_model.safetensors" | sha256sum -c -
+          echo "$FALCON_EMBED_SHA  falcon_e_1b_embed.bin" | sha256sum -c -
+          echo "$FALCON_VOCAB_SHA  falcon_e_1b_vocab.bin" | sha256sum -c -
+      - name: Build active_set_digest (active_set_digest feature)
+        run: |
+          cargo build --release --example active_set_digest --features active_set_digest --manifest-path aegis-linux/Cargo.toml
+      - name: Fast path (AVX2, self-falling-back per kernel contract)
+        run: |
+          set -euo pipefail
+          M=falcon-artifacts
+          ./aegis-linux/target/release/examples/active_set_digest "$M/falcon_e_1b_model.safetensors" "$M/falcon_e_1b_embed.bin" "$M/falcon_e_1b_vocab.bin" prompts/c1_prompts.txt 16 \
+            | tee /dev/stderr | tee c1-falcon-fast-x86.log
+          grep -q "digest=$FALCON_CIS_DECODE_DIGEST" c1-falcon-fast-x86.log || { echo "::error::x86_64 fast Falcon CIS_DECODE digest mismatch (E13/A41 gate)"; exit 1; }
+      - name: Scalar path (force-scalar)
+        run: |
+          set -euo pipefail
+          M=falcon-artifacts
+          ./aegis-linux/target/release/examples/active_set_digest "$M/falcon_e_1b_model.safetensors" "$M/falcon_e_1b_embed.bin" "$M/falcon_e_1b_vocab.bin" prompts/c1_prompts.txt 16 --force-scalar \
+            | tee /dev/stderr | tee c1-falcon-scalar-x86.log
+          grep -q "digest=$FALCON_CIS_DECODE_DIGEST" c1-falcon-scalar-x86.log || { echo "::error::x86_64 scalar Falcon CIS_DECODE digest mismatch (E13/A41 gate)"; exit 1; }
+      - name: Upload logs (Falcon-E-1B x86_64)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-falcon-active-set-logs-x86_64
+          path: |
+            c1-falcon-fast-x86.log
+            c1-falcon-scalar-x86.log
+
+  falcon-e-1b-arm:
+    name: Falcon-E-1B — aarch64 active-set digest (fast + scalar)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm aarch64
+        run: |
+          uname -m
+          test "$(uname -m)" = "aarch64"
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-c1-arm-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-c1-arm-cargo-
+      - name: Download Falcon-E-1B artifacts from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p falcon-artifacts
+          gh release download "$FALCON_RELEASE_TAG" --repo ${{ github.repository }} --dir falcon-artifacts --clobber
+      - name: Verify artifact hashes
+        run: |
+          set -euo pipefail
+          cd falcon-artifacts
+          echo "$FALCON_MODEL_SHA  falcon_e_1b_model.safetensors" | sha256sum -c -
+          echo "$FALCON_EMBED_SHA  falcon_e_1b_embed.bin" | sha256sum -c -
+          echo "$FALCON_VOCAB_SHA  falcon_e_1b_vocab.bin" | sha256sum -c -
+      - name: Build active_set_digest (active_set_digest feature)
+        run: |
+          cargo build --release --example active_set_digest --features active_set_digest --manifest-path aegis-linux/Cargo.toml
+      - name: Fast path (NEON, self-falling-back per kernel contract)
+        run: |
+          set -euo pipefail
+          M=falcon-artifacts
+          ./aegis-linux/target/release/examples/active_set_digest "$M/falcon_e_1b_model.safetensors" "$M/falcon_e_1b_embed.bin" "$M/falcon_e_1b_vocab.bin" prompts/c1_prompts.txt 16 \
+            | tee /dev/stderr | tee c1-falcon-fast-arm.log
+          grep -q "digest=$FALCON_CIS_DECODE_DIGEST" c1-falcon-fast-arm.log || { echo "::error::aarch64 fast Falcon CIS_DECODE digest mismatch (E13/A41 gate)"; exit 1; }
+      - name: Scalar path (force-scalar)
+        run: |
+          set -euo pipefail
+          M=falcon-artifacts
+          ./aegis-linux/target/release/examples/active_set_digest "$M/falcon_e_1b_model.safetensors" "$M/falcon_e_1b_embed.bin" "$M/falcon_e_1b_vocab.bin" prompts/c1_prompts.txt 16 --force-scalar \
+            | tee /dev/stderr | tee c1-falcon-scalar-arm.log
+          grep -q "digest=$FALCON_CIS_DECODE_DIGEST" c1-falcon-scalar-arm.log || { echo "::error::aarch64 scalar Falcon CIS_DECODE digest mismatch (E13/A41 gate)"; exit 1; }
+      - name: Upload logs (Falcon-E-1B aarch64)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c1-falcon-active-set-logs-aarch64
+          path: |
+            c1-falcon-fast-arm.log
+            c1-falcon-scalar-arm.log
+
+  falcon-e-1b-compare:
+    name: Falcon-E-1B — cross-ISA / fast-vs-scalar ACTIVE_SET agreement
+    needs: [falcon-e-1b-x86, falcon-e-1b-arm]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download x86_64 logs
+        uses: actions/download-artifact@v4
+        with:
+          name: c1-falcon-active-set-logs-x86_64
+          path: x86
+      - name: Download aarch64 logs
+        uses: actions/download-artifact@v4
+        with:
+          name: c1-falcon-active-set-logs-aarch64
+          path: arm
+      - name: Compare all four ACTIVE_SET digests (gates a + b) and CIS_DECODE (gate c)
+        run: |
+          set -euo pipefail
+          d_x86_fast=$(grep -oP 'ACTIVE_SET digest=\K[0-9a-f]+' x86/c1-falcon-fast-x86.log)
+          d_x86_scalar=$(grep -oP 'ACTIVE_SET digest=\K[0-9a-f]+' x86/c1-falcon-scalar-x86.log)
+          d_arm_fast=$(grep -oP 'ACTIVE_SET digest=\K[0-9a-f]+' arm/c1-falcon-fast-arm.log)
+          d_arm_scalar=$(grep -oP 'ACTIVE_SET digest=\K[0-9a-f]+' arm/c1-falcon-scalar-arm.log)
+          echo "x86_64 fast   ACTIVE_SET=$d_x86_fast"
+          echo "x86_64 scalar ACTIVE_SET=$d_x86_scalar"
+          echo "aarch64 fast   ACTIVE_SET=$d_arm_fast"
+          echo "aarch64 scalar ACTIVE_SET=$d_arm_scalar"
+          if [ "$d_x86_fast" = "$d_x86_scalar" ] && [ "$d_x86_scalar" = "$d_arm_fast" ] && [ "$d_arm_fast" = "$d_arm_scalar" ]; then
+            echo "::notice::CA2 gate (a)+(b) PASS — all four (x86/arm x fast/scalar) ACTIVE_SET digests identical: $d_x86_fast"
+          else
+            echo "::error::CA2 gate (a)/(b) FAIL — ACTIVE_SET digests disagree across ISA/path"
+            exit 1
+          fi
+          for f in x86/c1-falcon-fast-x86.log x86/c1-falcon-scalar-x86.log arm/c1-falcon-fast-arm.log arm/c1-falcon-scalar-arm.log; do
+            grep -q "digest=$FALCON_CIS_DECODE_DIGEST" "$f" || { echo "::error::CA2 gate (c) FAIL — $f does not reproduce E13's CIS_DECODE digest $FALCON_CIS_DECODE_DIGEST"; exit 1; }
+          done
+          echo "::notice::CA2 gate (c) PASS — all four logs reproduce E13 CIS_DECODE digest $FALCON_CIS_DECODE_DIGEST"
