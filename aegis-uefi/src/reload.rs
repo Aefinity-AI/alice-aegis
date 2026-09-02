@@ -35,6 +35,8 @@
 //!   same rule the transfer and the readback follow.
 //! - Rule A: nothing here measures anything.
 
+use core::sync::atomic::{AtomicBool, Ordering};
+
 use alloc::format;
 use alloc::string::{String, ToString};
 
@@ -50,6 +52,16 @@ const ARTIFACTS: [(&str, &str); 3] = [
     ("embed", "EMBED.BIN"),
     ("vocab", "VOCAB.BIN"),
 ];
+
+/// The `.NEW` half of each artifact's A/B pair, in [`ARTIFACTS`] order.
+///
+/// These are **internal names**, not part of the protocol surface: a client
+/// names `MODEL.SAF` and §8's pointer swap decides which half the bytes land
+/// on. `files::is_protected` consults this array so both `PUT` and `RM` refuse
+/// them — a client that could name a half directly could delete the live one
+/// and be silently served the stale one afterwards. One definition, here,
+/// because a second list that drifted would re-open exactly that hole.
+pub const ALTERNATES: [&str; 3] = ["MODEL.NEW", "EMBED.NEW", "VOCAB.NEW"];
 
 /// The artifact pointer file of §8.
 ///
@@ -371,20 +383,39 @@ impl<'a> EngineSlot<'a> {
     }
 }
 
-/// Which file each artifact key currently points at (§8).
+/// Has the pointer been seen designating a file that is not on the volume?
 ///
-/// Absent, unreadable or unparsable `CURRENT.TXT` ⇒ the canonical names. A
-/// pointer to a name the protocol could not have written is ignored the same
-/// way, because the pointer is only allowed to select between files this box
-/// put there itself.
-pub fn current_names(root: &mut Directory) -> [String; 3] {
+/// A `static` rather than a field on `Srv` because the fallback is decided in
+/// [`current_names`], which boot, `RELOAD` and every read verb all reach
+/// without a server in scope. Only the **transition** is logged: the fallback
+/// is consulted several times per verb, and an `ERROR` line per `GET` would
+/// bury the one that mattered under its own repetitions.
+static POINTER_DEGRADED: AtomicBool = AtomicBool::new(false);
+
+/// Which file each artifact key currently points at (§8), plus whether the
+/// canonical-name fallback had to be used.
+///
+/// Absent, unreadable or unparsable `CURRENT.TXT` ⇒ the canonical names, and
+/// that is **not** degraded: §8 says in as many words that boot falls back
+/// when the pointer is absent or unparsable, so a box that has never swapped
+/// is in its normal state, not a damaged one.
+///
+/// Degraded is the narrower case: the pointer parses, names a legal file, and
+/// **that file is not there**. That cannot happen from a torn write — a torn
+/// `CURRENT.TXT` is unparsable, not confidently wrong — so it means the file
+/// the box was serving went away underneath the pointer. Falling back then
+/// answers `STAT`/`SHA`/`GET`/`RELOAD` out of the *other*, stale half of the
+/// A/B pair and reports ordinary success, which is the silent model downgrade
+/// §8's swap exists to make impossible. The fallback still happens (serving
+/// something beats faulting), but it stops being silent.
+fn names_and_degraded(root: &mut Directory) -> ([String; 3], bool) {
     let mut out = [
         ARTIFACTS[0].1.to_string(),
         ARTIFACTS[1].1.to_string(),
         ARTIFACTS[2].1.to_string(),
     ];
     let Some(text) = read_pointer(root) else {
-        return out;
+        return (out, false);
     };
     for line in text.lines() {
         let Some((k, v)) = line.trim().split_once('=') else {
@@ -403,12 +434,54 @@ pub fn current_names(root: &mut Directory) -> [String; 3] {
     // all, and §8's rule is that the fallback is the canonical name. Checking
     // it here means one place decides, and boot, `RELOAD` and every read verb
     // all get the same answer.
+    let mut degraded = false;
     for (i, (_, canonical)) in ARTIFACTS.iter().enumerate() {
         if out[i] != *canonical && files::stat(root, &out[i]).is_err() {
+            degraded = true;
             out[i] = canonical.to_string();
         }
     }
-    out
+    (out, degraded)
+}
+
+/// Which file each artifact key currently points at (§8).
+///
+/// Logs the first crossing into (and back out of) the degraded state defined
+/// by [`names_and_degraded`]; [`pointer_degraded`] is the same answer for
+/// `HEALTH`.
+pub fn current_names(root: &mut Directory) -> [String; 3] {
+    let (names, degraded) = names_and_degraded(root);
+    note_degraded(root, degraded);
+    names
+}
+
+/// `HEALTH degraded=` — recomputed, not cached, because the whole point is to
+/// report the volume's state at the moment a scheduler asks.
+pub fn pointer_degraded(root: &mut Directory) -> bool {
+    let (_, degraded) = names_and_degraded(root);
+    note_degraded(root, degraded);
+    degraded
+}
+
+/// `BOOTLOG.TXT` on a change of state, and nothing on a repeat.
+fn note_degraded(root: &mut Directory, degraded: bool) {
+    if POINTER_DEGRADED.swap(degraded, Ordering::Relaxed) == degraded {
+        return;
+    }
+    if degraded {
+        crate::boot_log(
+            root,
+            "ERROR RELOAD: CURRENT.TXT designates an artifact file that is not on the \
+             volume — falling back to the canonical name, which may be older bytes than \
+             the pointer was written for. HEALTH now says degraded=pointer.",
+        );
+    } else {
+        crate::boot_log(
+            root,
+            "RELOAD: CURRENT.TXT designates files that are all present again — \
+             HEALTH degraded=none.",
+        );
+    }
 }
 
 /// Read `CURRENT.TXT` as text. Small by construction: three key lines.
@@ -440,6 +513,14 @@ fn read_pointer(root: &mut Directory) -> Option<String> {
 /// Written whole, every time, with the other two keys carried over: a
 /// `CURRENT.TXT` holding one key would silently reset the other two to their
 /// canonical names on the next boot.
+///
+/// Written **in place** through [`files::write_small`], not through
+/// `STAGE.PRT`. The staged path would put a second create/write/delete/rename
+/// cycle immediately after the one that just committed 1.8 GB, on the same two
+/// directory entries, on a filesystem with no journal — and it would buy
+/// nothing, because §8 gives this file the recovery rule a stage would
+/// otherwise provide: absent or unparsable falls back to the canonical names.
+/// See `files::write_small` for the full argument.
 pub fn set_pointer(root: &mut Directory, key: &str, name: &str) -> Result<(), FileErr> {
     let names = current_names(root);
     let mut body = String::new();
@@ -451,10 +532,7 @@ pub fn set_pointer(root: &mut Directory, key: &str, name: &str) -> Result<(), Fi
         };
         body.push_str(&format!("{k}={v}\n"));
     }
-    let mut stage = files::Stage::create(root)?;
-    stage.write(body.as_bytes())?;
-    stage.finish()?;
-    files::commit(root, CURRENT_NAME)
+    files::write_small(root, CURRENT_NAME, body.as_bytes())
 }
 
 /// Where a client-visible name actually lives right now (§8's pointer swap).
@@ -502,9 +580,53 @@ pub fn artifact_target(root: &mut Directory, name: &str) -> Option<(&'static str
 /// The `.NEW` half of an artifact's A/B pair. Fixed 8.3 names, so both halves
 /// are inside [`crate::files::NAME_MAX_BYTES`] by construction.
 fn alternate_name(canonical: &str) -> &'static str {
-    match canonical {
-        "MODEL.SAF" => "MODEL.NEW",
-        "EMBED.BIN" => "EMBED.NEW",
-        _ => "VOCAB.NEW",
+    match ARTIFACTS.iter().position(|(_, c)| *c == canonical) {
+        Some(i) => ALTERNATES[i],
+        // Unreachable through any caller here — all three take an index into
+        // ARTIFACTS first — but a wrong answer would be a wrong *file*, so the
+        // fallback is the name that is never the live half of anything.
+        None => ALTERNATES[2],
     }
+}
+
+/// Delete a client-visible artifact name **without ever orphaning the pointer**
+/// (§8).
+///
+/// `None` when `name` is not one of the three canonical artifacts; the caller
+/// then does an ordinary delete.
+///
+/// The failure this exists to prevent: `current_names` falls back to the
+/// canonical name whenever `CURRENT.TXT` designates a file that is not there.
+/// That fallback is right for a pointer torn by power loss and *wrong* for one
+/// a client emptied out — deleting the designated half while the pointer still
+/// names it makes `STAT`/`SHA`/`GET`/`RELOAD` answer from the other, stale half
+/// with no error, so an operator who deleted a model would be served the
+/// previous one and told it was fine. `RM MODEL.NEW` is refused outright
+/// (`files::is_protected`); this handles `RM MODEL.SAF`, which is legal and
+/// must mean *the artifact is gone*, not *the other half is now live*.
+///
+/// Order matters: the pointer stops designating anything **before** any bytes
+/// go, so there is no instant at which it names a file that has been deleted.
+pub fn remove_artifact(root: &mut Directory, name: &str) -> Option<Result<(), FileErr>> {
+    let i = ARTIFACTS.iter().position(|(_, c)| *c == name)?;
+    let (key, canonical) = ARTIFACTS[i];
+    let alternate = alternate_name(canonical);
+
+    if current_names(root)[i] != canonical
+        && let Err(e) = set_pointer(root, key, canonical)
+    {
+        return Some(Err(e));
+    }
+
+    // Both halves go. A client asked for the artifact to be gone; leaving the
+    // inactive half behind would make the next `PUT`'s A/B choice depend on a
+    // file the client believes it deleted.
+    let a = files::delete(root, canonical);
+    let b = files::delete(root, alternate);
+    Some(match (a, b) {
+        (Err(FileErr::NotFound), Err(FileErr::NotFound)) => Err(FileErr::NotFound),
+        (Err(e), _) if e != FileErr::NotFound => Err(e),
+        (_, Err(e)) if e != FileErr::NotFound => Err(e),
+        _ => Ok(()),
+    })
 }

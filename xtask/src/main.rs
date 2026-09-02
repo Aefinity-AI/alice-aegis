@@ -2595,7 +2595,19 @@ fn files_test(flags: &[&str]) -> Result<ExitCode, String> {
 
     // Files a previous run left in the mirror would be inside the vvfat image
     // this run boots, and a 64 MiB stray would eat the volume the gate needs.
-    for stray in ["TEST.BIN", "BIG.BIN", "BAD.BIN", "STAGE.PRT", "CURRENT.TXT"] {
+    for stray in [
+        "TEST.BIN",
+        "BIG.BIN",
+        "BAD.BIN",
+        "STAGE.PRT",
+        "CURRENT.TXT",
+        // The A/B halves a previous run's pointer swap left behind. A stale
+        // `MODEL.NEW` with a stale `CURRENT.TXT` would boot this run pointed
+        // at the previous run's bytes.
+        "MODEL.NEW",
+        "EMBED.NEW",
+        "VOCAB.NEW",
+    ] {
         if let Some(p) = find_ci(&esp.dir, stray) {
             let _ = fs::remove_file(p);
         }
@@ -2609,7 +2621,6 @@ fn files_test(flags: &[&str]) -> Result<ExitCode, String> {
         fs::read(&model_path).map_err(|e| format!("reading {}: {e}", model_path.display()))?;
     let model_sha = sha256_hex(&model_bytes);
     let model_len = model_bytes.len() as u64;
-    drop(model_bytes);
     println!("[3.5/4] host sha256 of the staged MODEL.SAF: {model_sha}");
     match Command::new("sha256sum").arg(&model_path).output() {
         Ok(out) if out.status.success() => {
@@ -2645,7 +2656,14 @@ fn files_test(flags: &[&str]) -> Result<ExitCode, String> {
         .map_err(|e| format!("could not launch {qemu_bin}: {e}. Install qemu-system-x86."))?;
 
     let hard = Instant::now() + Duration::from_secs(FILES_TIMEOUT_S);
-    let run = files_exchange(&mut child, host_port, hard, &model_sha, model_len);
+    let run = files_exchange(
+        &mut child,
+        host_port,
+        hard,
+        &model_sha,
+        model_len,
+        &model_bytes,
+    );
 
     let outcome = match &run {
         Ok(_) => wait_for_exit(&mut child, Duration::from_secs(FILES_EXIT_S)),
@@ -2719,6 +2737,7 @@ fn files_exchange(
     hard: Instant,
     model_sha: &str,
     model_len: u64,
+    model_bytes: &[u8],
 ) -> Result<Vec<String>, String> {
     let (mut c, banner) = resident_ready(child, host_port, FILES_READY_S, hard)?;
     let mut fail: Vec<String> = Vec::new();
@@ -2905,6 +2924,61 @@ fn files_exchange(
         "ERR bad-len",
     )?;
 
+    // ---- §8: the A/B halves are not names a client may touch --------------
+    //
+    // `MODEL.NEW` and friends are internal: the protocol exposes `MODEL.SAF`
+    // and the box decides which half the bytes land on. A client that could
+    // name a half could delete the one `CURRENT.TXT` designates, and the
+    // pointer's canonical-name fallback would then answer every read verb out
+    // of the other, stale half reporting ordinary success. Both halves are
+    // refused, always — the inactive one too, because "you may delete this
+    // one but not that one, and which is which depends on how many times you
+    // have uploaded" is a footgun with no use case behind it.
+    for half in ["MODEL.NEW", "EMBED.NEW", "VOCAB.NEW"] {
+        files_step(
+            &mut c,
+            hard,
+            &format!("PUT {half} 4 {}", "0".repeat(64)),
+            "ERR protected",
+        )?;
+        files_step(&mut c, hard, &format!("RM {half}"), "ERR protected")?;
+    }
+
+    // ---- §8: a PUT of an artifact swaps the pointer ------------------------
+    //
+    // The same bytes go back up, so the digests do not move and the `RELOAD`
+    // assertion further down still has something to compare. What *does* move
+    // is `CURRENT.TXT`: after this, `model=MODEL.NEW`, and `MODEL.NEW` is the
+    // live model. So the `RM` below is a delete of the file the box would
+    // boot from, and it must still be refused.
+    println!("   ..   PUT MODEL.SAF ({model_len} bytes) — the §8 pointer swap");
+    let ans = files_put(&mut c, hard, "MODEL.SAF", model_bytes, model_sha, b"END\n")?;
+    let want = format!("OK MODEL.SAF {model_len} {}", &model_sha[..16]);
+    if ans != want {
+        return Err(format!("PUT MODEL.SAF answered {ans:?}, expected {want:?}"));
+    }
+    println!("   ok   PUT MODEL.SAF  ->  {ans}");
+    files_step(&mut c, hard, "RM MODEL.NEW", "ERR protected")?;
+    println!("   ok   RM of the now-LIVE half is still refused");
+
+    // The blocker's shape in one cycle: a commit-time readback that verified,
+    // then a fresh guest-side `SHA` of the same file. They must agree.
+    let (size, hex) = files_sha(&mut c, hard, "MODEL.SAF")?;
+    if size != model_len || hex != model_sha {
+        fail.push(format!(
+            "after the pointer swap, SHA MODEL.SAF = {size}/{hex}; the same bytes went up \
+             and the commit-time readback verified, so it must still be {model_len}/{model_sha}"
+        ));
+    } else {
+        println!("   ok   SHA MODEL.SAF after the swap still matches the host's digest");
+    }
+    files_step(
+        &mut c,
+        hard,
+        "STAT MODEL.SAF",
+        &format!("STAT MODEL.SAF {model_len}"),
+    )?;
+
     // ---- LS is free of strays, HEALTH says parts=0 ------------------------
     c.send("LS\n")?;
     let head = c.read_line(left(hard, FILES_IO_S)?)?;
@@ -2946,11 +3020,22 @@ fn files_exchange(
         "model=",
         "reloads=",
         "parts=",
+        "degraded=",
         "env=",
     ] {
         if !health.contains(key) {
             fail.push(format!("HEALTH has no {key} field: {health:?}"));
         }
+    }
+    // §8: `degraded=pointer` is how the canonical-name fallback stops being
+    // silent. Nothing here has deleted a half out from under `CURRENT.TXT`,
+    // so it must be `none` — and if it is not, every digest above was read
+    // out of the wrong half of an A/B pair.
+    if !health.contains("degraded=none") {
+        fail.push(format!(
+            "HEALTH does not say degraded=none: {health:?}. The pointer designates an \
+             artifact file that is not on the volume."
+        ));
     }
     if !health.contains("parts=0") {
         fail.push(format!(

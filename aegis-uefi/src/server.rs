@@ -992,8 +992,16 @@ fn do_rm(net: &mut Net, conn: &TcpHandle, srv: &mut Srv<'_, '_>, arg: &str) -> S
     if files::is_protected(&name) {
         return reply_err(net, conn, FileErr::Protected);
     }
-    let on_disk = crate::reload::resolve(srv.root, &name);
-    match files::delete(srv.root, &on_disk) {
+    // An artifact name goes through `reload::remove_artifact`, which clears
+    // the pointer *before* it deletes either half (§8). A plain
+    // `delete(resolve(name))` here would leave `CURRENT.TXT` designating a
+    // file that is gone, and `current_names`' fallback would then serve the
+    // stale other half as if it were the artifact the operator just removed.
+    let removed = match crate::reload::remove_artifact(srv.root, &name) {
+        Some(r) => r,
+        None => files::delete(srv.root, &name),
+    };
+    match removed {
         Ok(()) => {
             srv.log(&format!("RESIDENT: RM {name}"));
             reply(net, conn, &format!("OK {name}\n"))
@@ -1069,12 +1077,23 @@ fn do_health(net: &mut Net, conn: &TcpHandle, srv: &mut Srv<'_, '_>) -> Step {
     let reloads = srv.slot.reloads();
     let parts = u8::from(files::stage_present(srv.root));
     let env = crate::sysinfo::env().as_str();
+    // §8's pointer fallback, made visible. `pointer` means `CURRENT.TXT`
+    // names an artifact file that is not on the volume, so every read verb is
+    // being answered from the other, older half of the A/B pair. The box is
+    // still serving — that is why this is a field and not a refusal — but a
+    // scheduler that sends work to it is getting the previous model's answers
+    // under this boot's `model=`, and `parts=`/`last=` would not have said so.
+    let degraded = if crate::reload::pointer_degraded(srv.root) {
+        "pointer"
+    } else {
+        "none"
+    };
     reply(
         net,
         conn,
         &format!(
             "HEALTH up={up} served={served} last={last} wd={wd} heapfree={heapfree} \
-             model={model} reloads={reloads} parts={parts} env={env}\n"
+             model={model} reloads={reloads} parts={parts} degraded={degraded} env={env}\n"
         ),
     )
 }

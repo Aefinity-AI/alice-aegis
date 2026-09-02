@@ -89,6 +89,17 @@ pub const STAGE_NAME: &str = "STAGE.PRT";
 /// instead of a footgun. `CURRENT.TXT` is the artifact pointer the OS itself
 /// writes (§8), so a client writing it directly could point boot at a file
 /// whose bytes were never verified.
+///
+/// [`crate::reload::ALTERNATES`] — `MODEL.NEW`, `EMBED.NEW`, `VOCAB.NEW` — are
+/// protected too, by [`is_protected`] rather than by being listed here, so the
+/// A/B halves have exactly one definition (`reload.rs`). They are **internal
+/// names**: the protocol only ever exposes the canonical `MODEL.SAF` and the
+/// box decides which half a `PUT` lands on (§8's pointer swap). A client that
+/// could name a half directly could delete the one `CURRENT.TXT` designates,
+/// and `current_names`' fallback would then answer `STAT`/`SHA`/`GET`/`RELOAD`
+/// from the *other*, stale half with no error at all — a silent downgrade of
+/// the model the box serves, which is exactly the failure the swap exists to
+/// prevent.
 const PROTECTED: [&str; 6] = [
     "BOOTLOG.TXT",
     "RESULT.TXT",
@@ -207,9 +218,11 @@ pub fn validate_name(raw: &str) -> Result<String, FileErr> {
 
 /// Is this (already validated, upper-cased) name one the box writes for
 /// itself?
+///
+/// [`PROTECTED`] plus the three artifact alternates, which `reload.rs` owns.
 #[must_use]
 pub fn is_protected(name: &str) -> bool {
-    PROTECTED.contains(&name)
+    PROTECTED.contains(&name) || crate::reload::ALTERNATES.contains(&name)
 }
 
 /// Build a `CStr16` for a root-relative name in a caller-owned buffer.
@@ -559,6 +572,44 @@ pub fn delete(root: &mut Directory, name: &str) -> Result<(), FileErr> {
         Ok(_) => Err(FileErr::NotFound),
         Err(_) => Err(FileErr::Io),
     }
+}
+
+/// Write a small file whole, replacing whatever was there.
+///
+/// **Not** the `STAGE.PRT` dance, deliberately. This exists for one caller —
+/// `reload::set_pointer` writing `CURRENT.TXT` (§8) — and routing that write
+/// through the stage would cost a second create/write/delete/rename cycle on
+/// *every* artifact `PUT`, immediately after the first one, against the same
+/// two directory entries. Directory churn is the one thing a FAT32 volume with
+/// no journal has no defence against, and halving it is worth more here than a
+/// readback would be, because §8 already gives `CURRENT.TXT` the only recovery
+/// rule it needs: boot and `RELOAD` **fall back to the canonical names when it
+/// is absent or unparsable**. A torn 48-byte write is therefore a recoverable
+/// state by construction, whereas a torn `MODEL.SAF` is not — which is why one
+/// is staged and the other is not.
+///
+/// Delete-then-create rather than open-and-overwrite: `CreateReadWrite` on an
+/// existing file does not truncate, so a shorter body would leave the previous
+/// tail past its end and `read_pointer` would parse two generations of keys.
+pub fn write_small(root: &mut Directory, name: &str, bytes: &[u8]) -> Result<(), FileErr> {
+    match delete(root, name) {
+        Ok(()) | Err(FileErr::NotFound) => {}
+        Err(e) => return Err(e),
+    }
+    let mut buf = [0u16; 32];
+    let c = cstr(name, &mut buf)?;
+    let handle = root
+        .open(c, FileMode::CreateReadWrite, FileAttribute::empty())
+        .map_err(|_| FileErr::Io)?;
+    let mut file = match handle.into_type() {
+        Ok(FileType::Regular(f)) => f,
+        _ => return Err(FileErr::Io),
+    };
+    let wrote = file.write(bytes).map_err(|_| FileErr::ShortWrite);
+    let flushed = file.flush().is_ok();
+    file.close();
+    wrote?;
+    if flushed { Ok(()) } else { Err(FileErr::Io) }
 }
 
 /// The staging file of a `PUT`, open for writing.
