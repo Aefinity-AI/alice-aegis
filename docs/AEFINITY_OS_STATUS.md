@@ -663,3 +663,129 @@ Everything in §5 above still stands. Phase 4 adds:
    time. At-most-once holds within one box uptime, nothing more. `HEALTH up=`
    going backwards is how a scheduler is supposed to notice; that host-side
    rule is phase 6 and does not exist yet.
+
+---
+
+## 10. Phase 5 — LAB
+
+*Branch `os/p5-lab`, stacked on `os/p4-files`. Build contract:
+`program/AEFINITY_OS_FLEET_DESIGN.md` §2, §2.1, §3, §3.1, §4, §7, §8, §10.*
+
+Phase 5 adds **no protocol**. The lab suites become `JOB.TXT` directives and
+their answers become `job.N.*` blocks in the record phase 2 already returns
+down the socket and phase 0 already writes to the volume.
+
+### What it adds
+
+| directive | what the box does | what lands in `RESULT.TXT` |
+|---|---|---|
+| `CPUID` | reads CPUID leaves 0, 1, 7:0, 0x8000_0000, 0x8000_0001 | `job.N.pass=true`, `job.N.detail=` the escaped dump (≤1024 bytes) |
+| `VERIFY <NAME>` | replays a witness v1 receipt through `verifier::run` against the **resident** artifact slices | `job.N.pass`, `job.N.items` (decode steps replayed), `job.N.digest` (the chain this box computed) |
+| `EVAL <NAME> <lo>:<hi>` | validates an `AEFCORP1` container and scores `[lo, hi)` with the exact-integer NLL of §2.1 | `job.N.nll_q16`, `job.N.ntok`, `job.N.digest` (a `WitnessChain` fold over every scored step's full i64 logit vector), `job.N.partial` |
+| `MEMBW <mib>` | a deterministic write-then-read pass over `<mib>` MiB | `job.N.digest` (the checksum — comparable), `job.N.membw_mibs` (the rate — gated) |
+| `MECH` | the diagnostic block that used to sit inline in `main.rs` | `job.N.pass=true` |
+
+Plus the fleet directives of §2 that are not steps: `RUNID`, `TAG`,
+`SHARD <i>/<n>`, `SEED <u64>`, `STRICT on`. `TOKEN` was already parsed in
+phase 1b (the collector header) and phase 4 (the `AUTH` gate).
+
+`MECH` is **moved last by the dispatcher regardless of file order** (§2). It
+runs ~24 minutes under TCG and must never starve real work; `job.N` numbering
+follows dispatch order, and so does §3.1's `merge_key` serialisation, so the
+key describes what was run rather than what was written.
+
+### `nll_q16` is exact-integer and cross-box comparable by construction
+
+`EVAL` does **not** call `CisEngine::calculate_perplexity_int`: that function
+computes its NLL with `libm::exp`/`libm::log` on f64 and is not comparable
+across boxes. `EVAL` reuses its exact-integer half and replaces its float half:
+
+1. `logits_int_exact()` — new in `cis_infer.rs` — fills the exact i64 logits
+   and returns the logit unit as an **exact rational** `ActScale`. The f64 that
+   `logits_int` returns is never touched.
+2. `m = max(logits)`, exact i64 compare; gaps `d_j = m − L_j ≥ 0`.
+3. `g_j = qs.rescale(d_j)` onto the Q.24 score grid, `qs =
+   QScale64::from_ratio(num << 24, den << 20)` — exact long division, RNE.
+4. `e_j = exp_neg_q31(g_j << 8, lut)` — literally SOFTMAX-I step 2.
+5. `S = Σ e_j` in i64, ascending vocabulary index.
+6. `nll_t = (g_t << 8) + rne_div((log2_u64_q32(S) − (31 << 32)) << 32,
+   LOG2E_Q32)` in Q.32 nats, where `log2_u64_q32` is **new normative code** in
+   `cis_attn.rs` — LOG2-I over u64, the same shift-and-square procedure as
+   `log2_q32_f32` applied to an integer mantissa.
+7. `Σ nll_t` in `i128` at Q.32 in ascending (window, position) order, then
+   exactly **one** rounding to `nll_q16`.
+
+No `f32` or `f64` value exists anywhere in that path. Two conforming boxes
+therefore produce the same integer or CIS-1 is falsified — which is the claim,
+not a hope. `log2_u64_q32`'s goldens come from the independent big-integer
+generator `scripts/cis_e2_golden_gen.py` (`== log2_u64_q32 ==`), never from the
+Rust under test, and are pinned by `cargo test -p aegis-core`.
+
+Perplexity itself is `exp(nll_q16 / 2^16 / ntok)` and is rendered **host-side**
+for humans. It is an f64 render of two integers; the integers are the record.
+
+### `membw_mibs` is iron-only; its digest is not
+
+`job.N.digest` for a `membw` step is the checksum of the touched pattern. It
+depends only on `<mib>`, so it **is** comparable across boxes and is always
+emitted — two boxes disagreeing there disagree about arithmetic or about
+memory, and that is a finding. `job.N.membw_mibs` is a bandwidth number and is
+gated exactly like `tps`: `n/a` unless `job.N.rate_valid=true`, which is
+`false` on every `env=vm` record. A MiB/s figure taken under TCG models no
+cache hierarchy and no memory latency; CLAUDE.md Rule A forbids recording it,
+and the record enforces that rather than relying on whoever reads it later.
+
+Every step now carries `job.N.rate_valid`, including the v0.1 kinds, so a
+reader never has to know which kinds can produce a rate.
+
+### What works under QEMU
+
+`cargo xtask lab-test` (design §7) boots one resident guest, `PUT`s a corpus
+and two receipts — so the gate exercises phases **4 and 5 together** — and then
+sends four jobs over the socket. It asserts structure and exit codes only, and
+no value: `jobs=4`, every block carries `job.N.kind`, `job.2.pass=true`,
+`job.3.pass=false`, `job.4.nll_q16` present and parsing as a `u64`,
+`job.4.ntok=3`, `rate_valid=false`, `membw_mibs` absent or `n/a`, `artifacts=`
+and `merge_key` 16 lowercase hex, `verdict=OK`, `env=vm`; a corrupted-magic
+corpus ⇒ `job.N.err=bad-corpus`; `MEMBW 16` ⇒ a digest with
+`membw_mibs=n/a`; `STRICT on` with the bad receipt first ⇒ `verdict=FAIL
+verify` and `jobs=1`; then `REBOOT` → `BYE` → QEMU exits.
+
+### Untested on iron — the phase-5 list
+
+Everything in §5 and §9 still stands. Phase 5 adds:
+
+1. **`rate_valid=true` has never been observed.** Every gate runs under TCG, so
+   every record this branch has produced says `rate_valid=false` and every
+   `membw_mibs` says `n/a`. The *iron* branch of that gate — the one that
+   actually prints a number — has been reasoned about and compiled, never run.
+2. **Cross-box agreement on `nll_q16`.** The claim is that two conforming boxes
+   produce the same integer. One box has produced one integer. Two boxes on
+   iron producing the same one is the phase-6 deliverable and Justin's step.
+3. **A full 2048-token `EVAL` window.** The gate scores three positions
+   against a 512-position model, so `W = min(2048, max_position_embeddings)`
+   has only ever taken its second branch, and the per-window watchdog re-arm
+   has never had to save a run.
+4. **`job.N.partial` from a real budget overrun.** The partial-accumulation
+   path is reasoned from §5 and compiled; no gate provokes it, because a gate
+   that did would be timing something.
+5. **`MEMBW` at a size that matters.** The gate asks for 16 MiB — enough to
+   assert the digest and the gating, nowhere near enough to say anything about
+   a memory system, which is the point (Rule A).
+6. **`MECH` as a directive.** `lab::mech` is a pure move and `boot-test` still
+   reports its 33 checks, so the *boot* path is covered. `MECH` reaching the
+   dispatcher from a `JOB.TXT`, and being moved last by it, is exercised by a
+   unit-level reading of `dispatch_order` and by nothing else: staging it in a
+   gate would add ~24 minutes of TCG to every run and §7 explicitly says no
+   gate stages `MECH`.
+
+### Deliberate deviations from the design, and why
+
+| design says | this build | why |
+|---|---|---|
+| §3 lists `run_id`, `tag`, `shard`, `seed` together as additions | `run_id=` keeps its v0.1 position and `RUNID` in `JOB.TXT` sets its *value*; `tag=`/`shard=`/`seed=` are appended after `verdict=` | `run_id=` is already a v0.1 key. Emitting it twice would hand a collector two answers to one question, and moving it would disturb v0.1 key order, which §3-ext says never to do. |
+| §1.3's slug list is exhaustive | `job.N.err` can also read `budget` | §1.3 is the list of `ERR` slugs a *verb* may return on the wire. `job.N.err` is a different field, and a step that a budget stopped at a window boundary has to be able to say so. No verb can return `budget`. |
+| §3 shows `job.N.tps` on every block | lab blocks carry no `tps` and no `tsc_per_tok` | a `tps=0.00` on a `CPUID` step is a performance number where no measurement was made. The v0.1 kinds render exactly the v0.1 keys, unchanged. |
+| — | lab blocks *do* carry `job.N.wall_ms` | a duration is not a rate, it is what a host-side lease and deadline are computed from (design §5), and v0.1 has emitted `wall_ms` under `env=vm` since phase 0. It travels on a block that also says `rate_valid=false`, and no gate asserts it. It is still a wall-clock reading taken under TCG and may not be quoted as a measurement of anything (Rule A). |
+| §3 shows `job.N.digest=<64hex>` | `verify` and `eval` emit 64 hex (SHA-256 chains); `membw` emits **16** | §3 itself calls the `membw` value "the touch pattern's checksum", not a chain. It is a 64-bit FNV-1a fold rendered as 16 lowercase hex — the same width as `merge_key` and each third of `artifacts=`. What the field has to support is a byte-comparison between two boxes, and 64 bits of a pattern that depends only on `<mib>` does that; a SHA-256 over 16 MiB every time would not add to it. |
+| §2.1 does not say what a `VERIFY`/`EVAL` does when the model will not rebuild | `job.N.err=io` with the reason in `detail` | the container-validation failures are all `bad-corpus` by §2.1, but a model that will not parse is not a corpus fault. `io` is the honest slug on §1.3's list; `reload-engine` would tell a scheduler a `RELOAD` had happened. |
