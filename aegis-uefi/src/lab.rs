@@ -416,6 +416,11 @@ const RECEIPT_MAX_BYTES: u64 = 1 << 20;
 /// machinery: the same `verifier::run` the boot-time `RECEIPT.TXT` path has
 /// used since the Provable AI Kit, against the **resident** artifact slices —
 /// the bytes the engine is actually holding, never a re-read from FAT.
+///
+/// `rearm` covers the whole step, not just the file read: the receipt is a
+/// few KiB and was never what could outlast a watchdog window — the replay
+/// behind it is three artifact hashes over 1.83 GB followed by `maxtok`
+/// decode steps, and that is where design §8 needs the arm.
 pub fn verify(
     root: &mut Directory,
     slot: &crate::reload::EngineSlot<'_>,
@@ -443,7 +448,11 @@ pub fn verify(
     sr.merge_input = Some(format!("{name}:{receipt_sha}"));
 
     let (model, embed, vocab) = slot.slices();
-    let verdict = crate::verifier::run(model, embed, vocab, &bytes);
+    // Design §8: the replay is the long part — three artifact hashes over
+    // 1.83 GB and then `maxtok` decode steps — so the same re-arm hook that
+    // covered the receipt read goes into `verifier::run` too. Reading the
+    // file was never what could outlast a watchdog window.
+    let verdict = crate::verifier::run(model, embed, vocab, &bytes, rearm);
     sr.pass = Some(verdict.pass);
     sr.items = Some(verdict.items);
     sr.partial = Some(0);
@@ -909,7 +918,27 @@ const MEMBW_K: u64 = 0x9E37_79B9_7F4A_7C15;
 /// probe — it is what a streaming kernel does — and the read pass consumes
 /// the write pass, so neither can be optimised away without changing the
 /// digest.
-pub fn membw(mib: u64, rate_valid: bool) -> StepResult {
+///
+/// Both passes are cut into one-MiB chunks so that `rearm` and `over_budget`
+/// are consulted at every chunk boundary (design §8), exactly as `EVAL` does
+/// per window and as the file plane does per `XFER_CHUNK`. `MEMBW 4096` moves
+/// 8 GiB of scalar traffic; on a slow box that is minutes of work, and
+/// without the re-arm the firmware would reset a machine that is healthy and
+/// making progress. A MiB is the natural granularity here because it is the
+/// directive's own unit — `job.N.items` counts the same MiB.
+///
+/// A budget stop is filed the way `EVAL`'s is: `pass=false`, `err=budget`,
+/// `partial` = the MiB actually folded, and the digest is the fold over
+/// exactly that prefix — deterministic, and readable as prefix evidence
+/// rather than as the full-run checksum, which only `partial=0` with
+/// `err=none` claims. No `membw_mibs` is computed for a stopped run: a rate
+/// over a truncated pass is not the rate the directive asked for.
+pub fn membw(
+    mib: u64,
+    rate_valid: bool,
+    over_budget: &dyn Fn() -> bool,
+    rearm: &mut dyn FnMut(),
+) -> StepResult {
     let mut sr = StepResult::lab("membw", rate_valid);
     // §3.1: `membw` → `<mib decimal>`.
     sr.merge_input = Some(format!("{mib}"));
@@ -939,40 +968,81 @@ pub fn membw(mib: u64, rate_valid: bool) -> StepResult {
         );
     }
 
+    // One MiB of `u64`s: the chunk both passes step in, so the watchdog is
+    // re-armed and the budget re-read `mib` times per pass (design §8).
+    let chunk = WORDS_PER_MIB as usize;
+
     let w0 = crate::wall_seconds();
-    for i in 0..words {
-        buf.push((i as u64).wrapping_mul(MEMBW_K));
+    let mut written: usize = 0;
+    while written < words {
+        rearm();
+        if over_budget() {
+            break;
+        }
+        let end = core::cmp::min(written + chunk, words);
+        for i in written..end {
+            buf.push((i as u64).wrapping_mul(MEMBW_K));
+        }
+        written = end;
     }
+    // The read pass covers exactly what the write pass laid down, so a
+    // stopped write does not fold uninitialised memory — there is none: the
+    // buffer only ever holds the words that were pushed.
     let mut fold: u64 = aegis_core::cis_infer::FNV1A64_OFFSET;
-    for &v in buf.iter() {
-        fold = aegis_core::cis_infer::fnv1a64(fold, &v.to_le_bytes());
+    let mut folded: usize = 0;
+    while folded < written {
+        rearm();
+        if over_budget() {
+            break;
+        }
+        let end = core::cmp::min(folded + chunk, written);
+        for &v in &buf[folded..end] {
+            fold = aegis_core::cis_infer::fnv1a64(fold, &v.to_le_bytes());
+        }
+        folded = end;
     }
     let w1 = crate::wall_seconds();
     drop(buf);
 
-    // Both passes moved `bytes`; the number below is what was touched, not
-    // what a benchmark would quote.
-    let moved = bytes.saturating_mul(2);
+    // What was actually touched, not what a benchmark would quote: the write
+    // pass moved `written` words and the read pass `folded`. A run that
+    // finished has `written == folded == words`, so this is `2 * bytes` and
+    // the digest is the same 64-bit value it has always been for this `mib`.
+    let complete = folded == words;
+    let done_mib = folded as u64 / WORDS_PER_MIB;
+    let moved = ((written + folded) as u64).saturating_mul(8);
     sr.digest = format!("{fold:016x}");
-    sr.items = Some(mib);
-    sr.partial = Some(0);
-    sr.pass = Some(true);
-    sr.err = Some(String::from("none"));
+    sr.items = Some(done_mib);
     sr.wall_ms = crate::job::wall_ms_between(w0, w1);
+    if complete {
+        sr.partial = Some(0);
+        sr.pass = Some(true);
+        sr.err = Some(String::from("none"));
+    } else {
+        sr.partial = Some(done_mib);
+        sr.pass = Some(false);
+        sr.err = Some(String::from("budget"));
+    }
     // Computed only where it may be quoted, and only where there is something
-    // to quote: on `env=vm` this stays `None`, and on iron with a firmware
-    // whose clock did not move it stays `None` too, because a `0` there would
-    // be a bandwidth measurement of zero rather than the absence of one.
+    // to quote: on `env=vm` this stays `None`, on a run the budget stopped it
+    // stays `None` (a rate over a truncated pass is not the answer to
+    // `MEMBW <mib>`), and on iron with a firmware whose clock did not move it
+    // stays `None` too, because a `0` there would be a bandwidth measurement
+    // of zero rather than the absence of one.
     // `render` prints `n/a` for both, and prints the key on every `membw`
     // block either way.
-    sr.membw_mibs = if rate_valid && sr.wall_ms > 0 {
+    sr.membw_mibs = if rate_valid && complete && sr.wall_ms > 0 {
         Some(moved / (1 << 20) * 1000 / sr.wall_ms)
     } else {
         None
     };
-    sr.detail = Some(format!(
-        "touched {mib} MiB twice (write then read+fold), {} bytes moved",
-        moved
-    ));
+    sr.detail = Some(if complete {
+        format!("touched {mib} MiB twice (write then read+fold), {moved} bytes moved")
+    } else {
+        format!(
+            "budget spent after {done_mib} of {mib} MiB folded; the digest is over that \
+             prefix, {moved} bytes moved"
+        )
+    });
     sr
 }

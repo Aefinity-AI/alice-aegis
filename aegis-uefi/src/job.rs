@@ -1602,7 +1602,25 @@ pub fn run_job(
             Step::MemBw { mib } => {
                 crate::boot_log(root, &format!("JOB: step {n} MEMBW {mib}"));
                 write_progress_record(&rec, root, n);
-                let sr = crate::lab::membw(*mib, rate_valid);
+                let budget_s = job.budget_s as f64;
+                // Same copies-only deadline EVAL gets: `MEMBW 4096` moves
+                // 8 GiB of scalar traffic and has to answer to the budget at
+                // its own chunk boundaries, not only before it starts.
+                let over = move || match started {
+                    Some(t0) => matches!(elapsed_since(t0), Some(el) if el >= budget_s),
+                    None => false,
+                };
+                let mut rearm = move || {
+                    arm_watchdog(wd_window);
+                };
+                let sr = crate::lab::membw(*mib, rate_valid, &over, &mut rearm);
+                // A budget that stopped the passes is the job's verdict too
+                // (design §5), exactly as it is for a stopped EVAL. `partial`
+                // alone cannot say it — a stop before the first MiB folded
+                // leaves `partial=0` — so the slug is what is read here.
+                if sr.err.as_deref() == Some("budget") {
+                    rec.fail("budget");
+                }
                 crate::boot_log(
                     root,
                     &format!(

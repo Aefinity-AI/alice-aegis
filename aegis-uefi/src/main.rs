@@ -715,7 +715,16 @@ fn main() -> uefi::Status {
             );
             core::fmt::Result::Ok(())
         });
-        let verdict = verifier::run(model_slice, embeddings_slice, vocab_slice, &receipt_bytes);
+        // No watchdog is armed on this path — it was disabled above, before
+        // the artifacts were loaded — so the re-arm hook (design §8) is a
+        // no-op here and this boot behaves exactly as it did before phase 5.
+        let verdict = verifier::run(
+            model_slice,
+            embeddings_slice,
+            vocab_slice,
+            &receipt_bytes,
+            &mut || {},
+        );
         let _ = console::with_console(|st| {
             for line in verdict.detail.lines() {
                 let _ = st.write_str(line);

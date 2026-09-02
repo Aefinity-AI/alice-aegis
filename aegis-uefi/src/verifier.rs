@@ -15,7 +15,7 @@
 use aegis_core::cis_infer::{CisEngine, CisMode, CisModel, argmax_i64, fnv1a64};
 use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
 use aegis_core::tokenizer::AegisTokenizer;
-use aegis_core::witness::{WitnessChain, WitnessHeader, hex_lower, sha256};
+use aegis_core::witness::{Sha256, WitnessChain, WitnessHeader, hex_lower};
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -79,6 +79,32 @@ fn unhex(s: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// Bytes hashed between two `rearm` calls (design §8).
+///
+/// 1 MiB rather than [`crate::files::XFER_CHUNK`]: this is a pure-CPU fold
+/// with no I/O behind it, so a firmware call every 64 KiB would cost more
+/// than the work between two of them, while 1 MiB still puts ~1750 arms
+/// inside a 1.83 GB artifact — far more than any watchdog window needs.
+const HASH_CHUNK: usize = 1 << 20;
+
+/// SHA-256 over `data`, re-arming the caller's watchdog once per
+/// [`HASH_CHUNK`] (design §8).
+///
+/// Byte-identical to [`aegis_core::witness::sha256`] by construction:
+/// `Sha256::update` is a streaming fold, so where the caller cuts the input
+/// cannot change the digest. Hashing the three artifacts is ~1.83 GB of work
+/// before the replay even starts, and on a slow box that alone can outlast
+/// the interval armed when the job began.
+fn sha256_rearmed(data: &[u8], rearm: &mut dyn FnMut()) -> [u8; 32] {
+    let mut h = Sha256::new();
+    for part in data.chunks(HASH_CHUNK) {
+        rearm();
+        h.update(part);
+    }
+    rearm();
+    h.finalize()
+}
+
 struct Receipt {
     model: String,
     embed: String,
@@ -132,7 +158,20 @@ fn parse_receipt(text: &str) -> Option<Receipt> {
 
 /// Verify `receipt_bytes` against the artifacts already loaded into RAM.
 /// Pure computation — the caller owns all console/BOOTLOG I/O.
-pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Verdict {
+///
+/// `rearm` is called at every point where this function is about to spend a
+/// long time in one place — each 1 MiB of artifact hashing, each prefill
+/// position, each decode step — so a caller running under a firmware
+/// watchdog can keep it armed while the replay makes progress (design §8).
+/// The boot-time `RECEIPT.TXT` path has no watchdog armed (`main` disables it
+/// before loading), so it passes a no-op and behaves exactly as before.
+pub fn run(
+    model: &[u8],
+    embed: &[u8],
+    vocab: &[u8],
+    receipt_bytes: &[u8],
+    rearm: &mut dyn FnMut(),
+) -> Verdict {
     let mut d = String::new();
     let text = match core::str::from_utf8(receipt_bytes) {
         Ok(t) => t,
@@ -148,9 +187,9 @@ pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Ve
     };
 
     // 1. Artifact binding: are these the exact bytes the receipt names?
-    let model_sha = sha256(model);
-    let embed_sha = sha256(embed);
-    let vocab_sha = sha256(vocab);
+    let model_sha = sha256_rearmed(model, rearm);
+    let embed_sha = sha256_rearmed(embed, rearm);
+    let vocab_sha = sha256_rearmed(vocab, rearm);
     for (name, local, claimed) in [
         ("MODEL", hex32(&model_sha), &r.model),
         ("EMBED", hex32(&embed_sha), &r.embed),
@@ -231,12 +270,17 @@ pub fn run(model: &[u8], embed: &[u8], vocab: &[u8], receipt_bytes: &[u8]) -> Ve
 
     let mut pos = 0usize;
     for &t in &prompt_ids {
+        // Design §8: one prefill position of a 2B model is real work, and a
+        // spec-legal receipt may carry thousands of them.
+        rearm();
         fnv = fnv1a64(fnv, &t.to_le_bytes());
         engine.forward_step_int(t, pos);
         pos += 1;
     }
     let mut generated: Vec<u32> = Vec::with_capacity(r.maxtok);
     for _ in 0..r.maxtok {
+        // Design §8: the replay itself, not just the file read that fed it.
+        rearm();
         let tok = {
             let logits = engine.decode_logits();
             let t = argmax_i64(logits);
