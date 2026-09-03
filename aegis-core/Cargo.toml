@@ -44,6 +44,18 @@ act_stats = []
 # input nonzero indices) for cross-ISA / fast-vs-scalar digesting. OFF by
 # default: the default build's call sites and CIS_DECODE digest are untouched.
 active_set_digest = []
+# E7c (2026-09-03): compile out every #[target_feature(enable = "avx2", ...)]
+# kernel body in ops.rs (and the ops_bitplane/ops_colskip modules entirely —
+# nothing outside those two files calls into them) so the resulting object
+# code contains zero vfmadd*/vpmadd*/ymm instructions, independent of the
+# runtime `simd_on()` dispatch. For third-party x86-64 hardware with no
+# AVX2/FMA (e.g. Gemini Lake Celeron, box2's third iron leg): the f32
+# production engine (`inference` module) falls back to the existing
+# `*_scalar` kernels unconditionally; the ISA-independent CIS-1 reference
+# chain (`cis`, `cis_infer`, `cis_attn`) is untouched — it already had zero
+# x86 intrinsics (see lib.rs doc comment). OFF by default: normal builds are
+# byte-for-byte unaffected.
+scalar_only = []
 
 [[bin]]
 name = "lut_mpgemm"

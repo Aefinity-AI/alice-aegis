@@ -5,6 +5,7 @@ use core::arch::x86_64::*;
 /// Caller must guarantee AVX2+FMA are supported and OS-enabled (see
 /// `avx2_active()`); `weight_bytes` must hold `input.len()` elements at the
 /// engine's derived element size.
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 pub unsafe fn rmsnorm_avx2(input: &mut [f32], weight_bytes: &[u8], eps: f32) {
     let mut sum_vec = _mm256_setzero_ps();
@@ -76,13 +77,14 @@ pub fn rmsnorm(input: &mut [f32], weight_bytes: &[u8], eps: f32) {
     if input.is_empty() || weight_bytes.len() < input.len() * (weight_bytes.len() / input.len()) {
         return;
     }
+    #[cfg(not(feature = "scalar_only"))]
     if simd_on() {
         unsafe {
             rmsnorm_avx2(input, weight_bytes, eps);
         }
-    } else {
-        rmsnorm_scalar(input, weight_bytes, eps);
+        return;
     }
+    rmsnorm_scalar(input, weight_bytes, eps);
 }
 
 pub fn softmax(x: &mut [f32]) {
@@ -226,9 +228,18 @@ pub fn set_force_legacy_prefill(v: bool) {
 
 /// The dispatch gate: AVX2 is used only if the CPU supports it AND scalar has
 /// not been forced for a race. `avx2_active()` remains the pure capability query.
+/// Under `scalar_only`, this is dead code at every one of its (also cfg-gated)
+/// call sites, but the hard `false` here keeps `active_path_name()` honest too.
 #[inline]
 pub(crate) fn simd_on() -> bool {
-    avx2_active() && !FORCE_SCALAR.load(Ordering::Relaxed)
+    #[cfg(feature = "scalar_only")]
+    {
+        false
+    }
+    #[cfg(not(feature = "scalar_only"))]
+    {
+        avx2_active() && !FORCE_SCALAR.load(Ordering::Relaxed)
+    }
 }
 
 /// Capability of the silicon, independent of the race toggle.
@@ -336,6 +347,7 @@ fn f32_dot_scalar(
 /// Attention dot product over one head. Dispatches to the AVX2 kernel when the
 /// head dim is 128 (the BitNet case) and AVX2 is active; otherwise scalar.
 pub fn attn_dot(a: &[f32], b: &[f32]) -> f32 {
+    #[cfg(not(feature = "scalar_only"))]
     if a.len() == 128 && simd_on() {
         return unsafe { vector_dot_128(a, b) };
     }
@@ -348,6 +360,7 @@ pub fn attn_dot(a: &[f32], b: &[f32]) -> f32 {
 
 /// Attention weighted accumulate: out += w * v. Same dispatch rule as attn_dot.
 pub fn attn_madd(out: &mut [f32], w: f32, v: &[f32]) {
+    #[cfg(not(feature = "scalar_only"))]
     if out.len() == 128 && v.len() >= 128 && simd_on() {
         unsafe { vector_madd_128(out, w, v) };
         return;
@@ -398,6 +411,7 @@ pub unsafe fn init_unpack_lut() {}
 /// Caller must guarantee AVX2+FMA are supported and OS-enabled, and that
 /// `weights_packed` holds `dim_out * ceil(dim_in/4)` packed bytes with
 /// `input.len() >= dim_in` and `output.len() >= dim_out`.
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 pub unsafe fn ternary_matvec_avx2(
     output: &mut [f32],
@@ -584,13 +598,14 @@ fn ternary_matvec_serial(
     dim_in: usize,
     scale: f32,
 ) {
+    #[cfg(not(feature = "scalar_only"))]
     if simd_on() {
         unsafe {
             ternary_matvec_avx2(output, input, weights_packed, dim_out, dim_in, scale);
         }
-    } else {
-        ternary_matvec_scalar(output, input, weights_packed, dim_out, dim_in, scale);
+        return;
     }
+    ternary_matvec_scalar(output, input, weights_packed, dim_out, dim_in, scale);
 }
 
 /// Below this many MACs, thread dispatch costs more than it saves.
@@ -805,6 +820,7 @@ macro_rules! lut8 {
 /// Caller must guarantee AVX2+FMA are supported and OS-enabled, and for every
 /// `m`: `weights[m].len() >= blocks * 4 * (dim_in / 4)`,
 /// `outs[m].len() >= blocks * 4`, and `input.len() >= dim_in`.
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 unsafe fn ternary_matvec_fusedn_avx2<const M: usize>(
     outs: &mut [&mut [f32]; M],
@@ -906,6 +922,7 @@ unsafe fn ternary_matvec_fusedn_avx2<const M: usize>(
     clippy::too_many_arguments,
     reason = "mirrors two full incumbent signatures; a params struct would obscure the A/B"
 )]
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 pub unsafe fn ternary_matvec_fused2_avx2(
     out_a: &mut [f32],
@@ -967,6 +984,7 @@ pub unsafe fn ternary_matvec_fused2_avx2(
     clippy::too_many_arguments,
     reason = "mirrors three full incumbent signatures; a params struct would obscure the A/B"
 )]
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 pub unsafe fn ternary_matvec_fused3_avx2(
     out_a: &mut [f32],
@@ -1056,6 +1074,7 @@ pub fn ternary_matvec_fused2(
     {
         return;
     }
+    #[cfg(not(feature = "scalar_only"))]
     if simd_on() {
         // SAFETY: simd_on() gates on runtime AVX2+FMA detection (probe_simd,
         // honoring the force-scalar race toggle); buffer bounds checked above.
@@ -1065,12 +1084,12 @@ pub fn ternary_matvec_fused2(
                 scale_b,
             );
         }
-    } else {
-        // Scalar path has no shared-load fusion to test; sequential calls ARE
-        // the definition of correct here.
-        ternary_matvec_scalar(out_a, input, weights_a, dim_out_a, dim_in, scale_a);
-        ternary_matvec_scalar(out_b, input, weights_b, dim_out_b, dim_in, scale_b);
+        return;
     }
+    // Scalar path has no shared-load fusion to test; sequential calls ARE
+    // the definition of correct here.
+    ternary_matvec_scalar(out_a, input, weights_a, dim_out_a, dim_in, scale_a);
+    ternary_matvec_scalar(out_b, input, weights_b, dim_out_b, dim_in, scale_b);
 }
 
 /// Safe dispatch for the fused tri matvec. Serial only; see
@@ -1105,6 +1124,7 @@ pub fn ternary_matvec_fused3(
     {
         return;
     }
+    #[cfg(not(feature = "scalar_only"))]
     if simd_on() {
         // SAFETY: simd_on() gates on runtime AVX2+FMA detection (probe_simd,
         // honoring the force-scalar race toggle); buffer bounds checked above.
@@ -1114,11 +1134,11 @@ pub fn ternary_matvec_fused3(
                 dim_out_c, dim_in, scale_a, scale_b, scale_c,
             );
         }
-    } else {
-        ternary_matvec_scalar(out_a, input, weights_a, dim_out_a, dim_in, scale_a);
-        ternary_matvec_scalar(out_b, input, weights_b, dim_out_b, dim_in, scale_b);
-        ternary_matvec_scalar(out_c, input, weights_c, dim_out_c, dim_in, scale_c);
+        return;
     }
+    ternary_matvec_scalar(out_a, input, weights_a, dim_out_a, dim_in, scale_a);
+    ternary_matvec_scalar(out_b, input, weights_b, dim_out_b, dim_in, scale_b);
+    ternary_matvec_scalar(out_c, input, weights_c, dim_out_c, dim_in, scale_c);
 }
 
 pub fn f32_from_bytes(b0: u8, b1: u8, b2: u8, b3: u8) -> f32 {
@@ -1129,6 +1149,7 @@ pub fn f32_from_bytes(b0: u8, b1: u8, b2: u8, b3: u8) -> f32 {
 /// Caller must guarantee AVX2+FMA are supported and OS-enabled; raw pointers
 /// must be valid for `vocab_size` rows of `emb_dim` BF16 elements
 /// (embeddings) and `emb_dim`/`vocab_size` f32 elements (input/output).
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 pub unsafe fn f32_dot_avx2(
     output: *mut f32,
@@ -1323,6 +1344,7 @@ pub unsafe fn f32_dot_avx2(
 /// # Safety
 /// Caller must guarantee AVX2+FMA are supported and OS-enabled and that both
 /// slices hold at least 128 elements (fixed head_dim).
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 pub unsafe fn vector_dot_128(a: &[f32], b: &[f32]) -> f32 {
     let mut sum0 = core::arch::x86_64::_mm256_setzero_ps();
@@ -1369,6 +1391,7 @@ pub unsafe fn vector_dot_128(a: &[f32], b: &[f32]) -> f32 {
 /// # Safety
 /// Caller must guarantee AVX2+FMA are supported and OS-enabled and that both
 /// slices hold at least 128 elements (fixed head_dim).
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 pub unsafe fn vector_madd_128(out: &mut [f32], w: f32, v: &[f32]) {
     let w_vec = core::arch::x86_64::_mm256_set1_ps(w);
@@ -1405,8 +1428,9 @@ fn f32_dot_argmax_serial(
     vocab_size: usize,
     emb_dim: usize,
 ) -> u32 {
+    #[cfg(not(feature = "scalar_only"))]
     if simd_on() {
-        unsafe {
+        return unsafe {
             f32_dot_avx2(
                 output.as_mut_ptr(),
                 input.as_ptr(),
@@ -1414,10 +1438,9 @@ fn f32_dot_argmax_serial(
                 vocab_size,
                 emb_dim,
             )
-        }
-    } else {
-        f32_dot_scalar(output, input, embeddings, vocab_size, emb_dim)
+        };
     }
+    f32_dot_scalar(output, input, embeddings, vocab_size, emb_dim)
 }
 
 /// Fused LM head + argmax over the tied BF16 embedding table.
@@ -1494,6 +1517,7 @@ const GEMM_TILE: usize = 8;
 
 /// Core of the batched GEMM: one output row, `TILE` tokens, weights unpacked
 /// once and reused across the whole tile.
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 #[allow(clippy::too_many_arguments)] // GEMM kernel: strides/tiles are the interface
 unsafe fn ternary_gemm_row_avx2<const TILE: usize>(
@@ -1564,6 +1588,7 @@ unsafe fn ternary_gemm_row_avx2<const TILE: usize>(
 /// Batched GEMM restricted to output rows `[row_start, row_start + row_count)`.
 /// `out_base` points at row 0 of token 0; rows are addressed absolutely, so
 /// disjoint row bands can be filled concurrently by different workers.
+#[cfg(not(feature = "scalar_only"))]
 #[target_feature(enable = "avx2", enable = "fma")]
 #[allow(clippy::too_many_arguments)] // GEMM kernel: strides/tiles are the interface
 unsafe fn ternary_matmul_avx2_rows(
@@ -1683,6 +1708,7 @@ pub fn ternary_matmul(
         }
     }
 
+    #[cfg(not(feature = "scalar_only"))]
     if simd_on() {
         unsafe {
             ternary_matmul_avx2_rows(
@@ -1697,11 +1723,11 @@ pub fn ternary_matmul(
                 dim_out,
             )
         };
-    } else {
-        for b in 0..batch {
-            let out_slice = &mut output[b * dim_out..(b + 1) * dim_out];
-            let in_slice = &input[b * dim_in..(b + 1) * dim_in];
-            ternary_matvec_scalar(out_slice, in_slice, weights_packed, dim_out, dim_in, scale);
-        }
+        return;
+    }
+    for b in 0..batch {
+        let out_slice = &mut output[b * dim_out..(b + 1) * dim_out];
+        let in_slice = &input[b * dim_in..(b + 1) * dim_in];
+        ternary_matvec_scalar(out_slice, in_slice, weights_packed, dim_out, dim_in, scale);
     }
 }

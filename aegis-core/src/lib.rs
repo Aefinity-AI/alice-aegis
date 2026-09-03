@@ -39,9 +39,13 @@ pub mod cis_neon;
 pub mod inference;
 #[cfg(target_arch = "x86_64")]
 pub mod ops;
-#[cfg(target_arch = "x86_64")]
+// Neither module is called from anywhere outside itself (verified by grep);
+// they're benchmark-only AVX2 variants. Excluded entirely under
+// `scalar_only` so their #[target_feature(avx2)] kernels never reach the
+// object file, rather than relying on the linker to dead-code-strip them.
+#[cfg(all(target_arch = "x86_64", not(feature = "scalar_only")))]
 pub mod ops_bitplane;
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", not(feature = "scalar_only")))]
 pub mod ops_colskip;
 
 #[cfg(feature = "parallel")]
