@@ -28,3 +28,9 @@ qemu-test = []
 # firmware's 80x25 SimpleTextOutput console at runtime if no GOP handle is
 # found or mode-setting fails; see src/console.rs.
 gop = []
+# E7c: build with every aegis-core AVX2/FMA kernel compiled out (see
+# aegis-core/Cargo.toml's scalar_only doc comment), for third-party x86-64
+# hardware with no AVX2/FMA — box2 (Celeron N4020, Gemini Lake). Built by
+# scripts/build_scalar_uefi.sh, which also asserts (objdump) that the
+# resulting .efi contains zero vfmadd*/vpmadd*/ymm instructions.
+scalar_only = ["aegis-core/scalar_only"]
