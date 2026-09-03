@@ -1,0 +1,35 @@
+=== e7c-scalar-uefi start 2026-09-03T16:21:31Z host=aefinity-box2 commit=66c91d8
+-- ensure rust-src / uefi target (nightly)
+-- build: scripts/build_scalar_uefi.sh --qemu-test
+-- built: /home/cm/legs/e7c-scalar-uefi/src/aegis-uefi/target/x86_64-uefi-hardfloat/release/aegis-uefi.efi (347648 bytes)
+-- objdump census (repeated here, independent of build_scalar_uefi.sh's own gate)
+objdump: ymm=0 vfmadd=0 vpmadd=0 xmm=4275
+objdump verdict: PASS — zero AVX2/FMA instructions
+-- CIS-1 op-level selftest digest (host build, pinned 76985613c965f643)
+selftest: CIS-1 integer semantics self-test (aegis_core::cis reference ops)
+[A1 golden_tmv_8x32] PASS
+[A2 tmv_undefined_code_11] PASS
+[A3 golden_requant_table] PASS
+[A4 golden_quantize_activations_16] PASS
+[A5 quantize_ties_and_zero] PASS
+[A6 golden_rmsnorm_16] PASS
+[A7 argmax_ties_break_low] PASS
+[A8 from_ratio_goldens] PASS
+[B1 rne_div sweep (512)] PASS
+[B2 requant sweep (512+512)] PASS
+[B3 tmv shapes sweep (10 shapes)] PASS
+[B4 quantize sweep (8x33)] PASS
+[B5 rmsnorm sweep (8x24)] PASS
+[B6 argmax sweep (64x17)] PASS
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+selftest verdict: MATCH (pinned digest reproduced on this commit)
+-- kit image: scripts/make-kit-image.sh
+-- kit image: /home/cm/legs/e7c-scalar-uefi/kit_scalar.img (67108864 bytes)
+-- QEMU boot: TCG (software emulation), -cpu qemu64,+sse4.2 — explicitly WITHOUT avx2
+qemu isa-debug-exit rc=33 (33=engine success 0x10, 35=engine verify-fail 0x11)
+BOOTLOG lines:
+  CPUID: vendor=AuthenticAMD brand="QEMU Virtual CPU version 2.5+" family=15 model=107 stepping=1 feats=<avx2:0,fma:0,sse2:1>
+  STAGE V: witness verify PASS — VERIFY PASS — this machine reproduced all 64 decode steps' full logit vectors bit-for-bit, with no OS underneath
+QEMU/TCG (no-AVX2) verdict: PASS
+-- summary: efi_bytes=347648 image_bytes=67108864 qemu_rc=33 verdict=PASS
+=== e7c-scalar-uefi done 2026-09-03T16:23:31Z
