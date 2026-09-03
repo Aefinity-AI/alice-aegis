@@ -137,3 +137,7 @@ model-lab/tinybit/m7_retarget_gate_work/
 
 # Contains home address + phone inside ASCII85+Flate streams; keep local only
 docs/Aefinity_AI_ALICE_response_DARPA-SN-26-97.pdf
+
+# CA1 scratch (large intermediate safetensors, never committed)
+scratch_ca1/
+.venv-ca1/
