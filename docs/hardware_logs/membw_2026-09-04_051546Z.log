@@ -1,0 +1,44 @@
+# runid: 2026-09-04T0515Z-membw-d85994e46041
+# started_utc: 2026-09-04T05:15:56Z
+# env_hash: 95a3ee9b66b68291
+# cmd: bash /home/cm/legs-worktrees/alice-aegis-e6-membw/program/loop/runners/membw.sh
+# host: aefinity-box | Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz | virt=none | git=d85994e
+# free before: 5103 MB available
+# membw: buffer 512 MB, 5 passes, up to 4 threads
+# method: 4 independent accumulators (a dependent chain measures LATENCY,
+#         not bandwidth); buffer pre-faulted; wall clock via Instant.
+# NOTE: a single-thread figure is NOT the machine ceiling. Both are printed.
+
+label,threads,pass,bytes_read,secs,GB_per_s,checksum
+seq_read,1,0,536870912,0.210536,2.550,6da96b07d6000001
+seq_read,1,1,536870912,0.182678,2.939,6da96b07d6000001
+seq_read,1,2,536870912,0.198930,2.699,6da96b07d6000001
+seq_read,1,3,536870912,0.213559,2.514,6da96b07d6000001
+seq_read,1,4,536870912,0.218653,2.455,6da96b07d6000001
+seq_read,4,0,536870912,0.223162,2.406,6da96b07d6000001
+seq_read,4,1,536870912,0.220094,2.439,6da96b07d6000001
+seq_read,4,2,536870912,0.220616,2.434,6da96b07d6000001
+seq_read,4,3,536870912,0.213802,2.511,6da96b07d6000001
+seq_read,4,4,536870912,0.221277,2.426,6da96b07d6000001
+ternary_stream,1,0,536870912,4.836414,0.111,2e1
+ternary_stream,1,1,536870912,4.806185,0.112,2e1
+ternary_stream,1,2,536870912,4.841799,0.111,2e1
+ternary_stream,1,3,536870912,4.823820,0.111,2e1
+ternary_stream,1,4,536870912,4.793485,0.112,2e1
+
+==== SUMMARY (best of 5 passes; report ALL THREE or none) ====
+  peak sequential read, 1 thread     : 2.94 GB/s
+  peak sequential read, 4 threads    : 2.51 GB/s
+  ternary weight-stream, 1 thread    : 0.11 GB/s
+
+  CAVEAT ON ARM 3: this is a SCALAR LUT walk, not the AVX2 kernel
+  (aegis_core::ops::ternary_matvec_serial). It is therefore a LOWER
+  BOUND on the engine's streaming rate, not the engine's rate. Compare
+  it to the technical report's 'achieved' bandwidth row, which is itself
+  a derivation from a cycle count and an unstated nominal clock.
+
+  The decode roofline must divide by the TERNARY figure, not the peak.
+  Quoting a single-thread peak as 'the machine bandwidth ceiling' both
+  understates the machine and overstates the kernel's share of it.
+  This run is one machine, one buffer size, one pattern. It replaces an
+  unsourced number with a measured one; it does not make it a ceiling.
