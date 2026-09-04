@@ -137,16 +137,22 @@ this lane's MemoryMax cap; box1 (5.7 GB, AVX2) is where the plan assigns
 this cost. Per the task's fallback clause, the penguin smoke test covers
 ternarize + census + forge only.
 
-## Staged for box1
+## Staged for box1 -- NOT DONE
 
-`~/aefinity-artifacts/bitnet_2b_master.safetensors` on cm-box1 (rsync from
-this `model.safetensors`, sha256 verified both ends) -- box1 already has
-`aefinity-artifacts/aegis_pruned_model.safetensors` and
-`aefinity-artifacts/aegis-forge/{embed,vocab}.bin` staged from an earlier
-lane. Leg: `claudius-maximus` branch `cm/es2-legs`, `legs/es2-sweep.sh`
-(not yet pushed to box1 or started -- e6-membw, a Rule-A timing leg, was
-still active at rsync time; this lane only staged the file, per the task's
-explicit scope).
+`~/aefinity-artifacts/bitnet_2b_master.safetensors` is **not yet on
+cm-box1**. The rsync from this `model.safetensors` (sha256
+`8143ae115ed6babe5e5ada8fb8c5b769d8f417802b2db042ad98b4f7ed73975b`) was
+never performed: `cm leg status cm-box1` shows `legs/e6-membw: unit=active`
+(a Rule-A timing leg) for the whole duration of this lane, so per the
+never-touch-box1-while-a-timing-leg-is-active rule, box1 was correctly left
+alone. Verified by `ssh cm-box1 ls ~/aefinity-artifacts/` (2026-09-04):
+only `aegis_pruned_model.safetensors` and `aegis-forge/{embed,vocab}.bin`
+are present, staged from an earlier lane -- no `bitnet_2b_master.safetensors`.
+
+Leg script `claudius-maximus` branch `cm/es2-legs`, `legs/es2-sweep.sh` is
+written and pushed but has not been run on box1. The rsync-and-run step is
+the one remaining action for a future tick, once `cm leg status cm-box1`
+shows `e6-membw` inactive.
 
 Expected cost per point on box1: forge (streaming per-tensor, dominated by
 sequential read of ~1.2 GB + write of ~0.5 GB) plus one `aegis-eval --cis-full`
