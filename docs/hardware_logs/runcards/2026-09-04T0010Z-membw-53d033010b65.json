@@ -1,0 +1,55 @@
+{
+  "schema": "runcard/1",
+  "runid": "2026-09-04T0010Z-membw-53d033010b65",
+  "runner": "membw",
+  "cmd": [
+    "bash",
+    "/home/cm/legs-worktrees/alice-aegis-e6-membw/program/loop/runners/membw.sh"
+  ],
+  "started_utc": "2026-09-04T00:10:54Z",
+  "ended_utc": "2026-09-04T00:11:21Z",
+  "wall_s": 26.712,
+  "exit_code": 0,
+  "env": {
+    "host_nick": "aefinity-box",
+    "cpu": "Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz",
+    "nproc_logical": 4,
+    "nproc_physical": 2,
+    "virt": "none",
+    "baremetal": true,
+    "kernel": "6.12.94+deb13-amd64",
+    "mem_total_kb": 5981596,
+    "git_sha": "53d033010b65",
+    "git_describe": "53d0330",
+    "git_branch": "HEAD",
+    "tree_dirty": false,
+    "aegis_threads_env": null,
+    "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+    "binaries": {
+      "/home/cm/legs-worktrees/alice-aegis-e6-membw/aegis-linux/target/release/examples/inproc_variance": "b0060a7d16977aa9f4a6d6c7a0ec8b9d2b06255b59010ae803e5ecfc29dd9eb3"
+    },
+    "artifacts": {
+      "/home/cm/legs-worktrees/alice-aegis-e6-membw/aegis_pruned_model.safetensors": null
+    },
+    "quiet_check": {
+      "busiest_pcpu": 4.1,
+      "busiest_comm": "claude.exe",
+      "threshold_pct": 25.0,
+      "quiet": true
+    },
+    "env_hash": "fac3e84cc2f653c0"
+  },
+  "env_hash_post": "d2b330486dd066c4",
+  "env_stable": false,
+  "log": "docs/hardware_logs/membw_2026-09-04_001053Z.log",
+  "log_sha256": "9c991d474e06e85f2b7ac6041964f442ae0d395f62c7543b02ab63ffea34b56f",
+  "log_bytes": 2343,
+  "quiet_at_end": {
+    "busiest_pcpu": 4.1,
+    "busiest_comm": "claude.exe",
+    "threshold_pct": 25.0,
+    "quiet": true
+  },
+  "note": "",
+  "metrics": {}
+}
