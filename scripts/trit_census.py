@@ -154,6 +154,24 @@ class HistAccum:
         return rows
 
 
+# BitNet-b1.58-2B-4T linear geometry: (out_features, in_features). Packed U8 rows hold
+# in_features/4 bytes. Used only to re-shape FLAT U8 tensors written by the forge.
+_BITNET_2B_GEOMETRY = {
+    "q_proj": (2560, 2560), "o_proj": (2560, 2560),
+    "k_proj": (640, 2560), "v_proj": (640, 2560),
+    "gate_proj": (6912, 2560), "up_proj": (6912, 2560),
+    "down_proj": (2560, 6912),
+}
+
+
+def infer_flat_shape(name: str, n_bytes: int):
+    """Return (out_features, in_features_packed) for a flat packed tensor, or None."""
+    for key, (out_f, in_f) in _BITNET_2B_GEOMETRY.items():
+        if key in name and out_f * in_f == n_bytes * 4:
+            return (out_f, in_f // 4)
+    return None
+
+
 def census_tensor(name: str, mm: mmap.mmap, entry: dict, data_start: int,
                    row_hist: HistAccum, col_hist: HistAccum,
                    rans_lanes: int | None):
@@ -290,12 +308,18 @@ def run_census(model_path: str, out_dir: str, max_tensors: int | None, rans_lane
             for i, name in enumerate(tensor_names):
                 entry = header[name]
                 if len(entry["shape"]) != 2:
-                    # packed U8 tensors that are not 2-D weight matrices (seen on the
-                    # 2B pruned model: a 1-D U8 entry) are not trit matrices — skip
-                    # them explicitly and record it rather than crash the census.
-                    print(f"skip {name}: U8 tensor with shape {entry['shape']} is not a 2-D trit matrix", flush=True)
-                    skipped.append((name, entry["shape"]))
-                    continue
+                    # The forge stores packed U8 weights FLAT (shape [n_bytes]). Recover the
+                    # (out_features, in_features/4) matrix shape from the layer name using the
+                    # BitNet-b1.58-2B-4T geometry (hidden 2560, intermediate 6912, 20 heads x 128,
+                    # 5 KV heads x 128 = 640) and check the byte count matches exactly.
+                    n_bytes = entry["shape"][0] if entry["shape"] else 0
+                    shape2 = infer_flat_shape(name, n_bytes)
+                    if shape2 is None:
+                        print(f"skip {name}: U8 tensor with shape {entry['shape']} — no known 2-D geometry", flush=True)
+                        skipped.append((name, entry["shape"]))
+                        continue
+                    entry = dict(entry, shape=list(shape2))
+                    print(f"shape {name}: flat {n_bytes} bytes -> {shape2[0]}x{shape2[1]*4} trits", flush=True)
                 row = census_tensor(name, mm, entry, data_start, row_hist, col_hist, rans_lanes)
                 writer.writerow(row)
                 csvf.flush()
