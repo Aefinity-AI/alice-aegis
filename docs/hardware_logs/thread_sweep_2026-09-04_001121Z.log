@@ -1,0 +1,6 @@
+# runid: 2026-09-04T0011Z-thread_sweep-53d033010b65
+# started_utc: 2026-09-04T00:11:21Z
+# env_hash: d2b330486dd066c4
+# cmd: bash /home/cm/legs-worktrees/alice-aegis-e6-membw/program/loop/runners/thread_sweep.sh
+# host: aefinity-box | Intel(R) Core(TM) i5-5200U CPU @ 2.20GHz | virt=none | git=53d0330
+FATAL: missing artifact /home/cm/legs-worktrees/alice-aegis-e6-membw/aegis_pruned_model.safetensors
