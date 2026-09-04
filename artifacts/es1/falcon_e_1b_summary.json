@@ -1,0 +1,34 @@
+{
+  "model_path": "/home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_model.safetensors",
+  "label": "falcon_e_1b",
+  "n_tensors": 168,
+  "total_weights": 1585446912,
+  "overall_bits_per_weight": {
+    "packed_reference_5trit": 1.6,
+    "actual_aegis_packing": 2.0,
+    "rans0_achieved": 1.5675348554338728,
+    "rans1_achieved": 1.5671310828476357,
+    "zstd19_achieved": 1.5733518550004908,
+    "xz9_achieved": 1.5917094397166418
+  },
+  "total_bytes": {
+    "packed_reference_5trit": 317089382.40000033,
+    "actual_aegis_packing": 396361728,
+    "rans0": 310655412.0,
+    "rans1": 310575392.0,
+    "zstd19": 311808230.0,
+    "xz9": 315446352.0
+  },
+  "total_roundtrip_mismatches": 0,
+  "by_layer_type_zero_fraction": {
+    "ffn_down": 0.4099595414267646,
+    "ffn_gate": 0.40751166034627845,
+    "ffn_up": 0.39845595315650656,
+    "attn_k": 0.4493992328643799,
+    "attn_o": 0.40207353234291077,
+    "attn_q": 0.4455118775367737,
+    "attn_v": 0.405722697575887
+  },
+  "elapsed_seconds": 1860.822449207306,
+  "csv_path": "/home/justinbrianthompson/projects/alice-aegis-es1/artifacts/es1/falcon_e_1b_census.csv"
+}
