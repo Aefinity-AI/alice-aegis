@@ -378,7 +378,7 @@ def forge_point(p0_target, out_dir: Path, seed_base: int = 20260904) -> dict:
 def run_eval(eval_bin, embed, vocab, text, max_tokens, model_path) -> str:
     out = subprocess.run(
         [eval_bin, str(model_path), embed, vocab, text, str(max_tokens), "--cis-full"],
-        capture_output=True, text=True, timeout=1800,
+        capture_output=True, text=True, timeout=7200,  # 200-token --cis-full on a 2B model ≈ 50 min single-thread on box1
     )
     return out.stdout + out.stderr
 
