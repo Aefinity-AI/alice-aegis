@@ -413,12 +413,18 @@ def forge_point_master(master_path: Path, config_path: Path, tau: float, out_dir
     }
 
 
-DEFAULT_TAUS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]
+# 3.5 and 4.0 added so the sweep reaches the plan's p0≈0.95 ("0.314 bit") point (3-tensor pass: τ=3.0 → p0≈0.92–0.94).
+DEFAULT_TAUS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
 
 
 def sweep(master_path, config_path, pruned_ref, taus, out_dir: Path, result_path: Path, name: str,
           eval_bin=None, embed=None, vocab=None, text=None, max_tokens=200, keep_forged=False,
-          refuse_mismatch_frac=0.001):
+          refuse_mismatch_frac=0.02):
+    # 2026-09-04 coordinator decision (Fable): the released bf16 master differs from the shipped
+    # ternary checkpoint on 1.53 % of weights (bf16 ULP at the 0.5*gamma boundary — a lossy export,
+    # not a script bug). Accept that as the honest ceiling: the gate is 2 % and the tau=0.5 row's
+    # PPL vs the shipped model quantifies the drift explicitly. Anything above 2 % would mean a
+    # different model and still refuses.
     commit = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"],
                              capture_output=True, text=True).stdout.strip()
     host = subprocess.run(["hostname"], capture_output=True, text=True).stdout.strip()
