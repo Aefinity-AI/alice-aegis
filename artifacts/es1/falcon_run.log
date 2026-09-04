@@ -1,0 +1,205 @@
+Running as unit: run-rec96ad1670f14d8c9a73f654fecd97cf.scope; invocation ID: fefbc2b3254d47bcb65d6abdc857b014
+  [1/168] model.layers.0.mlp.down_proj.weight: n=18874368 p0=0.3516 H0=1.5839 rans0=1.5854 rans1=1.5854 mism=0
+  [2/168] model.layers.0.mlp.gate_proj.weight: n=18874368 p0=0.3423 H0=1.5847 rans0=1.5862 rans1=1.5862 mism=0
+  [3/168] model.layers.0.mlp.up_proj.weight: n=18874368 p0=0.3271 H0=1.5848 rans0=1.5864 rans1=1.5863 mism=0
+  [4/168] model.layers.0.self_attn.k_proj.weight: n=524288 p0=0.3137 H0=1.5837 rans0=1.6384 rans1=1.6381 mism=0
+  [5/168] model.layers.0.self_attn.o_proj.weight: n=4194304 p0=0.3785 H0=1.5785 rans0=1.5853 rans1=1.5851 mism=0
+  [6/168] model.layers.0.self_attn.q_proj.weight: n=4194304 p0=0.3452 H0=1.5845 rans0=1.5914 rans1=1.5907 mism=0
+  [7/168] model.layers.0.self_attn.v_proj.weight: n=524288 p0=0.3723 H0=1.5801 rans0=1.6349 rans1=1.6350 mism=0
+  [8/168] model.layers.1.mlp.down_proj.weight: n=18874368 p0=0.3704 H0=1.5806 rans0=1.5821 rans1=1.5821 mism=0
+  [9/168] model.layers.1.mlp.gate_proj.weight: n=18874368 p0=0.3560 H0=1.5833 rans0=1.5849 rans1=1.5849 mism=0
+  [10/168] model.layers.1.mlp.up_proj.weight: n=18874368 p0=0.3572 H0=1.5831 rans0=1.5847 rans1=1.5847 mism=0
+  [11/168] model.layers.1.self_attn.k_proj.weight: n=524288 p0=0.3436 H0=1.5846 rans0=1.6392 rans1=1.6366 mism=0
+  [12/168] model.layers.1.self_attn.o_proj.weight: n=4194304 p0=0.3691 H0=1.5809 rans0=1.5877 rans1=1.5877 mism=0
+  [13/168] model.layers.1.self_attn.q_proj.weight: n=4194304 p0=0.3442 H0=1.5846 rans0=1.5914 rans1=1.5911 mism=0
+  [14/168] model.layers.1.self_attn.v_proj.weight: n=524288 p0=0.3902 H0=1.5747 rans0=1.6293 rans1=1.6295 mism=0
+  [15/168] model.layers.10.mlp.down_proj.weight: n=18874368 p0=0.4079 H0=1.5675 rans0=1.5690 rans1=1.5690 mism=0
+  [16/168] model.layers.10.mlp.gate_proj.weight: n=18874368 p0=0.4026 H0=1.5698 rans0=1.5714 rans1=1.5714 mism=0
+  [17/168] model.layers.10.mlp.up_proj.weight: n=18874368 p0=0.4170 H0=1.5631 rans0=1.5646 rans1=1.5646 mism=0
+  [18/168] model.layers.10.self_attn.k_proj.weight: n=524288 p0=0.4084 H0=1.5673 rans0=1.6222 rans1=1.6194 mism=0
+  [19/168] model.layers.10.self_attn.o_proj.weight: n=4194304 p0=0.4243 H0=1.5591 rans0=1.5660 rans1=1.5659 mism=0
+  [20/168] model.layers.10.self_attn.q_proj.weight: n=4194304 p0=0.4430 H0=1.5476 rans0=1.5545 rans1=1.5513 mism=0
+  [21/168] model.layers.10.self_attn.v_proj.weight: n=524288 p0=0.4642 H0=1.5321 rans0=1.5871 rans1=1.5871 mism=0
+  [22/168] model.layers.11.mlp.down_proj.weight: n=18874368 p0=0.4160 H0=1.5635 rans0=1.5651 rans1=1.5651 mism=0
+  [23/168] model.layers.11.mlp.gate_proj.weight: n=18874368 p0=0.4278 H0=1.5571 rans0=1.5586 rans1=1.5586 mism=0
+  [24/168] model.layers.11.mlp.up_proj.weight: n=18874368 p0=0.3989 H0=1.5714 rans0=1.5729 rans1=1.5729 mism=0
+  [25/168] model.layers.11.self_attn.k_proj.weight: n=524288 p0=0.4440 H0=1.5469 rans0=1.6019 rans1=1.5987 mism=0
+  [26/168] model.layers.11.self_attn.o_proj.weight: n=4194304 p0=0.3999 H0=1.5710 rans0=1.5778 rans1=1.5778 mism=0
+  [27/168] model.layers.11.self_attn.q_proj.weight: n=4194304 p0=0.4377 H0=1.5511 rans0=1.5580 rans1=1.5558 mism=0
+  [28/168] model.layers.11.self_attn.v_proj.weight: n=524288 p0=0.3728 H0=1.5800 rans0=1.6357 rans1=1.6360 mism=0
+  [29/168] model.layers.12.mlp.down_proj.weight: n=18874368 p0=0.4052 H0=1.5687 rans0=1.5702 rans1=1.5702 mism=0
+  [30/168] model.layers.12.mlp.gate_proj.weight: n=18874368 p0=0.4347 H0=1.5529 rans0=1.5545 rans1=1.5544 mism=0
+  [31/168] model.layers.12.mlp.up_proj.weight: n=18874368 p0=0.3982 H0=1.5717 rans0=1.5732 rans1=1.5732 mism=0
+  [32/168] model.layers.12.self_attn.k_proj.weight: n=524288 p0=0.4583 H0=1.5367 rans0=1.5914 rans1=1.5889 mism=0
+  [33/168] model.layers.12.self_attn.o_proj.weight: n=4194304 p0=0.4056 H0=1.5685 rans0=1.5754 rans1=1.5754 mism=0
+  [34/168] model.layers.12.self_attn.q_proj.weight: n=4194304 p0=0.4146 H0=1.5642 rans0=1.5711 rans1=1.5706 mism=0
+  [35/168] model.layers.12.self_attn.v_proj.weight: n=524288 p0=0.4627 H0=1.5333 rans0=1.5879 rans1=1.5881 mism=0
+  [36/168] model.layers.13.mlp.down_proj.weight: n=18874368 p0=0.4107 H0=1.5662 rans0=1.5677 rans1=1.5677 mism=0
+  [37/168] model.layers.13.mlp.gate_proj.weight: n=18874368 p0=0.4190 H0=1.5620 rans0=1.5635 rans1=1.5635 mism=0
+  [38/168] model.layers.13.mlp.up_proj.weight: n=18874368 p0=0.4222 H0=1.5603 rans0=1.5618 rans1=1.5618 mism=0
+  [39/168] model.layers.13.self_attn.k_proj.weight: n=524288 p0=0.4760 H0=1.5224 rans0=1.5768 rans1=1.5723 mism=0
+  [40/168] model.layers.13.self_attn.o_proj.weight: n=4194304 p0=0.4024 H0=1.5699 rans0=1.5768 rans1=1.5768 mism=0
+  [41/168] model.layers.13.self_attn.q_proj.weight: n=4194304 p0=0.4351 H0=1.5527 rans0=1.5595 rans1=1.5573 mism=0
+  [42/168] model.layers.13.self_attn.v_proj.weight: n=524288 p0=0.4683 H0=1.5288 rans0=1.5835 rans1=1.5836 mism=0
+  [43/168] model.layers.14.mlp.down_proj.weight: n=18874368 p0=0.4051 H0=1.5687 rans0=1.5703 rans1=1.5703 mism=0
+  [44/168] model.layers.14.mlp.gate_proj.weight: n=18874368 p0=0.4416 H0=1.5486 rans0=1.5501 rans1=1.5500 mism=0
+  [45/168] model.layers.14.mlp.up_proj.weight: n=18874368 p0=0.3998 H0=1.5710 rans0=1.5726 rans1=1.5726 mism=0
+  [46/168] model.layers.14.self_attn.k_proj.weight: n=524288 p0=0.4438 H0=1.5471 rans0=1.6017 rans1=1.5925 mism=0
+  [47/168] model.layers.14.self_attn.o_proj.weight: n=4194304 p0=0.3962 H0=1.5725 rans0=1.5794 rans1=1.5793 mism=0
+  [48/168] model.layers.14.self_attn.q_proj.weight: n=4194304 p0=0.4799 H0=1.5189 rans0=1.5257 rans1=1.5206 mism=0
+  [49/168] model.layers.14.self_attn.v_proj.weight: n=524288 p0=0.3668 H0=1.5814 rans0=1.6371 rans1=1.6373 mism=0
+  [50/168] model.layers.15.mlp.down_proj.weight: n=18874368 p0=0.4073 H0=1.5678 rans0=1.5693 rans1=1.5693 mism=0
+  [51/168] model.layers.15.mlp.gate_proj.weight: n=18874368 p0=0.4181 H0=1.5625 rans0=1.5640 rans1=1.5639 mism=0
+  [52/168] model.layers.15.mlp.up_proj.weight: n=18874368 p0=0.3999 H0=1.5710 rans0=1.5725 rans1=1.5725 mism=0
+  [53/168] model.layers.15.self_attn.k_proj.weight: n=524288 p0=0.5822 H0=1.3982 rans0=1.4530 rans1=1.4192 mism=0
+  [54/168] model.layers.15.self_attn.o_proj.weight: n=4194304 p0=0.4042 H0=1.5692 rans0=1.5760 rans1=1.5760 mism=0
+  [55/168] model.layers.15.self_attn.q_proj.weight: n=4194304 p0=0.5149 H0=1.4845 rans0=1.4913 rans1=1.4798 mism=0
+  [56/168] model.layers.15.self_attn.v_proj.weight: n=524288 p0=0.4633 H0=1.5328 rans0=1.5874 rans1=1.5876 mism=0
+  [57/168] model.layers.16.mlp.down_proj.weight: n=18874368 p0=0.4342 H0=1.5533 rans0=1.5548 rans1=1.5548 mism=0
+  [58/168] model.layers.16.mlp.gate_proj.weight: n=18874368 p0=0.4489 H0=1.5435 rans0=1.5451 rans1=1.5450 mism=0
+  [59/168] model.layers.16.mlp.up_proj.weight: n=18874368 p0=0.4016 H0=1.5703 rans0=1.5718 rans1=1.5718 mism=0
+  [60/168] model.layers.16.self_attn.k_proj.weight: n=524288 p0=0.4807 H0=1.5182 rans0=1.5728 rans1=1.5366 mism=0
+  [61/168] model.layers.16.self_attn.o_proj.weight: n=4194304 p0=0.4541 H0=1.5398 rans0=1.5467 rans1=1.5466 mism=0
+  [62/168] model.layers.16.self_attn.q_proj.weight: n=4194304 p0=0.5125 H0=1.4871 rans0=1.4939 rans1=1.4815 mism=0
+  [63/168] model.layers.16.self_attn.v_proj.weight: n=524288 p0=0.4960 H0=1.5040 rans0=1.5588 rans1=1.5590 mism=0
+  [64/168] model.layers.17.mlp.down_proj.weight: n=18874368 p0=0.4379 H0=1.5509 rans0=1.5524 rans1=1.5524 mism=0
+  [65/168] model.layers.17.mlp.gate_proj.weight: n=18874368 p0=0.4151 H0=1.5640 rans0=1.5655 rans1=1.5655 mism=0
+  [66/168] model.layers.17.mlp.up_proj.weight: n=18874368 p0=0.4270 H0=1.5576 rans0=1.5591 rans1=1.5591 mism=0
+  [67/168] model.layers.17.self_attn.k_proj.weight: n=524288 p0=0.5542 H0=1.4373 rans0=1.4922 rans1=1.4836 mism=0
+  [68/168] model.layers.17.self_attn.o_proj.weight: n=4194304 p0=0.3920 H0=1.5741 rans0=1.5809 rans1=1.5809 mism=0
+  [69/168] model.layers.17.self_attn.q_proj.weight: n=4194304 p0=0.5203 H0=1.4785 rans0=1.4853 rans1=1.4793 mism=0
+  [70/168] model.layers.17.self_attn.v_proj.weight: n=524288 p0=0.4513 H0=1.5418 rans0=1.5970 rans1=1.5971 mism=0
+  [71/168] model.layers.18.mlp.down_proj.weight: n=18874368 p0=0.4426 H0=1.5479 rans0=1.5494 rans1=1.5494 mism=0
+  [72/168] model.layers.18.mlp.gate_proj.weight: n=18874368 p0=0.4158 H0=1.5636 rans0=1.5652 rans1=1.5651 mism=0
+  [73/168] model.layers.18.mlp.up_proj.weight: n=18874368 p0=0.4060 H0=1.5683 rans0=1.5699 rans1=1.5698 mism=0
+  [74/168] model.layers.18.self_attn.k_proj.weight: n=524288 p0=0.4921 H0=1.5077 rans0=1.5626 rans1=1.5583 mism=0
+  [75/168] model.layers.18.self_attn.o_proj.weight: n=4194304 p0=0.3838 H0=1.5769 rans0=1.5838 rans1=1.5838 mism=0
+  [76/168] model.layers.18.self_attn.q_proj.weight: n=4194304 p0=0.4617 H0=1.5341 rans0=1.5410 rans1=1.5372 mism=0
+  [77/168] model.layers.18.self_attn.v_proj.weight: n=524288 p0=0.3476 H0=1.5843 rans0=1.6405 rans1=1.6406 mism=0
+  [78/168] model.layers.19.mlp.down_proj.weight: n=18874368 p0=0.4335 H0=1.5537 rans0=1.5553 rans1=1.5553 mism=0
+  [79/168] model.layers.19.mlp.gate_proj.weight: n=18874368 p0=0.4182 H0=1.5624 rans0=1.5639 rans1=1.5638 mism=0
+  [80/168] model.layers.19.mlp.up_proj.weight: n=18874368 p0=0.4274 H0=1.5574 rans0=1.5589 rans1=1.5588 mism=0
+  [81/168] model.layers.19.self_attn.k_proj.weight: n=524288 p0=0.5097 H0=1.4900 rans0=1.5446 rans1=1.5257 mism=0
+  [82/168] model.layers.19.self_attn.o_proj.weight: n=4194304 p0=0.4451 H0=1.5462 rans0=1.5531 rans1=1.5530 mism=0
+  [83/168] model.layers.19.self_attn.q_proj.weight: n=4194304 p0=0.4928 H0=1.5070 rans0=1.5139 rans1=1.5057 mism=0
+  [84/168] model.layers.19.self_attn.v_proj.weight: n=524288 p0=0.3526 H0=1.5838 rans0=1.6373 rans1=1.6372 mism=0
+  [85/168] model.layers.2.mlp.down_proj.weight: n=18874368 p0=0.3840 H0=1.5768 rans0=1.5783 rans1=1.5783 mism=0
+  [86/168] model.layers.2.mlp.gate_proj.weight: n=18874368 p0=0.3670 H0=1.5813 rans0=1.5829 rans1=1.5829 mism=0
+  [87/168] model.layers.2.mlp.up_proj.weight: n=18874368 p0=0.3702 H0=1.5806 rans0=1.5822 rans1=1.5822 mism=0
+  [88/168] model.layers.2.self_attn.k_proj.weight: n=524288 p0=0.3805 H0=1.5779 rans0=1.6329 rans1=1.6211 mism=0
+  [89/168] model.layers.2.self_attn.o_proj.weight: n=4194304 p0=0.3825 H0=1.5773 rans0=1.5842 rans1=1.5840 mism=0
+  [90/168] model.layers.2.self_attn.q_proj.weight: n=4194304 p0=0.3747 H0=1.5795 rans0=1.5864 rans1=1.5848 mism=0
+  [91/168] model.layers.2.self_attn.v_proj.weight: n=524288 p0=0.3944 H0=1.5732 rans0=1.6282 rans1=1.6284 mism=0
+  [92/168] model.layers.20.mlp.down_proj.weight: n=18874368 p0=0.4381 H0=1.5508 rans0=1.5524 rans1=1.5524 mism=0
+  [93/168] model.layers.20.mlp.gate_proj.weight: n=18874368 p0=0.4623 H0=1.5336 rans0=1.5351 rans1=1.5350 mism=0
+  [94/168] model.layers.20.mlp.up_proj.weight: n=18874368 p0=0.4251 H0=1.5586 rans0=1.5602 rans1=1.5601 mism=0
+  [95/168] model.layers.20.self_attn.k_proj.weight: n=524288 p0=0.5368 H0=1.4592 rans0=1.5141 rans1=1.4928 mism=0
+  [96/168] model.layers.20.self_attn.o_proj.weight: n=4194304 p0=0.3922 H0=1.5740 rans0=1.5809 rans1=1.5809 mism=0
+  [97/168] model.layers.20.self_attn.q_proj.weight: n=4194304 p0=0.5024 H0=1.4976 rans0=1.5044 rans1=1.4993 mism=0
+  [98/168] model.layers.20.self_attn.v_proj.weight: n=524288 p0=0.3552 H0=1.5834 rans0=1.6366 rans1=1.6369 mism=0
+  [99/168] model.layers.21.mlp.down_proj.weight: n=18874368 p0=0.4610 H0=1.5346 rans0=1.5362 rans1=1.5362 mism=0
+  [100/168] model.layers.21.mlp.gate_proj.weight: n=18874368 p0=0.4430 H0=1.5476 rans0=1.5492 rans1=1.5491 mism=0
+  [101/168] model.layers.21.mlp.up_proj.weight: n=18874368 p0=0.3987 H0=1.5715 rans0=1.5730 rans1=1.5730 mism=0
+  [102/168] model.layers.21.self_attn.k_proj.weight: n=524288 p0=0.5819 H0=1.3987 rans0=1.4538 rans1=1.4286 mism=0
+  [103/168] model.layers.21.self_attn.o_proj.weight: n=4194304 p0=0.4277 H0=1.5572 rans0=1.5641 rans1=1.5640 mism=0
+  [104/168] model.layers.21.self_attn.q_proj.weight: n=4194304 p0=0.5065 H0=1.4934 rans0=1.5003 rans1=1.4897 mism=0
+  [105/168] model.layers.21.self_attn.v_proj.weight: n=524288 p0=0.4152 H0=1.5639 rans0=1.6187 rans1=1.6190 mism=0
+  [106/168] model.layers.22.mlp.down_proj.weight: n=18874368 p0=0.4302 H0=1.5557 rans0=1.5572 rans1=1.5572 mism=0
+  [107/168] model.layers.22.mlp.gate_proj.weight: n=18874368 p0=0.4115 H0=1.5657 rans0=1.5673 rans1=1.5672 mism=0
+  [108/168] model.layers.22.mlp.up_proj.weight: n=18874368 p0=0.4243 H0=1.5591 rans0=1.5607 rans1=1.5606 mism=0
+  [109/168] model.layers.22.self_attn.k_proj.weight: n=524288 p0=0.4092 H0=1.5669 rans0=1.6214 rans1=1.6205 mism=0
+  [110/168] model.layers.22.self_attn.o_proj.weight: n=4194304 p0=0.3826 H0=1.5773 rans0=1.5841 rans1=1.5841 mism=0
+  [111/168] model.layers.22.self_attn.q_proj.weight: n=4194304 p0=0.4609 H0=1.5347 rans0=1.5416 rans1=1.5399 mism=0
+  [112/168] model.layers.22.self_attn.v_proj.weight: n=524288 p0=0.3987 H0=1.5715 rans0=1.6262 rans1=1.6261 mism=0
+  [113/168] model.layers.23.mlp.down_proj.weight: n=18874368 p0=0.4363 H0=1.5520 rans0=1.5535 rans1=1.5535 mism=0
+  [114/168] model.layers.23.mlp.gate_proj.weight: n=18874368 p0=0.4036 H0=1.5694 rans0=1.5709 rans1=1.5703 mism=0
+  [115/168] model.layers.23.mlp.up_proj.weight: n=18874368 p0=0.3942 H0=1.5733 rans0=1.5748 rans1=1.5745 mism=0
+  [116/168] model.layers.23.self_attn.k_proj.weight: n=524288 p0=0.5198 H0=1.4791 rans0=1.5338 rans1=1.5297 mism=0
+  [117/168] model.layers.23.self_attn.o_proj.weight: n=4194304 p0=0.3853 H0=1.5764 rans0=1.5832 rans1=1.5831 mism=0
+  [118/168] model.layers.23.self_attn.q_proj.weight: n=4194304 p0=0.4725 H0=1.5253 rans0=1.5322 rans1=1.5293 mism=0
+  [119/168] model.layers.23.self_attn.v_proj.weight: n=524288 p0=0.4326 H0=1.5543 rans0=1.6089 rans1=1.6090 mism=0
+  [120/168] model.layers.3.mlp.down_proj.weight: n=18874368 p0=0.3762 H0=1.5791 rans0=1.5806 rans1=1.5806 mism=0
+  [121/168] model.layers.3.mlp.gate_proj.weight: n=18874368 p0=0.3676 H0=1.5812 rans0=1.5828 rans1=1.5828 mism=0
+  [122/168] model.layers.3.mlp.up_proj.weight: n=18874368 p0=0.3802 H0=1.5780 rans0=1.5795 rans1=1.5795 mism=0
+  [123/168] model.layers.3.self_attn.k_proj.weight: n=524288 p0=0.3433 H0=1.5846 rans0=1.6397 rans1=1.6346 mism=0
+  [124/168] model.layers.3.self_attn.o_proj.weight: n=4194304 p0=0.3980 H0=1.5718 rans0=1.5786 rans1=1.5786 mism=0
+  [125/168] model.layers.3.self_attn.q_proj.weight: n=4194304 p0=0.3825 H0=1.5773 rans0=1.5842 rans1=1.5821 mism=0
+  [126/168] model.layers.3.self_attn.v_proj.weight: n=524288 p0=0.4014 H0=1.5704 rans0=1.6252 rans1=1.6255 mism=0
+  [127/168] model.layers.4.mlp.down_proj.weight: n=18874368 p0=0.3997 H0=1.5711 rans0=1.5726 rans1=1.5726 mism=0
+  [128/168] model.layers.4.mlp.gate_proj.weight: n=18874368 p0=0.3780 H0=1.5786 rans0=1.5802 rans1=1.5802 mism=0
+  [129/168] model.layers.4.mlp.up_proj.weight: n=18874368 p0=0.3773 H0=1.5788 rans0=1.5803 rans1=1.5803 mism=0
+  [130/168] model.layers.4.self_attn.k_proj.weight: n=524288 p0=0.3470 H0=1.5844 rans0=1.6394 rans1=1.6364 mism=0
+  [131/168] model.layers.4.self_attn.o_proj.weight: n=4194304 p0=0.4024 H0=1.5699 rans0=1.5768 rans1=1.5768 mism=0
+  [132/168] model.layers.4.self_attn.q_proj.weight: n=4194304 p0=0.3807 H0=1.5778 rans0=1.5847 rans1=1.5830 mism=0
+  [133/168] model.layers.4.self_attn.v_proj.weight: n=524288 p0=0.3611 H0=1.5825 rans0=1.6385 rans1=1.6385 mism=0
+  [134/168] model.layers.5.mlp.down_proj.weight: n=18874368 p0=0.3859 H0=1.5762 rans0=1.5777 rans1=1.5777 mism=0
+  [135/168] model.layers.5.mlp.gate_proj.weight: n=18874368 p0=0.3813 H0=1.5777 rans0=1.5792 rans1=1.5792 mism=0
+  [136/168] model.layers.5.mlp.up_proj.weight: n=18874368 p0=0.3947 H0=1.5731 rans0=1.5746 rans1=1.5746 mism=0
+  [137/168] model.layers.5.self_attn.k_proj.weight: n=524288 p0=0.3600 H0=1.5827 rans0=1.6378 rans1=1.6369 mism=0
+  [138/168] model.layers.5.self_attn.o_proj.weight: n=4194304 p0=0.3910 H0=1.5744 rans0=1.5813 rans1=1.5814 mism=0
+  [139/168] model.layers.5.self_attn.q_proj.weight: n=4194304 p0=0.3865 H0=1.5760 rans0=1.5829 rans1=1.5817 mism=0
+  [140/168] model.layers.5.self_attn.v_proj.weight: n=524288 p0=0.4160 H0=1.5635 rans0=1.6183 rans1=1.6184 mism=0
+  [141/168] model.layers.6.mlp.down_proj.weight: n=18874368 p0=0.3910 H0=1.5745 rans0=1.5760 rans1=1.5760 mism=0
+  [142/168] model.layers.6.mlp.gate_proj.weight: n=18874368 p0=0.3842 H0=1.5767 rans0=1.5783 rans1=1.5783 mism=0
+  [143/168] model.layers.6.mlp.up_proj.weight: n=18874368 p0=0.4032 H0=1.5696 rans0=1.5711 rans1=1.5711 mism=0
+  [144/168] model.layers.6.self_attn.k_proj.weight: n=524288 p0=0.4694 H0=1.5279 rans0=1.5825 rans1=1.5528 mism=0
+  [145/168] model.layers.6.self_attn.o_proj.weight: n=4194304 p0=0.3969 H0=1.5722 rans0=1.5791 rans1=1.5788 mism=0
+  [146/168] model.layers.6.self_attn.q_proj.weight: n=4194304 p0=0.4737 H0=1.5243 rans0=1.5311 rans1=1.5219 mism=0
+  [147/168] model.layers.6.self_attn.v_proj.weight: n=524288 p0=0.3785 H0=1.5785 rans0=1.6336 rans1=1.6336 mism=0
+  [148/168] model.layers.7.mlp.down_proj.weight: n=18874368 p0=0.3932 H0=1.5736 rans0=1.5752 rans1=1.5751 mism=0
+  [149/168] model.layers.7.mlp.gate_proj.weight: n=18874368 p0=0.4084 H0=1.5672 rans0=1.5688 rans1=1.5687 mism=0
+  [150/168] model.layers.7.mlp.up_proj.weight: n=18874368 p0=0.4021 H0=1.5701 rans0=1.5716 rans1=1.5716 mism=0
+  [151/168] model.layers.7.self_attn.k_proj.weight: n=524288 p0=0.3898 H0=1.5749 rans0=1.6295 rans1=1.6275 mism=0
+  [152/168] model.layers.7.self_attn.o_proj.weight: n=4194304 p0=0.3915 H0=1.5743 rans0=1.5811 rans1=1.5811 mism=0
+  [153/168] model.layers.7.self_attn.q_proj.weight: n=4194304 p0=0.4312 H0=1.5551 rans0=1.5619 rans1=1.5582 mism=0
+  [154/168] model.layers.7.self_attn.v_proj.weight: n=524288 p0=0.4250 H0=1.5587 rans0=1.6135 rans1=1.6137 mism=0
+  [155/168] model.layers.8.mlp.down_proj.weight: n=18874368 p0=0.4160 H0=1.5636 rans0=1.5651 rans1=1.5651 mism=0
+  [156/168] model.layers.8.mlp.gate_proj.weight: n=18874368 p0=0.4130 H0=1.5650 rans0=1.5666 rans1=1.5665 mism=0
+  [157/168] model.layers.8.mlp.up_proj.weight: n=18874368 p0=0.4135 H0=1.5648 rans0=1.5663 rans1=1.5663 mism=0
+  [158/168] model.layers.8.self_attn.k_proj.weight: n=524288 p0=0.4465 H0=1.5453 rans0=1.5999 rans1=1.5717 mism=0
+  [159/168] model.layers.8.self_attn.o_proj.weight: n=4194304 p0=0.3990 H0=1.5714 rans0=1.5782 rans1=1.5782 mism=0
+  [160/168] model.layers.8.self_attn.q_proj.weight: n=4194304 p0=0.4698 H0=1.5276 rans0=1.5345 rans1=1.5270 mism=0
+  [161/168] model.layers.8.self_attn.v_proj.weight: n=524288 p0=0.3847 H0=1.5766 rans0=1.6319 rans1=1.6320 mism=0
+  [162/168] model.layers.9.mlp.down_proj.weight: n=18874368 p0=0.4050 H0=1.5688 rans0=1.5703 rans1=1.5703 mism=0
+  [163/168] model.layers.9.mlp.gate_proj.weight: n=18874368 p0=0.4204 H0=1.5612 rans0=1.5628 rans1=1.5627 mism=0
+  [164/168] model.layers.9.mlp.up_proj.weight: n=18874368 p0=0.3973 H0=1.5720 rans0=1.5736 rans1=1.5736 mism=0
+  [165/168] model.layers.9.self_attn.k_proj.weight: n=524288 p0=0.4948 H0=1.5051 rans0=1.5600 rans1=1.5426 mism=0
+  [166/168] model.layers.9.self_attn.o_proj.weight: n=4194304 p0=0.4455 H0=1.5459 rans0=1.5528 rans1=1.5528 mism=0
+  [167/168] model.layers.9.self_attn.q_proj.weight: n=4194304 p0=0.4489 H0=1.5435 rans0=1.5504 rans1=1.5464 mism=0
+  [168/168] model.layers.9.self_attn.v_proj.weight: n=524288 p0=0.3663 H0=1.5815 rans0=1.6383 rans1=1.6385 mism=0
+
+=== SUMMARY: falcon_e_1b ===
+{
+  "model_path": "/home/justinbrianthompson/projects/alice-aegis/falcon_e_1b_model.safetensors",
+  "label": "falcon_e_1b",
+  "n_tensors": 168,
+  "total_weights": 1585446912,
+  "overall_bits_per_weight": {
+    "packed_reference_5trit": 1.6,
+    "actual_aegis_packing": 2.0,
+    "rans0_achieved": 1.5675348554338728,
+    "rans1_achieved": 1.5671310828476357,
+    "zstd19_achieved": 1.5733518550004908,
+    "xz9_achieved": 1.5917094397166418
+  },
+  "total_bytes": {
+    "packed_reference_5trit": 317089382.40000033,
+    "actual_aegis_packing": 396361728,
+    "rans0": 310655412.0,
+    "rans1": 310575392.0,
+    "zstd19": 311808230.0,
+    "xz9": 315446352.0
+  },
+  "total_roundtrip_mismatches": 0,
+  "by_layer_type_zero_fraction": {
+    "ffn_down": 0.4099595414267646,
+    "ffn_gate": 0.40751166034627845,
+    "ffn_up": 0.39845595315650656,
+    "attn_k": 0.4493992328643799,
+    "attn_o": 0.40207353234291077,
+    "attn_q": 0.4455118775367737,
+    "attn_v": 0.405722697575887
+  },
+  "elapsed_seconds": 1860.822449207306,
+  "csv_path": "/home/justinbrianthompson/projects/alice-aegis-es1/artifacts/es1/falcon_e_1b_census.csv"
+}
