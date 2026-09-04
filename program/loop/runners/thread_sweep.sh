@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# NOTE (2026-09-04, aefinity-box run 2026-09-04T0034Z): the binary MUST be built with
+# `--features parallel`; without it every arm runs the single-threaded engine and the
+# sweep reports 1.000x at all thread counts (that run is archived as a valid
+# single-thread cycles/token figure, not a scaling measurement). The runner now
+# refuses a binary that ignores AEGIS_THREADS: see the preflight below.
 # thread_sweep.sh — THE MISSING BENCHMARK. Run it first; it closes more
 # confirmed DARPA-facing defects than anything else in this tree.
 #
@@ -55,7 +60,7 @@ for f in "$MODEL" "$EMBED" "$VOCAB"; do
 done
 if [ ! -x "$BIN" ]; then
     echo "FATAL: $BIN not built. Run:" >&2
-    echo "  CARGO_BUILD_JOBS=2 nice -n 10 cargo build --release -p aegis-linux --example inproc_variance" >&2
+    echo "  CARGO_BUILD_JOBS=2 nice -n 10 cargo build --release -p aegis-linux --features parallel --example inproc_variance" >&2
     exit 2
 fi
 
