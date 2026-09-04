@@ -282,12 +282,20 @@ def run_census(model_path: str, out_dir: str, max_tensors: int | None, rans_lane
     by_layer_type = {}
 
     t0 = time.time()
+    skipped = []
     with open(model_path, "rb") as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
         with open(csv_path, "w", newline="") as csvf:
             writer = csv.DictWriter(csvf, fieldnames=CSV_FIELDS)
             writer.writeheader()
             for i, name in enumerate(tensor_names):
                 entry = header[name]
+                if len(entry["shape"]) != 2:
+                    # packed U8 tensors that are not 2-D weight matrices (seen on the
+                    # 2B pruned model: a 1-D U8 entry) are not trit matrices — skip
+                    # them explicitly and record it rather than crash the census.
+                    print(f"skip {name}: U8 tensor with shape {entry['shape']} is not a 2-D trit matrix", flush=True)
+                    skipped.append((name, entry["shape"]))
+                    continue
                 row = census_tensor(name, mm, entry, data_start, row_hist, col_hist, rans_lanes)
                 writer.writerow(row)
                 csvf.flush()
@@ -328,6 +336,8 @@ def run_census(model_path: str, out_dir: str, max_tensors: int | None, rans_lane
         w.writerows(col_hist.to_rows())
 
     summary = {
+
+        "skipped_non2d": [f"{n} {tuple(sh)}" for n, sh in skipped],
         "model_path": model_path,
         "label": label,
         "n_tensors": len(tensor_names),
