@@ -1,0 +1,35 @@
+{
+  "skipped_non2d": [],
+  "model_path": "/home/cm/aefinity-artifacts/aegis_pruned_model.safetensors",
+  "label": "bitnet2b",
+  "n_tensors": 210,
+  "total_weights": 2084044800,
+  "overall_bits_per_weight": {
+    "packed_reference_5trit": 1.6,
+    "actual_aegis_packing": 2.0,
+    "rans0_achieved": 1.5581641239190251,
+    "rans1_achieved": 1.5512427755871658,
+    "zstd19_achieved": 1.5320707501105542,
+    "xz9_achieved": 1.547305485947327
+  },
+  "total_bytes": {
+    "packed_reference_5trit": 416808960.0,
+    "actual_aegis_packing": 521011200,
+    "rans0": 405910480.0,
+    "rans1": 404107430.0,
+    "zstd19": 399113010.0,
+    "xz9": 403081744.0
+  },
+  "total_roundtrip_mismatches": 0,
+  "by_layer_type_zero_fraction": {
+    "ffn_down": 0.4131112520194348,
+    "ffn_gate": 0.423634065227744,
+    "ffn_up": 0.4161087676625193,
+    "attn_k": 0.4465383504231771,
+    "attn_o": 0.41840104675292966,
+    "attn_q": 0.4675079040527344,
+    "attn_v": 0.3764076131184896
+  },
+  "elapsed_seconds": 7332.6076917648315,
+  "csv_path": "/home/cm/legs/es1-census/census/bitnet2b_census.csv"
+}
