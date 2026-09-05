@@ -77,3 +77,13 @@ flag) at wherever the 2B release's `MODEL.SAF` / `EMBED.BIN` /
 specific — `cis_witness` and `cis-verify` both read `aegis_config` out of
 `MODEL.SAF`'s metadata at runtime. Confirm `max_new + prompt_tokens <=
 max_position_embeddings` for that config before generating.
+
+Concretely, point the three env vars at the files (names differ from the M7 set):
+
+    AEGIS_MODEL=/path/aegis_pruned_model.cis.safetensors \
+    AEGIS_EMBED=/path/embed.bin AEGIS_VOCAB=/path/vocab.bin \
+    demo/edge-receipt/run.sh all "your prompt" 64
+
+The receipt records the artifact SHA-256s, so a verifier on another machine must
+use byte-identical files (check with sha256sum) or every verifier check fails at
+"artifact hashes".

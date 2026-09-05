@@ -12,10 +12,14 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-ARTIFACTS="$ROOT/model-lab/tinybit/m7_final_gate_work/artifacts"
-MODEL="$ARTIFACTS/MODEL.SAF"
-EMBED="$ARTIFACTS/EMBED.BIN"
-VOCAB="$ARTIFACTS/VOCAB.BIN"
+# Artifacts: default to the in-repo M7 tinybit model. Override with env vars to
+# point at another CIS-1 artifact set (e.g. the 2B set): AEGIS_ARTIFACTS=<dir>
+# (expects MODEL.SAF/EMBED.BIN/VOCAB.BIN in it) or the three files individually
+# via AEGIS_MODEL / AEGIS_EMBED / AEGIS_VOCAB.
+ARTIFACTS="${AEGIS_ARTIFACTS:-$ROOT/model-lab/tinybit/m7_final_gate_work/artifacts}"
+MODEL="${AEGIS_MODEL:-$ARTIFACTS/MODEL.SAF}"
+EMBED="${AEGIS_EMBED:-$ARTIFACTS/EMBED.BIN}"
+VOCAB="${AEGIS_VOCAB:-$ARTIFACTS/VOCAB.BIN}"
 OUT="$HERE/out"
 CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
 export CARGO_BUILD_JOBS
