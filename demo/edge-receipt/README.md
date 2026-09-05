@@ -87,3 +87,75 @@ Concretely, point the three env vars at the files (names differ from the M7 set)
 The receipt records the artifact SHA-256s, so a verifier on another machine must
 use byte-identical files (check with sha256sum) or every verifier check fails at
 "artifact hashes".
+
+## Optional: TPM attestation of the receipt (`attest.sh`)
+
+`attest.sh` is an independent, optional add-on. It does not change the
+receipt or either verifier. The receipt answers "what was computed"; a TPM
+quote answers a different question: "which TPM, holding which firmware/PCR
+state, signed a statement that includes this receipt's digest, at the time
+the quote was taken." A PASS on one says nothing about the other.
+
+```
+demo/edge-receipt/attest.sh quote  <receipt.txt> <outdir>    # take a TPM quote over the receipt's cis-digest
+demo/edge-receipt/attest.sh verify <receipt.txt> <attestdir> # offline check, no TPM required
+demo/edge-receipt/attest.sh selftest [seed-dir]              # tamper-detection self-check
+```
+
+`quote` reads the 16-hex-char `cis-digest` line out of the receipt and uses
+it as the quote's qualifying data (nonce), so the resulting quote is bound
+to that specific receipt. It writes `<outdir>/<receipt-basename>.attest/`
+containing the AK public key, the quote message/signature/PCR values, an
+optional BIOS event log, and an `ATTEST.txt` summary (format line, receipt
+digest, PCR list, hierarchy, file hashes, TPM manufacturer, host, time).
+
+`verify` needs no TPM: it recomputes the nonce from the receipt, checks the
+`ATTEST.txt` file hashes against the actual files, and runs
+`tpm2_checkquote` (which needs just the AK public key, the quote files, and
+`tpm2-tools` — not a TPM device) to confirm the signature and PCR values are
+internally consistent. This is how attestations get checked on a
+non-TPM machine such as a CI runner or a reviewer's laptop.
+
+### What this adds
+
+- Cryptographic evidence that a specific TPM signed a statement over the
+  receipt's digest and a snapshot of PCRs 0, 2, 4, 7 (firmware/bootloader
+  measurements) at quote time.
+
+### What this does NOT prove (read before relying on this)
+
+- **Null hierarchy is not vendor-rooted.** When the endorsement hierarchy
+  is unavailable (as on today's test box), `attest.sh` falls back to a
+  primary key under the TPM's null hierarchy. That key is genuinely
+  TPM-resident and PCR-bound, but it carries no manufacturer certificate
+  chain — nothing ties it back to "this specific physical TPM chip" for a
+  third party. `hierarchy null` in `ATTEST.txt` says so explicitly.
+- **An EK-certified AK (`hierarchy endorsement`) is stronger** but requires
+  the endorsement hierarchy to be provisioned, which on Intel PTT
+  typically happens online (the EK certificate is fetched from Intel's
+  provisioning service). `attest.sh` prefers this path automatically when
+  available and records which one it used.
+- **PCR values do not attest to the receipt's actual decode logic.** They
+  attest to firmware/bootloader measurements up to the point the quote was
+  taken. Nothing here re-derives the receipt's token/digest chain — that is
+  what `run.sh verify` already does, separately.
+- **This covers the Linux side today.** The unikernel side
+  (`aegis-uefi`) does not yet call into a TPM; that is planned, not done.
+- No GPU is involved in any part of this attestation flow, and none is claimed.
+
+### Self-test
+
+`attest.sh selftest [seed-dir]` proves the verifier actually detects
+tampering rather than rubber-stamping: it takes a known-good
+receipt+attestation pair (generated fresh from a TPM, or from a
+pre-generated seed directory containing `receipt.txt` and `attest/` — for
+use on machines with no TPM), confirms it verifies OK, then (1) locates
+PCR0's actual 32-byte digest inside `quote.pcrs` (by reading it back out
+of `tpm2_checkquote`'s own output on the good file, so the flipped byte
+is guaranteed to land on real digest content), flips one byte of it, and
+confirms `verify` reports `ATTEST-FAIL` with the rejection coming from
+`tpm2_checkquote`'s signature/PCR-digest check itself — not from the
+`ATTEST.txt` file-hash bookkeeping, which is regenerated over the
+tampered file first so it can't short-circuit the crypto check — and
+(2) flips one hex character of the receipt's
+`cis-digest` and confirms `verify` reports `ATTEST-FAIL` on that too.
