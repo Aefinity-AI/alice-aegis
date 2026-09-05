@@ -7,6 +7,29 @@ use crate::model::{FullBitNetPipeline, SafeTensors};
 use crate::sampler::Sampler;
 use crate::tokenizer::AegisTokenizer;
 
+/// Times `$body` as `$phase` and records it into `$counters`
+/// (a `&mut PhaseCycles` lvalue) when the `phase-timers` feature is on.
+/// When it is off, the two `#[cfg(...)]`-gated statements below are removed
+/// before codegen sees them — nothing is branched around at runtime, the
+/// tick calls and the `Phase` reference simply do not exist in the compiled
+/// output. See phase_timers.rs module docs for the RDTSC/RDTSCP fencing.
+#[cfg(feature = "phase-timers")]
+macro_rules! timed_phase {
+    ($counters:expr, $phase:expr, $body:block) => {{
+        let __ts = crate::phase_timers::tick_start();
+        let __ret = $body;
+        let __te = crate::phase_timers::tick_end();
+        $counters.record($phase, __ts, __te);
+        __ret
+    }};
+}
+#[cfg(not(feature = "phase-timers"))]
+macro_rules! timed_phase {
+    ($counters:expr, $phase:expr, $body:block) => {
+        $body
+    };
+}
+
 /// Quantize one token's activation vector onto the int8 grid, if the
 /// `int8_act` feature is on. No-op otherwise, so the f32 path is unchanged.
 #[inline]
@@ -84,6 +107,11 @@ pub struct TernaryInferenceEngine<'a> {
     pub act_dump_enabled: bool,
     #[cfg(feature = "act_stats")]
     pub act_dump: Vec<ActDumpRecord>,
+    /// Amdahl-decomposition per-phase cycle accumulators. Fixed-size, zero
+    /// allocation; callers reset between measurement windows with
+    /// `reset_phase_cycles`. `phase-timers` feature only.
+    #[cfg(feature = "phase-timers")]
+    pub phase_cycles: crate::phase_timers::PhaseCycles,
 }
 
 impl<'a> TernaryInferenceEngine<'a> {
@@ -198,7 +226,17 @@ impl<'a> TernaryInferenceEngine<'a> {
             act_dump_enabled: false,
             #[cfg(feature = "act_stats")]
             act_dump: Vec::new(),
+            #[cfg(feature = "phase-timers")]
+            phase_cycles: crate::phase_timers::PhaseCycles::zero(),
         })
+    }
+
+    /// Zeroes the phase-cycle accumulators. Call between measurement windows
+    /// (e.g. once per context-length run) so each AMDAHL line reports only
+    /// the decode it names. `phase-timers` feature only.
+    #[cfg(feature = "phase-timers")]
+    pub fn reset_phase_cycles(&mut self) {
+        self.phase_cycles = crate::phase_timers::PhaseCycles::zero();
     }
 
     /// Read-only access to the loaded weight views — the CIS-1 integer path
@@ -631,44 +669,48 @@ impl<'a> TernaryInferenceEngine<'a> {
         }
 
         for (layer_idx, layer) in self.pipeline.layers.iter().enumerate() {
-            self.arena
-                .norm_state
-                .copy_from_slice(&self.arena.hidden_state);
-            crate::ops::rmsnorm(
-                &mut self.arena.norm_state,
-                layer.input_layernorm_weight.data(),
-                eps,
-            );
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                self.arena
+                    .norm_state
+                    .copy_from_slice(&self.arena.hidden_state);
+                crate::ops::rmsnorm(
+                    &mut self.arena.norm_state,
+                    layer.input_layernorm_weight.data(),
+                    eps,
+                );
+            });
             quant_act(&mut self.arena.norm_state);
 
             self.arena.q.fill(0.0);
             self.arena.k.fill(0.0);
             self.arena.v.fill(0.0);
 
-            crate::ops::ternary_matvec(
-                &mut self.arena.q,
-                &self.arena.norm_state,
-                layer.q_proj.data(),
-                emb_dim,
-                emb_dim,
-                layer.q_proj_scale,
-            );
-            crate::ops::ternary_matvec(
-                &mut self.arena.k,
-                &self.arena.norm_state,
-                layer.k_proj.data(),
-                num_kv_heads * head_dim,
-                emb_dim,
-                layer.k_proj_scale,
-            );
-            crate::ops::ternary_matvec(
-                &mut self.arena.v,
-                &self.arena.norm_state,
-                layer.v_proj.data(),
-                num_kv_heads * head_dim,
-                emb_dim,
-                layer.v_proj_scale,
-            );
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                crate::ops::ternary_matvec(
+                    &mut self.arena.q,
+                    &self.arena.norm_state,
+                    layer.q_proj.data(),
+                    emb_dim,
+                    emb_dim,
+                    layer.q_proj_scale,
+                );
+                crate::ops::ternary_matvec(
+                    &mut self.arena.k,
+                    &self.arena.norm_state,
+                    layer.k_proj.data(),
+                    num_kv_heads * head_dim,
+                    emb_dim,
+                    layer.k_proj_scale,
+                );
+                crate::ops::ternary_matvec(
+                    &mut self.arena.v,
+                    &self.arena.norm_state,
+                    layer.v_proj.data(),
+                    num_kv_heads * head_dim,
+                    emb_dim,
+                    layer.v_proj_scale,
+                );
+            });
 
             crate::attention::apply_rope(
                 &mut self.arena.q,
@@ -680,85 +722,99 @@ impl<'a> TernaryInferenceEngine<'a> {
                 &self.rope_cache,
             );
 
-            let (k_slot, v_slot) = self.kv_cache.get_layer_mut(layer_idx, seq_pos);
-            k_slot.copy_from_slice(&self.arena.k);
-            v_slot.copy_from_slice(&self.arena.v);
+            // KV-cache WRITE only. The read side lives inside the Attn span
+            // below — see Phase::Kv's doc comment in phase_timers.rs for why.
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Kv, {
+                let (k_slot, v_slot) = self.kv_cache.get_layer_mut(layer_idx, seq_pos);
+                k_slot.copy_from_slice(&self.arena.k);
+                v_slot.copy_from_slice(&self.arena.v);
+            });
 
             self.arena.attn_out.fill(0.0);
 
-            for h in 0..num_heads {
-                let kv_h = h / (num_heads / num_kv_heads);
-                for t in 0..=seq_pos {
-                    let (k_cache, _) = self.kv_cache.get_layer_mut(layer_idx, t);
-                    let score = crate::ops::attn_dot(
-                        &self.arena.q[h * head_dim..h * head_dim + head_dim],
-                        &k_cache[kv_h * head_dim..kv_h * head_dim + head_dim],
-                    );
-                    self.arena.scores[t] = score / libm::sqrtf(head_dim as f32);
-                }
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Attn, {
+                for h in 0..num_heads {
+                    let kv_h = h / (num_heads / num_kv_heads);
+                    for t in 0..=seq_pos {
+                        let (k_cache, _) = self.kv_cache.get_layer_mut(layer_idx, t);
+                        let score = crate::ops::attn_dot(
+                            &self.arena.q[h * head_dim..h * head_dim + head_dim],
+                            &k_cache[kv_h * head_dim..kv_h * head_dim + head_dim],
+                        );
+                        self.arena.scores[t] = score / libm::sqrtf(head_dim as f32);
+                    }
 
-                crate::ops::softmax(&mut self.arena.scores[0..=seq_pos]);
-                self.arena.head_out.fill(0.0);
+                    crate::ops::softmax(&mut self.arena.scores[0..=seq_pos]);
+                    self.arena.head_out.fill(0.0);
 
-                for t in 0..=seq_pos {
-                    let (_, v_cache) = self.kv_cache.get_layer_mut(layer_idx, t);
-                    let w = self.arena.scores[t];
-                    crate::ops::attn_madd(
-                        &mut self.arena.head_out[0..head_dim],
-                        w,
-                        &v_cache[kv_h * head_dim..kv_h * head_dim + head_dim],
-                    );
+                    for t in 0..=seq_pos {
+                        let (_, v_cache) = self.kv_cache.get_layer_mut(layer_idx, t);
+                        let w = self.arena.scores[t];
+                        crate::ops::attn_madd(
+                            &mut self.arena.head_out[0..head_dim],
+                            w,
+                            &v_cache[kv_h * head_dim..kv_h * head_dim + head_dim],
+                        );
+                    }
+                    for d in 0..head_dim {
+                        self.arena.attn_out[h * head_dim + d] = self.arena.head_out[d];
+                    }
                 }
-                for d in 0..head_dim {
-                    self.arena.attn_out[h * head_dim + d] = self.arena.head_out[d];
-                }
-            }
+            });
 
             self.arena.o.fill(0.0);
             if let Some(sub_norm) = &layer.attn_sub_norm {
-                crate::ops::rmsnorm(&mut self.arena.attn_out, sub_norm.data(), eps);
+                timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                    crate::ops::rmsnorm(&mut self.arena.attn_out, sub_norm.data(), eps);
+                });
             }
             quant_act(&mut self.arena.attn_out);
-            crate::ops::ternary_matvec(
-                &mut self.arena.o,
-                &self.arena.attn_out,
-                layer.o_proj.data(),
-                emb_dim,
-                emb_dim,
-                layer.o_proj_scale,
-            );
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                crate::ops::ternary_matvec(
+                    &mut self.arena.o,
+                    &self.arena.attn_out,
+                    layer.o_proj.data(),
+                    emb_dim,
+                    emb_dim,
+                    layer.o_proj_scale,
+                );
+            });
             for i in 0..emb_dim {
                 self.arena.hidden_state[i] += self.arena.o[i];
             }
 
-            self.arena
-                .norm_state
-                .copy_from_slice(&self.arena.hidden_state);
-            crate::ops::rmsnorm(
-                &mut self.arena.norm_state,
-                layer.post_attention_layernorm_weight.data(),
-                eps,
-            );
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                self.arena
+                    .norm_state
+                    .copy_from_slice(&self.arena.hidden_state);
+                crate::ops::rmsnorm(
+                    &mut self.arena.norm_state,
+                    layer.post_attention_layernorm_weight.data(),
+                    eps,
+                );
+            });
             quant_act(&mut self.arena.norm_state);
 
             self.arena.up.fill(0.0);
             self.arena.gate.fill(0.0);
-            crate::ops::ternary_matvec(
-                &mut self.arena.up,
-                &self.arena.norm_state,
-                layer.up_proj.data(),
-                intermediate_size,
-                emb_dim,
-                layer.up_proj_scale,
-            );
-            crate::ops::ternary_matvec(
-                &mut self.arena.gate,
-                &self.arena.norm_state,
-                layer.gate_proj.data(),
-                intermediate_size,
-                emb_dim,
-                layer.gate_proj_scale,
-            );
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                crate::ops::ternary_matvec(
+                    &mut self.arena.up,
+                    &self.arena.norm_state,
+                    layer.up_proj.data(),
+                    intermediate_size,
+                    emb_dim,
+                    layer.up_proj_scale,
+                );
+                crate::ops::ternary_matvec(
+                    &mut self.arena.gate,
+                    &self.arena.norm_state,
+                    layer.gate_proj.data(),
+                    intermediate_size,
+                    emb_dim,
+                    layer.gate_proj_scale,
+                );
+            });
 
             match act {
                 crate::model::Activation::Relu2 => crate::ops::relu2(&mut self.arena.gate),
@@ -769,7 +825,9 @@ impl<'a> TernaryInferenceEngine<'a> {
             }
 
             if let Some(sub_norm) = &layer.ffn_sub_norm {
-                crate::ops::rmsnorm(&mut self.arena.up, sub_norm.data(), eps);
+                timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                    crate::ops::rmsnorm(&mut self.arena.up, sub_norm.data(), eps);
+                });
             }
             quant_act(&mut self.arena.up);
 
@@ -794,14 +852,16 @@ impl<'a> TernaryInferenceEngine<'a> {
             }
 
             self.arena.down.fill(0.0);
-            crate::ops::ternary_matvec(
-                &mut self.arena.down,
-                &self.arena.up,
-                layer.down_proj.data(),
-                emb_dim,
-                intermediate_size,
-                layer.down_proj_scale,
-            );
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                crate::ops::ternary_matvec(
+                    &mut self.arena.down,
+                    &self.arena.up,
+                    layer.down_proj.data(),
+                    emb_dim,
+                    intermediate_size,
+                    layer.down_proj_scale,
+                );
+            });
             for i in 0..emb_dim {
                 self.arena.hidden_state[i] += self.arena.down[i];
             }
@@ -925,44 +985,68 @@ impl<'a> TernaryInferenceEngine<'a> {
             }
 
             let t_start = unsafe { core::arch::x86_64::_rdtsc() };
+            // Amdahl total span: fenced separately from `t_start`/`t_end`
+            // above (which are the engine's pre-existing, unfenced
+            // last_decode_cycles bookkeeping — untouched here) so the
+            // phase-timers sum_check is computed against a boundary that
+            // used the SAME fencing discipline as every phase span it is
+            // compared to. `phase-timers` feature only.
+            #[cfg(feature = "phase-timers")]
+            let __amdahl_total_start = crate::phase_timers::tick_start();
 
             self.forward_step(next_token, step);
 
-            crate::ops::rmsnorm(
-                &mut self.arena.hidden_state,
-                self.pipeline.final_norm.data(),
-                self.config.rms_norm_eps,
-            );
-            next_token = crate::ops::f32_dot_argmax(
-                &mut self.arena.logits,
-                &self.arena.hidden_state,
-                self.pipeline.lm_head_bytes(),
-                self.config.vocab_size,
-                emb_dim,
-            );
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                crate::ops::rmsnorm(
+                    &mut self.arena.hidden_state,
+                    self.pipeline.final_norm.data(),
+                    self.config.rms_norm_eps,
+                );
+            });
+            next_token = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::LmHead, {
+                crate::ops::f32_dot_argmax(
+                    &mut self.arena.logits,
+                    &self.arena.hidden_state,
+                    self.pipeline.lm_head_bytes(),
+                    self.config.vocab_size,
+                    emb_dim,
+                )
+            });
 
-            self.arena.penalized.fill(false);
-            let mut argmax_penalized = false;
-            for &tok in &generated_tokens {
-                let idx = tok as usize;
-                if idx < self.arena.logits.len() && !self.arena.penalized[idx] {
-                    self.arena.penalized[idx] = true;
-                    if idx as u32 == next_token {
-                        argmax_penalized = true;
+            next_token = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Sample, {
+                self.arena.penalized.fill(false);
+                let mut argmax_penalized = false;
+                for &tok in &generated_tokens {
+                    let idx = tok as usize;
+                    if idx < self.arena.logits.len() && !self.arena.penalized[idx] {
+                        self.arena.penalized[idx] = true;
+                        if idx as u32 == next_token {
+                            argmax_penalized = true;
+                        }
+                        let logit = &mut self.arena.logits[idx];
+                        if *logit > 0.0 {
+                            *logit /= 1.2;
+                        } else {
+                            *logit *= 1.2;
+                        }
+                        *logit -= 2.0;
                     }
-                    let logit = &mut self.arena.logits[idx];
-                    if *logit > 0.0 {
-                        *logit /= 1.2;
-                    } else {
-                        *logit *= 1.2;
-                    }
-                    *logit -= 2.0;
                 }
+
+                if argmax_penalized {
+                    self.sampler.argmax(&self.arena.logits)
+                } else {
+                    next_token
+                }
+            });
+
+            #[cfg(feature = "phase-timers")]
+            {
+                let __amdahl_total_end = crate::phase_timers::tick_end();
+                self.phase_cycles
+                    .record_total(__amdahl_total_start, __amdahl_total_end);
             }
 
-            if argmax_penalized {
-                next_token = self.sampler.argmax(&self.arena.logits);
-            }
             if next_token == eos_token || next_token == eot_token || Some(next_token) == imend_token
             {
                 break;

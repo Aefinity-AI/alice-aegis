@@ -56,6 +56,14 @@ active_set_digest = []
 # x86 intrinsics (see lib.rs doc comment). OFF by default: normal builds are
 # byte-for-byte unaffected.
 scalar_only = []
+# Amdahl decomposition of decode (2026-09): per-phase RDTSC/RDTSCP cycle
+# counters for GEMV, attention, KV-cache write, RMSNorm, LM head, and
+# sampling, owned by the engine's fixed-size counters (aegis-core/src/
+# phase_timers.rs) — zero allocation, zero cost when this feature is off
+# (the field, the module, and every timed span are compiled out entirely).
+# See phase_timers.rs module docs for the RDTSC/RDTSCP fencing rationale and
+# why KV-cache reads are bundled into the attention phase.
+phase-timers = []
 
 [[bin]]
 name = "lut_mpgemm"
