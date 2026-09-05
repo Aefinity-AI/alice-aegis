@@ -113,16 +113,27 @@ cmd_tamper() {
 
     echo ""
     echo "== tamper 2/3: flip a tool-output byte ==" >&2
+    # A step's tool output is legitimately empty when the tool is "no-tool"
+    # (the default prompt rarely provokes the model into emitting a CALC(...)
+    # call within N=16 tokens) — there is no byte to flip in an empty field.
+    # So: if the first step's out= is non-empty, flip its first hex nibble;
+    # if it is empty, inject one fake output byte (0x39, ASCII '9') instead.
+    # Either way this mutates the tool-output field the trace chain folds in,
+    # which must make verify FAIL.
     local t2="$OUT/tamper-flip-output.txt"
     awk '
         BEGIN{done=0}
         /^step / && done==0 {
-            if (match($0, /out=[0-9a-f]+/) && RLENGTH>4) {
+            if (match($0, /out=[0-9a-f]*/)) {
                 val=substr($0, RSTART+4, RLENGTH-4)
-                first=substr(val,1,1)
-                if (first=="0") { newfirst="1" } else { newfirst="0" }
-                newval = newfirst substr(val,2)
                 line=$0
+                if (length(val) > 0) {
+                    first=substr(val,1,1)
+                    if (first=="0") { newfirst="1" } else { newfirst="0" }
+                    newval = newfirst substr(val,2)
+                } else {
+                    newval = "39"
+                }
                 sub("out=" val, "out=" newval, line)
                 print line
                 done=1

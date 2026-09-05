@@ -54,8 +54,8 @@ fn unhex(s: &str) -> Vec<u8> {
 /// The outcome of scanning one piece of decoded text for a tool call.
 struct ToolOutcome {
     name: &'static str, // "calc" | "calc-error" | "no-tool"
-    input: Vec<u8>,      // matched "CALC(...)" substring, or empty
-    output: Vec<u8>,     // decimal result, or a fixed error string, or empty
+    input: Vec<u8>,     // matched "CALC(...)" substring, or empty
+    output: Vec<u8>,    // decimal result, or a fixed error string, or empty
 }
 
 /// Find the first `CALC(...)` call in `text` and parse it. Returns
@@ -70,22 +70,52 @@ fn find_calc(text: &str) -> Option<(&str, i64, u8, i64)> {
     let body = &rest[..close];
     let full = &text[start..start + "CALC(".len() + close + 1];
 
-    let mut it = body.trim().splitn(2, char::is_whitespace);
-    let a_str = it.next()?.trim();
-    let after_a = it.next()?.trim();
-    let mut it2 = after_a.splitn(2, char::is_whitespace);
-    let op_str = it2.next()?.trim();
-    let b_str = it2.next()?.trim();
-    if op_str.len() != 1 {
+    // Manual scan over bytes (grammar is ASCII-only): int, ws*, op, ws*, int,
+    // with optional surrounding/interior whitespace at every boundary — so
+    // both "3 + 4" and "3+4" parse, but stray trailing content does not.
+    let b = body.as_bytes();
+    let mut i = 0usize;
+    let skip_ws = |b: &[u8], mut i: usize| {
+        while i < b.len() && b[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        i
+    };
+    let parse_int = |b: &[u8], mut i: usize| -> Option<(i64, usize)> {
+        let start = i;
+        if i < b.len() && b[i] == b'-' {
+            i += 1;
+        }
+        let digits_start = i;
+        while i < b.len() && b[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i == digits_start {
+            return None;
+        }
+        let s = core::str::from_utf8(&b[start..i]).ok()?;
+        let v: i64 = s.parse().ok()?;
+        Some((v, i))
+    };
+
+    i = skip_ws(b, i);
+    let (a, i2) = parse_int(b, i)?;
+    i = skip_ws(b, i2);
+    if i >= b.len() {
         return None;
     }
-    let op = op_str.as_bytes()[0];
+    let op = b[i];
     if !matches!(op, b'+' | b'-' | b'*' | b'/' | b'%') {
         return None;
     }
-    let a: i64 = a_str.parse().ok()?;
-    let b: i64 = b_str.parse().ok()?;
-    Some((full, a, op, b))
+    i += 1;
+    i = skip_ws(b, i);
+    let (val_b, i3) = parse_int(b, i)?;
+    i = skip_ws(b, i3);
+    if i != b.len() {
+        return None; // trailing garbage before the closing paren
+    }
+    Some((full, a, op, val_b))
 }
 
 /// Checked i64 arithmetic for the calc grammar's five ops. `Err` carries a
@@ -157,7 +187,14 @@ const TRACE_DOMAIN: &[u8] = b"AEGIS-TRACE v0\n";
 /// initial prompt. Deliberately its own domain string, distinct from
 /// `WITNESS_DOMAIN_V1`, so a trace-chain digest can never collide with a
 /// plain decode-chain digest.
-fn trace_genesis(model_sha: &[u8; 32], embed_sha: &[u8; 32], vocab_sha: &[u8; 32], k: u64, n: u64, prompt: &[u8]) -> [u8; 32] {
+fn trace_genesis(
+    model_sha: &[u8; 32],
+    embed_sha: &[u8; 32],
+    vocab_sha: &[u8; 32],
+    k: u64,
+    n: u64,
+    prompt: &[u8],
+) -> [u8; 32] {
     let mut s = Sha256::new();
     s.update(TRACE_DOMAIN);
     s.update(model_sha);
@@ -216,6 +253,7 @@ struct EpisodeReplay {
 /// and its full i64 logit vector into a per-step `WitnessChain` exactly the
 /// way `cis_witness` folds decode steps. Returns the decoded token ids and
 /// that chain's digest.
+#[allow(clippy::too_many_arguments)]
 fn decode_step(
     tensors: &SafeTensors,
     embed_bytes: &[u8],
@@ -374,9 +412,7 @@ fn host_name() -> String {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 6 {
-        eprintln!(
-            "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt]"
-        );
+        eprintln!("usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt]");
         eprintln!("       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file>");
         std::process::exit(2);
     }
@@ -445,7 +481,7 @@ fn main() {
             for line in wtext.lines() {
                 if let Some(rest) = line.strip_prefix("step ") {
                     // "IDX: toks=.. tool=.. in=.. out=.. decode-chain=.."
-                    let rest = rest.splitn(2, ':').nth(1).unwrap_or("").trim();
+                    let rest = rest.split_once(':').map(|x| x.1).unwrap_or("").trim();
                     let mut toks = Vec::new();
                     let mut tool = String::new();
                     let mut input = String::new();
