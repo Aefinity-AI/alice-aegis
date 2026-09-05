@@ -15,6 +15,7 @@ parallel = ["aegis-core/parallel"]
 int8_act = ["aegis-core/int8_act"]
 act_stats = ["aegis-core/act_stats"]
 active_set_digest = ["aegis-core/active_set_digest"]
+phase-timers = ["aegis-core/phase-timers"]
 
 [[example]]
 name = "act_sparsity"
