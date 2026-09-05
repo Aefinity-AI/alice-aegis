@@ -149,7 +149,13 @@ non-TPM machine such as a CI runner or a reviewer's laptop.
 tampering rather than rubber-stamping: it takes a known-good
 receipt+attestation pair (generated fresh from a TPM, or from a
 pre-generated seed directory containing `receipt.txt` and `attest/` — for
-use on machines with no TPM), confirms it verifies OK, then (1) flips one
-byte inside an actual PCR digest in `quote.pcrs` and confirms `verify`
-reports `ATTEST-FAIL`, and (2) flips one hex character of the receipt's
+use on machines with no TPM), confirms it verifies OK, then (1) locates
+PCR0's actual 32-byte digest inside `quote.pcrs` (by reading it back out
+of `tpm2_checkquote`'s own output on the good file, so the flipped byte
+is guaranteed to land on real digest content), flips one byte of it, and
+confirms `verify` reports `ATTEST-FAIL` with the rejection coming from
+`tpm2_checkquote`'s signature/PCR-digest check itself — not from the
+`ATTEST.txt` file-hash bookkeeping, which is regenerated over the
+tampered file first so it can't short-circuit the crypto check — and
+(2) flips one hex character of the receipt's
 `cis-digest` and confirms `verify` reports `ATTEST-FAIL` on that too.

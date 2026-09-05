@@ -211,27 +211,37 @@ cmd_verify() {
 
 # -------------------------------------------------------------- selftest --
 
-# Flip one byte in the first non-zero 32-byte region of a TPM quote.pcrs
-# file, found after the fixed 16-byte PCR-selection header. This targets
-# real digest bytes, not zero padding, so the tamper is unambiguous.
+# Read PCR0's 32-byte digest as tpm2_checkquote itself reports it (the
+# same "  0 : 0x<hex>" line cmd_verify prints), so we know exactly which
+# bytes in quote.pcrs are the real PCR0 digest rather than guessing at
+# the TPML_PCR_SELECTION / TPML_DIGEST binary layout.
+read_pcr0_hex() {
+    local attestdir="$1" nonce="$2"
+    tpm2_checkquote -u "$attestdir/ak.pem" -m "$attestdir/quote.msg" \
+        -s "$attestdir/quote.sig" -f "$attestdir/quote.pcrs" -g sha256 -q "$nonce" 2>/dev/null \
+        | awk '/^ *0 : 0x/{print $3; exit}'
+}
+
+# Flip one byte inside PCR0's actual 32-byte digest value within a
+# quote.pcrs file, by locating that exact byte string (looked up via
+# read_pcr0_hex on the still-good file) and flipping its first byte.
+# This guarantees the tamper lands on real digest content, never on
+# padding, and that tpm2_checkquote's own signature/PCR-digest check
+# (not just the ATTEST.txt file-hash check) is what rejects it.
 flip_pcr_byte() {
-    local file="$1"
-    python3 - "$file" <<'PYEOF'
+    local file="$1" pcr0_hex="$2"
+    python3 - "$file" "$pcr0_hex" <<'PYEOF'
 import sys
-path = sys.argv[1]
+path, hexval = sys.argv[1], sys.argv[2]
+if hexval.lower().startswith("0x"):
+    hexval = hexval[2:]
+target = bytes.fromhex(hexval)
 with open(path, "rb") as f:
     data = bytearray(f.read())
-HEADER = 16
-i = HEADER
-region = None
-while i < len(data):
-    if data[i] != 0:
-        region = i
-        break
-    i += 1
-if region is None:
-    sys.exit("flip_pcr_byte: no non-zero region found after header")
-data[region] ^= 0xFF
+idx = data.find(target)
+if idx < 0:
+    sys.exit("flip_pcr_byte: PCR0 digest bytes not found in quote.pcrs")
+data[idx] ^= 0xFF
 with open(path, "wb") as f:
     f.write(data)
 PYEOF
@@ -259,17 +269,37 @@ cmd_selftest() {
         mv "$d" "$goodattest"
     fi
 
+    local nonce
+    nonce="$(receipt_nonce "$receipt")"
+
     echo "== selftest: unmodified attestation must verify OK ==" >&2
     cmd_verify "$receipt" "$goodattest" >&2 || die "selftest: baseline attestation did not verify (fixtures are bad)"
 
-    echo "== selftest: flipping a PCR byte must fail verification ==" >&2
+    echo "== selftest: flipping PCR0's digest must fail verification (via tpm2_checkquote) ==" >&2
+    local pcr0_hex
+    pcr0_hex="$(read_pcr0_hex "$goodattest" "$nonce")"
+    [ -n "$pcr0_hex" ] || die "selftest: could not read PCR0's digest from the good attestation"
+
     local tampered_pcr="$work/tampered_pcr.attest"
     cp -r "$goodattest" "$tampered_pcr"
-    flip_pcr_byte "$tampered_pcr/quote.pcrs"
-    if cmd_verify "$receipt" "$tampered_pcr" >&2; then
+    flip_pcr_byte "$tampered_pcr/quote.pcrs" "$pcr0_hex"
+    # Regenerate pcrs-sha256 over the tampered file so ATTEST.txt's own
+    # file-integrity check (which is not the property under test here)
+    # doesn't short-circuit before tpm2_checkquote gets to reject the
+    # tampered PCR digest itself.
+    sed -i "s/^pcrs-sha256 .*/pcrs-sha256 $(sha256_of "$tampered_pcr/quote.pcrs")/" "$tampered_pcr/ATTEST.txt"
+
+    local verify_out
+    if verify_out="$(cmd_verify "$receipt" "$tampered_pcr" 2>&1)"; then
+        echo "$verify_out" >&2
         die "selftest FAILED: tampered PCR value verified as OK"
     fi
-    echo "selftest: tampered PCR correctly rejected" >&2
+    echo "$verify_out" >&2
+    case "$verify_out" in
+        *tpm2_checkquote*) ;;
+        *) die "selftest FAILED: tampered PCR was rejected for the wrong reason (expected a tpm2_checkquote failure): $verify_out" ;;
+    esac
+    echo "selftest: tampered PCR digest correctly rejected by tpm2_checkquote" >&2
 
     echo "== selftest: flipping the receipt digest must fail verification ==" >&2
     local tampered_receipt="$work/tampered-receipt.txt"
