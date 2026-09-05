@@ -65,13 +65,17 @@ pub struct TernaryInferenceEngine<'a> {
     sampler: Sampler,
     rope_cache: RopeCache,
     arena: WorkingMemoryArena,
-    /// Cycles spent in the last prefill, and how many tokens it covered.
-    pub last_prefill_cycles: u64,
+    /// Raw TSC ticks spent in the last prefill, and how many tokens it
+    /// covered. These are `rdtsc`/`rdtscp` tick counts, not core clock
+    /// cycles: on variable-frequency cores the two diverge, so do not
+    /// treat this as a cycle-accurate measurement.
+    pub last_prefill_ticks: u64,
     pub last_prefill_tokens: usize,
-    /// Cycles spent in the last decode loop, and how many steps it ran.
-    /// Callers use these to report decode-only rates: a fixed prefill cost
-    /// amortized into a whole-run average fakes a speedup at longer outputs.
-    pub last_decode_cycles: u64,
+    /// Raw TSC ticks spent in the last decode loop, and how many steps it
+    /// ran. Callers use these to report decode-only rates: a fixed prefill
+    /// cost amortized into a whole-run average fakes a speedup at longer
+    /// outputs.
+    pub last_decode_ticks: u64,
     pub last_decode_steps: u64,
     /// Down_proj-input zero counts, appended per (token, layer) as forward
     /// passes run. Diagnostic only (allocates); callers drain between runs.
@@ -188,9 +192,9 @@ impl<'a> TernaryInferenceEngine<'a> {
             sampler,
             rope_cache,
             arena,
-            last_prefill_cycles: 0,
+            last_prefill_ticks: 0,
             last_prefill_tokens: 0,
-            last_decode_cycles: 0,
+            last_decode_ticks: 0,
             last_decode_steps: 0,
             #[cfg(feature = "act_stats")]
             act_zero_counts: Vec::new(),
@@ -874,10 +878,17 @@ impl<'a> TernaryInferenceEngine<'a> {
         let mut next_token;
 
         // --- PREFILL PHASE ---
+        // Fenced TSC read pair: `lfence` before `_rdtsc()` stops the read from
+        // being speculatively hoisted above preceding work, and `__rdtscp()`
+        // at the end self-serializes on retirement so nothing after it can be
+        // reordered before the read. These are raw TSC ticks, not core clock
+        // cycles (see the doc comment on `last_prefill_ticks`).
+        unsafe { core::arch::x86_64::_mm_lfence() };
         let prefill_start = unsafe { core::arch::x86_64::_rdtsc() };
         self.forward_batch(&tokens, 0, &mut print_cb);
-        let prefill_cycles = unsafe { core::arch::x86_64::_rdtsc() } - prefill_start;
-        self.last_prefill_cycles = prefill_cycles;
+        let mut aux: u32 = 0;
+        let prefill_ticks = unsafe { core::arch::x86_64::__rdtscp(&mut aux) } - prefill_start;
+        self.last_prefill_ticks = prefill_ticks;
         self.last_prefill_tokens = tokens.len();
 
         let final_token_offset = (tokens.len() - 1) * emb_dim;
@@ -901,7 +912,7 @@ impl<'a> TernaryInferenceEngine<'a> {
         print_cb(&decoded_word);
         generated_tokens.push(next_token);
 
-        let mut total_cycles = 0;
+        let mut total_ticks = 0;
         let mut steps = 0;
 
         // --- DECODE PHASE ---
@@ -924,6 +935,9 @@ impl<'a> TernaryInferenceEngine<'a> {
                 break;
             }
 
+            // Fenced TSC read pair; see the comment on the prefill timer
+            // above. `t_start`/`t_end` are raw TSC ticks, not core cycles.
+            unsafe { core::arch::x86_64::_mm_lfence() };
             let t_start = unsafe { core::arch::x86_64::_rdtsc() };
 
             self.forward_step(next_token, step);
@@ -971,22 +985,23 @@ impl<'a> TernaryInferenceEngine<'a> {
             print_cb(&decoded_word);
             generated_tokens.push(next_token);
 
-            let t_end = unsafe { core::arch::x86_64::_rdtsc() };
-            total_cycles += t_end - t_start;
+            let mut aux: u32 = 0;
+            let t_end = unsafe { core::arch::x86_64::__rdtscp(&mut aux) };
+            total_ticks += t_end - t_start;
             steps += 1;
             step += 1;
         }
 
-        self.last_decode_cycles = total_cycles;
+        self.last_decode_ticks = total_ticks;
         self.last_decode_steps = steps;
 
-        let avg_cycles = total_cycles.checked_div(steps).unwrap_or(0);
+        let avg_ticks = total_ticks.checked_div(steps).unwrap_or(0);
         print_cb(&alloc::format!(
             "
 
-[PERFORMANCE] Average Cycles/Token: {}
+[PERFORMANCE] Average Ticks/Token: {}
 ",
-            avg_cycles
+            avg_ticks
         ));
 
         self.tokenizer.decode(&generated_tokens)
