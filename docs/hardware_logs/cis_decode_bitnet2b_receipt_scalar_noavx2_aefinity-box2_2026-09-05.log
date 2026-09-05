@@ -1,0 +1,50 @@
+=== cis1-2b-box2 start 2026-09-05T22:03:02Z host=aefinity-box2 commit=5396a78
+host: aefinity-box2 (Intel(R) Celeron(R) N4020 CPU @ 1.10GHz)
+uname -m: x86_64
+/proc/cpuinfo avx2 flag count: 0 (must be 0)
+/proc/cpuinfo fma flag count: 0 (must be 0)
+date_utc: 2026-09-05T22:03:02Z
+alice-aegis commit: 5396a78
+downloading BitNet-2B artifacts from release artifacts-bitnet2b-2026-08-27 (cache miss)
+sha256sums:
+  facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db  aegis_pruned_model.cis.safetensors
+  e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077  embed.bin
+  5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae  vocab.bin
+all three BitNet-2B artifact hashes match the A36 pins.
+build: cis_decode + cis_witness release, exit=0, wall=0s (not a benchmark)
+expected digest (from program/RESEARCH_LEDGER.md A36/A39, .github/workflows/bitnet2b-receipt.yml): cab11400d737ac4a
+cis_decode: exit=0 wall=173s (not a benchmark, scalar path on Gemini Lake)
+model : 30 layers, hidden 2560, vocab 50256
+prompt: "Once upon a time" -> 4 tokens
+token ids: [11, 304, 264, 2678, 6424, 2663, 7997, 2630, 11, 1070, 12439, 264, 3995, 3828, 7086, 48390, 13, 48390, 574, 264, 22999, 323, 25530, 3828, 889, 10456, 311, 13488, 323, 4048, 502, 2574, 13, 3005, 574, 2744, 24450, 311, 7142, 279, 24511, 315, 279, 1917, 2212, 1077, 382, 4054, 40798, 13658, 11, 48390, 6773, 311, 4034, 279, 2254, 6875, 311, 1505, 264, 2363, 389, 279]
+text     : ", in a small town called Greenfield, there lived a young girl named Lily. Lily was a curious and intelligent girl who loved to explore and learn new things. She was always eager to discover the secrets of the world around her.\n\nOne sunny afternoon, Lily decided to visit the local library to find a book on the"
+CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint
+cis_decode output line: CIS_DECODE digest=cab11400d737ac4a prompt_toks=4 gen_toks=64 mode=fullint
+computed digest: cab11400d737ac4a
+TOKEN-LEVEL DECODE DIGEST: PASS (matches cab11400d737ac4a on aefinity-box2, no-AVX2 scalar path)
+cis_witness verify: exit=0 wall=180s (not a benchmark)
+receipt cis-digest cab11400d737ac4a chain 917ddf5fea9a8488
+local   cis-digest cab11400d737ac4a chain 917ddf5fea9a8488
+VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain bit-for-bit
+cis_witness VERIFY: PASS
+cis-verify (standalone): exit=0 wall=180s (not a benchmark, includes its own release build)
+    Finished `release` profile [optimized] target(s) in 0.02s
+     Running `~/legs-worktrees/alice-aegis-cis1-2b-box2/cis-verify/target/release/cis-verify ~/legs-worktrees/alice-aegis-cis1-2b-box2/tests/golden/witness_v1_bitnet2b_once64.receipt ~/aefinity-artifacts/bitnet2b-2b-artifacts/aegis_pruned_model.cis.safetensors ~/aefinity-artifacts/bitnet2b-2b-artifacts/embed.bin ~/aefinity-artifacts/bitnet2b-2b-artifacts/vocab.bin`
+cis-verify: receipt=~/legs-worktrees/alice-aegis-cis1-2b-box2/tests/golden/witness_v1_bitnet2b_once64.receipt
+cis-verify: MODEL.SAF=~/aefinity-artifacts/bitnet2b-2b-artifacts/aegis_pruned_model.cis.safetensors (522831917 bytes)
+cis-verify: EMBED.BIN=~/aefinity-artifacts/bitnet2b-2b-artifacts/embed.bin (257310720 bytes)
+cis-verify: VOCAB.BIN=~/aefinity-artifacts/bitnet2b-2b-artifacts/vocab.bin (1759936 bytes)
+check: receipt parse ......... ok
+check: artifact hashes ........ ok
+check: prompt tokenization ..... ok
+check: token-id sequence (64 steps) ok
+check: cis-digest (FNV-1a 64) .. ok
+check: witness chain (SHA-256) . ok
+VERIFY PASS
+standalone cis-verify VERIFY: PASS
+--- SUMMARY ---
+host=aefinity-box2 cpu="Intel(R) Celeron(R) N4020 CPU @ 1.10GHz" avx2_flag_count=0 fma_flag_count=0 commit=5396a78
+expected_digest=cab11400d737ac4a computed_digest=cab11400d737ac4a
+decode_digest_match=1 cis_witness_verify_pass=1 cis_verify_standalone_pass=1
+OVERALL: PASS -- BitNet-2B FullInt decode is bit-identical on this no-AVX2/no-FMA x86_64 box (scalar path), matching the AVX2 (A36) and aarch64 CI (A39) digests and receipt.
+=== cis1-2b-box2 done 2026-09-05T22:41:45Z
