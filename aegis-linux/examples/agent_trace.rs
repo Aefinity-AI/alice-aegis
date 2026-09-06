@@ -74,6 +74,154 @@ use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
 use aegis_core::tokenizer::AegisTokenizer;
 use aegis_core::witness::{Sha256, WitnessChain, WitnessHeader, hex_lower, sha256};
 
+/// `--phases`: an Amdahl decomposition of `verify`'s FullInt CIS replay,
+/// printed AFTER the normal VERIFY PASS/FAIL line and never changing it —
+/// see the module doc comment's `--phases` entry. `phase-timers` feature
+/// only; every item in this module is compiled out otherwise, and `main`
+/// rejects `--phases` with a one-line error + exit(2) when the feature is
+/// off (checked once, not per call site).
+///
+/// `decode_step` builds a FRESH `CisEngine` per episode step (see its own
+/// doc comment), so the per-engine `phase_cycles` this module wants to
+/// report on would otherwise be dropped with the engine. This module's
+/// thread-local accumulates every step's `PhaseCycles` into one running
+/// total for the whole `verify` invocation — single-threaded, single
+/// process, so a thread-local is just a static with interior mutability,
+/// not an actual concurrency primitive.
+#[cfg(feature = "phase-timers")]
+mod phases_report {
+    use aegis_core::phase_timers::{self, Phase, PhaseCycles};
+    use std::cell::RefCell;
+
+    thread_local! {
+        static ACC: RefCell<PhaseCycles> = RefCell::new(PhaseCycles::zero());
+        /// Total tokens forward-passed across every `decode_step` call in
+        /// this process (prefill + generated, every episode step) — tracked
+        /// directly from the caller's known prompt/N lengths rather than
+        /// derived from `PhaseCycles.total_pairs`, because that counter
+        /// deliberately mixes two different call-site kinds (see
+        /// `accumulate`'s doc comment).
+        static TOKENS: RefCell<u64> = const { RefCell::new(0) };
+    }
+
+    /// Fold one `decode_step` call's engine-owned `PhaseCycles` into the
+    /// process-wide running total, and record how many tokens that step
+    /// forward-passed (prompt tokens + N generated).
+    pub fn accumulate(pc: &PhaseCycles, tokens_forward: u64) {
+        ACC.with(|acc| {
+            let mut acc = acc.borrow_mut();
+            for i in 0..phase_timers::NUM_PHASES {
+                acc.raw[i] = acc.raw[i].wrapping_add(pc.raw[i]);
+                acc.pairs[i] = acc.pairs[i].wrapping_add(pc.pairs[i]);
+            }
+            acc.total_raw = acc.total_raw.wrapping_add(pc.total_raw);
+            acc.total_pairs = acc.total_pairs.wrapping_add(pc.total_pairs);
+        });
+        TOKENS.with(|t| *t.borrow_mut() += tokens_forward);
+    }
+
+    /// Calibrate TSC ticks/second against `CLOCK_MONOTONIC` over a >= 200 ms
+    /// window. Byte-for-byte the same technique as
+    /// `aegis-linux/examples/amdahl_decode.rs::calibrate_tsc_hz` and
+    /// `clockstate.rs` before it — duplicated, not imported, because none
+    /// of the three is a library and each must stay independently
+    /// self-contained.
+    fn calibrate_tsc_hz() -> f64 {
+        use std::arch::x86_64::_rdtsc;
+        use std::time::Instant;
+        // SAFETY: rdtsc is unprivileged and always available on x86_64; it
+        // reads a counter and has no observable side effects.
+        let t0 = Instant::now();
+        let c0 = unsafe { _rdtsc() };
+        while t0.elapsed().as_millis() < 200 {
+            std::hint::spin_loop();
+        }
+        let c1 = unsafe { _rdtsc() };
+        let secs = t0.elapsed().as_secs_f64();
+        (c1 - c0) as f64 / secs
+    }
+
+    /// Calibrate fenced-pair overhead once, at process startup, before any
+    /// replay — same call site discipline `amdahl_decode` uses (see
+    /// `phase_timers::calibrate_overhead`'s doc comment for why timing and
+    /// use must share a core/scheduling context).
+    pub fn calibrate() -> (u64, f64, f64) {
+        let (overhead_total, overhead_mean) = phase_timers::calibrate_overhead(200_000);
+        let tsc_hz = calibrate_tsc_hz();
+        (overhead_total, overhead_mean, tsc_hz)
+    }
+
+    /// Print the phases table for whatever has been folded into `ACC` so
+    /// far. Format mirrors `amdahl_decode.rs`'s single-line-per-context-length
+    /// report so both can be quoted the same way in a report.
+    pub fn print_table(overhead_total: u64, overhead_mean: f64, tsc_hz: f64) {
+        let pc = ACC.with(|acc| *acc.borrow());
+        let tokens_forward = TOKENS.with(|t| *t.borrow());
+
+        let named: [(&str, Phase); 7] = [
+            ("gemv", Phase::Gemv),
+            ("attn", Phase::Attn),
+            ("kv", Phase::Kv),
+            ("norm", Phase::Norm),
+            ("act", Phase::Act),
+            ("lmhead", Phase::LmHead),
+            ("sample", Phase::Sample),
+        ];
+
+        let total_ticks = phase_timers::corrected(pc.total_raw, pc.total_pairs, overhead_mean);
+        let mut named_sum = 0.0f64;
+        let mut rows: Vec<(&str, f64, u64)> = Vec::with_capacity(named.len());
+        for (label, phase) in named {
+            let i = phase as usize;
+            let ticks = phase_timers::corrected(pc.raw[i], pc.pairs[i], overhead_mean);
+            named_sum += ticks;
+            rows.push((label, ticks, pc.pairs[i]));
+        }
+        let other = (total_ticks - named_sum).max(0.0);
+
+        let pct = |x: f64| {
+            if total_ticks > 0.0 {
+                100.0 * x / total_ticks
+            } else {
+                0.0
+            }
+        };
+
+        println!(
+            "# agent_trace --phases: RDTSC/RDTSCP invariant-TSC ticks, NOT core cycles \
+             (see aegis-linux/examples/clockstate.rs); tsc_hz below is calibrated against \
+             CLOCK_MONOTONIC in this process, not assumed."
+        );
+        println!(
+            "# overhead calibration: {overhead_total} ticks / 200000 fenced pairs, \
+             mean {overhead_mean:.3} ticks/pair"
+        );
+        println!(
+            "# NOTE: total_ticks/total_pairs below fold TWO call-site kinds into one \
+             counter (aegis_core::phase_timers::PhaseCycles.total_*): one record_total \
+             pair per CisEngine::forward_step_int call (every prefill AND generated \
+             token) and one per CisEngine::logits_int call (final norm + LM head, \
+             generated tokens only). tokens_forward is tracked separately from the \
+             caller's known prompt/N lengths, not derived from total_pairs."
+        );
+        println!("PHASE   TICKS_CORRECTED PAIRS   SHARE_PCT");
+        for (label, ticks, pairs) in &rows {
+            println!("{label:<7} {ticks:>15.0} {pairs:>7} {:>9.2}", pct(*ticks));
+        }
+        println!(
+            "{:<7} {other:>15.0} {:>7} {:>9.2}",
+            "other",
+            "-",
+            pct(other)
+        );
+        println!(
+            "TOTAL total_ticks={total_ticks:.0} total_pairs={} tokens_forward={tokens_forward} \
+             tsc_hz={tsc_hz:.0} overhead_ticks={overhead_total}",
+            pc.total_pairs
+        );
+    }
+}
+
 fn hex(b: &[u8]) -> String {
     let mut out = vec![0u8; b.len() * 2];
     let n = hex_lower(b, &mut out);
@@ -557,6 +705,16 @@ fn decode_step(
         engine.forward_step_int(tok, pos);
         pos += 1;
     }
+    // Fold this step's engine-owned phase counters into the process-wide
+    // `--phases` accumulator before `engine` (and its `phase_cycles`) is
+    // dropped at the end of this function. Always runs when the feature is
+    // compiled in, independent of whether `--phases` was passed — same
+    // "feature gates the cost, the flag only gates printing" discipline
+    // `amdahl_decode`/`TernaryInferenceEngine` already use elsewhere.
+    // Zero effect on `generated`/`chain.digest()`, i.e. no receipt or
+    // verify-decision byte this function returns is touched by it.
+    #[cfg(feature = "phase-timers")]
+    phases_report::accumulate(&engine.phase_cycles, (prompt_ids.len() + n) as u64);
     (generated, chain.digest())
 }
 
@@ -742,19 +900,52 @@ fn extract_flag(args: &mut Vec<String>, flag: &str) -> Option<String> {
     Some(val)
 }
 
+/// Pull a bare `--flag` (no value) out of `args` in place, returning whether
+/// it was present. Used for `--phases`, which is a switch, not a `--flag
+/// value` pair like `extract_flag` handles.
+fn extract_bool_flag(args: &mut Vec<String>, flag: &str) -> bool {
+    match args.iter().position(|a| a == flag) {
+        Some(pos) => {
+            args.remove(pos);
+            true
+        }
+        None => false,
+    }
+}
+
 fn main() {
     let mut args: Vec<String> = std::env::args().collect();
     let table_path = extract_flag(&mut args, "--table");
     let suite_sha256_arg = extract_flag(&mut args, "--suite-sha256");
+    let phases_flag = extract_bool_flag(&mut args, "--phases");
     if args.len() < 6 {
         eprintln!(
             "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>]"
         );
         eprintln!(
-            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>] [--suite-sha256 <64hex>]"
+            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>] [--suite-sha256 <64hex>] [--phases]"
         );
         std::process::exit(2);
     }
+    if phases_flag && args[1] != "verify" {
+        eprintln!("--phases is only supported by `agent_trace verify`");
+        std::process::exit(2);
+    }
+    #[cfg(not(feature = "phase-timers"))]
+    if phases_flag {
+        eprintln!(
+            "--phases requires building with the `phase-timers` feature: \
+             cargo build --release --features phase-timers --example agent_trace"
+        );
+        std::process::exit(2);
+    }
+    // Calibrate once, at startup, before any replay — required whenever
+    // --phases will print a table, regardless of gen/verify (checked above:
+    // only verify reaches here with phases_flag true). See
+    // `phases_report::calibrate`'s doc comment for why this must happen
+    // before the timed work, not after.
+    #[cfg(feature = "phase-timers")]
+    let phase_calib = phases_flag.then(phases_report::calibrate);
     let suite_sha256_arg = match suite_sha256_arg {
         Some(s) => match parse_suite_sha256(&s) {
             Ok(bytes) => Some(bytes),
@@ -1093,6 +1284,13 @@ fn main() {
             } else {
                 println!("VERIFY FAIL — replay diverged from the receipt");
                 std::process::exit(1);
+            }
+
+            // --phases: printed only after a PASS (a FAIL already exited
+            // above), never altering the PASS line or exit code above it.
+            #[cfg(feature = "phase-timers")]
+            if let Some((overhead_total, overhead_mean, tsc_hz)) = phase_calib {
+                phases_report::print_table(overhead_total, overhead_mean, tsc_hz);
             }
         }
         other => {
