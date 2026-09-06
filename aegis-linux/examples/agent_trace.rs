@@ -11,24 +11,45 @@
 //! links each step's already-chained decode digest to that step's tool
 //! name/input/output.
 //!
-//! Tool: exactly one, `calc`, grammar `CALC(<int> <op> <int>)` with
-//! op in {+ - * / %}, i64 checked arithmetic. A step whose decoded text
-//! contains no matching call is `tool=no-tool`. A step whose call parses
-//! but whose arithmetic overflows or divides/mods by zero is
-//! `tool=calc-error` with a fixed error string as output — itself a
-//! recorded, deterministic step outcome, not a crash.
+//! Tools: `calc`, grammar `CALC(<int> <op> <int>)` with op in {+ - * / %},
+//! i64 checked arithmetic; and `lookup`, grammar `LOOKUP(<key>)` with
+//! key matching `[A-Za-z0-9_.-]{1,64}`, resolved against a fixed table file
+//! supplied with `--table` (a hit returns the table's value string, a miss
+//! returns the literal `NONE`). `lookup` only exists when a table is given —
+//! with no `--table`, `LOOKUP(...)` text is not scanned for at all and the
+//! episode behaves exactly as it did before this tool existed. A step whose
+//! decoded text contains no matching call of either kind is `tool=no-tool`.
+//! A step whose `CALC` call parses but whose arithmetic overflows or
+//! divides/mods by zero is `tool=calc-error` with a fixed error string as
+//! output — itself a recorded, deterministic step outcome, not a crash.
+//!
+//! Scanner policy (same for one tool or two): find the earliest starting
+//! occurrence of `CALC(` or `LOOKUP(` in the step's newly decoded text
+//! (never the prompt or earlier steps) and attempt to parse *only* that
+//! occurrence per its own grammar. If it fails to parse, the step is
+//! `no-tool` — the scanner never falls back to a later occurrence or the
+//! other tool. Both tools may appear across one episode (different steps).
 //!
 //! Each step re-encodes its own growing prompt and decodes from position 0
 //! with a fresh engine (no carried KV state across steps) — the simplest
 //! thing that is unambiguously deterministic and cheap at this episode size
 //! (K=3, N=16 by default).
 //!
-//!   agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> ["prompt"] > receipt
-//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file>
+//!   agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> ["prompt"] [--table <path>] > receipt
+//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>]
 //!
 //! Rule A: prints no timing, ever. Rule B: the receipt carries a commit hash
 //! and hostname (informational only — NOT folded into the trace chain, so a
 //! receipt generated on one machine still verifies bit-for-bit on another).
+//!
+//! Table binding: when `--table` is given, the table file's sha256 and byte
+//! length are folded into the trace genesis (see `trace_genesis`'s doc
+//! comment for the exact fold order) and the receipt records a
+//! `table-sha256 <64 hex>` header line. A table-less (v0) episode's genesis
+//! fold is byte-identical to the pre-LOOKUP code path — no format bump.
+//! `verify` recomputes the table's sha256 from the `--table` file it is
+//! given and rejects a mismatch (or a missing `--table` when the receipt
+//! declares one) as `VERIFY FAIL` before ever running the replay.
 
 use aegis_core::cis_infer::{CisEngine, CisMode, CisModel, argmax_i64};
 use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
@@ -149,16 +170,135 @@ fn eval_calc(a: i64, op: u8, b: i64) -> Result<i64, &'static str> {
     }
 }
 
-/// Run the calc tool over one step's decoded text. Deterministic: same text
-/// in, same `ToolOutcome` out, always.
-fn run_tool(decoded_text: &str) -> ToolOutcome {
-    match find_calc(decoded_text) {
+// ---------------------------------------------------------------------
+// lookup tool: grammar LOOKUP(<key>), key in [A-Za-z0-9_.-]{1,64},
+// resolved against a fixed table parsed from a `key<TAB>value` file.
+// ---------------------------------------------------------------------
+
+/// `key` grammar for both the `LOOKUP(...)` call and every table row:
+/// 1 to 64 ASCII bytes, each alphanumeric, `_`, `.`, or `-`.
+fn is_valid_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.len() <= 64
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-'))
+}
+
+/// A parsed lookup table: the key/value map plus the sha256 and byte length
+/// of the exact file bytes it was parsed from (folded into trace genesis).
+struct LookupTable {
+    map: std::collections::HashMap<String, String>,
+    sha256: [u8; 32],
+    len: u64,
+}
+
+/// Strictly parse a `key<TAB>value` table file: UTF-8, one row per line,
+/// blank lines skipped, `key` per `is_valid_key`, `value` non-empty-file-line
+/// text up to 256 bytes with no tab or newline (a newline can't occur within
+/// one `str::lines()` line by construction; the tab check catches a row with
+/// more than one tab, which would otherwise silently fold into value).
+/// Duplicate keys and any malformed row are hard errors — no silent drop.
+fn parse_table(bytes: &[u8]) -> Result<LookupTable, String> {
+    let text = std::str::from_utf8(bytes).map_err(|_| "table is not valid UTF-8".to_string())?;
+    let mut map = std::collections::HashMap::new();
+    for (i, line) in text.lines().enumerate() {
+        let lineno = i + 1;
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.splitn(2, '\t');
+        let key = parts.next().unwrap_or("");
+        let value = match parts.next() {
+            Some(v) => v,
+            None => return Err(format!("table line {lineno}: no tab separator")),
+        };
+        if !is_valid_key(key) {
+            return Err(format!("table line {lineno}: bad key {key:?}"));
+        }
+        if value.is_empty() {
+            return Err(format!("table line {lineno}: empty value"));
+        }
+        if value.len() > 256 {
+            return Err(format!(
+                "table line {lineno}: value exceeds 256 bytes ({})",
+                value.len()
+            ));
+        }
+        if value.contains('\t') {
+            return Err(format!("table line {lineno}: value contains a tab"));
+        }
+        if map.contains_key(key) {
+            return Err(format!("table line {lineno}: duplicate key {key:?}"));
+        }
+        map.insert(key.to_string(), value.to_string());
+    }
+    Ok(LookupTable {
+        map,
+        sha256: sha256(bytes),
+        len: bytes.len() as u64,
+    })
+}
+
+/// Find the first `LOOKUP(...)` call in `text` and validate its key.
+/// Returns `Some((matched_substring, key))` on a grammar match, `None` if no
+/// `LOOKUP(` occurs or its body is not a valid key. Only the FIRST
+/// `LOOKUP(` occurrence is tried, same scan-not-search policy as `find_calc`.
+fn find_lookup(text: &str) -> Option<(&str, &str)> {
+    let start = text.find("LOOKUP(")?;
+    let rest = &text[start + "LOOKUP(".len()..];
+    let close = rest.find(')')?;
+    let key = &rest[..close];
+    if !is_valid_key(key) {
+        return None;
+    }
+    let full = &text[start..start + "LOOKUP(".len() + close + 1];
+    Some((full, key))
+}
+
+/// One recognized tool call site in a step's decoded text, before it has
+/// been run.
+enum ToolCall<'a> {
+    Calc(&'a str, i64, u8, i64),
+    Lookup(&'a str, &'a str),
+}
+
+/// Scan `text` for the earliest-starting `CALC(` or `LOOKUP(` occurrence and
+/// attempt to parse only that one. `LOOKUP(` is not scanned for at all when
+/// `table_present` is false, so a table-less episode's scan is identical to
+/// the pre-LOOKUP `find_calc`-only behavior. See the module doc comment for
+/// the full scanner policy (earliest occurrence wins; no fallback).
+fn find_tool_call(text: &str, table_present: bool) -> Option<ToolCall<'_>> {
+    let calc_pos = text.find("CALC(");
+    let lookup_pos = if table_present {
+        text.find("LOOKUP(")
+    } else {
+        None
+    };
+    let calc_first = match (calc_pos, lookup_pos) {
+        (Some(c), Some(l)) => c <= l,
+        (Some(_), None) => true,
+        (None, Some(_)) => false,
+        (None, None) => return None,
+    };
+    if calc_first {
+        find_calc(text).map(|(m, a, op, b)| ToolCall::Calc(m, a, op, b))
+    } else {
+        find_lookup(text).map(|(m, k)| ToolCall::Lookup(m, k))
+    }
+}
+
+/// Run the tool scanner over one step's decoded text. Deterministic: same
+/// text and table in, same `ToolOutcome` out, always. `table` is `None` for
+/// a table-less episode, in which case `LOOKUP(...)` is never recognized.
+fn run_tool(decoded_text: &str, table: Option<&LookupTable>) -> ToolOutcome {
+    match find_tool_call(decoded_text, table.is_some()) {
         None => ToolOutcome {
             name: "no-tool",
             input: Vec::new(),
             output: Vec::new(),
         },
-        Some((matched, a, op, b)) => match eval_calc(a, op, b) {
+        Some(ToolCall::Calc(matched, a, op, b)) => match eval_calc(a, op, b) {
             Ok(v) => ToolOutcome {
                 name: "calc",
                 input: matched.as_bytes().to_vec(),
@@ -170,6 +310,16 @@ fn run_tool(decoded_text: &str) -> ToolOutcome {
                 output: msg.as_bytes().to_vec(),
             },
         },
+        Some(ToolCall::Lookup(matched, key)) => {
+            // `table_present` gated the scan above, so this is always Some.
+            let table = table.expect("LOOKUP scanned only when a table is present");
+            let value = table.map.get(key).map(String::as_str).unwrap_or("NONE");
+            ToolOutcome {
+                name: "lookup",
+                input: matched.as_bytes().to_vec(),
+                output: value.as_bytes().to_vec(),
+            }
+        }
     }
 }
 
@@ -193,6 +343,14 @@ const TRACE_DOMAIN: &[u8] = b"AEGIS-TRACE v0\n";
 /// initial prompt. Deliberately its own domain string, distinct from
 /// `WITNESS_DOMAIN_V1`, so a trace-chain digest can never collide with a
 /// plain decode-chain digest.
+///
+/// Fold order (exact): TRACE_DOMAIN, model_sha, embed_sha, vocab_sha,
+/// k (BE u64), n (BE u64), prompt.len() (BE u64), prompt bytes, THEN — only
+/// when `table` is `Some((table_sha, table_len))` — table_sha (32 raw
+/// bytes) followed by table_len (BE u64). A table-less call folds none of
+/// that trailing material, so its digest is byte-identical to the
+/// pre-LOOKUP genesis fold (this is what keeps existing v0 receipts
+/// verifying unchanged).
 fn trace_genesis(
     model_sha: &[u8; 32],
     embed_sha: &[u8; 32],
@@ -200,6 +358,7 @@ fn trace_genesis(
     k: u64,
     n: u64,
     prompt: &[u8],
+    table: Option<(&[u8; 32], u64)>,
 ) -> [u8; 32] {
     let mut s = Sha256::new();
     s.update(TRACE_DOMAIN);
@@ -210,6 +369,10 @@ fn trace_genesis(
     s.update(&n.to_be_bytes());
     s.update(&(prompt.len() as u64).to_be_bytes());
     s.update(prompt);
+    if let Some((table_sha, table_len)) = table {
+        s.update(table_sha);
+        s.update(&table_len.to_be_bytes());
+    }
     s.finalize()
 }
 
@@ -330,6 +493,7 @@ fn replay_episode(
     initial_prompt: &str,
     k: usize,
     n: usize,
+    table: Option<&LookupTable>,
 ) -> EpisodeReplay {
     let tensors = SafeTensors::deserialize(model_bytes).expect("parse MODEL.SAF");
     let cfg_json = tensors
@@ -347,6 +511,7 @@ fn replay_episode(
         k as u64,
         n as u64,
         initial_prompt.as_bytes(),
+        table.map(|t| (&t.sha256, t.len)),
     );
     let mut steps = Vec::with_capacity(k);
 
@@ -363,7 +528,7 @@ fn replay_episode(
             n,
         );
         let decoded_text = tokenizer.decode(&toks);
-        let outcome = run_tool(&decoded_text);
+        let outcome = run_tool(&decoded_text, table);
 
         trace_chain = trace_fold_step(
             trace_chain,
@@ -477,11 +642,31 @@ fn host_name() -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
+/// Pull a `--flag value` pair out of `args` (in place) wherever it occurs,
+/// leaving the remaining positional args untouched. Used for `--table
+/// <path>`, which is optional and orthogonal to the positional gen/verify
+/// argument lists.
+fn extract_flag(args: &mut Vec<String>, flag: &str) -> Option<String> {
+    let pos = args.iter().position(|a| a == flag)?;
+    if pos + 1 >= args.len() {
+        eprintln!("{flag} requires a value");
+        std::process::exit(2);
+    }
+    let val = args.remove(pos + 1);
+    args.remove(pos);
+    Some(val)
+}
+
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+    let table_path = extract_flag(&mut args, "--table");
     if args.len() < 6 {
-        eprintln!("usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt]");
-        eprintln!("       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file>");
+        eprintln!(
+            "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>]"
+        );
+        eprintln!(
+            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>]"
+        );
         std::process::exit(2);
     }
     let mode = args[1].as_str();
@@ -501,6 +686,11 @@ fn main() {
                 .map(String::as_str)
                 .unwrap_or("Once upon a time");
 
+            let table = table_path.as_ref().map(|p| {
+                let bytes = std::fs::read(p).expect("read --table file");
+                parse_table(&bytes).expect("parse --table file")
+            });
+
             let r = replay_episode(
                 &model_bytes,
                 &embed_bytes,
@@ -511,6 +701,7 @@ fn main() {
                 prompt,
                 k,
                 n,
+                table.as_ref(),
             );
 
             println!("AEGIS-TRACE v0");
@@ -519,6 +710,9 @@ fn main() {
             println!("vocab {}", hex(&vocab_sha));
             println!("K {k}");
             println!("N {n}");
+            if let Some(t) = &table {
+                println!("table-sha256 {}", hex(&t.sha256));
+            }
             println!("prompt-hex {}", hex(prompt.as_bytes()));
             println!("commit {}", commit_hash());
             println!("host {}", host_name());
@@ -545,6 +739,7 @@ fn main() {
             let mut w_prompt = String::new();
             let mut w_steps: Vec<(Vec<u32>, String, String, String, String)> = Vec::new();
             let mut w_trace_chain = String::new();
+            let mut w_table_sha: Option<String> = None;
 
             for line in wtext.lines() {
                 if let Some(rest) = line.strip_prefix("step ") {
@@ -606,6 +801,7 @@ fn main() {
                         };
                     }
                     "trace-chain" => w_trace_chain = v.into(),
+                    "table-sha256" => w_table_sha = Some(v.into()),
                     _ => {}
                 }
             }
@@ -645,6 +841,46 @@ fn main() {
                 std::process::exit(1);
             }
 
+            // Table resolution: only when the receipt declares a
+            // table-sha256 does verify require and use a --table. A --table
+            // given for a receipt with no table-sha256 line is ignored
+            // (the episode it describes never consulted one).
+            let table: Option<LookupTable> = match &w_table_sha {
+                Some(claimed) => {
+                    let path = match &table_path {
+                        Some(p) => p,
+                        None => {
+                            println!(
+                                "VERIFY FAIL — receipt declares table-sha256 {} but no --table was given",
+                                &claimed[..16.min(claimed.len())]
+                            );
+                            std::process::exit(1);
+                        }
+                    };
+                    let bytes = std::fs::read(path).unwrap_or_else(|e| {
+                        println!("VERIFY FAIL — could not read --table {path}: {e}");
+                        std::process::exit(1);
+                    });
+                    let local_sha = hex(&sha256(&bytes));
+                    if &local_sha != claimed {
+                        println!(
+                            "FAIL artifact: TABLE hash mismatch (receipt {} vs local {})",
+                            &claimed[..16.min(claimed.len())],
+                            &local_sha[..16]
+                        );
+                        std::process::exit(1);
+                    }
+                    match parse_table(&bytes) {
+                        Ok(t) => Some(t),
+                        Err(reason) => {
+                            println!("FAIL structure: bad --table: {reason}");
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                None => None,
+            };
+
             let r = replay_episode(
                 &model_bytes,
                 &embed_bytes,
@@ -655,6 +891,7 @@ fn main() {
                 &w_prompt,
                 w_k,
                 w_n,
+                table.as_ref(),
             );
 
             let local_trace_chain = hex(&r.trace_chain);
@@ -808,7 +1045,7 @@ mod tests {
 
     #[test]
     fn run_tool_no_match_is_no_tool() {
-        let o = run_tool("plain text");
+        let o = run_tool("plain text", None);
         assert_eq!(o.name, "no-tool");
         assert!(o.input.is_empty());
         assert!(o.output.is_empty());
@@ -816,7 +1053,7 @@ mod tests {
 
     #[test]
     fn run_tool_success_is_calc() {
-        let o = run_tool("prefix CALC(2 + 2) suffix");
+        let o = run_tool("prefix CALC(2 + 2) suffix", None);
         assert_eq!(o.name, "calc");
         assert_eq!(o.input, b"CALC(2 + 2)");
         assert_eq!(o.output, b"4");
@@ -824,7 +1061,7 @@ mod tests {
 
     #[test]
     fn run_tool_error_is_calc_error() {
-        let o = run_tool("CALC(9 / 0)");
+        let o = run_tool("CALC(9 / 0)", None);
         assert_eq!(o.name, "calc-error");
         assert_eq!(o.output, b"div-by-zero");
     }
@@ -835,7 +1072,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello");
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
         trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2")
     }
 
@@ -849,7 +1086,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello");
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 1, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         assert_ne!(d0, d1);
@@ -860,7 +1097,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello");
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[8u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         assert_ne!(d0, d1);
@@ -871,7 +1108,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello");
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"no-tool", b"CALC(1 + 1)", b"2");
         assert_ne!(d0, d1);
@@ -882,7 +1119,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello");
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 2)", b"2");
         assert_ne!(d0, d1);
@@ -893,7 +1130,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello");
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"3");
         assert_ne!(d0, d1);
@@ -904,10 +1141,10 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g0 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello");
-        let g1 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp");
-        let g2 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello");
-        let g3 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello");
+        let g0 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
+        let g1 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None);
+        let g2 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None);
+        let g3 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None);
         assert_ne!(g0, g1);
         assert_ne!(g0, g2);
         assert_ne!(g0, g3);
@@ -976,9 +1213,175 @@ mod tests {
 
     #[test]
     fn tool_result_text_is_deterministic_and_reflects_outcome() {
-        let o = run_tool("CALC(2 + 2)");
+        let o = run_tool("CALC(2 + 2)", None);
         assert_eq!(tool_result_text(&o), "\nTOOL[calc]=4\n");
-        let o2 = run_tool("no call");
+        let o2 = run_tool("no call", None);
         assert_eq!(tool_result_text(&o2), "\nTOOL[no-tool]=\n");
+    }
+
+    // --- lookup table: parse (good, dup key, bad char, oversize value) ---
+
+    fn demo_table_bytes() -> Vec<u8> {
+        b"P-100\tGasket, O-ring, fuel line\nP-205\tBolt, 3/8-16 hex head\n".to_vec()
+    }
+
+    #[test]
+    fn parse_table_accepts_well_formed_rows() {
+        let t = parse_table(&demo_table_bytes()).unwrap();
+        assert_eq!(t.map.get("P-100").unwrap(), "Gasket, O-ring, fuel line");
+        assert_eq!(t.map.get("P-205").unwrap(), "Bolt, 3/8-16 hex head");
+        assert_eq!(t.len, demo_table_bytes().len() as u64);
+        assert_eq!(t.sha256, sha256(&demo_table_bytes()));
+    }
+
+    #[test]
+    fn parse_table_skips_blank_lines() {
+        let bytes = b"P-100\tGasket\n\nP-205\tBolt\n".to_vec();
+        let t = parse_table(&bytes).unwrap();
+        assert_eq!(t.map.len(), 2);
+    }
+
+    #[test]
+    fn parse_table_rejects_duplicate_key() {
+        let bytes = b"P-100\tGasket\nP-100\tOther\n".to_vec();
+        let err = parse_table(&bytes).unwrap_err();
+        assert!(err.contains("duplicate key"), "{err}");
+    }
+
+    #[test]
+    fn parse_table_rejects_bad_key_char() {
+        let bytes = b"P 100\tGasket\n".to_vec();
+        let err = parse_table(&bytes).unwrap_err();
+        assert!(err.contains("bad key"), "{err}");
+    }
+
+    #[test]
+    fn parse_table_rejects_oversize_value() {
+        let long_value = "x".repeat(257);
+        let bytes = format!("P-100\t{long_value}\n").into_bytes();
+        let err = parse_table(&bytes).unwrap_err();
+        assert!(err.contains("exceeds 256 bytes"), "{err}");
+    }
+
+    #[test]
+    fn parse_table_rejects_missing_tab() {
+        let bytes = b"P-100 Gasket\n".to_vec();
+        let err = parse_table(&bytes).unwrap_err();
+        assert!(err.contains("no tab separator"), "{err}");
+    }
+
+    #[test]
+    fn parse_table_rejects_value_with_extra_tab() {
+        let bytes = b"P-100\tGasket\tExtra\n".to_vec();
+        let err = parse_table(&bytes).unwrap_err();
+        assert!(err.contains("contains a tab"), "{err}");
+    }
+
+    #[test]
+    fn parse_table_rejects_non_utf8() {
+        let bytes = vec![0x50, 0xFF, 0xFE, b'\t', b'v'];
+        assert!(parse_table(&bytes).is_err());
+    }
+
+    // --- lookup tool: hit/miss ---
+
+    #[test]
+    fn lookup_hit_returns_table_value() {
+        let t = parse_table(&demo_table_bytes()).unwrap();
+        let o = run_tool("please LOOKUP(P-100) now", Some(&t));
+        assert_eq!(o.name, "lookup");
+        assert_eq!(o.input, b"LOOKUP(P-100)");
+        assert_eq!(o.output, b"Gasket, O-ring, fuel line");
+    }
+
+    #[test]
+    fn lookup_miss_returns_none_literal() {
+        let t = parse_table(&demo_table_bytes()).unwrap();
+        let o = run_tool("LOOKUP(P-999)", Some(&t));
+        assert_eq!(o.name, "lookup");
+        assert_eq!(o.output, b"NONE");
+    }
+
+    #[test]
+    fn lookup_without_table_is_not_scanned() {
+        // No table present: LOOKUP( text is inert, exactly like any other
+        // plain text — this is what keeps a table-less episode identical to
+        // the pre-LOOKUP behavior.
+        let o = run_tool("LOOKUP(P-100)", None);
+        assert_eq!(o.name, "no-tool");
+    }
+
+    #[test]
+    fn lookup_rejects_bad_key_char() {
+        assert!(find_lookup("LOOKUP(P 100)").is_none());
+    }
+
+    #[test]
+    fn lookup_rejects_oversize_key() {
+        let key = "x".repeat(65);
+        let text = format!("LOOKUP({key})");
+        assert!(find_lookup(&text).is_none());
+    }
+
+    // --- scanner: both tools in one text, earliest occurrence wins ---
+
+    #[test]
+    fn scanner_picks_earliest_of_calc_and_lookup() {
+        let t = parse_table(&demo_table_bytes()).unwrap();
+        let o = run_tool("first LOOKUP(P-100) then CALC(1 + 1)", Some(&t));
+        assert_eq!(o.name, "lookup");
+        let o2 = run_tool("first CALC(1 + 1) then LOOKUP(P-100)", Some(&t));
+        assert_eq!(o2.name, "calc");
+    }
+
+    #[test]
+    fn scanner_does_not_fall_back_when_earliest_call_fails_to_parse() {
+        let t = parse_table(&demo_table_bytes()).unwrap();
+        // Earliest is an invalid LOOKUP( — scanner must not fall back to the
+        // later, valid CALC(...).
+        let o = run_tool("LOOKUP(bad key) then CALC(1 + 1)", Some(&t));
+        assert_eq!(o.name, "no-tool");
+    }
+
+    // --- genesis changes with the table ---
+
+    #[test]
+    fn trace_genesis_changes_with_table() {
+        let model_sha = [1u8; 32];
+        let embed_sha = [2u8; 32];
+        let vocab_sha = [3u8; 32];
+        let g_none = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
+        let table_sha_a = [7u8; 32];
+        let table_sha_b = [8u8; 32];
+        let g_a = trace_genesis(
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            3,
+            16,
+            b"hello",
+            Some((&table_sha_a, 42)),
+        );
+        let g_b = trace_genesis(
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            3,
+            16,
+            b"hello",
+            Some((&table_sha_b, 42)),
+        );
+        let g_len = trace_genesis(
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            3,
+            16,
+            b"hello",
+            Some((&table_sha_a, 43)),
+        );
+        assert_ne!(g_none, g_a, "table-less genesis must differ from table-bound genesis");
+        assert_ne!(g_a, g_b, "genesis must be sensitive to table sha256");
+        assert_ne!(g_a, g_len, "genesis must be sensitive to table length");
     }
 }

@@ -23,6 +23,15 @@ VOCAB="${AEGIS_VOCAB:-$ARTIFACTS/VOCAB.BIN}"
 OUT="$HERE/out"
 CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
 export CARGO_BUILD_JOBS
+# Optional LOOKUP table: unset by default (episode never scans for
+# LOOKUP(...) at all). Set AEGIS_TABLE=<path> to fold a table into the
+# genesis and enable the lookup tool; demo/agent-trace/tables/demo.tsv is a
+# ready-made example.
+TABLE="${AEGIS_TABLE:-}"
+TABLE_ARGS=()
+if [ -n "$TABLE" ]; then
+    TABLE_ARGS=(--table "$TABLE")
+fi
 
 run() { echo "+ $*" >&2; "$@"; }
 
@@ -55,7 +64,7 @@ cmd_gen() {
     local receipt="$OUT/trace-${hostname_s}-${ts}.txt"
 
     echo "== gen: agent_trace on $hostname_s (K=$k N=$n) ==" >&2
-    run "$(agent_trace_bin)" gen "$MODEL" "$EMBED" "$VOCAB" "$k" "$n" "$prompt" > "$receipt"
+    run "$(agent_trace_bin)" gen "$MODEL" "$EMBED" "$VOCAB" "$k" "$n" "$prompt" "${TABLE_ARGS[@]}" > "$receipt"
     echo "wrote $receipt"
     echo "$receipt"
 }
@@ -68,7 +77,7 @@ cmd_verify() {
         exit 2
     fi
     echo "== verify: agent_trace verify ==" >&2
-    "$(agent_trace_bin)" verify "$MODEL" "$EMBED" "$VOCAB" "$receipt"
+    "$(agent_trace_bin)" verify "$MODEL" "$EMBED" "$VOCAB" "$receipt" "${TABLE_ARGS[@]}"
 }
 
 # Three adversarial mutations of a known-good receipt, each of which MUST
