@@ -1381,7 +1381,10 @@ mod tests {
             b"hello",
             Some((&table_sha_a, 43)),
         );
-        assert_ne!(g_none, g_a, "table-less genesis must differ from table-bound genesis");
+        assert_ne!(
+            g_none, g_a,
+            "table-less genesis must differ from table-bound genesis"
+        );
         assert_ne!(g_a, g_b, "genesis must be sensitive to table sha256");
         assert_ne!(g_a, g_len, "genesis must be sensitive to table length");
     }
