@@ -459,7 +459,10 @@ fn check_step_label(label: &str, position: usize) -> Result<(), String> {
     match label.trim().parse::<usize>() {
         Ok(n) if n == position => Ok(()),
         Ok(n) => Err(format!("step label {n} at position {position}")),
-        Err(_) => Err(format!("step label {} at position {position}", label.trim())),
+        Err(_) => Err(format!(
+            "step label {} at position {position}",
+            label.trim()
+        )),
     }
 }
 
