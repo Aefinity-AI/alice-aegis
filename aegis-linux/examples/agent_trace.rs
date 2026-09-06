@@ -41,9 +41,15 @@ fn hex(b: &[u8]) -> String {
     String::from_utf8(out[..n].to_vec()).unwrap()
 }
 
-fn unhex(s: &str) -> Vec<u8> {
+/// Strict hex decode: even length, every byte pair a valid hex digit pair.
+/// Used only on receipt-derived (hostile) fields in `verify`; `gen` never
+/// parses hex, so its output path is unaffected.
+fn unhex(s: &str) -> Result<Vec<u8>, ()> {
+    if s.len() % 2 != 0 {
+        return Err(());
+    }
     (0..s.len() / 2)
-        .map(|i| u8::from_str_radix(&s[2 * i..2 * i + 2], 16).unwrap_or(0))
+        .map(|i| u8::from_str_radix(&s[2 * i..2 * i + 2], 16).map_err(|_| ()))
         .collect()
 }
 
@@ -382,6 +388,55 @@ fn replay_episode(
     EpisodeReplay { steps, trace_chain }
 }
 
+/// Pure bounds checks shared by `validate_receipt_header`: K, N, and the
+/// prompt/N fit against `max_position_embeddings`. Split out from the
+/// model/tokenizer parsing so it can be unit-tested with synthetic numbers
+/// (no model fixture required) — in particular the "N too large" case.
+fn check_header_bounds(
+    k: usize,
+    n: usize,
+    prompt_tokens: usize,
+    max_position_embeddings: usize,
+) -> Result<(), String> {
+    if k < 1 {
+        return Err("K must be >= 1".to_string());
+    }
+    if n == 0 {
+        return Err("N must be > 0".to_string());
+    }
+    if prompt_tokens == 0 {
+        return Err("prompt tokenizes to zero tokens".to_string());
+    }
+    if prompt_tokens.saturating_add(n) > max_position_embeddings {
+        return Err(format!(
+            "prompt tokens ({prompt_tokens}) + N ({n}) exceeds max_position_embeddings ({max_position_embeddings})"
+        ));
+    }
+    Ok(())
+}
+
+/// Pre-flight checks on receipt-derived (hostile) header fields before
+/// `verify` calls `replay_episode`. `replay_episode`'s own asserts are for
+/// `gen`'s trusted inputs and are left as-is; this function exists so a
+/// malformed receipt fails cleanly instead of panicking. Reads the config
+/// the same way `replay_episode` does (same trusted MODEL.SAF/VOCAB.BIN).
+fn validate_receipt_header(
+    model_bytes: &[u8],
+    vocab_bytes: &[u8],
+    prompt: &str,
+    k: usize,
+    n: usize,
+) -> Result<(), String> {
+    let tensors = SafeTensors::deserialize(model_bytes)?;
+    let cfg_json = tensors
+        .metadata_field("aegis_config")?
+        .ok_or_else(|| "MODEL.SAF carries no aegis_config".to_string())?;
+    let config = ModelConfig::from_json(&cfg_json)?;
+    let tokenizer = AegisTokenizer::new(vocab_bytes)?;
+    let prompt_ids = tokenizer.encode(prompt);
+    check_header_bounds(k, n, prompt_ids.len(), config.max_position_embeddings)
+}
+
 // ---------------------------------------------------------------------
 // Receipt I/O.
 // ---------------------------------------------------------------------
@@ -396,6 +451,16 @@ fn commit_hash() -> String {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Validate a receipt "step N:" label against the step's actual position in
+/// the file (0-based). `label` is the text before the colon, untrimmed.
+fn check_step_label(label: &str, position: usize) -> Result<(), String> {
+    match label.trim().parse::<usize>() {
+        Ok(n) if n == position => Ok(()),
+        Ok(n) => Err(format!("step label {n} at position {position}")),
+        Err(_) => Err(format!("step label {} at position {position}", label.trim())),
+    }
 }
 
 fn host_name() -> String {
@@ -481,7 +546,13 @@ fn main() {
             for line in wtext.lines() {
                 if let Some(rest) = line.strip_prefix("step ") {
                     // "IDX: toks=.. tool=.. in=.. out=.. decode-chain=.."
-                    let rest = rest.split_once(':').map(|x| x.1).unwrap_or("").trim();
+                    let (label, body) = rest.split_once(':').unwrap_or((rest, ""));
+                    let position = w_steps.len();
+                    if let Err(reason) = check_step_label(label, position) {
+                        println!("FAIL structure: {reason}");
+                        std::process::exit(1);
+                    }
+                    let rest = body.trim();
                     let mut toks = Vec::new();
                     let mut tool = String::new();
                     let mut input = String::new();
@@ -515,7 +586,22 @@ fn main() {
                     "vocab" => w_vocab = v.into(),
                     "K" => w_k = v.parse().expect("K"),
                     "N" => w_n = v.parse().expect("N"),
-                    "prompt-hex" => w_prompt = String::from_utf8(unhex(v)).expect("prompt utf8"),
+                    "prompt-hex" => {
+                        let bytes = match unhex(v) {
+                            Ok(b) => b,
+                            Err(()) => {
+                                println!("FAIL structure: malformed hex in prompt-hex");
+                                std::process::exit(1);
+                            }
+                        };
+                        w_prompt = match String::from_utf8(bytes) {
+                            Ok(s) => s,
+                            Err(_) => {
+                                println!("FAIL structure: malformed hex in prompt-hex");
+                                std::process::exit(1);
+                            }
+                        };
+                    }
                     "trace-chain" => w_trace_chain = v.into(),
                     _ => {}
                 }
@@ -546,6 +632,13 @@ fn main() {
                     w_k,
                     w_steps.len()
                 );
+                std::process::exit(1);
+            }
+
+            if let Err(reason) =
+                validate_receipt_header(&model_bytes, &vocab_bytes, &w_prompt, w_k, w_n)
+            {
+                println!("FAIL structure: {reason}");
                 std::process::exit(1);
             }
 
@@ -815,6 +908,67 @@ mod tests {
         assert_ne!(g0, g1);
         assert_ne!(g0, g2);
         assert_ne!(g0, g3);
+    }
+
+    // --- hardening: verify-path structural validation ---
+
+    #[test]
+    fn check_step_label_accepts_matching_position() {
+        assert!(check_step_label("2", 2).is_ok());
+        assert!(check_step_label(" 0 ", 0).is_ok());
+    }
+
+    #[test]
+    fn check_step_label_rejects_mismatched_position() {
+        let err = check_step_label("5", 2).unwrap_err();
+        assert_eq!(err, "step label 5 at position 2");
+    }
+
+    #[test]
+    fn check_step_label_rejects_non_numeric_label() {
+        assert!(check_step_label("x", 0).is_err());
+    }
+
+    #[test]
+    fn unhex_accepts_valid_hex() {
+        assert_eq!(unhex("48656c6c6f").unwrap(), b"Hello".to_vec());
+        assert_eq!(unhex("").unwrap(), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn unhex_rejects_odd_length() {
+        assert!(unhex("abc").is_err());
+    }
+
+    #[test]
+    fn unhex_rejects_non_hex_chars() {
+        assert!(unhex("zz").is_err());
+        assert!(unhex("4g").is_err());
+    }
+
+    #[test]
+    fn check_header_bounds_rejects_oversized_n_without_panic() {
+        // N so large that prompt_tokens + N overflows a naive sum on some
+        // platforms if not handled carefully — this must return Err, not
+        // panic, and must not touch a model.
+        let err = check_header_bounds(1, usize::MAX, 4, 2048).unwrap_err();
+        assert!(err.contains("exceeds max_position_embeddings"));
+    }
+
+    #[test]
+    fn check_header_bounds_rejects_zero_k_or_n() {
+        assert!(check_header_bounds(0, 16, 4, 2048).is_err());
+        assert!(check_header_bounds(1, 0, 4, 2048).is_err());
+    }
+
+    #[test]
+    fn check_header_bounds_rejects_empty_prompt() {
+        assert!(check_header_bounds(1, 16, 0, 2048).is_err());
+    }
+
+    #[test]
+    fn check_header_bounds_accepts_in_range() {
+        assert!(check_header_bounds(3, 16, 4, 2048).is_ok());
     }
 
     #[test]

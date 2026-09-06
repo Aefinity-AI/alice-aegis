@@ -87,6 +87,28 @@ path `cis_witness` uses — not text-level correctness or model quality. No
 claim about any model other than the specific artifacts hashed in the
 receipt. No timing is printed anywhere.
 
+## Prompting note
+
+The `CALC` scanner only looks at the model's newly decoded text for that
+step — it never re-scans the prompt or earlier steps. A prompt that ends
+with an unclosed `CALC(` (for example, a truncated few-shot example) can
+never register a tool call, because the decoded text that follows has no
+way to complete an already-open call from the prompt side; `find_calc` only
+matches a `CALC(` that starts inside the text it is given. Use few-shot
+prompts that end after a complete example, not mid-call.
+
+## Evidence so far
+
+An M7 receipt generated on box2 (Celeron N4020, no AVX2/FMA) verified
+bit-for-bit on box1 (i5-5200U) and penguin (Crostini VM); three tamper
+cases rejected on both boxes. A 2B (bitnet2b artifacts) two-step episode
+generated on box2 recorded one model-emitted tool=calc step with input
+CALC(10 + 10) and output 20 and verified bit-for-bit on box1 (trace-chain
+b3030c0f63a5b37f…); the same trace-chain was reproduced by two different
+builds of the branch (94b0c6d and 78c133e) on box2. In that episode the
+model echoed a few-shot example rather than solving the question asked —
+this demonstrates the receipt mechanism, not model capability.
+
 ## Swapping in other artifacts
 
 Point `AEGIS_ARTIFACTS` (or the three `AEGIS_MODEL`/`AEGIS_EMBED`/
