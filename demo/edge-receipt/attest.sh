@@ -79,8 +79,10 @@ cmd_quote() {
     done
     [ -e /dev/tpmrm0 ] || die "no /dev/tpmrm0 (no TPM resource manager device on this host)"
 
-    local nonce kind full
-    read -r nonce kind full <<< "$(receipt_nonce "$receipt")"
+    local nonce kind full nkf
+    nkf="$(receipt_nonce "$receipt")" || exit 1
+    read -r nonce kind full <<< "$nkf"
+    if [ -z "$nonce" ] || [ -z "$kind" ]; then die "could not read receipt digest from $receipt"; fi
 
     local base attestdir
     base="$(basename "$receipt")"
@@ -326,8 +328,10 @@ cmd_selftest() {
         mv "$d" "$goodattest"
     fi
 
-    local nonce kind full
-    read -r nonce kind full <<< "$(receipt_nonce "$receipt")"
+    local nonce kind full nkf
+    nkf="$(receipt_nonce "$receipt")" || exit 1
+    read -r nonce kind full <<< "$nkf"
+    if [ -z "$nonce" ] || [ -z "$kind" ]; then die "could not read receipt digest from $receipt"; fi
 
     echo "== selftest: unmodified attestation must verify OK ==" >&2
     cmd_verify "$receipt" "$goodattest" >&2 || die "selftest: baseline attestation did not verify (fixtures are bad)"

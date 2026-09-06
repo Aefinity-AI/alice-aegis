@@ -219,7 +219,7 @@ cmd_all() {
     receipt="$(cmd_gen "$prompt" "$k" "$n" | tail -1)"
     cmd_verify "$receipt"
     cmd_tamper
-    if [ -e /dev/tpm0 ] && command -v tpm2_quote >/dev/null 2>&1; then
+    if [ -e /dev/tpmrm0 ] && command -v tpm2_quote >/dev/null 2>&1; then
         cmd_attest "$receipt" "$OUT"
     else
         echo "attest: skipped (no TPM)" >&2
