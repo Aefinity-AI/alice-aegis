@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# demo/edge-receipt/attest.sh — OPTIONAL TPM attestation for a CIS-1 receipt.
+# demo/edge-receipt/attest.sh — OPTIONAL TPM attestation for a CIS-1 decode
+# receipt (`cis-digest`) or a demo/agent-trace receipt (`trace-chain`).
 #
-# The receipt (produced by run.sh) proves *what was computed*: given these
-# artifact files, this exact decode reproduces this exact token/digest
-# chain. This script adds an independent, optional layer that proves
-# *which TPM/firmware state signed a quote* at the moment the receipt's
-# digest was fed to the TPM as qualifying data (nonce). The two checks are
-# unrelated: a PASS on cis_witness/cis-verify says nothing about the TPM,
-# and a PASS on `attest.sh verify` says nothing about the decode itself.
-# See README.md for exactly what this does and does NOT prove.
+# The receipt (produced by run.sh or demo/agent-trace/run.sh) proves *what
+# was computed*: given these artifact files, this exact decode (or agent
+# episode) reproduces this exact token/digest chain. This script adds an
+# independent, optional layer that proves *which TPM/firmware state signed
+# a quote* at the moment the receipt's digest was fed to the TPM as
+# qualifying data (nonce). The two checks are unrelated: a PASS on
+# cis_witness/cis-verify or demo/agent-trace's verify says nothing about
+# the TPM, and a PASS on `attest.sh verify` says nothing about the decode
+# or trace replay itself. See README.md for exactly what this does and
+# does NOT prove.
 #
 # Subcommands:
 #   attest.sh quote  <receipt.txt> <outdir>     # generate a TPM quote over the receipt digest
@@ -25,17 +28,35 @@ need_bin() {
     command -v "$1" >/dev/null 2>&1 || die "required binary '$1' not found on PATH"
 }
 
-# Extract the 16-hex-char cis-digest from a receipt file; used as the quote
-# nonce (qualifying data) so the quote is bound to this specific receipt.
+# Extract the receipt digest from either a CIS-1 decode receipt
+# (`cis-digest <16hex>`) or an agent-trace receipt (`trace-chain <64hex>`).
+# Prints "<nonce> <kind> <full>" where:
+#   nonce - the 16-hex-char TPM quote qualifying data (wire format unchanged:
+#           for cis-digest this IS the whole digest; for trace-chain it is
+#           the first 16 hex chars of the 64-hex chain digest).
+#   kind  - "cis" or "trace".
+#   full  - the whole digest as it appears in the receipt (== nonce for cis;
+#           the full 64-hex trace-chain for trace), recorded in ATTEST.txt
+#           so tampering anywhere in the trace-chain, not just its first 16
+#           hex chars, is caught by `verify`.
 receipt_nonce() {
     local receipt="$1"
-    local line
+    local line d
     line="$(grep -m1 '^cis-digest ' "$receipt" || true)"
-    [ -n "$line" ] || die "no 'cis-digest' line found in $receipt"
-    local nonce
-    nonce="$(echo "$line" | awk '{print $2}')"
-    echo "$nonce" | grep -Eq '^[0-9a-f]{16}$' || die "cis-digest '$nonce' is not 16 lowercase hex chars"
-    echo "$nonce"
+    if [ -n "$line" ]; then
+        d="$(echo "$line" | awk '{print $2}')"
+        echo "$d" | grep -Eq '^[0-9a-f]{16}$' || die "cis-digest '$d' is not 16 lowercase hex chars"
+        echo "$d cis $d"
+        return
+    fi
+    line="$(grep -m1 '^trace-chain ' "$receipt" || true)"
+    if [ -n "$line" ]; then
+        d="$(echo "$line" | awk '{print $2}')"
+        echo "$d" | grep -Eq '^[0-9a-f]{64}$' || die "trace-chain '$d' is not 64 lowercase hex chars"
+        echo "${d:0:16} trace $d"
+        return
+    fi
+    die "no 'cis-digest' or 'trace-chain' line found in $receipt"
 }
 
 sha256_of() {
@@ -54,8 +75,8 @@ cmd_quote() {
     done
     [ -e /dev/tpmrm0 ] || die "no /dev/tpmrm0 (no TPM resource manager device on this host)"
 
-    local nonce
-    nonce="$(receipt_nonce "$receipt")"
+    local nonce kind full
+    read -r nonce kind full <<< "$(receipt_nonce "$receipt")"
 
     local base attestdir
     base="$(basename "$receipt")"
@@ -111,7 +132,8 @@ cmd_quote() {
 
     {
         echo "$FORMAT_LINE"
-        echo "receipt-digest $nonce"
+        echo "receipt-digest $full"
+        echo "receipt-kind $kind"
         echo "pcr-list $PCR_LIST"
         echo "hierarchy $hierarchy"
         echo "ak-sha256 $(sha256_of "$attestdir/ak.pem")"
@@ -139,17 +161,20 @@ cmd_verify() {
     [ -f "$receipt" ] || { echo "VERDICT: ATTEST-FAIL (receipt not found: $receipt)"; return 1; }
     [ -f "$attestdir/ATTEST.txt" ] || { echo "VERDICT: ATTEST-FAIL (no ATTEST.txt in $attestdir)"; return 1; }
 
-    local nonce
-    if ! nonce="$(receipt_nonce "$receipt")"; then
+    local nonce_kind_full
+    if ! nonce_kind_full="$(receipt_nonce "$receipt")"; then
         echo "VERDICT: ATTEST-FAIL (could not read receipt digest)"
         return 1
     fi
+    local nonce kind full
+    read -r nonce kind full <<< "$nonce_kind_full"
 
     get_field() { grep -m1 "^$1 " "$attestdir/ATTEST.txt" | cut -d' ' -f2-; }
 
-    local fmt att_digest pcr_list hierarchy ak_sha quote_sha sig_sha pcrs_sha eventlog_sha
+    local fmt att_digest att_kind pcr_list hierarchy ak_sha quote_sha sig_sha pcrs_sha eventlog_sha
     fmt="$(get_field format)"; fmt="format $fmt"
     att_digest="$(get_field receipt-digest)"
+    att_kind="$(get_field receipt-kind)"
     pcr_list="$(get_field pcr-list)"
     hierarchy="$(get_field hierarchy)"
     ak_sha="$(get_field ak-sha256)"
@@ -163,8 +188,13 @@ cmd_verify() {
         return 1
     fi
 
-    if [ "$att_digest" != "$nonce" ]; then
-        echo "VERDICT: ATTEST-FAIL (receipt digest $nonce does not match ATTEST.txt receipt-digest $att_digest)"
+    if [ "$att_kind" != "$kind" ]; then
+        echo "VERDICT: ATTEST-FAIL (receipt kind $kind does not match ATTEST.txt receipt-kind $att_kind)"
+        return 1
+    fi
+
+    if [ "$att_digest" != "$full" ]; then
+        echo "VERDICT: ATTEST-FAIL (receipt digest $full does not match ATTEST.txt receipt-digest $att_digest)"
         return 1
     fi
 
@@ -206,7 +236,7 @@ cmd_verify() {
     echo "PCR values (from quote.pcrs):"
     echo "$checkquote_out" | sed -n '/pcrs:/,$p'
 
-    echo "VERDICT: ATTEST-OK (receipt digest $nonce matches signed quote, $hierarchy hierarchy, $pcr_list)"
+    echo "VERDICT: ATTEST-OK (receipt-kind $kind, receipt digest $full matches signed quote, $hierarchy hierarchy, $pcr_list)"
 }
 
 # -------------------------------------------------------------- selftest --
@@ -269,8 +299,8 @@ cmd_selftest() {
         mv "$d" "$goodattest"
     fi
 
-    local nonce
-    nonce="$(receipt_nonce "$receipt")"
+    local nonce kind full
+    read -r nonce kind full <<< "$(receipt_nonce "$receipt")"
 
     echo "== selftest: unmodified attestation must verify OK ==" >&2
     cmd_verify "$receipt" "$goodattest" >&2 || die "selftest: baseline attestation did not verify (fixtures are bad)"
@@ -317,6 +347,33 @@ cmd_selftest() {
         die "selftest FAILED: tampered receipt digest verified as OK"
     fi
     echo "selftest: tampered receipt digest correctly rejected" >&2
+
+    if [ -z "$seed" ]; then
+        echo "== selftest: synthetic trace-chain (agent-trace) receipt must verify OK ==" >&2
+        local trace_receipt="$work/trace-receipt.txt"
+        echo "trace-chain $(head -c32 /dev/urandom | od -An -tx1 | tr -d ' \n')" > "$trace_receipt"
+        local trace_attestdir
+        trace_attestdir="$(cmd_quote "$trace_receipt" "$work")"
+
+        cmd_verify "$trace_receipt" "$trace_attestdir" >&2 \
+            || die "selftest: baseline trace-chain attestation did not verify"
+
+        echo "== selftest: flipping the trace-chain digest's last hex char must fail verification ==" >&2
+        local tampered_trace="$work/tampered-trace-receipt.txt"
+        awk '{
+            if ($1 == "trace-chain") {
+                d = $2
+                last = substr(d, length(d), 1)
+                rest = substr(d, 1, length(d)-1)
+                newlast = (last == "0") ? "1" : "0"
+                print $1, rest newlast
+            } else { print }
+        }' "$trace_receipt" > "$tampered_trace"
+        if cmd_verify "$tampered_trace" "$trace_attestdir" >&2; then
+            die "selftest FAILED: tampered trace-chain digest verified as OK"
+        fi
+        echo "selftest: tampered trace-chain digest correctly rejected" >&2
+    fi
 
     echo "SELFTEST: PASS"
 }

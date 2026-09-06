@@ -102,12 +102,16 @@ demo/edge-receipt/attest.sh verify <receipt.txt> <attestdir> # offline check, no
 demo/edge-receipt/attest.sh selftest [seed-dir]              # tamper-detection self-check
 ```
 
-`quote` reads the 16-hex-char `cis-digest` line out of the receipt and uses
-it as the quote's qualifying data (nonce), so the resulting quote is bound
-to that specific receipt. It writes `<outdir>/<receipt-basename>.attest/`
+`quote` reads either a CIS-1 decode receipt's 16-hex-char `cis-digest` line
+or an agent-trace receipt's 64-hex-char `trace-chain` line (see
+`demo/agent-trace/README.md`) and uses it as the quote's qualifying data
+(nonce; for `trace-chain` this is its first 16 hex chars, keeping the
+tpm2_quote wire format unchanged), so the resulting quote is bound to that
+specific receipt. It writes `<outdir>/<receipt-basename>.attest/`
 containing the AK public key, the quote message/signature/PCR values, an
 optional BIOS event log, and an `ATTEST.txt` summary (format line, receipt
-digest, PCR list, hierarchy, file hashes, TPM manufacturer, host, time).
+digest, receipt kind [`cis` or `trace`], PCR list, hierarchy, file hashes,
+TPM manufacturer, host, time).
 
 `verify` needs no TPM: it recomputes the nonce from the receipt, checks the
 `ATTEST.txt` file hashes against the actual files, and runs
@@ -142,6 +146,11 @@ non-TPM machine such as a CI runner or a reviewer's laptop.
 - **This covers the Linux side today.** The unikernel side
   (`aegis-uefi`) does not yet call into a TPM; that is planned, not done.
 - No GPU is involved in any part of this attestation flow, and none is claimed.
+- **`attest.sh` also accepts `demo/agent-trace` receipts** (a `trace-chain`
+  line instead of `cis-digest`), binding a TPM quote to an agent-trace
+  receipt the same way; the same limits above apply verbatim — null
+  hierarchy until BIOS TPM State is enabled, and the quote proves
+  firmware/PCR state bound to the receipt digest, not a vendor-rooted key.
 
 ### Self-test
 
