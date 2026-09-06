@@ -17,13 +17,19 @@ fn lcg_next(state: &mut u64) -> u64 {
     *state
 }
 
-/// A finite (non-inf/nan) BF16 bit pattern whose magnitude is inside
-/// `dot_i8_bf16q`'s own Q.F i32-range assert (`|w| < 2^31`) — same generator
-/// as `lmhead_avx2_equivalence.rs::random_finite_bf16_in_range`, duplicated
-/// rather than imported (neither test file is a library).
+/// A finite (non-inf/nan) BF16 bit pattern whose magnitude is inside the i16
+/// hi/lo plane split's own bound (`sh <= 21`, i.e. `exp <= 135` for normals,
+/// `F = 20`) — tighter than `lmhead_avx2_equivalence.rs`'s own generator
+/// (which only needs `dot_i8_bf16q`'s looser `|w| < 2^31` bound, `sh <=
+/// 23`), because rows this file builds must convert cleanly (this file's
+/// tests are about the plane kernel's exactness once a row DID convert; the
+/// exception path itself is covered by the dedicated `exception_row_*`
+/// tests below). `wide_kernel_guard_boundary_is_bit_identical` in
+/// `lmhead_avx2_equivalence.rs` independently pins `exp = 135` (`sh = 21`)
+/// as the largest exponent still inside that same guard.
 fn random_finite_bf16_in_range(state: &mut u64) -> u16 {
     let sign = ((lcg_next(state) >> 33) & 1) as u16;
-    let exp = ((lcg_next(state) >> 40) % 138) as u16;
+    let exp = ((lcg_next(state) >> 40) % 136) as u16;
     let man = ((lcg_next(state) >> 40) % 128) as u16;
     (sign << 15) | (exp << 7) | man
 }
