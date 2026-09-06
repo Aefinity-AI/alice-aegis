@@ -765,8 +765,9 @@ pub fn dot_i8_i16planes(a: &[i8], hi: &[i16], lo: &[i16]) -> i64 {
 pub fn head_row_to_planes(row: &[u8], hi: &mut [i16], lo: &mut [i16]) -> bool {
     debug_assert_eq!(row.len(), hi.len() * 2);
     debug_assert_eq!(hi.len(), lo.len());
-    for (i, b) in row.chunks_exact(2).enumerate() {
-        let w = bf16_to_fixed(u16::from_le_bytes([b[0], b[1]]), F);
+    let (row_pairs, _) = row.as_chunks::<2>();
+    for (i, b) in row_pairs.iter().enumerate() {
+        let w = bf16_to_fixed(u16::from_le_bytes(*b), F);
         if w.unsigned_abs() >= 1 << 31 {
             return false;
         }
