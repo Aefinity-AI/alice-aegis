@@ -59,6 +59,18 @@ paid for the finding.
 | `aegis-linux/` | Linux userspace harness (same engine, fast dev loop) |
 | `aegis-eval/` | Perplexity evaluator (real measurement; no mock values) |
 
+## Demos (one command each, no downloads)
+
+| Demo | What it shows | Start here |
+|---|---|---|
+| `demo/edge-receipt/` | Greedy integer-only decode of the checked-in M7 model produces a **receipt** (artifact hashes, every token id, a SHA-256 chain over the logits) that two independent verifiers replay and check on any machine | `demo/edge-receipt/run.sh` |
+| `demo/agent-trace/` | A K-round **agent episode** with tool calls (`CALC`, `LOOKUP`) hash-chained into one AEGIS-TRACE receipt; `verify` replays the whole episode bit-for-bit and any altered token, tool input, tool output or dropped step fails. `pack` bundles a receipt (plus table and TPM quote when present) for transfer; `verify-bundle` checks it on the other side | `demo/agent-trace/run.sh all "The quick brown fox" 3 16` |
+| `demo/agent-trace/eval/` | Tool-call eval harness: `gen_suite.py` writes the item suite, `run_suite.sh` generates and verifies one receipt per item (folding the suite hash into every receipt), `score.py` reports pass/fail and semantic correctness | `demo/agent-trace/eval/README.md` |
+
+Both receipt formats carry the artifact SHA-256s, so a receipt written on one CPU
+is checked on another with no GPU and no network access beyond copying the file.
+Per-demo READMEs document scope and known limits.
+
 ## Build & run
 
 ```bash
