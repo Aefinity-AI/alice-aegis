@@ -194,6 +194,19 @@ that occurrence fails to parse, the step is `no-tool` — the scanner never
 falls back to a later occurrence of either tool. Both tools may appear
 across different steps of the same episode.
 
+## Optional suite hash
+
+`gen`/`verify` also accept `--suite-sha256 <64 lowercase hex>` — an
+arbitrary caller-supplied digest (e.g. the sha256 of an external eval
+suite file) folded into the trace genesis under its own domain tag,
+distinct from the table's, so a suite hash can never be mistaken for a
+table hash even given the same 32 bytes. `gen` writes a
+`suite-sha256 <64 hex>` receipt header; `verify` folds that header into
+genesis the same way, and if `--suite-sha256` is also given on the command
+line and disagrees with it, fails with a mismatch error before replay. A
+receipt with no `suite-sha256` header verifies unchanged, with or without
+the flag. See `demo/agent-trace/eval/run_suite.sh` for a real caller.
+
 ## Prompting note
 
 The `CALC` scanner only looks at the model's newly decoded text for that

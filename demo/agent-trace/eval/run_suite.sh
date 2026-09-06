@@ -29,6 +29,11 @@
 # Never aborts the whole run on one item's gen/verify failure — records
 # verify_result FAIL (or a receipt-parse failure) for that item and
 # continues to the next.
+#
+# Every gen/verify call passes --suite-sha256 <sha256 of ITEMS>, so the
+# suite file's hash is folded into each receipt's trace genesis (agent_trace
+# --suite-sha256; see eval/README.md) — a receipt from this run only
+# verifies against the same suite TSV bytes.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -112,6 +117,11 @@ RUNTXT="$OUTDIR/RUN.txt"
 
 sha256_file() { sha256sum "$1" | awk '{print $1}'; }
 
+# Bound into every receipt's genesis via agent_trace's --suite-sha256 (see
+# eval/README.md) so a receipt generated under a different suite file can
+# never verify against this one, even if every other input matches.
+SUITE_SHA256="$(sha256_file "$ITEMS")"
+
 if [ ! -f "$SUMMARY" ]; then
     printf 'item_id\tbucket\ttool_expected\ttool_observed\targ_match\toutput_match\ttrace_chain\treceipt_path\tverify_result\tbox\n' > "$SUMMARY"
 fi
@@ -121,7 +131,7 @@ fi
 if [ ! -f "$RUNTXT" ]; then
     {
         echo "suite-file $ITEMS"
-        echo "suite-sha256 $(sha256_file "$ITEMS")"
+        echo "suite-sha256 $SUITE_SHA256"
         echo "table-file $TABLE_FILE"
         echo "table-sha256 $(sha256_file "$TABLE_FILE")"
         echo "model-sha256 $(sha256_file "$MODEL")"
@@ -239,7 +249,7 @@ tail -n +2 "$ITEMS" | while IFS=$'\t' read -r item_id bucket tmpl_id prompt_text
 
     gen_ok=1
     gen_s_start=$(date +%s.%N)
-    if ! "$AGENT_TRACE_BIN" gen "$MODEL" "$EMBED" "$VOCAB" "$k" "$N" "$prompt_text" "${table_args[@]}" > "$receipt" 2> "$OUTDIR/receipts/${item_id}.gen.err"; then
+    if ! "$AGENT_TRACE_BIN" gen "$MODEL" "$EMBED" "$VOCAB" "$k" "$N" "$prompt_text" "${table_args[@]}" --suite-sha256 "$SUITE_SHA256" > "$receipt" 2> "$OUTDIR/receipts/${item_id}.gen.err"; then
         gen_ok=0
     fi
     gen_s_end=$(date +%s.%N)
@@ -251,7 +261,7 @@ tail -n +2 "$ITEMS" | while IFS=$'\t' read -r item_id bucket tmpl_id prompt_text
     trace_chain=""
     if [ "$gen_ok" -eq 1 ]; then
         verify_s_start=$(date +%s.%N)
-        verify_out="$("$AGENT_TRACE_BIN" verify "$MODEL" "$EMBED" "$VOCAB" "$receipt" "${table_args[@]}" 2> "$OUTDIR/receipts/${item_id}.verify.err")" || true
+        verify_out="$("$AGENT_TRACE_BIN" verify "$MODEL" "$EMBED" "$VOCAB" "$receipt" "${table_args[@]}" --suite-sha256 "$SUITE_SHA256" 2> "$OUTDIR/receipts/${item_id}.verify.err")" || true
         verify_s_end=$(date +%s.%N)
         verify_s=$(awk -v a="$verify_s_start" -v b="$verify_s_end" 'BEGIN{printf "%.3f", b-a}')
         if printf '%s' "$verify_out" | grep -q "VERIFY PASS"; then

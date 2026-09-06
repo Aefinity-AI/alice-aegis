@@ -35,8 +35,8 @@
 //! thing that is unambiguously deterministic and cheap at this episode size
 //! (K=3, N=16 by default).
 //!
-//!   agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> ["prompt"] [--table <path>] > receipt
-//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>]
+//!   agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> ["prompt"] [--table <path>] [--suite-sha256 <64hex>] > receipt
+//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>] [--suite-sha256 <64hex>]
 //!
 //! Rule A: prints no timing, ever. Rule B: the receipt carries a commit hash
 //! and hostname (informational only — NOT folded into the trace chain, so a
@@ -50,6 +50,17 @@
 //! `verify` recomputes the table's sha256 from the `--table` file it is
 //! given and rejects a mismatch (or a missing `--table` when the receipt
 //! declares one) as `VERIFY FAIL` before ever running the replay.
+//!
+//! Suite binding: `--suite-sha256 <64 lowercase hex>` folds an arbitrary
+//! caller-supplied 32-byte digest (e.g. the sha256 of an eval suite TSV)
+//! into the trace genesis under its own domain tag, distinct from the
+//! table's, so a suite hash and a table hash can never collide even if
+//! given the same 32 bytes. `gen` validates the hex and writes a
+//! `suite-sha256 <64 hex>` header line. `verify` folds a suite-sha256
+//! header exactly as `gen` did; if `--suite-sha256` is also given on the
+//! command line and disagrees with the header, verify fails before
+//! replay. A receipt with no `suite-sha256` header is unaffected — fully
+//! backward compatible.
 
 use aegis_core::cis_infer::{CisEngine, CisMode, CisModel, argmax_i64};
 use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
@@ -69,6 +80,23 @@ fn hex(b: &[u8]) -> String {
 /// multi-byte input such as an adversarial header value).
 fn short16(s: &str) -> String {
     s.chars().take(16).collect()
+}
+
+/// Validate a `--suite-sha256`/`suite-sha256` value: exactly 64 lowercase
+/// hex characters. Returns the decoded 32 bytes, or an error string naming
+/// what was wrong (used for both the CLI argument and the receipt header,
+/// with distinct messages at each call site).
+fn parse_suite_sha256(s: &str) -> Result<[u8; 32], String> {
+    if s.len() != 64 || !s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+        return Err(format!(
+            "malformed suite-sha256 (want 64 lowercase hex, got {:?})",
+            short16(s)
+        ));
+    }
+    let bytes = unhex(s).map_err(|()| "malformed suite-sha256 hex".to_string())?;
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&bytes);
+    Ok(out)
 }
 
 fn unhex(s: &str) -> Result<Vec<u8>, ()> {
@@ -353,11 +381,16 @@ const TRACE_DOMAIN: &[u8] = b"AEGIS-TRACE v0\n";
 ///
 /// Fold order (exact): TRACE_DOMAIN, model_sha, embed_sha, vocab_sha,
 /// k (BE u64), n (BE u64), prompt.len() (BE u64), prompt bytes, THEN — only
-/// when `table` is `Some((table_sha, table_len))` — table_sha (32 raw
-/// bytes) followed by table_len (BE u64). A table-less call folds none of
-/// that trailing material, so its digest is byte-identical to the
-/// pre-LOOKUP genesis fold (this is what keeps existing v0 receipts
-/// verifying unchanged).
+/// when `table` is `Some((table_sha, table_len))` — the tag `b"TABLE"`,
+/// table_sha (32 raw bytes), table_len (BE u64), THEN — only when `suite`
+/// is `Some(suite_sha)` — the tag `b"SUITE"` followed by suite_sha (32 raw
+/// bytes). The `b"TABLE"`/`b"SUITE"` tags are the domain-separation: without
+/// them a table hash and a suite hash of the same 32 bytes (with the table
+/// slot's implicit length matching) could fold identically; with them a
+/// suite hash can never be mistaken for a table hash or vice versa. A call
+/// with neither `table` nor `suite` folds none of that trailing material,
+/// so its digest is byte-identical to the pre-LOOKUP genesis fold (this is
+/// what keeps existing v0 receipts verifying unchanged).
 fn trace_genesis(
     model_sha: &[u8; 32],
     embed_sha: &[u8; 32],
@@ -366,6 +399,7 @@ fn trace_genesis(
     n: u64,
     prompt: &[u8],
     table: Option<(&[u8; 32], u64)>,
+    suite: Option<&[u8; 32]>,
 ) -> [u8; 32] {
     let mut s = Sha256::new();
     s.update(TRACE_DOMAIN);
@@ -377,8 +411,13 @@ fn trace_genesis(
     s.update(&(prompt.len() as u64).to_be_bytes());
     s.update(prompt);
     if let Some((table_sha, table_len)) = table {
+        s.update(b"TABLE");
         s.update(table_sha);
         s.update(&table_len.to_be_bytes());
+    }
+    if let Some(suite_sha) = suite {
+        s.update(b"SUITE");
+        s.update(suite_sha);
     }
     s.finalize()
 }
@@ -501,6 +540,7 @@ fn replay_episode(
     k: usize,
     n: usize,
     table: Option<&LookupTable>,
+    suite_sha: Option<&[u8; 32]>,
 ) -> EpisodeReplay {
     let tensors = SafeTensors::deserialize(model_bytes).expect("parse MODEL.SAF");
     let cfg_json = tensors
@@ -519,6 +559,7 @@ fn replay_episode(
         n as u64,
         initial_prompt.as_bytes(),
         table.map(|t| (&t.sha256, t.len)),
+        suite_sha,
     );
     let mut steps = Vec::with_capacity(k);
 
@@ -667,15 +708,26 @@ fn extract_flag(args: &mut Vec<String>, flag: &str) -> Option<String> {
 fn main() {
     let mut args: Vec<String> = std::env::args().collect();
     let table_path = extract_flag(&mut args, "--table");
+    let suite_sha256_arg = extract_flag(&mut args, "--suite-sha256");
     if args.len() < 6 {
         eprintln!(
-            "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>]"
+            "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>]"
         );
         eprintln!(
-            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>]"
+            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>] [--suite-sha256 <64hex>]"
         );
         std::process::exit(2);
     }
+    let suite_sha256_arg = match suite_sha256_arg {
+        Some(s) => match parse_suite_sha256(&s) {
+            Ok(bytes) => Some(bytes),
+            Err(reason) => {
+                eprintln!("--suite-sha256: {reason}");
+                std::process::exit(2);
+            }
+        },
+        None => None,
+    };
     let mode = args[1].as_str();
     let model_bytes = std::fs::read(&args[2]).expect("read MODEL.SAF");
     let embed_bytes = std::fs::read(&args[3]).expect("read EMBED.BIN");
@@ -709,6 +761,7 @@ fn main() {
                 k,
                 n,
                 table.as_ref(),
+                suite_sha256_arg.as_ref(),
             );
 
             println!("AEGIS-TRACE v0");
@@ -719,6 +772,9 @@ fn main() {
             println!("N {n}");
             if let Some(t) = &table {
                 println!("table-sha256 {}", hex(&t.sha256));
+            }
+            if let Some(s) = &suite_sha256_arg {
+                println!("suite-sha256 {}", hex(s));
             }
             println!("prompt-hex {}", hex(prompt.as_bytes()));
             println!("commit {}", commit_hash());
@@ -747,6 +803,7 @@ fn main() {
             let mut w_steps: Vec<(Vec<u32>, String, String, String, String)> = Vec::new();
             let mut w_trace_chain = String::new();
             let mut w_table_sha: Option<String> = None;
+            let mut w_suite_sha: Option<String> = None;
 
             for line in wtext.lines() {
                 if let Some(rest) = line.strip_prefix("step ") {
@@ -818,6 +875,17 @@ fn main() {
                             std::process::exit(1);
                         }
                         w_table_sha = Some(v.into());
+                    }
+                    "suite-sha256" => {
+                        if v.len() != 64
+                            || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+                        {
+                            println!(
+                                "FAIL structure: malformed suite-sha256 (want 64 lowercase hex)"
+                            );
+                            std::process::exit(1);
+                        }
+                        w_suite_sha = Some(v.into());
                     }
                     _ => {}
                 }
@@ -905,6 +973,32 @@ fn main() {
                 }
             };
 
+            // Suite resolution: a receipt's suite-sha256 header (if any) is
+            // authoritative and must be folded into genesis exactly as gen
+            // did. A --suite-sha256 argument is only ever a cross-check
+            // against that header — it is never folded on its own, and a
+            // receipt with no header is unaffected regardless of whether
+            // --suite-sha256 was passed.
+            let suite_sha: Option<[u8; 32]> = match &w_suite_sha {
+                Some(header_hex) => {
+                    let header_bytes = parse_suite_sha256(header_hex).unwrap_or_else(|reason| {
+                        println!("FAIL structure: {reason}");
+                        std::process::exit(1);
+                    });
+                    if let Some(arg_bytes) = suite_sha256_arg {
+                        let arg_hex = hex(&arg_bytes);
+                        if &arg_hex != header_hex {
+                            println!(
+                                "VERIFY FAIL — suite-sha256 mismatch: receipt {header_hex}, argument {arg_hex}"
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                    Some(header_bytes)
+                }
+                None => None,
+            };
+
             let r = replay_episode(
                 &model_bytes,
                 &embed_bytes,
@@ -916,6 +1010,7 @@ fn main() {
                 w_k,
                 w_n,
                 table.as_ref(),
+                suite_sha.as_ref(),
             );
 
             let local_trace_chain = hex(&r.trace_chain);
@@ -1090,7 +1185,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
         trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2")
     }
 
@@ -1104,7 +1199,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 1, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         assert_ne!(d0, d1);
@@ -1115,7 +1210,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[8u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         assert_ne!(d0, d1);
@@ -1126,7 +1221,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"no-tool", b"CALC(1 + 1)", b"2");
         assert_ne!(d0, d1);
@@ -1137,7 +1232,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 2)", b"2");
         assert_ne!(d0, d1);
@@ -1148,7 +1243,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
+        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"3");
         assert_ne!(d0, d1);
@@ -1159,10 +1254,10 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g0 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
-        let g1 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None);
-        let g2 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None);
-        let g3 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None);
+        let g0 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let g1 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None, None);
+        let g2 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None, None);
+        let g3 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None, None);
         assert_ne!(g0, g1);
         assert_ne!(g0, g2);
         assert_ne!(g0, g3);
@@ -1368,7 +1463,7 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g_none = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None);
+        let g_none = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
         let table_sha_a = [7u8; 32];
         let table_sha_b = [8u8; 32];
         let g_a = trace_genesis(
@@ -1379,6 +1474,7 @@ mod tests {
             16,
             b"hello",
             Some((&table_sha_a, 42)),
+            None,
         );
         let g_b = trace_genesis(
             &model_sha,
@@ -1388,6 +1484,7 @@ mod tests {
             16,
             b"hello",
             Some((&table_sha_b, 42)),
+            None,
         );
         let g_len = trace_genesis(
             &model_sha,
@@ -1397,6 +1494,7 @@ mod tests {
             16,
             b"hello",
             Some((&table_sha_a, 43)),
+            None,
         );
         assert_ne!(
             g_none, g_a,
@@ -1404,5 +1502,98 @@ mod tests {
         );
         assert_ne!(g_a, g_b, "genesis must be sensitive to table sha256");
         assert_ne!(g_a, g_len, "genesis must be sensitive to table length");
+    }
+
+    // --- genesis changes with the suite hash; domain-separated from table ---
+
+    #[test]
+    fn trace_genesis_changes_with_suite() {
+        let model_sha = [1u8; 32];
+        let embed_sha = [2u8; 32];
+        let vocab_sha = [3u8; 32];
+        let g_none = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let suite_a = [7u8; 32];
+        let suite_b = [8u8; 32];
+        let g_a = trace_genesis(
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            3,
+            16,
+            b"hello",
+            None,
+            Some(&suite_a),
+        );
+        let g_b = trace_genesis(
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            3,
+            16,
+            b"hello",
+            None,
+            Some(&suite_b),
+        );
+        assert_ne!(
+            g_none, g_a,
+            "suite-less genesis must differ from suite-bound genesis"
+        );
+        assert_ne!(g_a, g_b, "genesis must be sensitive to suite sha256");
+    }
+
+    #[test]
+    fn trace_genesis_domain_separates_table_and_suite_hash() {
+        // Same 32 bytes used as a table hash vs a suite hash must fold to
+        // different genesis digests — the `b"TABLE"`/`b"SUITE"` tags are
+        // what prevent the collision.
+        let model_sha = [1u8; 32];
+        let embed_sha = [2u8; 32];
+        let vocab_sha = [3u8; 32];
+        let same_bytes = [9u8; 32];
+        let g_table = trace_genesis(
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            3,
+            16,
+            b"hello",
+            Some((&same_bytes, 32)),
+            None,
+        );
+        let g_suite = trace_genesis(
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            3,
+            16,
+            b"hello",
+            None,
+            Some(&same_bytes),
+        );
+        assert_ne!(
+            g_table, g_suite,
+            "a table hash and a suite hash of the same bytes must not collide"
+        );
+    }
+
+    #[test]
+    fn parse_suite_sha256_accepts_valid_hex() {
+        let hex64 = "a".repeat(64);
+        assert_eq!(parse_suite_sha256(&hex64).unwrap(), [0xaa_u8; 32]);
+    }
+
+    #[test]
+    fn parse_suite_sha256_rejects_wrong_length() {
+        assert!(parse_suite_sha256(&"a".repeat(63)).is_err());
+        assert!(parse_suite_sha256(&"a".repeat(65)).is_err());
+        assert!(parse_suite_sha256("").is_err());
+    }
+
+    #[test]
+    fn parse_suite_sha256_rejects_uppercase_and_non_hex() {
+        assert!(parse_suite_sha256(&"A".repeat(64)).is_err());
+        let mut bad = "a".repeat(63);
+        bad.push('z');
+        assert!(parse_suite_sha256(&bad).is_err());
     }
 }
