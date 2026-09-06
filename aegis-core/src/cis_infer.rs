@@ -608,6 +608,12 @@ pub struct CisModel<'a> {
     /// LM-head BF16 bytes: the untied `lm_head.weight` when the checkpoint
     /// has one, otherwise the tied embedding table (same on-the-fly rule).
     head: &'a [u8],
+    /// One-time i16 hi/lo plane conversion of `head` (see `HeadPlanes`),
+    /// built at load by default. `None` when preconversion was disabled
+    /// (`CisModel::new_with_options(.., false)`), in which case every
+    /// LM-head dot falls back to the on-the-fly BF16 path over `head`,
+    /// unchanged from before this pre-conversion existed.
+    head_planes: Option<HeadPlanes>,
     pub config: ModelConfig,
 }
 
@@ -696,10 +702,166 @@ pub fn dot_i8_bf16q(a: &[i8], row: &[u8]) -> i64 {
     acc
 }
 
+// ---------------------------------------------------------------------------
+// LM-head pre-conversion: i16 hi/lo planes, built once at load instead of
+// re-deriving a BF16->Q.F conversion on every one of the many dot calls a
+// single loaded head serves (one full head pass per generated token).
+// ---------------------------------------------------------------------------
+
+/// Split a Q.F fixed-point value into two `i16` halves, `w = w_hi * 2^15 +
+/// w_lo`, exactly as `cis_avx2::dot_i8_bf16q_avx2_wide` already does per
+/// element on the fly (see that function's doc comment for the bound this
+/// mirrors). `w_hi = w >> 15` is an arithmetic (floor) shift, so `w_lo = w -
+/// (w_hi << 15)` is always in `[0, 2^15)` regardless of `w`'s sign — the
+/// remainder of a floor division is never negative. Returns `None` when
+/// `w_hi` does not fit `i16` (`|w| >= 2^30`, roughly): the caller records the
+/// whole row as an exception and keeps the on-the-fly BF16 path for it,
+/// rather than truncating silently.
+#[inline]
+pub fn split_i16_planes(w: i64) -> Option<(i16, i16)> {
+    let w_hi = w >> 15;
+    let w_lo = w - (w_hi << 15);
+    if w_hi < i16::MIN as i64 || w_hi > i16::MAX as i64 {
+        None
+    } else {
+        // `w_lo` is in `[0, 2^15)`, which always fits `i16` (max 32767).
+        Some((w_hi as i16, w_lo as i16))
+    }
+}
+
+/// Scalar reference dot over pre-split i16 hi/lo planes: `sum(a[i] *
+/// (hi[i]*2^15 + lo[i]))`, exact in i64. Bit-identical to `dot_i8_bf16q`
+/// whenever every element of the row was split by `split_i16_planes` from
+/// the same `bf16_to_fixed` value `dot_i8_bf16q` itself would compute —
+/// integer addition and multiplication are exact and associative here (same
+/// bound `dot_i8_bf16q` documents: `127 * 2^31 * 4096 < 2^51`), so this is
+/// just that sum computed via the split representation instead of the
+/// original `i64` weight.
+pub fn dot_i8_i16planes(a: &[i8], hi: &[i16], lo: &[i16]) -> i64 {
+    debug_assert_eq!(a.len(), hi.len());
+    debug_assert_eq!(a.len(), lo.len());
+    let mut acc: i64 = 0;
+    for ((&x, &h), &l) in a.iter().zip(hi.iter()).zip(lo.iter()) {
+        let w = (h as i64) * 32768 + l as i64;
+        acc += x as i64 * w;
+    }
+    acc
+}
+
+/// Convert one BF16 table row into i16 hi/lo planes, in place. Returns
+/// `true` if every element converted cleanly (`hi`/`lo` are now valid for
+/// this row), `false` if any element's magnitude falls outside what the
+/// plane split (or `dot_i8_bf16q`'s own `|w| < 2^31` bound) can represent —
+/// an exception row, left for the caller to route to the on-the-fly BF16
+/// path at dot time instead.
+///
+/// Every OTHER condition `dot_i8_bf16q` itself would reject — inf/nan bytes,
+/// `bf16_to_fixed`'s own `sh <= 36` assert — is NOT caught here: `bf16_to_fixed`
+/// panics with the identical message `dot_i8_bf16q` would produce, just at
+/// load time (when the head is pre-converted) instead of at first dot-time
+/// use. This is a deliberate, documented change in *when* a malformed
+/// checkpoint is rejected, not a change in whether or how (see
+/// `CisModel::new`'s doc comment).
+pub fn head_row_to_planes(row: &[u8], hi: &mut [i16], lo: &mut [i16]) -> bool {
+    debug_assert_eq!(row.len(), hi.len() * 2);
+    debug_assert_eq!(hi.len(), lo.len());
+    let (row_pairs, _) = row.as_chunks::<2>();
+    for (i, b) in row_pairs.iter().enumerate() {
+        let w = bf16_to_fixed(u16::from_le_bytes(*b), F);
+        if w.unsigned_abs() >= 1 << 31 {
+            return false;
+        }
+        match split_i16_planes(w) {
+            Some((h, l)) => {
+                hi[i] = h;
+                lo[i] = l;
+            }
+            None => return false,
+        }
+    }
+    true
+}
+
+/// Pre-converted LM-head: every row of `head` split into i16 hi/lo planes
+/// (`hi`/`lo`, each `vocab * hidden`) once at load, plus an `exceptions` bit
+/// per row for the (expected-empty, for any real checkpoint) rows that
+/// cannot take the split — see `head_row_to_planes`. Built once and reused
+/// across every `logits_int` call on the owning `CisModel`, which is the
+/// whole point: the former per-dot on-the-fly BF16->Q.F conversion
+/// (`dot_i8_bf16q`) is now a load-time cost instead of a per-token one.
+///
+/// Memory: `+4` bytes per weight over the BF16 bytes already held in `head`
+/// (2 bytes each for `hi`/`lo`, vs. BF16's 2) — `vocab * hidden * 4` bytes,
+/// ~515 MB at BitNet-2B scale (50,256 × 2,560). Accepted; see
+/// `AEGIS_HEAD_PRECONVERT=0` (`CisModel::new_with_options`) for hosts where
+/// that is too much.
+struct HeadPlanes {
+    hi: Vec<i16>,
+    lo: Vec<i16>,
+    exceptions: Vec<bool>,
+}
+
+impl HeadPlanes {
+    fn build(head: &[u8], vocab: usize, hidden: usize) -> HeadPlanes {
+        let mut hi = vec![0i16; vocab * hidden];
+        let mut lo = vec![0i16; vocab * hidden];
+        let mut exceptions = vec![false; vocab];
+        for j in 0..vocab {
+            let row = &head[j * hidden * 2..(j + 1) * hidden * 2];
+            let ok = head_row_to_planes(
+                row,
+                &mut hi[j * hidden..(j + 1) * hidden],
+                &mut lo[j * hidden..(j + 1) * hidden],
+            );
+            if !ok {
+                exceptions[j] = true;
+            }
+        }
+        HeadPlanes { hi, lo, exceptions }
+    }
+
+    /// Planes for row `j`, or `None` if `j` is an exception row (caller
+    /// falls back to the on-the-fly BF16 path).
+    #[inline]
+    fn row(&self, j: usize, hidden: usize) -> Option<(&[i16], &[i16])> {
+        if self.exceptions[j] {
+            None
+        } else {
+            let start = j * hidden;
+            let end = start + hidden;
+            Some((&self.hi[start..end], &self.lo[start..end]))
+        }
+    }
+}
+
 impl<'a> CisModel<'a> {
+    /// Builds the FullInt-CIS model with LM-head pre-conversion ON (the
+    /// default — see `new_with_options`). Every existing call site keeps
+    /// this signature and behavior unchanged.
     pub fn new(
         pipeline: &FullBitNetPipeline<'a>,
         config: &ModelConfig,
+    ) -> Result<CisModel<'a>, String> {
+        Self::new_with_options(pipeline, config, true)
+    }
+
+    /// `preconvert_head`: when `true`, build the one-time i16 hi/lo plane
+    /// representation of the LM head (`HeadPlanes::build`) so every
+    /// `logits_int` call reuses it instead of re-deriving a BF16->Q.F
+    /// conversion per element per dot (the LM head is dotted once per
+    /// generated token, so a checkpoint's head is otherwise converted from
+    /// scratch that many times over the life of one `CisModel`). `false`
+    /// keeps the pre-existing on-the-fly BF16 path unconditionally — an
+    /// A/B and tiny-RAM-host escape hatch (the plane representation costs
+    /// `+4` bytes per weight; see `HeadPlanes`'s doc comment). Callers that
+    /// want an environment-variable-driven toggle (e.g.
+    /// `AEGIS_HEAD_PRECONVERT=0`) read it themselves and pass the resulting
+    /// bool here — this crate does not read environment variables (it is
+    /// `no_std` outside the `parallel` feature).
+    pub fn new_with_options(
+        pipeline: &FullBitNetPipeline<'a>,
+        config: &ModelConfig,
+        preconvert_head: bool,
     ) -> Result<CisModel<'a>, String> {
         let hidden = config.hidden_size;
         let inter = config.intermediate_size;
@@ -764,12 +926,18 @@ impl<'a> CisModel<'a> {
             }
             None => pipeline.embeddings,
         };
+        let head_planes = if preconvert_head {
+            Some(HeadPlanes::build(head, vocab, hidden))
+        } else {
+            None
+        };
 
         Ok(CisModel {
             layers,
             final_g,
             emb: pipeline.embeddings,
             head,
+            head_planes,
             config: config.clone(),
         })
     }
@@ -788,6 +956,13 @@ impl<'a> CisModel<'a> {
 
     fn head_row(&self, j: usize, hidden: usize) -> &[u8] {
         &self.head[j * hidden * 2..(j + 1) * hidden * 2]
+    }
+
+    /// Pre-converted i16 hi/lo planes for row `j`, when preconversion is on
+    /// for this model AND row `j` is not an exception row. `None` routes the
+    /// caller to the on-the-fly BF16 path over `head_row(j, hidden)`.
+    fn head_planes_row(&self, j: usize, hidden: usize) -> Option<(&[i16], &[i16])> {
+        self.head_planes.as_ref().and_then(|hp| hp.row(j, hidden))
     }
 }
 
@@ -998,6 +1173,34 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         )))]
         {
             dot_i8_bf16q(a, row)
+        }
+    }
+
+    /// LM-head dot dispatch over the pre-converted i16 hi/lo planes, same
+    /// per-arch-entry-point-only discipline as `lmhead_dot_dispatch`:
+    /// `dot_i8_i16planes_avx2` does its own runtime `simd_on()` check and
+    /// falls back to the scalar `dot_i8_i16planes` internally. Callers only
+    /// ever reach this for rows `CisModel::head_planes_row` returned
+    /// `Some(..)` for, i.e. rows `HeadPlanes::build` already validated —
+    /// there is no exception path to preserve here (that happens once, at
+    /// build time, not per dot).
+    #[inline]
+    fn lmhead_dot_dispatch_planes(a: &[i8], hi: &[i16], lo: &[i16]) -> i64 {
+        #[cfg(all(
+            target_arch = "x86_64",
+            not(target_os = "uefi"),
+            not(feature = "scalar_only")
+        ))]
+        {
+            crate::cis_avx2::dot_i8_i16planes_avx2(a, hi, lo)
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            not(target_os = "uefi"),
+            not(feature = "scalar_only")
+        )))]
+        {
+            dot_i8_i16planes(a, hi, lo)
         }
     }
 
@@ -1460,10 +1663,15 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         });
         timed_phase!(self.phase_cycles, crate::phase_timers::Phase::LmHead, {
             for (j, l) in self.logits[..vocab].iter_mut().enumerate() {
-                *l = Self::lmhead_dot_dispatch(
-                    &self.codes[..hidden],
-                    self.model.head_row(j, hidden),
-                );
+                *l = match self.model.head_planes_row(j, hidden) {
+                    Some((hi, lo)) => {
+                        Self::lmhead_dot_dispatch_planes(&self.codes[..hidden], hi, lo)
+                    }
+                    None => Self::lmhead_dot_dispatch(
+                        &self.codes[..hidden],
+                        self.model.head_row(j, hidden),
+                    ),
+                };
             }
         });
         // logit_real = acc · s / 2^F  (the head table is Q.F).

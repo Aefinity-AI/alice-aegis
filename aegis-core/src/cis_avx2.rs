@@ -711,3 +711,135 @@ unsafe fn dot_i8_bf16q_avx2_inner(a: &[i8], row: &[u8], n: usize) -> i64 {
 
     total
 }
+
+// ---------------------------------------------------------------------------
+// LM-head dot over pre-converted i16 hi/lo planes (see
+// `crate::cis_infer::HeadPlanes`). The BF16->Q.F conversion this kernel's
+// on-the-fly siblings above perform per element per call has already
+// happened once, at load, into `hi`/`lo`; this kernel is therefore a plain
+// widen + `vpmaddwd` stream with no per-element conversion, no per-block
+// out-of-range guard, and no scalar-fallback-on-panic path (every row this
+// function is ever called on was already validated when `HeadPlanes::build`
+// produced its `hi`/`lo` slices — a row that could not take the split was
+// recorded as an exception there and never reaches here; see
+// `CisModel::head_planes_row`).
+// ---------------------------------------------------------------------------
+
+/// AVX2 dot of i8 activations against pre-converted i16 hi/lo planes.
+/// Bit-identical to [`crate::cis_infer::dot_i8_i16planes`] for every input
+/// (falls back to it when AVX2 is unavailable or the row is too short to
+/// block), which is itself bit-identical to `dot_i8_bf16q` over the ORIGINAL
+/// BF16 row whenever `hi`/`lo` came from `HeadPlanes::build` on that same
+/// row — see `head_row_to_planes`'s doc comment for that half of the
+/// exactness argument (this function only needs to reproduce the plane dot
+/// itself, not the conversion).
+///
+/// # Method
+///
+/// `hi[i]` and `lo[i]` are already `i16` in memory (unlike the on-the-fly
+/// kernels, which have to derive and pack them from a wider intermediate
+/// every call), so 16 elements load directly as two `__m256i` registers —
+/// no `vpackssdw`/`vpermq` repacking is needed at all. 16 `i8` activations
+/// widen to `i16` with `_mm256_cvtepi8_epi16` (sign-extending, sequential
+/// order, exact since every `i8` fits `i16`). `vpmaddwd(lo, act)` and
+/// `vpmaddwd(hi, act)` each compute, per output lane `k`, `x[2k]*a[2k] +
+/// x[2k+1]*a[2k+1]` exactly (`i16 * i16 -> i32`, no overflow: `|hi| <=
+/// 32768`, `|lo| < 32768`, `|a| <= 127`, one product `<= 32768*127 =
+/// 4,161,536`, a pair sum `<= 8,323,072`, both far inside `i32` —
+/// `split_i16_planes`'s own doc comment gives the same bound its callers
+/// rely on). Accumulation and the periodic flush into a running `i64` total
+/// are byte-for-byte the same discipline `dot_i8_bf16q_avx2_wide` documents
+/// above (flush every 256 elements, `sum_lo + (sum_hi << 15)`), which is why
+/// this kernel reuses that function's `WIDE_BLOCK`/`FLUSH_BLOCKS` constants
+/// and hsum helper shape rather than inventing new ones.
+pub fn dot_i8_i16planes_avx2(a: &[i8], hi: &[i16], lo: &[i16]) -> i64 {
+    debug_assert_eq!(a.len(), hi.len());
+    debug_assert_eq!(a.len(), lo.len());
+    let n = a.len();
+
+    if !crate::ops::simd_on() || n < WIDE_BLOCK {
+        return crate::cis_infer::dot_i8_i16planes(a, hi, lo);
+    }
+
+    // SAFETY: `simd_on()` confirmed AVX2 is supported and OS-enabled, which
+    // is this function's only CPU precondition. `n >= WIDE_BLOCK` holds;
+    // `dot_i8_i16planes_avx2_wide` bounds every access against `n` and
+    // recurses into this same function on its own tail (`n % WIDE_BLOCK`
+    // elements), which routes to the scalar reference for a short enough
+    // remainder — integer addition is associative, so splitting the sum at
+    // any boundary is exact.
+    unsafe { dot_i8_i16planes_avx2_wide(a, hi, lo, n) }
+}
+
+/// # Safety
+/// AVX2 must be supported and OS-enabled (see [`crate::ops::avx2_active`]).
+/// `hi`, `lo`, and `a` must all have length `n`, with `n >= WIDE_BLOCK`.
+// See `dot_i8_bf16q_avx2_wide`'s own `#[allow(unused_assignments)]` doc
+// comment: the same spurious `flush!()` lint applies to this macro's final
+// call here.
+#[allow(unused_assignments)]
+#[target_feature(enable = "avx2")]
+unsafe fn dot_i8_i16planes_avx2_wide(a: &[i8], hi: &[i16], lo: &[i16], n: usize) -> i64 {
+    let zero = _mm256_setzero_si256();
+
+    let full_blocks = n / WIDE_BLOCK;
+    let tail_start = full_blocks * WIDE_BLOCK;
+
+    let mut acc_lo = zero;
+    let mut acc_hi = zero;
+    let mut total: i64 = 0;
+    let mut blocks_since_flush: u32 = 0;
+    // Flush before 16 accumulated blocks (256 elements) — same bound
+    // `dot_i8_bf16q_avx2_wide` documents (this kernel's per-lane products
+    // are bounded identically: `|hi| <= 32768`, `|lo| < 32768`, `|a| <=
+    // 127`).
+    const FLUSH_BLOCKS: u32 = 16;
+
+    macro_rules! flush {
+        () => {{
+            let hsum = |v: __m256i| -> i32 {
+                let lo = _mm256_castsi256_si128(v);
+                let hi = _mm256_extracti128_si256(v, 1);
+                let s = _mm_add_epi32(lo, hi);
+                let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b01_00_11_10));
+                let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b10_11_00_01));
+                _mm_cvtsi128_si32(s)
+            };
+            let sum_lo = hsum(acc_lo) as i64;
+            let sum_hi = hsum(acc_hi) as i64;
+            total += sum_lo + (sum_hi << 15);
+            acc_lo = zero;
+            acc_hi = zero;
+            blocks_since_flush = 0;
+        }};
+    }
+
+    for blk in 0..full_blocks {
+        let base = blk * WIDE_BLOCK;
+
+        // SAFETY: `base + WIDE_BLOCK <= n == hi.len() == lo.len() ==
+        // a.len()`, so all three loads stay in bounds.
+        let lo_v = _mm256_loadu_si256(lo.as_ptr().add(base) as *const __m256i);
+        let hi_v = _mm256_loadu_si256(hi.as_ptr().add(base) as *const __m256i);
+        let act8 = _mm_loadu_si128(a.as_ptr().add(base) as *const __m128i);
+        let act = _mm256_cvtepi8_epi16(act8);
+
+        acc_lo = _mm256_add_epi32(acc_lo, _mm256_madd_epi16(lo_v, act));
+        acc_hi = _mm256_add_epi32(acc_hi, _mm256_madd_epi16(hi_v, act));
+        blocks_since_flush += 1;
+        if blocks_since_flush == FLUSH_BLOCKS {
+            flush!();
+        }
+    }
+    if blocks_since_flush > 0 {
+        flush!();
+    }
+
+    // Tail (`n % WIDE_BLOCK` elements): exact by associativity, same
+    // discipline as `dot_i8_bf16q_avx2_wide`'s own tail.
+    if tail_start < n {
+        total += dot_i8_i16planes_avx2(&a[tail_start..], &hi[tail_start..], &lo[tail_start..]);
+    }
+
+    total
+}
