@@ -219,6 +219,187 @@ cmd_verify_attested() {
     return "$overall"
 }
 
+sha256_field() {
+    # sha256sum a file, print just the hex digest.
+    sha256sum "$1" | awk '{print $1}'
+}
+
+# Packs a receipt (plus, optionally, its LOOKUP table and/or its TPM
+# attestation directory) into one tar file for a single-scp cross-machine
+# handoff. See README.md "Bundle format" for exactly what is in it and
+# what verify-bundle checks.
+cmd_pack() {
+    need_artifacts
+    local receipt="${1:?usage: run.sh pack <receipt> [attestdir]}"
+    local attestdir="${2:-}"
+    if [ ! -f "$receipt" ]; then
+        echo "no such receipt: $receipt" >&2
+        exit 2
+    fi
+    mkdir -p "$OUT"
+
+    local base; base="$(basename "$receipt")"
+    local stem="${base%.txt}"
+    local work; work="$(mktemp -d)"
+    trap 'rm -rf "$work"' RETURN
+
+    cp "$receipt" "$work/receipt.txt"
+
+    local has_table=no
+    if [ -n "$TABLE" ]; then
+        if [ ! -f "$TABLE" ]; then
+            echo "AEGIS_TABLE is set but not found: $TABLE" >&2
+            exit 2
+        fi
+        cp "$TABLE" "$work/table.tsv"
+        has_table=yes
+    fi
+
+    local has_attest=no
+    if [ -n "$attestdir" ]; then
+        if [ ! -d "$attestdir" ]; then
+            echo "no such attest dir: $attestdir" >&2
+            exit 2
+        fi
+        mkdir -p "$work/attest"
+        cp -a "$attestdir"/. "$work/attest/"
+        has_attest=yes
+    fi
+
+    {
+        # sha256sum-style lines for every bundle member (paths relative to
+        # the bundle root), in a fixed, sorted order.
+        ( cd "$work" && find . -type f ! -name MANIFEST.txt | sed 's|^\./||' | sort )
+    } | while IFS= read -r rel; do
+        sha256_field "$work/$rel" | awk -v p="$rel" '{print $1"  "p}'
+    done > "$work/MANIFEST.txt"
+
+    {
+        echo "artifact-model-sha256 $(sha256_field "$MODEL")"
+        echo "artifact-embed-sha256 $(sha256_field "$EMBED")"
+        echo "artifact-vocab-sha256 $(sha256_field "$VOCAB")"
+        echo "generator-host $(hostname)"
+        echo "packed-utc $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "has-table $has_table"
+        echo "has-attest $has_attest"
+    } >> "$work/MANIFEST.txt"
+
+    local bundle="$OUT/${stem}.bundle.tar"
+    ( cd "$work" && run tar cf "$bundle" --sort=name --numeric-owner --owner=0 --group=0 . )
+    echo "wrote $bundle" >&2
+    echo "$bundle"
+}
+
+# Shared helper: prints "VERIFY: PASS"/"VERIFY: FAIL" for an agent_trace
+# verify call, returns its exit status.
+_do_agent_trace_verify() {
+    local receipt="$1"; shift
+    if "$(agent_trace_bin)" verify "$MODEL" "$EMBED" "$VOCAB" "$receipt" "$@"; then
+        echo "VERIFY: PASS"
+        return 0
+    else
+        echo "VERIFY: FAIL"
+        return 1
+    fi
+}
+
+# Extracts a bundle produced by `pack` and runs, in order: MANIFEST member
+# check, artifact-triple check (BEFORE any replay), agent_trace verify
+# (using ONLY the bundle's own table.tsv, never $AEGIS_TABLE — the bundle
+# is authoritative about what it was generated against), and attest.sh
+# verify if the bundle carries a quote.
+cmd_verify_bundle() {
+    need_artifacts
+    local bundle="${1:?usage: run.sh verify-bundle <bundle.tar>}"
+    if [ ! -f "$bundle" ]; then
+        echo "no such bundle: $bundle" >&2
+        exit 2
+    fi
+
+    local base; base="$(basename "$bundle")"
+    local dir="$OUT/bundle-${base%.tar}"
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    run tar xf "$bundle" -C "$dir"
+
+    echo "== verify-bundle: MANIFEST member check ==" >&2
+    if [ ! -f "$dir/MANIFEST.txt" ]; then
+        echo "no MANIFEST.txt in bundle" >&2
+        exit 1
+    fi
+    local mismatch=""
+    while IFS= read -r line; do
+        case "$line" in
+            "") continue ;;
+            artifact-*|generator-host*|packed-utc*|has-table*|has-attest*) continue ;;
+        esac
+        local exp_hash exp_path
+        exp_hash="$(echo "$line" | awk '{print $1}')"
+        exp_path="$(echo "$line" | awk '{print $2}')"
+        [ -f "$dir/$exp_path" ] || { mismatch="$exp_path (missing)"; break; }
+        local got_hash; got_hash="$(sha256_field "$dir/$exp_path")"
+        if [ "$got_hash" != "$exp_hash" ]; then
+            mismatch="$exp_path"
+            break
+        fi
+    done < "$dir/MANIFEST.txt"
+    if [ -n "$mismatch" ]; then
+        echo "MANIFEST mismatch: $mismatch" >&2
+        exit 1
+    fi
+    echo "MANIFEST: all members match" >&2
+
+    echo "== verify-bundle: artifact-triple check ==" >&2
+    local exp_model exp_embed exp_vocab got_model got_embed got_vocab
+    exp_model="$(grep -m1 '^artifact-model-sha256 ' "$dir/MANIFEST.txt" | awk '{print $2}')"
+    exp_embed="$(grep -m1 '^artifact-embed-sha256 ' "$dir/MANIFEST.txt" | awk '{print $2}')"
+    exp_vocab="$(grep -m1 '^artifact-vocab-sha256 ' "$dir/MANIFEST.txt" | awk '{print $2}')"
+    got_model="$(sha256_field "$MODEL")"
+    got_embed="$(sha256_field "$EMBED")"
+    got_vocab="$(sha256_field "$VOCAB")"
+    if [ "$got_model" != "$exp_model" ]; then
+        echo "artifact mismatch: MODEL differs (expected $exp_model, local $got_model) — this machine does not hold the same artifact triple as the generator" >&2
+        exit 3
+    fi
+    if [ "$got_embed" != "$exp_embed" ]; then
+        echo "artifact mismatch: EMBED differs (expected $exp_embed, local $got_embed) — this machine does not hold the same artifact triple as the generator" >&2
+        exit 3
+    fi
+    if [ "$got_vocab" != "$exp_vocab" ]; then
+        echo "artifact mismatch: VOCAB differs (expected $exp_vocab, local $got_vocab) — this machine does not hold the same artifact triple as the generator" >&2
+        exit 3
+    fi
+    echo "artifact triple matches" >&2
+
+    local has_table has_attest
+    has_table="$(grep -m1 '^has-table ' "$dir/MANIFEST.txt" | awk '{print $2}')"
+    has_attest="$(grep -m1 '^has-attest ' "$dir/MANIFEST.txt" | awk '{print $2}')"
+
+    echo "== verify-bundle: agent_trace verify ==" >&2
+    local overall=0
+    if [ "$has_table" = "yes" ]; then
+        # Bundle table, not $AEGIS_TABLE: the bundle is authoritative about
+        # what it was generated against.
+        _do_agent_trace_verify "$dir/receipt.txt" --table "$dir/table.tsv" || overall=1
+    else
+        _do_agent_trace_verify "$dir/receipt.txt" || overall=1
+    fi
+
+    if [ "$has_attest" = "yes" ]; then
+        echo "== verify-bundle: attest.sh verify ==" >&2
+        if "$(attest_sh)" verify "$dir/receipt.txt" "$dir/attest"; then
+            echo "ATTEST-OK"
+        else
+            echo "ATTEST-FAIL"
+            overall=1
+        fi
+    else
+        echo "ATTEST: none (bundle carries no quote)"
+    fi
+
+    return "$overall"
+}
+
 cmd_all() {
     local prompt="${1:-Once upon a time}"
     local k="${2:-3}"
@@ -242,9 +423,11 @@ case "${1:-}" in
     tamper)          shift; cmd_tamper "$@" ;;
     attest)          shift; cmd_attest "$@" ;;
     verify-attested) shift; cmd_verify_attested "$@" ;;
+    pack)            shift; cmd_pack "$@" ;;
+    verify-bundle)   shift; cmd_verify_bundle "$@" ;;
     all)             shift; cmd_all "$@" ;;
     *)
-        echo "usage: $0 {build|gen [prompt] [K] [N]|verify <receipt>|tamper|attest <receipt> <outdir>|verify-attested <receipt> <attestdir>|all [prompt] [K] [N]}" >&2
+        echo "usage: $0 {build|gen [prompt] [K] [N]|verify <receipt>|tamper|attest <receipt> <outdir>|verify-attested <receipt> <attestdir>|pack <receipt> [attestdir]|verify-bundle <bundle.tar>|all [prompt] [K] [N]}" >&2
         exit 2
         ;;
 esac
