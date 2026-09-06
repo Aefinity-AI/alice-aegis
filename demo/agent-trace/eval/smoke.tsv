@@ -1,0 +1,11 @@
+item_id	bucket	prompt_template_id	prompt_text	expected_tool	expected_input	expected_output	notes
+calc_easy_01	calc_easy	T1	Q: 2 + 2\nA: CALC(2 + 2).\nQ: 10 + 10\nA: CALC(10 + 10).\nQ: 6 * 7\nA: CALC(6 * 7).\nQ: 11 - 9\nA:	CALC	CALC(11 - 9)	2	a,b in [0,20], ops + - *
+calc_easy_02	calc_easy	T1	Q: 2 + 2\nA: CALC(2 + 2).\nQ: 10 + 10\nA: CALC(10 + 10).\nQ: 6 * 7\nA: CALC(6 * 7).\nQ: 18 + 3\nA:	CALC	CALC(18 + 3)	21	a,b in [0,20], ops + - *
+calc_hard_01	calc_hard	T1	Q: 2 + 2\nA: CALC(2 + 2).\nQ: 10 + 10\nA: CALC(10 + 10).\nQ: 6 * 7\nA: CALC(6 * 7).\nQ: 758 + 927\nA:	CALC	CALC(758 + 927)	1685	a,b in [21,999], ops + - * / % (plan's // does not exist; see README)
+calc_hard_02	calc_hard	T1	Q: 2 + 2\nA: CALC(2 + 2).\nQ: 10 + 10\nA: CALC(10 + 10).\nQ: 6 * 7\nA: CALC(6 * 7).\nQ: 585 % 895\nA:	CALC	CALC(585 % 895)	585	a,b in [21,999], ops + - * / % (plan's // does not exist; see README)
+calc_overflow_01	calc_overflow	T1	Q: 2 + 2\nA: CALC(2 + 2).\nQ: 10 + 10\nA: CALC(10 + 10).\nQ: 6 * 7\nA: CALC(6 * 7).\nQ: 31623 * 31623\nA:	CALC	CALC(31623 * 31623)	1000014129	product near 10^9, in-range
+calc_overflow_02	calc_overflow	T1	Q: 2 + 2\nA: CALC(2 + 2).\nQ: 10 + 10\nA: CALC(10 + 10).\nQ: 6 * 7\nA: CALC(6 * 7).\nQ: 44721 * 22360\nA:	CALC	CALC(44721 * 22360)	999961560	product near 10^9, in-range
+lookup_hit_01	lookup_hit	T2	Q: part P-100\nA: LOOKUP(P-100).\nQ: part P-101\nA: LOOKUP(P-101).\nQ: part P-206\nA:	LOOKUP	LOOKUP(P-206)	Bolt, hex head, 1/4-20 x 3/4 in., cadmium plated	key present in demo/agent-trace/tables/demo.tsv
+lookup_hit_02	lookup_hit	T2	Q: part P-100\nA: LOOKUP(P-100).\nQ: part P-101\nA: LOOKUP(P-101).\nQ: part P-317\nA:	LOOKUP	LOOKUP(P-317)	Filter, oil, spin-on cartridge	key present in demo/agent-trace/tables/demo.tsv
+lookup_miss_01	lookup_miss	T2	Q: part P-100\nA: LOOKUP(P-100).\nQ: part P-101\nA: LOOKUP(P-101).\nQ: part P-999\nA:	LOOKUP	LOOKUP(P-999)	NONE	well-formed key, absent from table
+lookup_miss_02	lookup_miss	T2	Q: part P-100\nA: LOOKUP(P-100).\nQ: part P-101\nA: LOOKUP(P-101).\nQ: part P-000\nA:	LOOKUP	LOOKUP(P-000)	NONE	well-formed key, absent from table
