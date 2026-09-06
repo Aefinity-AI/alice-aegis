@@ -86,7 +86,8 @@ pub fn tick_end() -> u64 {
 pub enum Phase {
     /// Every ternary GEMV/matvec call: q/k/v/o/up/gate/down_proj, all layers.
     Gemv = 0,
-    /// QK^T + softmax + AV, one span per (layer, head). NOTE: this also
+    /// QK^T + softmax + AV, one span per layer (the span wraps the whole
+    /// head loop, so `pairs[Attn]` counts layers, not heads). NOTE: this also
     /// contains the KV-cache *read* traffic — see `Phase::Kv` doc comment
     /// for why the read side could not be split out honestly.
     Attn = 1,
