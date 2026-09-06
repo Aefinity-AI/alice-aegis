@@ -85,10 +85,16 @@ test)
         # ULP mismatches when the toggle flips mid-computation.
         harness_args=""
         [ "$c" = "aegis-core" ] && harness_args="--test-threads=1"
-        if ( cd "$REPO/$c" && cargo test --quiet -- $harness_args >/dev/null 2>&1 ); then
+        out=$(cd "$REPO/$c" && cargo test --quiet -- $harness_args 2>&1)
+        st=$?
+        if [ "$st" -eq 0 ]; then
             echo "test  $c: PASS"
+            # surface cargo's own per-binary "test result: ok. N passed; ..."
+            # lines instead of just printing a bare PASS with no numbers.
+            echo "$out" | grep '^test result:' | sed 's/^/      /'
         else
             echo "test  $c: FAIL (run: cd $c && cargo test -- $harness_args)"
+            echo "$out" | grep '^test result:' | sed 's/^/      /'
             rc=1
         fi
     done
