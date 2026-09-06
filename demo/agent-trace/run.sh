@@ -224,6 +224,100 @@ sha256_field() {
     sha256sum "$1" | awk '{print $1}'
 }
 
+# Extracts "<name> <value>" from a MANIFEST.txt, tolerating "no match"
+# under `set -e` (a plain `grep -m1 ... | awk ...` assignment would abort
+# the whole script on no-match, since grep exits 1 and pipefail is on).
+# Prints the value (possibly empty) and always returns 0.
+manifest_field() {
+    local name="$1" file="$2"
+    grep -m1 "^$name " "$file" 2>/dev/null | awk '{print $2}' || true
+}
+
+# A missing or malformed MANIFEST metadata field is a corrupt/foreign
+# bundle, not "artifacts differ" — but it is grouped under the same exit
+# code (3) as an artifact-triple mismatch, since both mean "cannot trust
+# the artifact-identity claim in this bundle" and both must be caught
+# before any replay is attempted.
+require_manifest_hex() {
+    local name="$1" val="$2"
+    if [ -z "$val" ]; then
+        echo "MANIFEST malformed: missing $name" >&2
+        exit 3
+    fi
+    if ! [[ "$val" =~ ^[0-9a-f]{64}$ ]]; then
+        echo "MANIFEST malformed: $name is not 64 lowercase hex chars: '$val'" >&2
+        exit 3
+    fi
+}
+
+require_manifest_flag() {
+    local name="$1" val="$2"
+    if [ -z "$val" ]; then
+        echo "MANIFEST malformed: missing $name" >&2
+        exit 3
+    fi
+    if [ "$val" != "yes" ] && [ "$val" != "no" ]; then
+        echo "MANIFEST malformed: $name is not yes|no: '$val'" >&2
+        exit 3
+    fi
+}
+
+# Validates every member of a tar bundle BEFORE extraction: no absolute
+# paths, no `..` path-traversal segments, and every member must be a
+# plain file or directory (no symlinks, devices, etc). Exits 2 (labeled)
+# on the first violation, or if `tar tvf` itself fails to list the file.
+check_bundle_members() {
+    local bundle="$1"
+    local listing tvf_err
+    tvf_err="$(mktemp)"
+    # stderr kept separate from the listing: tar prints warnings (e.g.
+    # "Removing leading `../' from member names") on stderr that must
+    # never be parsed as a listing line.
+    if ! listing="$(tar tvf "$bundle" 2>"$tvf_err")"; then
+        echo "bundle: extraction failed (tar could not list $bundle)" >&2
+        cat "$tvf_err" >&2
+        rm -f "$tvf_err"
+        exit 2
+    fi
+    rm -f "$tvf_err"
+    local line type path
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        type="${line:0:1}"
+        if [ "$type" = "l" ]; then
+            # symlink listing lines look like "lrwxrwxrwx ... name -> target";
+            # the member name is before " -> ", not the last field (which is
+            # the (possibly attacker-controlled) link target).
+            path="${line%% -> *}"
+            path="${path##* }"
+        else
+            path="${line##* }"
+        fi
+        path="${path#./}"
+        path="${path%/}"
+        [ -n "$path" ] || continue
+        case "$type" in
+            -|d) ;;
+            *)
+                echo "bundle: unsafe member $path (not a regular file or directory)" >&2
+                exit 2
+                ;;
+        esac
+        case "$path" in
+            /*)
+                echo "bundle: unsafe member $path (absolute path)" >&2
+                exit 2
+                ;;
+        esac
+        case "/$path/" in
+            *"/../"*)
+                echo "bundle: unsafe member $path (path traversal)" >&2
+                exit 2
+                ;;
+        esac
+    done <<< "$listing"
+}
+
 # Packs a receipt (plus, optionally, its LOOKUP table and/or its TPM
 # attestation directory) into one tar file for a single-scp cross-machine
 # handoff. See README.md "Bundle format" for exactly what is in it and
@@ -250,6 +344,9 @@ cmd_pack() {
         if [ ! -f "$TABLE" ]; then
             echo "AEGIS_TABLE is set but not found: $TABLE" >&2
             exit 2
+        fi
+        if ! grep -q '^table-sha256 ' "$receipt"; then
+            echo "note: AEGIS_TABLE is set but $receipt has no table-sha256 line — this receipt's episode never consulted a table; agent_trace verify will print its own stderr note and ignore --table (see README 'LOOKUP tool'); packing the table anyway for provenance" >&2
         fi
         cp "$TABLE" "$work/table.tsv"
         has_table=yes
@@ -285,6 +382,10 @@ cmd_pack() {
     } >> "$work/MANIFEST.txt"
 
     local bundle="$OUT/${stem}.bundle.tar"
+    if [ -e "$bundle" ] && [ "${AEGIS_FORCE:-0}" != "1" ]; then
+        echo "refusing to overwrite existing bundle: $bundle (two receipts share a basename — set AEGIS_FORCE=1 to overwrite)" >&2
+        exit 2
+    fi
     ( cd "$work" && run tar cf "$bundle" --sort=name --numeric-owner --owner=0 --group=0 . )
     echo "wrote $bundle" >&2
     echo "$bundle"
@@ -303,11 +404,19 @@ _do_agent_trace_verify() {
     fi
 }
 
-# Extracts a bundle produced by `pack` and runs, in order: MANIFEST member
-# check, artifact-triple check (BEFORE any replay), agent_trace verify
-# (using ONLY the bundle's own table.tsv, never $AEGIS_TABLE — the bundle
-# is authoritative about what it was generated against), and attest.sh
-# verify if the bundle carries a quote.
+# Extracts a bundle produced by `pack` and runs, in order: bundle member
+# safety check (no absolute/traversal paths, files/dirs only), MANIFEST
+# member check (every listed member's hash matches, and no extra unlisted
+# files exist), artifact-triple check (BEFORE any replay), agent_trace
+# verify (using ONLY the bundle's own table.tsv, never $AEGIS_TABLE — the
+# bundle is authoritative about what it was generated against), and
+# attest.sh verify if the bundle carries a quote.
+#
+# Exit codes: 0 pass; 1 bundle/MANIFEST integrity failure (member hash
+# mismatch or unlisted member) or a failed replay/attest check; 2 usage
+# error, unsafe tar member, or extraction failure; 3 artifact-triple
+# mismatch or malformed/missing MANIFEST metadata field — always before
+# any replay is attempted.
 cmd_verify_bundle() {
     need_artifacts
     local bundle="${1:?usage: run.sh verify-bundle <bundle.tar>}"
@@ -320,14 +429,26 @@ cmd_verify_bundle() {
     local dir="$OUT/bundle-${base%.tar}"
     rm -rf "$dir"
     mkdir -p "$dir"
-    run tar xf "$bundle" -C "$dir"
+
+    echo "== verify-bundle: bundle member safety check ==" >&2
+    check_bundle_members "$bundle"
+    echo "bundle members: safe (no absolute paths, no traversal, files/dirs only)" >&2
+
+    local tar_err; tar_err="$(mktemp)"
+    if ! tar xf "$bundle" -C "$dir" 2>"$tar_err"; then
+        echo "bundle: extraction failed" >&2
+        cat "$tar_err" >&2
+        rm -f "$tar_err"
+        exit 2
+    fi
+    rm -f "$tar_err"
 
     echo "== verify-bundle: MANIFEST member check ==" >&2
     if [ ! -f "$dir/MANIFEST.txt" ]; then
         echo "no MANIFEST.txt in bundle" >&2
         exit 1
     fi
-    local mismatch=""
+    local mismatch="" listed_tmp actual_tmp
     while IFS= read -r line; do
         case "$line" in
             "") continue ;;
@@ -349,11 +470,26 @@ cmd_verify_bundle() {
     fi
     echo "MANIFEST: all members match" >&2
 
+    echo "== verify-bundle: unlisted member check ==" >&2
+    listed_tmp="$(mktemp)"; actual_tmp="$(mktemp)"
+    grep -E '^[0-9a-f]{64}  ' "$dir/MANIFEST.txt" | awk '{print $2}' | sort > "$listed_tmp"
+    ( cd "$dir" && find . -type f ! -name MANIFEST.txt | sed 's|^\./||' | sort ) > "$actual_tmp"
+    local unlisted; unlisted="$(comm -13 "$listed_tmp" "$actual_tmp" || true)"
+    rm -f "$listed_tmp" "$actual_tmp"
+    if [ -n "$unlisted" ]; then
+        echo "MANIFEST: unlisted member $(echo "$unlisted" | head -1)" >&2
+        exit 1
+    fi
+    echo "MANIFEST: no unlisted members" >&2
+
     echo "== verify-bundle: artifact-triple check ==" >&2
     local exp_model exp_embed exp_vocab got_model got_embed got_vocab
-    exp_model="$(grep -m1 '^artifact-model-sha256 ' "$dir/MANIFEST.txt" | awk '{print $2}')"
-    exp_embed="$(grep -m1 '^artifact-embed-sha256 ' "$dir/MANIFEST.txt" | awk '{print $2}')"
-    exp_vocab="$(grep -m1 '^artifact-vocab-sha256 ' "$dir/MANIFEST.txt" | awk '{print $2}')"
+    exp_model="$(manifest_field artifact-model-sha256 "$dir/MANIFEST.txt")"
+    exp_embed="$(manifest_field artifact-embed-sha256 "$dir/MANIFEST.txt")"
+    exp_vocab="$(manifest_field artifact-vocab-sha256 "$dir/MANIFEST.txt")"
+    require_manifest_hex artifact-model-sha256 "$exp_model"
+    require_manifest_hex artifact-embed-sha256 "$exp_embed"
+    require_manifest_hex artifact-vocab-sha256 "$exp_vocab"
     got_model="$(sha256_field "$MODEL")"
     got_embed="$(sha256_field "$EMBED")"
     got_vocab="$(sha256_field "$VOCAB")"
@@ -372,8 +508,10 @@ cmd_verify_bundle() {
     echo "artifact triple matches" >&2
 
     local has_table has_attest
-    has_table="$(grep -m1 '^has-table ' "$dir/MANIFEST.txt" | awk '{print $2}')"
-    has_attest="$(grep -m1 '^has-attest ' "$dir/MANIFEST.txt" | awk '{print $2}')"
+    has_table="$(manifest_field has-table "$dir/MANIFEST.txt")"
+    has_attest="$(manifest_field has-attest "$dir/MANIFEST.txt")"
+    require_manifest_flag has-table "$has_table"
+    require_manifest_flag has-attest "$has_attest"
 
     echo "== verify-bundle: agent_trace verify ==" >&2
     local overall=0
