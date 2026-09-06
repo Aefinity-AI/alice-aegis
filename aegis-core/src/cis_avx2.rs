@@ -60,6 +60,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::cis::{check_tmv_preconditions, ternary_matvec_i8};
+use crate::cis_infer::{F, dot_i8_bf16q};
 use alloc::vec;
 use core::arch::x86_64::*;
 
@@ -224,4 +225,195 @@ unsafe fn tmv_i8_avx2(
 
         *out = total;
     }
+}
+
+// ---------------------------------------------------------------------------
+// LM-head dot: i8 activations against an on-the-fly BF16->Q.F weight row.
+// ---------------------------------------------------------------------------
+
+/// Elements (bf16 weights) consumed per SIMD block. Each block is processed
+/// as 4 lanes of `i64` — see the module-level doc below for why 64-bit lanes
+/// are load-bearing here, not just a width choice.
+const DOT_BLOCK: usize = 4;
+
+/// AVX2 dot of i8 activations against a BF16 table row, converting each BF16
+/// element to Q.F on the fly. Byte-identical to
+/// [`crate::cis_infer::dot_i8_bf16q`] for every input, falling back to it
+/// when AVX2 is unavailable, when the row is too short to block, or when any
+/// element hits a condition `dot_i8_bf16q` itself would reject (inf/nan,
+/// `bf16_to_fixed`'s magnitude bound, or the Q.F i32-range assert) — in which
+/// case the *entire row* is recomputed by the scalar reference so the panic
+/// (message and occurrence) is identical, not merely "close".
+///
+/// # Method
+///
+/// `bf16_to_fixed(bits, F)` is:
+/// 1. unpack sign / exp / man from the 16 bits;
+/// 2. `(m, e)` = subnormal `(man, 1-127-7)` or normal `(man|0x80, exp-127-7)`;
+/// 3. `sh = e + F`; if `sh >= 0`, `v = m << sh`; elif `-sh >= 63`, `v = 0`;
+///    else `v = rne_shr(m, -sh)` (banker's-rounding right shift);
+/// 4. negate if the sign bit was set.
+///
+/// This is reproduced exactly, lanewise, in 64-bit integer SIMD (4 lanes per
+/// `__m256i`): `m` needs up to 8 bits and `sh` can be as large as 36 (the
+/// `bf16_to_fixed` assert bound), so `m << sh` can reach ~44 bits — it does
+/// NOT fit a 32-bit lane, which is why this kernel uses `epi64` lanes
+/// throughout rather than the `epi32` lanes `ternary_matvec_i8_avx2` uses.
+/// Variable per-lane shifts (`vpsllvq`/`vpsrlvq`) and per-lane compares
+/// (`vpcmpeqq`/`vpcmpgtq`) plus `vpblendvb` (whose byte mask is uniform
+/// within each 8-byte lane group here, since every predicate comes from a
+/// 64-bit compare) implement the branches as selects instead of divergent
+/// control flow — same value, same order of operations as the scalar
+/// reference, just computed for 4 rows... no, 4 *elements of one row* at a
+/// time (the dot is a single row's reduction, unlike the TMV kernels which
+/// parallelize across output rows).
+///
+/// The final product `x as i64 * w` is computed with `_mm256_mul_epi32`
+/// (signed 32x32->64, taking the low 32 bits of each 64-bit input lane) —
+/// exact here because `x` is `i8` (fits in the low 32 bits of its
+/// sign-extended 64-bit lane) and `w`'s magnitude is asserted `< 2^31`
+/// before this point, so its low 32 bits are its exact two's-complement
+/// value. Accumulation is `i64` addition, associative and exact (same bound
+/// `dot_i8_bf16q` documents: `127 * 2^31 * 4096 < 2^51`).
+pub fn dot_i8_bf16q_avx2(a: &[i8], row: &[u8]) -> i64 {
+    debug_assert_eq!(a.len() * 2, row.len());
+    let n = a.len();
+
+    if !crate::ops::simd_on() || n < DOT_BLOCK {
+        return dot_i8_bf16q(a, row);
+    }
+
+    // SAFETY: `simd_on()` confirmed AVX2 is supported and OS-enabled, which
+    // is this function's only CPU precondition. `n >= DOT_BLOCK` holds, and
+    // `dot_i8_bf16q_avx2_inner` bounds every access against `n` and `row`
+    // before dereferencing, falling back to the scalar reference (which
+    // re-validates from scratch) whenever any element fails a precondition
+    // the scalar path would have rejected.
+    unsafe { dot_i8_bf16q_avx2_inner(a, row, n) }
+}
+
+/// # Safety
+/// AVX2 must be supported and OS-enabled (see [`crate::ops::avx2_active`]).
+/// `row` must be `2 * n` bytes and `a` must be `n` elements, with `n >=
+/// DOT_BLOCK`.
+#[target_feature(enable = "avx2")]
+unsafe fn dot_i8_bf16q_avx2_inner(a: &[i8], row: &[u8], n: usize) -> i64 {
+    let zero = _mm256_setzero_si256();
+    let one = _mm256_set1_epi64x(1);
+    let c_7f = _mm256_set1_epi64x(0x7F);
+    let c_80 = _mm256_set1_epi64x(0x80);
+    let c_8000 = _mm256_set1_epi64x(0x8000);
+    let c_ff = _mm256_set1_epi64x(0xFF);
+    let c_134 = _mm256_set1_epi64x(134);
+    let c_neg133 = _mm256_set1_epi64x(-133);
+    let c_frac = _mm256_set1_epi64x(F as i64);
+    let c_36 = _mm256_set1_epi64x(36);
+    let c_62 = _mm256_set1_epi64x(62);
+    let c_max_i32 = _mm256_set1_epi64x((1i64 << 31) - 1);
+
+    let full_blocks = n / DOT_BLOCK;
+    let tail_start = full_blocks * DOT_BLOCK;
+
+    let mut acc = zero;
+    for blk in 0..full_blocks {
+        let base = blk * DOT_BLOCK;
+
+        // Load 4 BF16 (u16) values, zero-extended to i64 lanes, and 4 i8
+        // activations, sign-extended to i64 lanes.
+        let bits16 = _mm_loadl_epi64(row.as_ptr().add(base * 2) as *const __m128i);
+        let bits = _mm256_cvtepu16_epi64(bits16);
+        let xs8 = _mm_cvtsi32_si128(i32::from_le_bytes([
+            a[base] as u8,
+            a[base + 1] as u8,
+            a[base + 2] as u8,
+            a[base + 3] as u8,
+        ]));
+        let xs = _mm256_cvtepi8_epi64(xs8);
+
+        let sign_set = _mm256_cmpgt_epi64(_mm256_and_si256(bits, c_8000), zero);
+        let exp = _mm256_and_si256(_mm256_srli_epi64::<7>(bits), c_ff);
+        let man = _mm256_and_si256(bits, c_7f);
+        let exp_is_zero = _mm256_cmpeq_epi64(exp, zero);
+        let exp_is_ff = _mm256_cmpeq_epi64(exp, c_ff);
+
+        let man_or_80 = _mm256_or_si256(man, c_80);
+        let m = _mm256_blendv_epi8(man_or_80, man, exp_is_zero);
+        let e_normal = _mm256_sub_epi64(exp, c_134);
+        let e = _mm256_blendv_epi8(e_normal, c_neg133, exp_is_zero);
+        let sh = _mm256_add_epi64(e, c_frac);
+        let sh_gt36 = _mm256_cmpgt_epi64(sh, c_36);
+
+        // Any inf/nan or out-of-range magnitude: bail to the scalar
+        // reference for the WHOLE ROW so its panic (message + occurrence)
+        // is reproduced exactly rather than approximated.
+        let invalid_early = _mm256_or_si256(exp_is_ff, sh_gt36);
+        if _mm256_movemask_epi8(invalid_early) != 0 {
+            return dot_i8_bf16q(a, row);
+        }
+
+        let sh_ge0 = _mm256_cmpgt_epi64(sh, _mm256_set1_epi64x(-1));
+
+        // Left-shift branch (sh >= 0): shift amount clamped to 0 when unused
+        // so the variable shift never sees a synthesized negative count.
+        let shl_amt = _mm256_blendv_epi8(zero, sh, sh_ge0);
+        let left_val = _mm256_sllv_epi64(m, shl_amt);
+
+        // Right-shift (RNE) branch (sh < 0): k = -sh.
+        let k_raw = _mm256_sub_epi64(zero, sh);
+        let k_ge63 = _mm256_cmpgt_epi64(k_raw, c_62);
+        // Clamp the shift operand to 62 when it would be discarded anyway
+        // (k>=63 case), keeping every shift amount in the valid 0..=62 range.
+        let k = _mm256_blendv_epi8(k_raw, c_62, k_ge63);
+        let floor = _mm256_srlv_epi64(m, k);
+        let low_mask = _mm256_sub_epi64(_mm256_sllv_epi64(one, k), one);
+        let rem = _mm256_and_si256(m, low_mask);
+        let half = _mm256_sllv_epi64(one, _mm256_sub_epi64(k, one));
+        let rem_gt_half = _mm256_cmpgt_epi64(rem, half);
+        let rem_eq_half = _mm256_cmpeq_epi64(rem, half);
+        let floor_odd = _mm256_cmpeq_epi64(_mm256_and_si256(floor, one), one);
+        let round_up = _mm256_or_si256(rem_gt_half, _mm256_and_si256(rem_eq_half, floor_odd));
+        let rne_val = _mm256_add_epi64(floor, _mm256_blendv_epi8(zero, one, round_up));
+        let right_val = _mm256_blendv_epi8(rne_val, zero, k_ge63);
+
+        let v_mag = _mm256_blendv_epi8(right_val, left_val, sh_ge0);
+        let v_neg = _mm256_sub_epi64(zero, v_mag);
+        let v = _mm256_blendv_epi8(v_mag, v_neg, sign_set);
+
+        // `dot_i8_bf16q`'s own bound: |w| < 2^31. Same whole-row fallback
+        // discipline as the inf/nan/magnitude checks above.
+        let v_is_neg = _mm256_cmpgt_epi64(zero, v);
+        let v_abs = _mm256_blendv_epi8(v, _mm256_sub_epi64(zero, v), v_is_neg);
+        let out_of_range = _mm256_cmpgt_epi64(v_abs, c_max_i32);
+        if _mm256_movemask_epi8(out_of_range) != 0 {
+            return dot_i8_bf16q(a, row);
+        }
+
+        // Exact 32x32->64 signed multiply: both operands' low 32 bits are
+        // their true two's-complement value (x is i8; |v| < 2^31).
+        let prod = _mm256_mul_epi32(xs, v);
+        acc = _mm256_add_epi64(acc, prod);
+    }
+
+    // Horizontal sum of the 4 i64 lanes.
+    let lo = _mm256_castsi256_si128(acc);
+    let hi = _mm256_extracti128_si256(acc, 1);
+    let s = _mm_add_epi64(lo, hi);
+    let s_hi = _mm_unpackhi_epi64(s, s);
+    let s = _mm_add_epi64(s, s_hi);
+    let mut total = _mm_cvtsi128_si64(s);
+
+    // Tail elements, in the reference's own arithmetic (including its own
+    // asserts, so an out-of-range tail element panics exactly as the scalar
+    // reference would).
+    for i in tail_start..n {
+        let bits = u16::from_le_bytes([row[i * 2], row[i * 2 + 1]]);
+        let w = crate::cis_infer::bf16_to_fixed(bits, F);
+        assert!(
+            w.unsigned_abs() < 1 << 31,
+            "dot_i8_bf16q: value out of Q.{F} i32 range"
+        );
+        total += a[i] as i64 * w;
+    }
+
+    total
 }
