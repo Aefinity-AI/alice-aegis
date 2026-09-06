@@ -73,9 +73,17 @@ AGENT_TRACE_BIN=/path/to/aegis-linux/target/release/examples/agent_trace \
 ```
 
 `--template T3` runs the unclosed-`CALC(` ablation instead of the default T1
-prompts. `--limit N` caps how many not-yet-done items are run this
-invocation (the run is resumable — items already in `summary.tsv` are
-skipped on a re-run).
+prompts: the item's prompt is rewritten to end with an unclosed `CALC(` (or
+`LOOKUP(` for a table item) opener instead of a fully-formed call, so the
+model only has to transcribe the arguments and closing paren. The
+`agent_trace` scanner recognizes this: when a step's running prompt (trailing
+whitespace trimmed) itself ends with `CALC(` or `LOOKUP(`, that opener is
+carried as a scan prefix over the step's newly decoded text, so a
+continuation like `758 + 927).` still closes and scores the call natively
+(no shot-copied-argument workaround needed). A prompt with no trailing
+opener scans exactly as before. `--limit N` caps how many not-yet-done items
+are run this invocation (the run is resumable — items already in
+`summary.tsv` are skipped on a re-run).
 
 ## Optional per-item TPM attestation (`--attest`)
 
