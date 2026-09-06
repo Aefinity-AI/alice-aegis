@@ -109,6 +109,19 @@ builds of the branch (94b0c6d and 78c133e) on box2. In that episode the
 model echoed a few-shot example rather than solving the question asked —
 this demonstrates the receipt mechanism, not model capability.
 
+## Optional: TPM attestation of the receipt
+
+`demo/edge-receipt/attest.sh` also accepts an agent-trace receipt (its
+`trace-chain` line instead of a CIS-1 `cis-digest` line) and binds a TPM
+quote to it the same way it does for a decode receipt: the TPM signs the
+PCR values plus the qualifying data, which is the whole receipt digest (32
+bytes for a `trace-chain`, vs. 8 bytes for a CIS-1 `cis-digest`). The same
+limits apply: null hierarchy (not vendor-rooted) until BIOS TPM State is
+enabled, and the quote proves firmware/PCR state bound to the receipt
+digest at quote time, not the trace-chain replay itself. See
+`demo/edge-receipt/README.md`'s "Optional: TPM attestation" section for
+the full command reference and caveats.
+
 ## Swapping in other artifacts
 
 Point `AEGIS_ARTIFACTS` (or the three `AEGIS_MODEL`/`AEGIS_EMBED`/

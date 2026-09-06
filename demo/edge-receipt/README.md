@@ -97,17 +97,24 @@ state, signed a statement that includes this receipt's digest, at the time
 the quote was taken." A PASS on one says nothing about the other.
 
 ```
-demo/edge-receipt/attest.sh quote  <receipt.txt> <outdir>    # take a TPM quote over the receipt's cis-digest
+demo/edge-receipt/attest.sh quote  <receipt.txt> <outdir>    # take a TPM quote over the receipt's full digest
 demo/edge-receipt/attest.sh verify <receipt.txt> <attestdir> # offline check, no TPM required
 demo/edge-receipt/attest.sh selftest [seed-dir]              # tamper-detection self-check
 ```
 
-`quote` reads the 16-hex-char `cis-digest` line out of the receipt and uses
-it as the quote's qualifying data (nonce), so the resulting quote is bound
-to that specific receipt. It writes `<outdir>/<receipt-basename>.attest/`
+`quote` reads either a CIS-1 decode receipt's `cis-digest` line or an
+agent-trace receipt's `trace-chain` line (see `demo/agent-trace/README.md`)
+and uses the whole digest, as hex, as the quote's qualifying data (nonce):
+16 hex chars (8 bytes) for `cis-digest`, 64 hex chars (32 bytes) for
+`trace-chain`. The TPM signs the PCR values plus this qualifying data, so
+the signature is over the entire receipt digest in both cases — nothing in
+the digest is left unsigned. ATTEST.txt's other fields (host, time, file
+SHA-256s) are bookkeeping recorded alongside the quote; they are not
+themselves TPM-signed. It writes `<outdir>/<receipt-basename>.attest/`
 containing the AK public key, the quote message/signature/PCR values, an
 optional BIOS event log, and an `ATTEST.txt` summary (format line, receipt
-digest, PCR list, hierarchy, file hashes, TPM manufacturer, host, time).
+digest, receipt kind [`cis` or `trace`], PCR list, hierarchy, file hashes,
+TPM manufacturer, host, time).
 
 `verify` needs no TPM: it recomputes the nonce from the receipt, checks the
 `ATTEST.txt` file hashes against the actual files, and runs
@@ -142,6 +149,11 @@ non-TPM machine such as a CI runner or a reviewer's laptop.
 - **This covers the Linux side today.** The unikernel side
   (`aegis-uefi`) does not yet call into a TPM; that is planned, not done.
 - No GPU is involved in any part of this attestation flow, and none is claimed.
+- **`attest.sh` also accepts `demo/agent-trace` receipts** (a `trace-chain`
+  line instead of `cis-digest`), binding a TPM quote to an agent-trace
+  receipt the same way; the same limits above apply verbatim — null
+  hierarchy until BIOS TPM State is enabled, and the quote proves
+  firmware/PCR state bound to the receipt digest, not a vendor-rooted key.
 
 ### Self-test
 
@@ -157,5 +169,15 @@ confirms `verify` reports `ATTEST-FAIL` with the rejection coming from
 `tpm2_checkquote`'s signature/PCR-digest check itself — not from the
 `ATTEST.txt` file-hash bookkeeping, which is regenerated over the
 tampered file first so it can't short-circuit the crypto check — and
-(2) flips one hex character of the receipt's
-`cis-digest` and confirms `verify` reports `ATTEST-FAIL` on that too.
+(2) flips one hex character of the receipt's `cis-digest` (and, for a
+synthetic `trace-chain` receipt, the same for its 64-hex digest) and
+confirms `verify` reports `ATTEST-FAIL` on that too. It additionally
+checks: (3) a forged `trace-chain` receipt sharing only the first 16 hex
+chars with the real one, plus a hand-edited `ATTEST.txt` claiming that
+forged digest, is rejected by `tpm2_checkquote` itself — the full 64-hex
+digest is the TPM's qualifying data, so a matching text field alone can't
+pass; (4) an `ATTEST.txt` missing its `receipt-kind` line (the format used
+before agent-trace support existed) still verifies OK, treated as `cis`;
+and (5) an `ATTEST.txt` missing any other required field fails loudly with
+an explicit `ATTEST.txt missing field <name>` message rather than exiting
+silently.
