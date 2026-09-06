@@ -113,8 +113,8 @@ then table length as a big-endian u64) and the receipt gets a
 file: it re-hashes it and rejects a mismatch, or a receipt with
 `table-sha256` and no `--table` given at all, as `VERIFY FAIL` before ever
 attempting a replay. A `--table` passed for a receipt that has no
-`table-sha256` line is ignored with a note on stderr: that episode never
-consulted a table, so the flag cannot change the verdict.
+`table-sha256` line has no effect: that episode never consulted a table, so
+the flag cannot change the verdict.
 
 The scanner treats `CALC` and `LOOKUP` calls uniformly: within one step's
 newly decoded text, it finds whichever of `CALC(` or `LOOKUP(` starts
@@ -175,6 +175,20 @@ certificate chain. `ATTEST.txt`'s bookkeeping fields (hostname, time-utc,
 tpm-manufacturer, hierarchy) are plain text written by this script, not
 themselves TPM-signed — only `quote.msg`/`quote.sig`/`quote.pcrs` and the
 nonce are.
+
+LOOKUP: the M7 tinybit model (23cfad0a…) never emitted a `CALC` or `LOOKUP`
+call in any receipt tried on box2 (a table-less M7 receipt against a
+few-shot `LOOKUP` prompt verified bit-for-bit as `tool=no-tool` — the
+mechanism works, the model just never triggers it); the 2B (bitnet2b
+artifacts, facb3597…) model, given the same Q/A few-shot style that worked
+for `CALC`, emitted `tool=lookup` in both steps of a K=2 episode against
+`demo/agent-trace/tables/demo.tsv` (`LOOKUP(P-317)` → "Filter, oil,
+spin-on cartridge", then `LOOKUP(P-100)` → "Gasket, O-ring, fuel line, 1/4
+in.") and verified bit-for-bit on box2 (trace-chain d2e734b7c6a3b558…).
+Tampering one value in a copy of the table changed its sha256, and
+`verify --table <tampered copy>` correctly failed with `FAIL artifact:
+TABLE hash mismatch` before attempting a replay, for both the M7 and 2B
+receipts.
 
 ## Optional: TPM attestation of the receipt
 
