@@ -111,11 +111,23 @@ pub enum Phase {
     /// The fused LM-head projection + argmax over the tied embedding table.
     LmHead = 4,
     /// Repetition-penalty pass over generated tokens + the conditional
-    /// re-argmax it can trigger.
+    /// re-argmax it can trigger. Unused by the FullInt CIS engine (greedy
+    /// argmax only, no repetition penalty in that path) — stays at 0
+    /// raw/pairs there, which is not a bug.
     Sample = 5,
+    /// FullInt-CIS-engine-only: the elementwise MLP activation (integer
+    /// relu²/silu, `ACT-I` in the CIS-1 spec) and its requantization back
+    /// onto a residual-safe fixed-point width, between the up/gate matvecs
+    /// and the down_proj matvec. Added 2026-09-06 alongside
+    /// `CisEngine::forward_step_int` instrumentation
+    /// (aegis-core/src/cis_infer.rs); the f32 `TernaryInferenceEngine`
+    /// (`amdahl_decode`) never records into this slot, so it stays 0
+    /// raw/pairs there and every existing `amdahl_decode` number is
+    /// unchanged by this addition.
+    Act = 6,
 }
 
-pub const NUM_PHASES: usize = 6;
+pub const NUM_PHASES: usize = 7;
 
 /// Fixed-size, zero-allocation phase accumulators. Owned by the engine (or
 /// its caller); never heap-allocates, so it is safe to live inside the hot

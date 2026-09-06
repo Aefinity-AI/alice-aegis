@@ -35,6 +35,31 @@
 
 use alloc::{format, string::String, vec, vec::Vec};
 
+/// Times `$body` as `$phase` and records it into `$counters` (a
+/// `&mut PhaseCycles` lvalue) when the `phase-timers` feature is on; a
+/// no-op passthrough otherwise. Byte-for-byte the same macro as
+/// `crate::inference`'s `timed_phase!` — duplicated here rather than
+/// imported because `macro_rules!` items are module-scoped by default and
+/// this module has no need of `inference`'s other, engine-specific
+/// internals; see `phase_timers.rs`'s module docs for the RDTSC/RDTSCP
+/// fencing this expands to.
+#[cfg(feature = "phase-timers")]
+macro_rules! timed_phase {
+    ($counters:expr, $phase:expr, $body:block) => {{
+        let __ts = crate::phase_timers::tick_start();
+        let __ret = $body;
+        let __te = crate::phase_timers::tick_end();
+        $counters.record($phase, __ts, __te);
+        __ret
+    }};
+}
+#[cfg(not(feature = "phase-timers"))]
+macro_rules! timed_phase {
+    ($counters:expr, $phase:expr, $body:block) => {
+        $body
+    };
+}
+
 use crate::attention::RopeCache;
 use crate::cis::rne_div;
 use crate::cis_attn::{
@@ -822,6 +847,18 @@ pub struct CisEngine<'m, 'a> {
     /// binary relies on. Diagnostic only; callers drain between runs.
     #[cfg(feature = "active_set_digest")]
     pub active_sets: alloc::vec::Vec<(usize, alloc::vec::Vec<u32>)>,
+    /// Per-phase decode cycle counters (Amdahl decomposition of the FullInt
+    /// verify path). `phase-timers` feature only: the field does not exist
+    /// and no call site touches it when the feature is off. See
+    /// `crate::phase_timers` for the RDTSC/RDTSCP fencing and
+    /// `forward_step_int`'s doc comment for the FullInt phase mapping.
+    /// `CisMode::Hybrid` is deliberately left uninstrumented here: it exists
+    /// only for x86_64 A/B and its f32 attention/activation stages already
+    /// have cross-ISA-agnostic timers in `aegis_core::inference` (exercised
+    /// by `amdahl_decode`); every `agent_trace verify` replay constructs
+    /// `CisMode::FullInt`.
+    #[cfg(feature = "phase-timers")]
+    pub phase_cycles: crate::phase_timers::PhaseCycles,
 }
 
 impl<'m, 'a> CisEngine<'m, 'a> {
@@ -870,7 +907,18 @@ impl<'m, 'a> CisEngine<'m, 'a> {
             model,
             #[cfg(feature = "active_set_digest")]
             active_sets: alloc::vec::Vec::new(),
+            #[cfg(feature = "phase-timers")]
+            phase_cycles: crate::phase_timers::PhaseCycles::zero(),
         }
+    }
+
+    /// Zero the phase-cycle accumulators. Mirrors
+    /// `TernaryInferenceEngine::reset_phase_cycles` (aegis-core/src/inference.rs):
+    /// call this before the span whose cycles a caller wants isolated.
+    /// `phase-timers` feature only.
+    #[cfg(feature = "phase-timers")]
+    pub fn reset_phase_cycles(&mut self) {
+        self.phase_cycles = crate::phase_timers::PhaseCycles::zero();
     }
 
     /// Leg C1: byte-identical-by-construction ternary matvec dispatch (see
@@ -940,6 +988,16 @@ impl<'m, 'a> CisEngine<'m, 'a> {
     }
 
     pub fn forward_step_int(&mut self, current_tok: u32, seq_pos: usize) {
+        // Amdahl total span: one `record_total` pair per call, i.e. per
+        // token forward-passed through every layer (prefill AND generated
+        // tokens both call this). `logits_int` (final norm + LM head, only
+        // called for generated tokens) records its OWN pair into the same
+        // `total_raw`/`total_pairs` accumulator — see its doc comment for
+        // why sharing one counter across two call-site kinds is deliberate,
+        // not an oversight. `phase-timers` feature only.
+        #[cfg(feature = "phase-timers")]
+        let __amdahl_total_start = crate::phase_timers::tick_start();
+
         let c = &self.model.config;
         let hidden = c.hidden_size;
         let inter = c.intermediate_size;
@@ -956,7 +1014,9 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         let max_pos = c.max_position_embeddings;
         for (layer_idx, layer) in self.model.layers.iter().enumerate() {
             // --- attention block -------------------------------------------
-            let s_in = normq(&mut self.codes[..hidden], &self.h[..hidden], &layer.ln1);
+            let s_in = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                normq(&mut self.codes[..hidden], &self.h[..hidden], &layer.ln1)
+            });
 
             // Both modes end this stage with the attention output as fixed
             // point in self.fixed[..hidden] and yield the vector's fractional
@@ -1061,13 +1121,15 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                     // the V mix is an exact integer dot requantized to Q.F.
                     let lut = self.exp_lut.as_ref().expect("FullInt: exp LUT");
                     let rt = self.rope_i.as_ref().expect("FullInt: RoPE-I table");
-                    Self::tmv_dispatch(
-                        &mut self.acc_a[..hidden],
-                        &self.codes[..hidden],
-                        layer.q_w,
-                        hidden,
-                        hidden,
-                    );
+                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                        Self::tmv_dispatch(
+                            &mut self.acc_a[..hidden],
+                            &self.codes[..hidden],
+                            layer.q_w,
+                            hidden,
+                            hidden,
+                        );
+                    });
                     let (neg, qs) = fixed_qscale(&layer.q_s, &s_in, QK_F);
                     for (o, &a) in self.qi[..hidden].iter_mut().zip(&self.acc_a[..hidden]) {
                         let v = qs.rescale(a as i64);
@@ -1077,13 +1139,15 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                         assert!(v.unsigned_abs() < 1 << 29, "FullInt: q exceeds Q.16 range");
                         *o = v as i32;
                     }
-                    Self::tmv_dispatch(
-                        &mut self.acc_a[..kv_dim],
-                        &self.codes[..hidden],
-                        layer.k_w,
-                        kv_dim,
-                        hidden,
-                    );
+                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                        Self::tmv_dispatch(
+                            &mut self.acc_a[..kv_dim],
+                            &self.codes[..hidden],
+                            layer.k_w,
+                            kv_dim,
+                            hidden,
+                        );
+                    });
                     let (neg, qs) = fixed_qscale(&layer.k_s, &s_in, QK_F);
                     for (o, &a) in self.ki[..kv_dim].iter_mut().zip(&self.acc_a[..kv_dim]) {
                         let v = qs.rescale(a as i64);
@@ -1091,13 +1155,15 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                         assert!(v.unsigned_abs() < 1 << 29, "FullInt: k exceeds Q.16 range");
                         *o = v as i32;
                     }
-                    Self::tmv_dispatch(
-                        &mut self.acc_a[..kv_dim],
-                        &self.codes[..hidden],
-                        layer.v_w,
-                        kv_dim,
-                        hidden,
-                    );
+                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                        Self::tmv_dispatch(
+                            &mut self.acc_a[..kv_dim],
+                            &self.codes[..hidden],
+                            layer.v_w,
+                            kv_dim,
+                            hidden,
+                        );
+                    });
                     let (neg, qs) = fixed_qscale(&layer.v_s, &s_in, QK_F);
                     for (o, &a) in self.vi[..kv_dim].iter_mut().zip(&self.acc_a[..kv_dim]) {
                         let v = qs.rescale(a as i64);
@@ -1106,72 +1172,93 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                         *o = v as i32;
                     }
 
-                    rope_apply_i(
-                        &mut self.qi[..hidden],
-                        &mut self.ki[..kv_dim],
-                        seq_pos,
-                        num_heads,
-                        num_kv_heads,
-                        head_dim,
-                        rt,
-                    );
-                    let slot = (layer_idx * max_pos + seq_pos) * kv_dim;
-                    self.k_icache[slot..slot + kv_dim].copy_from_slice(&self.ki[..kv_dim]);
-                    self.v_icache[slot..slot + kv_dim].copy_from_slice(&self.vi[..kv_dim]);
-
-                    for h_idx in 0..num_heads {
-                        let kv_h = h_idx / (num_heads / num_kv_heads);
-                        let qh = &self.qi[h_idx * head_dim..(h_idx + 1) * head_dim];
-                        for t in 0..=seq_pos {
-                            let kb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
-                            // Exact dot on the Q.(2·QK_F) grid; i128 so no
-                            // headroom argument is ever needed.
-                            let mut acc: i128 = 0;
-                            for (qv, kv) in qh.iter().zip(&self.k_icache[kb..kb + head_dim]) {
-                                acc += *qv as i128 * *kv as i128;
-                            }
-                            // · 1/sqrt(head_dim) (Q0.30), onto Q.SCORE_F:
-                            // 2·QK_F + 30 − SCORE_F = 38 bits back down.
-                            let sc =
-                                rne_div(acc * self.isq_q30 as i128, 1 << (2 * QK_F + 30 - SCORE_F));
-                            assert!(
-                                sc >= i64::MIN as i128 && sc <= i64::MAX as i128,
-                                "FullInt: score exceeds i64"
-                            );
-                            self.iscores[t] = sc as i64;
-                        }
-                        softmax_i(
-                            &mut self.iscores[..=seq_pos],
-                            &mut self.iprobs[..=seq_pos],
-                            lut,
+                    // Attn span, part 1: ROPE-I. Phase::Attn doc comment
+                    // covers "RoPE-I + i128 score dots + SOFTMAX-I + V mix";
+                    // the KV-cache *write* immediately below is timed
+                    // separately as Phase::Kv (its doc explains why the
+                    // read side stays inside Attn instead).
+                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Attn, {
+                        rope_apply_i(
+                            &mut self.qi[..hidden],
+                            &mut self.ki[..kv_dim],
+                            seq_pos,
+                            num_heads,
+                            num_kv_heads,
+                            head_dim,
+                            rt,
                         );
-                        for d in 0..head_dim {
-                            // Σ_t p_t·v_t exact in i64 (≤ T·2^15·2^30),
-                            // then Q.(QK_F+PROB_F) → Q.F.
-                            let mut mix: i64 = 0;
+                    });
+                    let slot = (layer_idx * max_pos + seq_pos) * kv_dim;
+                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Kv, {
+                        self.k_icache[slot..slot + kv_dim].copy_from_slice(&self.ki[..kv_dim]);
+                        self.v_icache[slot..slot + kv_dim].copy_from_slice(&self.vi[..kv_dim]);
+                    });
+
+                    // Attn span, part 2: score dots + SOFTMAX-I + V mix
+                    // (includes the KV-cache READ traffic — see
+                    // Phase::Kv's doc comment for why that read side is not
+                    // split out).
+                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Attn, {
+                        for h_idx in 0..num_heads {
+                            let kv_h = h_idx / (num_heads / num_kv_heads);
+                            let qh = &self.qi[h_idx * head_dim..(h_idx + 1) * head_dim];
                             for t in 0..=seq_pos {
-                                let vb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
-                                mix += self.iprobs[t] as i64 * self.v_icache[vb + d] as i64;
+                                let kb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
+                                // Exact dot on the Q.(2·QK_F) grid; i128 so no
+                                // headroom argument is ever needed.
+                                let mut acc: i128 = 0;
+                                for (qv, kv) in qh.iter().zip(&self.k_icache[kb..kb + head_dim]) {
+                                    acc += *qv as i128 * *kv as i128;
+                                }
+                                // · 1/sqrt(head_dim) (Q0.30), onto Q.SCORE_F:
+                                // 2·QK_F + 30 − SCORE_F = 38 bits back down.
+                                let sc = rne_div(
+                                    acc * self.isq_q30 as i128,
+                                    1 << (2 * QK_F + 30 - SCORE_F),
+                                );
+                                assert!(
+                                    sc >= i64::MIN as i128 && sc <= i64::MAX as i128,
+                                    "FullInt: score exceeds i64"
+                                );
+                                self.iscores[t] = sc as i64;
                             }
-                            self.fixed[h_idx * head_dim + d] =
-                                rne_div(mix as i128, 1 << (QK_F + PROB_F - F)) as i64;
+                            softmax_i(
+                                &mut self.iscores[..=seq_pos],
+                                &mut self.iprobs[..=seq_pos],
+                                lut,
+                            );
+                            for d in 0..head_dim {
+                                // Σ_t p_t·v_t exact in i64 (≤ T·2^15·2^30),
+                                // then Q.(QK_F+PROB_F) → Q.F.
+                                let mut mix: i64 = 0;
+                                for t in 0..=seq_pos {
+                                    let vb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
+                                    mix += self.iprobs[t] as i64 * self.v_icache[vb + d] as i64;
+                                }
+                                self.fixed[h_idx * head_dim + d] =
+                                    rne_div(mix as i128, 1 << (QK_F + PROB_F - F)) as i64;
+                            }
                         }
-                    }
+                    });
                     // FullInt lands exactly on the Q.F grid.
                     F
                 }
             };
-            let s_o = match &layer.attn_sub {
-                Some(g) => normq(&mut self.codes[..hidden], &self.fixed[..hidden], g),
-                None => quantq(&mut self.codes[..hidden], &self.fixed[..hidden], g_attn),
-            };
-            Self::tmv_dispatch(
-                &mut self.acc_a[..hidden],
-                &self.codes[..hidden],
-                layer.o_w,
-                hidden,
-                hidden,
-            );
+            let s_o = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                match &layer.attn_sub {
+                    Some(g) => normq(&mut self.codes[..hidden], &self.fixed[..hidden], g),
+                    None => quantq(&mut self.codes[..hidden], &self.fixed[..hidden], g_attn),
+                }
+            });
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                Self::tmv_dispatch(
+                    &mut self.acc_a[..hidden],
+                    &self.codes[..hidden],
+                    layer.o_w,
+                    hidden,
+                    hidden,
+                );
+            });
             let (neg, qs) = residual_qscale(&layer.o_s, &s_o);
             for (hi, &a) in self.h[..hidden].iter_mut().zip(&self.acc_a[..hidden]) {
                 let d = qs.rescale(a as i64);
@@ -1179,21 +1266,25 @@ impl<'m, 'a> CisEngine<'m, 'a> {
             }
 
             // --- MLP block --------------------------------------------------
-            let s_mlp = normq(&mut self.codes[..hidden], &self.h[..hidden], &layer.ln2);
-            Self::tmv_dispatch(
-                &mut self.acc_a[..inter],
-                &self.codes[..hidden],
-                layer.up_w,
-                inter,
-                hidden,
-            );
-            Self::tmv_dispatch(
-                &mut self.acc_b[..inter],
-                &self.codes[..hidden],
-                layer.gate_w,
-                inter,
-                hidden,
-            );
+            let s_mlp = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                normq(&mut self.codes[..hidden], &self.h[..hidden], &layer.ln2)
+            });
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                Self::tmv_dispatch(
+                    &mut self.acc_a[..inter],
+                    &self.codes[..hidden],
+                    layer.up_w,
+                    inter,
+                    hidden,
+                );
+                Self::tmv_dispatch(
+                    &mut self.acc_b[..inter],
+                    &self.codes[..hidden],
+                    layer.gate_w,
+                    inter,
+                    hidden,
+                );
+            });
 
             // Both modes end this stage with act(gate)·up as fixed point in
             // self.fixed[..inter], yielding the vector's fractional width
@@ -1234,32 +1325,40 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                     // FULL-INTEGER STAGE 2 (spec v0.3, ACT-I): gate and up
                     // land on the Q.F grid via exact rational rescale, then
                     // integer relu²/silu with RNE requants.
-                    let lut = self.exp_lut.as_ref().expect("FullInt: exp LUT");
-                    let (ng, qg) = fixed_qscale(&layer.gate_s, &s_mlp, F);
-                    let (nu, qu) = fixed_qscale(&layer.up_s, &s_mlp, F);
-                    for i in 0..inter {
-                        let g = qg.rescale(self.acc_b[i] as i64);
-                        let g = if ng { -g } else { g };
-                        let u = qu.rescale(self.acc_a[i] as i64);
-                        let u = if nu { -u } else { u };
-                        assert!(
-                            g.unsigned_abs() < 1 << 40 && u.unsigned_abs() < 1 << 40,
-                            "FullInt: MLP value exceeds Q.20 headroom"
-                        );
-                        self.fixed[i] = match c.hidden_act {
-                            Activation::Relu2 => relu2_q20(g, u),
-                            Activation::Silu => silu_q20(g, u, lut),
-                        };
-                    }
-                    // FullInt escape valve (spec §5.10 gap): the ACT-I output
-                    // above is exact Q.20 already, but at BitNet-2B scale its
-                    // magnitude can exceed the normq/quantq 2^50 residual
-                    // headroom. Re-fix onto a per-vector block exponent
-                    // G ≤ F, mirroring `fix_f32_vec`'s hybrid-boundary
-                    // contract but derived purely from the integer magnitude
-                    // (never a float). M7-scale products stay under the
-                    // headroom, so this degenerates to G = F, unshifted.
-                    fix_q_vec(&mut self.fixed[..inter])
+                    // Act span: elementwise integer relu²/silu (ACT-I) plus
+                    // its immediate re-quantization onto a residual-safe
+                    // fixed-point width — the FullInt path's counterpart to
+                    // the MLP elementwise stage, timed separately from the
+                    // up/gate and down_proj Gemv spans on either side of it.
+                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Act, {
+                        let lut = self.exp_lut.as_ref().expect("FullInt: exp LUT");
+                        let (ng, qg) = fixed_qscale(&layer.gate_s, &s_mlp, F);
+                        let (nu, qu) = fixed_qscale(&layer.up_s, &s_mlp, F);
+                        for i in 0..inter {
+                            let g = qg.rescale(self.acc_b[i] as i64);
+                            let g = if ng { -g } else { g };
+                            let u = qu.rescale(self.acc_a[i] as i64);
+                            let u = if nu { -u } else { u };
+                            assert!(
+                                g.unsigned_abs() < 1 << 40 && u.unsigned_abs() < 1 << 40,
+                                "FullInt: MLP value exceeds Q.20 headroom"
+                            );
+                            self.fixed[i] = match c.hidden_act {
+                                Activation::Relu2 => relu2_q20(g, u),
+                                Activation::Silu => silu_q20(g, u, lut),
+                            };
+                        }
+                        // FullInt escape valve (spec §5.10 gap): the ACT-I
+                        // output above is exact Q.20 already, but at
+                        // BitNet-2B scale its magnitude can exceed the
+                        // normq/quantq 2^50 residual headroom. Re-fix onto a
+                        // per-vector block exponent G ≤ F, mirroring
+                        // `fix_f32_vec`'s hybrid-boundary contract but
+                        // derived purely from the integer magnitude (never a
+                        // float). M7-scale products stay under the
+                        // headroom, so this degenerates to G = F, unshifted.
+                        fix_q_vec(&mut self.fixed[..inter])
+                    })
                 }
             };
             // Leg C1: capture the active-neuron set — sorted nonzero indices
@@ -1277,22 +1376,33 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                     .collect();
                 self.active_sets.push((layer_idx, idxs));
             }
-            let s_down = match &layer.ffn_sub {
-                Some(g) => normq(&mut self.codes[..inter], &self.fixed[..inter], g),
-                None => quantq(&mut self.codes[..inter], &self.fixed[..inter], g_mlp),
-            };
-            Self::tmv_dispatch(
-                &mut self.acc_a[..hidden],
-                &self.codes[..inter],
-                layer.down_w,
-                hidden,
-                inter,
-            );
+            let s_down = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                match &layer.ffn_sub {
+                    Some(g) => normq(&mut self.codes[..inter], &self.fixed[..inter], g),
+                    None => quantq(&mut self.codes[..inter], &self.fixed[..inter], g_mlp),
+                }
+            });
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                Self::tmv_dispatch(
+                    &mut self.acc_a[..hidden],
+                    &self.codes[..inter],
+                    layer.down_w,
+                    hidden,
+                    inter,
+                );
+            });
             let (neg, qs) = residual_qscale(&layer.down_s, &s_down);
             for (hi, &a) in self.h[..hidden].iter_mut().zip(&self.acc_a[..hidden]) {
                 let d = qs.rescale(a as i64);
                 *hi += if neg { -d } else { d };
             }
+        }
+
+        #[cfg(feature = "phase-timers")]
+        {
+            let __amdahl_total_end = crate::phase_timers::tick_end();
+            self.phase_cycles
+                .record_total(__amdahl_total_start, __amdahl_total_end);
         }
     }
 
@@ -1301,22 +1411,43 @@ impl<'m, 'a> CisEngine<'m, 'a> {
     /// one logit unit (for NLL only; argmax and the witness digest use the
     /// integer logits directly).
     fn logits_int(&mut self) -> f64 {
+        // Amdahl total span: one `record_total` pair per call, sharing
+        // `self.phase_cycles.total_*` with `forward_step_int`'s own
+        // per-token span — see that function's doc comment for why. A
+        // single local `ret` (no early `return`) keeps this span's end
+        // reachable from every code path. `phase-timers` feature only.
+        #[cfg(feature = "phase-timers")]
+        let __amdahl_total_start = crate::phase_timers::tick_start();
+
         let c = &self.model.config;
         let hidden = c.hidden_size;
         let vocab = c.vocab_size;
-        let s = normq(
-            &mut self.codes[..hidden],
-            &self.h[..hidden],
-            &self.model.final_g,
-        );
-        for (j, l) in self.logits[..vocab].iter_mut().enumerate() {
-            *l = dot_i8_bf16q(&self.codes[..hidden], self.model.head_row(j, hidden));
-        }
-        if s.num == 0 {
-            return 0.0;
-        }
+        let s = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+            normq(
+                &mut self.codes[..hidden],
+                &self.h[..hidden],
+                &self.model.final_g,
+            )
+        });
+        timed_phase!(self.phase_cycles, crate::phase_timers::Phase::LmHead, {
+            for (j, l) in self.logits[..vocab].iter_mut().enumerate() {
+                *l = dot_i8_bf16q(&self.codes[..hidden], self.model.head_row(j, hidden));
+            }
+        });
         // logit_real = acc · s / 2^F  (the head table is Q.F).
-        (s.num as f64) / (s.den as f64) / exp2_f64(F as i32)
+        let ret = if s.num == 0 {
+            0.0
+        } else {
+            (s.num as f64) / (s.den as f64) / exp2_f64(F as i32)
+        };
+
+        #[cfg(feature = "phase-timers")]
+        {
+            let __amdahl_total_end = crate::phase_timers::tick_end();
+            self.phase_cycles
+                .record_total(__amdahl_total_start, __amdahl_total_end);
+        }
+        ret
     }
 
     /// Teacher-forced perplexity over `tokens`, integer path, mirroring
