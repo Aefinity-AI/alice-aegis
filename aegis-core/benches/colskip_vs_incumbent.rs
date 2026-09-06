@@ -42,12 +42,16 @@
 
 // `cargo test` auto-builds bin targets on every architecture so integration
 // tests can exec them; this bench is x86-only, so non-x86 gets a stub main.
-#[cfg(not(target_arch = "x86_64"))]
+// It also needs the AVX2 kernels this bench races, which are cfg'd out under
+// `scalar_only` — so that build gets the same stub.
+#[cfg(any(not(target_arch = "x86_64"), feature = "scalar_only"))]
 fn main() {
-    eprintln!("x86_64-only benchmark; nothing to run on this architecture");
+    eprintln!(
+        "x86_64 AVX2-only benchmark; nothing to run on this architecture/feature set"
+    );
 }
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", not(feature = "scalar_only")))]
 mod x86 {
 
     use aegis_core::ops::ternary_matvec;
@@ -537,7 +541,7 @@ mod x86 {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", not(feature = "scalar_only")))]
 fn main() {
     x86::run()
 }
