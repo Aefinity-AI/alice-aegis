@@ -1191,7 +1191,9 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let g = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+        );
         trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2")
     }
 
@@ -1205,7 +1207,9 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let g = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+        );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 1, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         assert_ne!(d0, d1);
@@ -1216,7 +1220,9 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let g = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+        );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[8u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         assert_ne!(d0, d1);
@@ -1227,7 +1233,9 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let g = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+        );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"no-tool", b"CALC(1 + 1)", b"2");
         assert_ne!(d0, d1);
@@ -1238,7 +1246,9 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let g = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+        );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 2)", b"2");
         assert_ne!(d0, d1);
@@ -1249,7 +1259,9 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let g = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+        );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"3");
         assert_ne!(d0, d1);
@@ -1260,10 +1272,18 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g0 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
-        let g1 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None, None);
-        let g2 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None, None);
-        let g3 = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None, None);
+        let g0 = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+        );
+        let g1 = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None, None,
+        );
+        let g2 = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None, None,
+        );
+        let g3 = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None, None,
+        );
         assert_ne!(g0, g1);
         assert_ne!(g0, g2);
         assert_ne!(g0, g3);
@@ -1469,7 +1489,9 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g_none = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let g_none = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+        );
         let table_sha_a = [7u8; 32];
         let table_sha_b = [8u8; 32];
         let g_a = trace_genesis(
@@ -1517,7 +1539,9 @@ mod tests {
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
-        let g_none = trace_genesis(&model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None);
+        let g_none = trace_genesis(
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+        );
         let suite_a = [7u8; 32];
         let suite_b = [8u8; 32];
         let g_a = trace_genesis(
