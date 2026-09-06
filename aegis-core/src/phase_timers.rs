@@ -186,11 +186,7 @@ pub fn calibrate_overhead(reps: usize) -> (u64, f64) {
 #[inline]
 pub fn corrected(raw: u64, pairs: u64, overhead_mean: f64) -> f64 {
     let c = raw as f64 - pairs as f64 * overhead_mean;
-    if c > 0.0 {
-        c
-    } else {
-        0.0
-    }
+    if c > 0.0 { c } else { 0.0 }
 }
 
 #[cfg(test)]
@@ -261,8 +257,16 @@ mod tests {
         pc.record(Phase::Gemv, 0, 1003); // 1000 real + 3 overhead
         pc.record(Phase::Attn, 0, 2003); // 2000 real + 3 overhead
         pc.record_total(0, 3006); // 3000 real (=1000+2000) + 3 overhead
-        let gemv = corrected(pc.raw[Phase::Gemv as usize], pc.pairs[Phase::Gemv as usize], overhead_mean);
-        let attn = corrected(pc.raw[Phase::Attn as usize], pc.pairs[Phase::Attn as usize], overhead_mean);
+        let gemv = corrected(
+            pc.raw[Phase::Gemv as usize],
+            pc.pairs[Phase::Gemv as usize],
+            overhead_mean,
+        );
+        let attn = corrected(
+            pc.raw[Phase::Attn as usize],
+            pc.pairs[Phase::Attn as usize],
+            overhead_mean,
+        );
         let total = corrected(pc.total_raw, pc.total_pairs, overhead_mean);
         let sum_check = (gemv + attn) / total;
         assert!((sum_check - 1.0).abs() < 0.02, "sum_check={sum_check}");
