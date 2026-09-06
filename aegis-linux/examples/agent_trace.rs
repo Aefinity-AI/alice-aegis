@@ -65,6 +65,12 @@ fn hex(b: &[u8]) -> String {
 /// Strict hex decode: even length, every byte pair a valid hex digit pair.
 /// Used only on receipt-derived (hostile) fields in `verify`; `gen` never
 /// parses hex, so its output path is unaffected.
+/// First 16 chars of a string for messages; char-safe (never panics on
+/// multi-byte input such as an adversarial header value).
+fn short16(s: &str) -> String {
+    s.chars().take(16).collect()
+}
+
 fn unhex(s: &str) -> Result<Vec<u8>, ()> {
     if !s.len().is_multiple_of(2) {
         return Err(());
@@ -802,7 +808,17 @@ fn main() {
                         };
                     }
                     "trace-chain" => w_trace_chain = v.into(),
-                    "table-sha256" => w_table_sha = Some(v.into()),
+                    "table-sha256" => {
+                        if v.len() != 64
+                            || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+                        {
+                            println!(
+                                "FAIL structure: malformed table-sha256 (want 64 lowercase hex)"
+                            );
+                            std::process::exit(1);
+                        }
+                        w_table_sha = Some(v.into());
+                    }
                     _ => {}
                 }
             }
@@ -816,8 +832,8 @@ fn main() {
                 if &local != claimed {
                     println!(
                         "FAIL artifact: {name} hash mismatch (receipt {} vs local {})",
-                        &claimed[..16.min(claimed.len())],
-                        &local[..16]
+                        short16(claimed),
+                        short16(&local)
                     );
                     fail = true;
                 }
@@ -853,7 +869,7 @@ fn main() {
                         None => {
                             println!(
                                 "VERIFY FAIL — receipt declares table-sha256 {} but no --table was given",
-                                &claimed[..16.min(claimed.len())]
+                                short16(claimed)
                             );
                             std::process::exit(1);
                         }
@@ -866,8 +882,8 @@ fn main() {
                     if &local_sha != claimed {
                         println!(
                             "FAIL artifact: TABLE hash mismatch (receipt {} vs local {})",
-                            &claimed[..16.min(claimed.len())],
-                            &local_sha[..16]
+                            short16(claimed),
+                            short16(&local_sha)
                         );
                         std::process::exit(1);
                     }
@@ -879,7 +895,14 @@ fn main() {
                         }
                     }
                 }
-                None => None,
+                None => {
+                    if table_path.is_some() {
+                        eprintln!(
+                            "note: --table given but the receipt has no table-sha256 line; ignored"
+                        );
+                    }
+                    None
+                }
             };
 
             let r = replay_episode(
@@ -896,14 +919,8 @@ fn main() {
             );
 
             let local_trace_chain = hex(&r.trace_chain);
-            println!(
-                "receipt trace-chain {}",
-                &w_trace_chain[..16.min(w_trace_chain.len())]
-            );
-            println!(
-                "local   trace-chain {}",
-                &local_trace_chain[..16.min(local_trace_chain.len())]
-            );
+            println!("receipt trace-chain {}", short16(&w_trace_chain));
+            println!("local   trace-chain {}", short16(&local_trace_chain));
 
             if r.steps.len() != w_steps.len() {
                 println!(
