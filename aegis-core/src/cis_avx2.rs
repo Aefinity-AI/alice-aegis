@@ -408,6 +408,12 @@ pub fn dot_i8_bf16q_avx2(a: &[i8], row: &[u8]) -> i64 {
 /// promotion to `i64` happens before the `<< 15`, so this step cannot
 /// overflow either. No floating-point instruction appears anywhere in this
 /// kernel (the FullInt property `dot_i8_bf16q_avx2_inner` documents above).
+// The `flush!()` macro's final call (after the loop) resets `acc_lo`,
+// `acc_hi`, and `blocks_since_flush` even though nothing reads them
+// afterward — correct (it mirrors the mid-loop calls exactly, and the
+// resets are what make it safe to call before every read), just spuriously
+// flagged by `unused_assignments` at that one call site.
+#[allow(unused_assignments)]
 #[target_feature(enable = "avx2")]
 unsafe fn dot_i8_bf16q_avx2_wide(a: &[i8], row: &[u8], n: usize) -> i64 {
     let zero = _mm256_setzero_si256();
