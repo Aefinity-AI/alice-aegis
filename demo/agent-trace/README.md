@@ -113,8 +113,8 @@ then table length as a big-endian u64) and the receipt gets a
 file: it re-hashes it and rejects a mismatch, or a receipt with
 `table-sha256` and no `--table` given at all, as `VERIFY FAIL` before ever
 attempting a replay. A `--table` passed for a receipt that has no
-`table-sha256` line has no effect: that episode never consulted a table, so
-the flag cannot change the verdict.
+`table-sha256` line prints a stderr note and is ignored: that episode never
+consulted a table, so the flag cannot change the verdict.
 
 The scanner treats `CALC` and `LOOKUP` calls uniformly: within one step's
 newly decoded text, it finds whichever of `CALC(` or `LOOKUP(` starts
