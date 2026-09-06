@@ -46,9 +46,7 @@
 // `scalar_only` — so that build gets the same stub.
 #[cfg(any(not(target_arch = "x86_64"), feature = "scalar_only"))]
 fn main() {
-    eprintln!(
-        "x86_64 AVX2-only benchmark; nothing to run on this architecture/feature set"
-    );
+    eprintln!("x86_64 AVX2-only benchmark; nothing to run on this architecture/feature set");
 }
 
 #[cfg(all(target_arch = "x86_64", not(feature = "scalar_only")))]
