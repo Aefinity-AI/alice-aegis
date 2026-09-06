@@ -353,29 +353,43 @@ unsafe fn dot_i8_bf16q_avx2_inner(a: &[i8], row: &[u8], n: usize) -> i64 {
 
         let sh_ge0 = _mm256_cmpgt_epi64(sh, _mm256_set1_epi64x(-1));
 
-        // Left-shift branch (sh >= 0): shift amount clamped to 0 when unused
-        // so the variable shift never sees a synthesized negative count.
-        let shl_amt = _mm256_blendv_epi8(zero, sh, sh_ge0);
-        let left_val = _mm256_sllv_epi64(m, shl_amt);
+        // Fast path: real LM-head weights are overwhelmingly `|w| >= 2^-13`ish
+        // (sh = exp - 114 >= 0 for exp >= 114, i.e. bf16 magnitude >= ~2^-13),
+        // so all 4 lanes take the left-shift branch far more often than not.
+        // Computing the RNE right-shift chain (floor/rem/half/round_up, ~10
+        // dependent vector ops) unconditionally on every block would cost as
+        // much as the branch it replaces, defeating the point of vectorizing.
+        // `movemask == -1` iff every byte of every lane's `sh_ge0` mask is
+        // set, i.e. all 4 lanes are `sh >= 0` — skip the right-shift chain
+        // entirely in that case; the result is unaffected either way, this is
+        // purely a work-skip, not a different computation.
+        let v_mag = if _mm256_movemask_epi8(sh_ge0) == -1 {
+            _mm256_sllv_epi64(m, sh)
+        } else {
+            // Left-shift branch (sh >= 0): shift amount clamped to 0 when
+            // unused so the variable shift never sees a negative count.
+            let shl_amt = _mm256_blendv_epi8(zero, sh, sh_ge0);
+            let left_val = _mm256_sllv_epi64(m, shl_amt);
 
-        // Right-shift (RNE) branch (sh < 0): k = -sh.
-        let k_raw = _mm256_sub_epi64(zero, sh);
-        let k_ge63 = _mm256_cmpgt_epi64(k_raw, c_62);
-        // Clamp the shift operand to 62 when it would be discarded anyway
-        // (k>=63 case), keeping every shift amount in the valid 0..=62 range.
-        let k = _mm256_blendv_epi8(k_raw, c_62, k_ge63);
-        let floor = _mm256_srlv_epi64(m, k);
-        let low_mask = _mm256_sub_epi64(_mm256_sllv_epi64(one, k), one);
-        let rem = _mm256_and_si256(m, low_mask);
-        let half = _mm256_sllv_epi64(one, _mm256_sub_epi64(k, one));
-        let rem_gt_half = _mm256_cmpgt_epi64(rem, half);
-        let rem_eq_half = _mm256_cmpeq_epi64(rem, half);
-        let floor_odd = _mm256_cmpeq_epi64(_mm256_and_si256(floor, one), one);
-        let round_up = _mm256_or_si256(rem_gt_half, _mm256_and_si256(rem_eq_half, floor_odd));
-        let rne_val = _mm256_add_epi64(floor, _mm256_blendv_epi8(zero, one, round_up));
-        let right_val = _mm256_blendv_epi8(rne_val, zero, k_ge63);
+            // Right-shift (RNE) branch (sh < 0): k = -sh.
+            let k_raw = _mm256_sub_epi64(zero, sh);
+            let k_ge63 = _mm256_cmpgt_epi64(k_raw, c_62);
+            // Clamp the shift operand to 62 when it would be discarded
+            // anyway (k>=63 case), keeping every shift amount in 0..=62.
+            let k = _mm256_blendv_epi8(k_raw, c_62, k_ge63);
+            let floor = _mm256_srlv_epi64(m, k);
+            let low_mask = _mm256_sub_epi64(_mm256_sllv_epi64(one, k), one);
+            let rem = _mm256_and_si256(m, low_mask);
+            let half = _mm256_sllv_epi64(one, _mm256_sub_epi64(k, one));
+            let rem_gt_half = _mm256_cmpgt_epi64(rem, half);
+            let rem_eq_half = _mm256_cmpeq_epi64(rem, half);
+            let floor_odd = _mm256_cmpeq_epi64(_mm256_and_si256(floor, one), one);
+            let round_up = _mm256_or_si256(rem_gt_half, _mm256_and_si256(rem_eq_half, floor_odd));
+            let rne_val = _mm256_add_epi64(floor, _mm256_blendv_epi8(zero, one, round_up));
+            let right_val = _mm256_blendv_epi8(rne_val, zero, k_ge63);
 
-        let v_mag = _mm256_blendv_epi8(right_val, left_val, sh_ge0);
+            _mm256_blendv_epi8(right_val, left_val, sh_ge0)
+        };
         let v_neg = _mm256_sub_epi64(zero, v_mag);
         let v = _mm256_blendv_epi8(v_mag, v_neg, sign_set);
 
