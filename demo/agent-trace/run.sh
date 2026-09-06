@@ -201,7 +201,7 @@ cmd_verify_attested() {
     local overall=0
 
     echo "== verify-attested: agent_trace verify ==" >&2
-    if "$(agent_trace_bin)" verify "$MODEL" "$EMBED" "$VOCAB" "$receipt"; then
+    if "$(agent_trace_bin)" verify "$MODEL" "$EMBED" "$VOCAB" "$receipt" "${TABLE_ARGS[@]}"; then
         echo "VERIFY: PASS"
     else
         echo "VERIFY: FAIL"
