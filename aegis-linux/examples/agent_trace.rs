@@ -45,7 +45,7 @@ fn hex(b: &[u8]) -> String {
 /// Used only on receipt-derived (hostile) fields in `verify`; `gen` never
 /// parses hex, so its output path is unaffected.
 fn unhex(s: &str) -> Result<Vec<u8>, ()> {
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(());
     }
     (0..s.len() / 2)
