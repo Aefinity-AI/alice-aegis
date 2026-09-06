@@ -29,6 +29,22 @@
 //! Run: amdahl_decode <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN>
 //!
 //! Build: cd aegis-linux && cargo build --release --features parallel,phase-timers --example amdahl_decode
+//!
+//! ctx is a DECODE-FILL target, not a request cap: `process_intent`'s second
+//! argument is `max_new_tokens`, and the model reliably emits an EOS/EOT/
+//! IM-END token after only a few dozen tokens on this prompt, so a naive
+//! sweep over ctx collapses every point to the same short `tokens=` count
+//! and the attention-share-vs-context measurement is meaningless (see the
+//! 2026-09-06 box1 run: tokens=84 flat across ctx=256/1024/2048). To make
+//! each ctx point actually exercise that much context, this binary (a) runs
+//! one cheap `max_new_tokens=0` probe per ctx to learn the prompt's token
+//! count post-window-cap (`last_prefill_tokens`), (b) sets
+//! `engine.ignore_eos = true` so decode cannot stop early, and (c) passes
+//! `max_new_tokens = ctx - prompt_tokens` so `process_intent`'s internal
+//! `ctx_limit = min(prompt_tokens + max_new_tokens, window)` lands on `ctx`
+//! (or the model's window, if `ctx` exceeds it — watch for a `tokens=`
+//! count below the requested `ctx` in that case, which means the window
+//! capped it, not EOS).
 
 #[cfg(not(feature = "phase-timers"))]
 fn main() {
@@ -89,12 +105,26 @@ fn main() {
     );
 
     for &ctx in &[256usize, 1024usize, 2048usize] {
+        // Cheap probe pass (max_new_tokens=0: prefill only, decode loop body
+        // never runs since ctx_limit == prompt_tokens already) to learn the
+        // post-window-cap prompt token count for this ctx point, so
+        // max_new_tokens below can be sized to land process_intent's
+        // internal ctx_limit exactly on `ctx`.
+        let prompt_tokens = {
+            let mut engine =
+                TernaryInferenceEngine::new(&emb, &model, &vocab).expect("engine init (probe)");
+            let _ = engine.process_intent(prompt, 0, |_| {});
+            engine.last_prefill_tokens
+        };
+        let max_new_tokens = ctx.saturating_sub(prompt_tokens);
+
         // Warm-up pass: fresh engine, discarded.
         {
             let mut engine =
                 TernaryInferenceEngine::new(&emb, &model, &vocab).expect("engine init (warmup)");
             engine.reset_phase_cycles();
-            let _ = engine.process_intent(prompt, ctx, |_| {});
+            engine.ignore_eos = true;
+            let _ = engine.process_intent(prompt, max_new_tokens, |_| {});
         }
 
         // Three measured passes, aggregated.
@@ -104,7 +134,8 @@ fn main() {
             let mut engine =
                 TernaryInferenceEngine::new(&emb, &model, &vocab).expect("engine init (measured)");
             engine.reset_phase_cycles();
-            let _ = engine.process_intent(prompt, ctx, |_| {});
+            engine.ignore_eos = true;
+            let _ = engine.process_intent(prompt, max_new_tokens, |_| {});
             let pc = engine.phase_cycles;
             for i in 0..phase_timers::NUM_PHASES {
                 agg.raw[i] = agg.raw[i].wrapping_add(pc.raw[i]);
@@ -151,7 +182,13 @@ fn main() {
         let named_sum = gemv + attn + kv + norm + lmhead + sample;
         let other = (total_ticks - named_sum).max(0.0);
 
-        let pct = |x: f64| if total_ticks > 0.0 { 100.0 * x / total_ticks } else { 0.0 };
+        let pct = |x: f64| {
+            if total_ticks > 0.0 {
+                100.0 * x / total_ticks
+            } else {
+                0.0
+            }
+        };
 
         // sum_check: named phases + other must reconstruct 100% of total by
         // construction (other is defined as the residual) — this is a
@@ -166,7 +203,8 @@ fn main() {
         };
 
         println!(
-            "AMDAHL ctx={ctx} tokens={total_tokens} total_ticks={total_ticks:.0} \
+            "AMDAHL ctx={ctx} prompt_tokens={prompt_tokens} tokens={total_tokens} \
+             total_ticks={total_ticks:.0} \
              gemv={:.2} attn={:.2} kv={:.2} norm={:.2} lmhead={:.2} sample={:.2} other={:.2} \
              sum_check={sum_check} tsc_hz={tsc_hz:.0} overhead_ticks={overhead_ticks}",
             pct(gemv),

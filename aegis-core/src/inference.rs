@@ -96,6 +96,15 @@ pub struct TernaryInferenceEngine<'a> {
     /// amortized into a whole-run average fakes a speedup at longer outputs.
     pub last_decode_cycles: u64,
     pub last_decode_steps: u64,
+    /// When true, `process_intent` never stops early on an EOS/EOT/IM-END
+    /// token — decode runs until `max_new_tokens` (or the context window) is
+    /// exhausted regardless of what the model emits. OFF by default (normal
+    /// chat behavior stops at EOS); measurement code that needs decode to
+    /// fill a specific context length (e.g. aegis-linux/examples/amdahl_decode.rs)
+    /// sets this so a model's tendency to emit EOS after a few dozen tokens
+    /// does not silently collapse every context-length point in a sweep to
+    /// the same token count.
+    pub ignore_eos: bool,
     /// Down_proj-input zero counts, appended per (token, layer) as forward
     /// passes run. Diagnostic only (allocates); callers drain between runs.
     #[cfg(feature = "act_stats")]
@@ -220,6 +229,7 @@ impl<'a> TernaryInferenceEngine<'a> {
             last_prefill_tokens: 0,
             last_decode_cycles: 0,
             last_decode_steps: 0,
+            ignore_eos: false,
             #[cfg(feature = "act_stats")]
             act_zero_counts: Vec::new(),
             #[cfg(feature = "act_stats")]
@@ -979,7 +989,10 @@ impl<'a> TernaryInferenceEngine<'a> {
         // end of generation instead of a crash.
         let ctx_limit = (tokens.len() + max_new_tokens).min(window);
         while step < ctx_limit {
-            if next_token == eos_token || next_token == eot_token || Some(next_token) == imend_token
+            if !self.ignore_eos
+                && (next_token == eos_token
+                    || next_token == eot_token
+                    || Some(next_token) == imend_token)
             {
                 break;
             }
@@ -1047,7 +1060,10 @@ impl<'a> TernaryInferenceEngine<'a> {
                     .record_total(__amdahl_total_start, __amdahl_total_end);
             }
 
-            if next_token == eos_token || next_token == eot_token || Some(next_token) == imend_token
+            if !self.ignore_eos
+                && (next_token == eos_token
+                    || next_token == eot_token
+                    || Some(next_token) == imend_token)
             {
                 break;
             }
