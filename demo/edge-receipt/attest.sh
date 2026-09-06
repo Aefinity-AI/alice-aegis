@@ -31,29 +31,33 @@ need_bin() {
 # Extract the receipt digest from either a CIS-1 decode receipt
 # (`cis-digest <16hex>`) or an agent-trace receipt (`trace-chain <64hex>`).
 # Prints "<nonce> <kind> <full>" where:
-#   nonce - the 16-hex-char TPM quote qualifying data (wire format unchanged:
-#           for cis-digest this IS the whole digest; for trace-chain it is
-#           the first 16 hex chars of the 64-hex chain digest).
+#   nonce - the TPM quote qualifying data, always the FULL digest as hex:
+#           16 hex chars (8 bytes) for cis-digest, 64 hex chars (32 bytes)
+#           for trace-chain. tpm2_quote/tpm2_checkquote's -q accepts up to
+#           64 bytes of hex, so the full trace-chain digest fits directly
+#           as the nonce — nothing is left unsigned.
 #   kind  - "cis" or "trace".
-#   full  - the whole digest as it appears in the receipt (== nonce for cis;
-#           the full 64-hex trace-chain for trace), recorded in ATTEST.txt
-#           so tampering anywhere in the trace-chain, not just its first 16
-#           hex chars, is caught by `verify`.
+#   full  - identical to nonce (kept as a separate field for readability
+#           in ATTEST.txt and because cmd_verify compares it independently
+#           against the receipt).
 receipt_nonce() {
     local receipt="$1"
-    local line d
-    line="$(grep -m1 '^cis-digest ' "$receipt" || true)"
-    if [ -n "$line" ]; then
-        d="$(echo "$line" | awk '{print $2}')"
+    local cis_line trace_line d
+    cis_line="$(grep -m1 '^cis-digest ' "$receipt" || true)"
+    trace_line="$(grep -m1 '^trace-chain ' "$receipt" || true)"
+    if [ -n "$cis_line" ] && [ -n "$trace_line" ]; then
+        die "ambiguous receipt: $receipt has both a 'cis-digest' and a 'trace-chain' line"
+    fi
+    if [ -n "$cis_line" ]; then
+        d="$(echo "$cis_line" | awk '{print $2}')"
         echo "$d" | grep -Eq '^[0-9a-f]{16}$' || die "cis-digest '$d' is not 16 lowercase hex chars"
         echo "$d cis $d"
         return
     fi
-    line="$(grep -m1 '^trace-chain ' "$receipt" || true)"
-    if [ -n "$line" ]; then
-        d="$(echo "$line" | awk '{print $2}')"
+    if [ -n "$trace_line" ]; then
+        d="$(echo "$trace_line" | awk '{print $2}')"
         echo "$d" | grep -Eq '^[0-9a-f]{64}$' || die "trace-chain '$d' is not 64 lowercase hex chars"
-        echo "${d:0:16} trace $d"
+        echo "$d trace $d"
         return
     fi
     die "no 'cis-digest' or 'trace-chain' line found in $receipt"
@@ -169,10 +173,14 @@ cmd_verify() {
     local nonce kind full
     read -r nonce kind full <<< "$nonce_kind_full"
 
-    get_field() { grep -m1 "^$1 " "$attestdir/ATTEST.txt" | cut -d' ' -f2-; }
+    # Missing fields must never kill the script under `set -e`: a field
+    # absent from ATTEST.txt (e.g. attestations from before receipt-kind
+    # existed) must produce empty output and a normal (0) exit, so callers
+    # can tell "empty/legacy" from "grep itself errored".
+    get_field() { grep -m1 "^$1 " "$attestdir/ATTEST.txt" 2>/dev/null | cut -d' ' -f2- || true; }
 
     local fmt att_digest att_kind pcr_list hierarchy ak_sha quote_sha sig_sha pcrs_sha eventlog_sha
-    fmt="$(get_field format)"; fmt="format $fmt"
+    fmt="$(get_field format)"
     att_digest="$(get_field receipt-digest)"
     att_kind="$(get_field receipt-kind)"
     pcr_list="$(get_field pcr-list)"
@@ -182,6 +190,25 @@ cmd_verify() {
     sig_sha="$(get_field sig-sha256)"
     pcrs_sha="$(get_field pcrs-sha256)"
     eventlog_sha="$(get_field eventlog-sha256)"
+
+    # receipt-kind is the one field that legitimately predates this branch
+    # (older ATTEST.txt files were cis-only and never wrote it): missing
+    # means "cis", for backward compatibility. Every other field below was
+    # always written by cmd_quote, so if it's missing the file is corrupt
+    # or truncated, not just old, and verify must say so and fail loudly
+    # rather than silently comparing against an empty string.
+    [ -n "$att_kind" ] || att_kind="cis"
+    for field in "format:$fmt" "receipt-digest:$att_digest" "pcr-list:$pcr_list" \
+        "hierarchy:$hierarchy" "ak-sha256:$ak_sha" "quote-sha256:$quote_sha" \
+        "sig-sha256:$sig_sha" "pcrs-sha256:$pcrs_sha" "eventlog-sha256:$eventlog_sha"; do
+        local fname="${field%%:*}"
+        local fval="${field#*:}"
+        if [ -z "$fval" ]; then
+            echo "VERDICT: ATTEST-FAIL (ATTEST.txt missing field $fname)"
+            return 1
+        fi
+    done
+    fmt="format $fmt"
 
     if [ "$fmt" != "$FORMAT_LINE" ]; then
         echo "VERDICT: ATTEST-FAIL (unrecognized ATTEST.txt format: '$fmt')"
@@ -373,7 +400,61 @@ cmd_selftest() {
             die "selftest FAILED: tampered trace-chain digest verified as OK"
         fi
         echo "selftest: tampered trace-chain digest correctly rejected" >&2
+
+        echo "== selftest: forged receipt (same 16-hex prefix, different tail) plus a hand-edited ATTEST.txt must still fail ==" >&2
+        # This is the attack Finding A closed: before the fix, only the
+        # first 16 hex chars of a trace-chain were ever fed to the TPM as
+        # qualifying data, so a forger could keep that prefix, change the
+        # remaining 48 hex chars, and hand-edit ATTEST.txt's receipt-digest
+        # to match — verify's text compare would agree with the forgery and
+        # tpm2_checkquote would never see the difference. Now the full
+        # 64-hex digest IS the nonce, so tpm2_checkquote itself must reject
+        # the mismatch; the forged ATTEST.txt can no longer paper over it.
+        local orig_trace_digest prefix forged_digest
+        orig_trace_digest="$(awk '$1=="trace-chain"{print $2}' "$trace_receipt")"
+        prefix="${orig_trace_digest:0:16}"
+        forged_digest="${prefix}$(head -c24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+        local forged_receipt="$work/forged-trace-receipt.txt"
+        echo "trace-chain $forged_digest" > "$forged_receipt"
+        local forged_attestdir="$work/forged-trace.attest"
+        cp -r "$trace_attestdir" "$forged_attestdir"
+        sed -i "s/^receipt-digest .*/receipt-digest $forged_digest/" "$forged_attestdir/ATTEST.txt"
+        sed -i "s/^pcrs-sha256 .*/pcrs-sha256 $(sha256_of "$forged_attestdir/quote.pcrs")/" "$forged_attestdir/ATTEST.txt"
+        local forged_out
+        if forged_out="$(cmd_verify "$forged_receipt" "$forged_attestdir" 2>&1)"; then
+            echo "$forged_out" >&2
+            die "selftest FAILED: forged trace-chain tail (matching 16-hex prefix) verified as OK"
+        fi
+        echo "$forged_out" >&2
+        case "$forged_out" in
+            *tpm2_checkquote*) ;;
+            *) die "selftest FAILED: forged tail was rejected for the wrong reason (expected a tpm2_checkquote failure): $forged_out" ;;
+        esac
+        echo "selftest: forged trace-chain tail correctly rejected by tpm2_checkquote" >&2
     fi
+
+    echo "== selftest: legacy ATTEST.txt with no receipt-kind line must still verify OK (treated as cis) ==" >&2
+    local legacy_attest="$work/legacy.attest"
+    cp -r "$goodattest" "$legacy_attest"
+    grep -v '^receipt-kind ' "$goodattest/ATTEST.txt" > "$legacy_attest/ATTEST.txt"
+    cmd_verify "$receipt" "$legacy_attest" >&2 \
+        || die "selftest FAILED: legacy ATTEST.txt (no receipt-kind) did not verify OK"
+    echo "selftest: legacy ATTEST.txt (no receipt-kind) correctly treated as cis and verified OK" >&2
+
+    echo "== selftest: ATTEST.txt missing a required field must fail loudly, not exit silently ==" >&2
+    local missing_field_attest="$work/missing-field.attest"
+    cp -r "$goodattest" "$missing_field_attest"
+    grep -v '^pcr-list ' "$goodattest/ATTEST.txt" > "$missing_field_attest/ATTEST.txt"
+    local missing_out missing_rc
+    missing_rc=0
+    missing_out="$(cmd_verify "$receipt" "$missing_field_attest" 2>&1)" || missing_rc=$?
+    [ "$missing_rc" -ne 0 ] || die "selftest FAILED: ATTEST.txt missing pcr-list verified as OK"
+    case "$missing_out" in
+        *"ATTEST-FAIL (ATTEST.txt missing field pcr-list)"*) ;;
+        *) die "selftest FAILED: missing-field ATTEST.txt was rejected with the wrong message: $missing_out" ;;
+    esac
+    echo "$missing_out" >&2
+    echo "selftest: ATTEST.txt missing a required field correctly reported ATTEST-FAIL with an explicit message" >&2
 
     echo "SELFTEST: PASS"
 }

@@ -113,10 +113,12 @@ this demonstrates the receipt mechanism, not model capability.
 
 `demo/edge-receipt/attest.sh` also accepts an agent-trace receipt (its
 `trace-chain` line instead of a CIS-1 `cis-digest` line) and binds a TPM
-quote to it the same way it does for a decode receipt. The same limits
-apply: null hierarchy (not vendor-rooted) until BIOS TPM State is enabled,
-and the quote proves firmware/PCR state bound to the receipt digest at
-quote time, not the trace-chain replay itself. See
+quote to it the same way it does for a decode receipt: the TPM signs the
+PCR values plus the qualifying data, which is the whole receipt digest (32
+bytes for a `trace-chain`, vs. 8 bytes for a CIS-1 `cis-digest`). The same
+limits apply: null hierarchy (not vendor-rooted) until BIOS TPM State is
+enabled, and the quote proves firmware/PCR state bound to the receipt
+digest at quote time, not the trace-chain replay itself. See
 `demo/edge-receipt/README.md`'s "Optional: TPM attestation" section for
 the full command reference and caveats.
 
