@@ -142,3 +142,11 @@ artifact file sha256s, the `agent_trace` binary's sha256, `N`, the
 provenance for the run as a whole; per-item reproducibility comes from each
 item's own receipt file plus `agent_trace verify`, independent of this
 report's summary numbers (plan section 5).
+
+## Caveat: comma-joined fields
+
+For mixed (K=2) items the `expected_tool`, `expected_input`, `expected_output`
+columns in the suite and the `tool_observed`, `arg_match`, `output_match`
+columns in `summary.tsv` are the two steps' values joined with a comma. Table
+values themselves may contain commas, so these fields are compared as whole
+strings and must not be split on `,` by any future consumer.

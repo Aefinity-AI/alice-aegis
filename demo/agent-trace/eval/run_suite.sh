@@ -260,7 +260,7 @@ tail -n +2 "$ITEMS" | while IFS=$'\t' read -r item_id bucket tmpl_id prompt_text
             verify_result="FAIL"
         fi
 
-        trace_chain="$(grep -m1 '^trace-chain ' "$receipt" | awk '{print $2}')"
+        trace_chain="$(grep -m1 '^trace-chain ' "$receipt" | awk '{print $2}' || true)"
 
         # Collect step tool/in/out for step 0 (and step 1 for mixed items).
         step0_line="$(grep -m1 '^step 0:' "$receipt" || true)"
