@@ -167,6 +167,49 @@ cmd_tamper() {
     fi
 }
 
+attest_sh() { echo "$ROOT/demo/edge-receipt/attest.sh"; }
+
+cmd_attest() {
+    local receipt="${1:?usage: run.sh attest <receipt> <outdir>}"
+    local outdir="${2:?usage: run.sh attest <receipt> <outdir>}"
+    echo "== attest: TPM quote bound to trace-chain digest ==" >&2
+    run "$(attest_sh)" quote "$receipt" "$outdir"
+}
+
+# Runs both independent checks: agent_trace verify (replays the episode)
+# and attest.sh verify (checks the TPM quote against the receipt digest,
+# offline, no TPM needed). Prints one VERIFY: and one ATTEST: line and
+# exits nonzero if either check fails.
+cmd_verify_attested() {
+    need_artifacts
+    local receipt="${1:?usage: run.sh verify-attested <receipt> <attestdir>}"
+    local attestdir="${2:?usage: run.sh verify-attested <receipt> <attestdir>}"
+    if [ ! -f "$receipt" ]; then
+        echo "no such receipt: $receipt" >&2
+        exit 2
+    fi
+
+    local overall=0
+
+    echo "== verify-attested: agent_trace verify ==" >&2
+    if "$(agent_trace_bin)" verify "$MODEL" "$EMBED" "$VOCAB" "$receipt"; then
+        echo "VERIFY: PASS"
+    else
+        echo "VERIFY: FAIL"
+        overall=1
+    fi
+
+    echo "== verify-attested: attest.sh verify ==" >&2
+    if "$(attest_sh)" verify "$receipt" "$attestdir"; then
+        echo "ATTEST-OK"
+    else
+        echo "ATTEST-FAIL"
+        overall=1
+    fi
+
+    return "$overall"
+}
+
 cmd_all() {
     local prompt="${1:-Once upon a time}"
     local k="${2:-3}"
@@ -176,16 +219,23 @@ cmd_all() {
     receipt="$(cmd_gen "$prompt" "$k" "$n" | tail -1)"
     cmd_verify "$receipt"
     cmd_tamper
+    if [ -e /dev/tpmrm0 ] && command -v tpm2_quote >/dev/null 2>&1; then
+        cmd_attest "$receipt" "$OUT"
+    else
+        echo "attest: skipped (no TPM)" >&2
+    fi
 }
 
 case "${1:-}" in
-    build)  shift; cmd_build "$@" ;;
-    gen)    shift; cmd_gen "$@" ;;
-    verify) shift; cmd_verify "$@" ;;
-    tamper) shift; cmd_tamper "$@" ;;
-    all)    shift; cmd_all "$@" ;;
+    build)           shift; cmd_build "$@" ;;
+    gen)             shift; cmd_gen "$@" ;;
+    verify)          shift; cmd_verify "$@" ;;
+    tamper)          shift; cmd_tamper "$@" ;;
+    attest)          shift; cmd_attest "$@" ;;
+    verify-attested) shift; cmd_verify_attested "$@" ;;
+    all)             shift; cmd_all "$@" ;;
     *)
-        echo "usage: $0 {build|gen [prompt] [K] [N]|verify <receipt>|tamper|all [prompt] [K] [N]}" >&2
+        echo "usage: $0 {build|gen [prompt] [K] [N]|verify <receipt>|tamper|attest <receipt> <outdir>|verify-attested <receipt> <attestdir>|all [prompt] [K] [N]}" >&2
         exit 2
         ;;
 esac

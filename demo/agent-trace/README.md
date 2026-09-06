@@ -109,6 +109,37 @@ builds of the branch (94b0c6d and 78c133e) on box2. In that episode the
 model echoed a few-shot example rather than solving the question asked —
 this demonstrates the receipt mechanism, not model capability.
 
+## Attested trace
+
+```
+demo/agent-trace/run.sh attest <receipt> <outdir>              # TPM quote bound to the receipt
+demo/agent-trace/run.sh verify-attested <receipt> <attestdir>  # agent_trace verify + attest.sh verify
+```
+
+`attest` calls `demo/edge-receipt/attest.sh quote`, which signs the current
+PCR values with the receipt's full `trace-chain` digest (32 bytes) as the
+TPM quote's qualifying data, writing `<outdir>/<receipt-basename>.attest/`.
+`verify-attested` runs two independent checks and prints one line for
+each: `VERIFY: PASS`/`FAIL` (agent_trace replays the episode and checks
+the trace chain) and `ATTEST-OK`/`ATTEST-FAIL` (attest.sh checks the
+signed quote against the receipt digest, offline, no TPM needed); it
+exits nonzero if either check fails. `run.sh all` runs `attest`
+automatically only when `/dev/tpm0` exists and `tpm2_quote` is on PATH,
+otherwise it prints `attest: skipped (no TPM)` and still exits 0.
+
+What the quote proves: the PCR state the TPM saw at quote time, bound to
+this exact trace-chain digest as the qualifying data — nothing more, and
+nothing about the trace replay itself (that's `agent_trace verify`'s job,
+independently).
+
+What it does NOT prove: on a null-hierarchy TPM (the common case until
+BIOS TPM State is toggled), the signing key is not vendor-rooted, so the
+quote is a genuine TPM-resident signature but not tied to a manufacturer
+certificate chain. `ATTEST.txt`'s bookkeeping fields (hostname, time-utc,
+tpm-manufacturer, hierarchy) are plain text written by this script, not
+themselves TPM-signed — only `quote.msg`/`quote.sig`/`quote.pcrs` and the
+nonce are.
+
 ## Optional: TPM attestation of the receipt
 
 `demo/edge-receipt/attest.sh` also accepts an agent-trace receipt (its
