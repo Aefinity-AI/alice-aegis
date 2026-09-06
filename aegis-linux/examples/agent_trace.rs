@@ -187,6 +187,7 @@ fn is_valid_key(key: &str) -> bool {
 
 /// A parsed lookup table: the key/value map plus the sha256 and byte length
 /// of the exact file bytes it was parsed from (folded into trace genesis).
+#[derive(Debug)]
 struct LookupTable {
     map: std::collections::HashMap<String, String>,
     sha256: [u8; 32],
