@@ -972,6 +972,35 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         }
     }
 
+    /// LM-head dot dispatch, same discipline as `tmv_dispatch`:
+    /// `dot_i8_bf16q_avx2` does its own runtime `simd_on()` check and falls
+    /// back to `dot_i8_bf16q` internally (including a whole-row scalar
+    /// recompute whenever an element would trip one of `dot_i8_bf16q`'s own
+    /// asserts, so the panic is reproduced exactly), so this function only
+    /// picks the per-arch entry point. No NEON kernel exists yet for this
+    /// dot (aarch64 uses the portable scalar reference); `scalar_only` skips
+    /// `cis_avx2` entirely for the same zero-x86-intrinsics reason
+    /// `tmv_dispatch` does.
+    #[inline]
+    fn lmhead_dot_dispatch(a: &[i8], row: &[u8]) -> i64 {
+        #[cfg(all(
+            target_arch = "x86_64",
+            not(target_os = "uefi"),
+            not(feature = "scalar_only")
+        ))]
+        {
+            crate::cis_avx2::dot_i8_bf16q_avx2(a, row)
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            not(target_os = "uefi"),
+            not(feature = "scalar_only")
+        )))]
+        {
+            dot_i8_bf16q(a, row)
+        }
+    }
+
     /// One decode step: token embedding through all layers, integer residual
     /// stream in `self.h`. Mirrors `TernaryInferenceEngine::forward_step`
     /// stage for stage.
@@ -1431,7 +1460,10 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         });
         timed_phase!(self.phase_cycles, crate::phase_timers::Phase::LmHead, {
             for (j, l) in self.logits[..vocab].iter_mut().enumerate() {
-                *l = dot_i8_bf16q(&self.codes[..hidden], self.model.head_row(j, hidden));
+                *l = Self::lmhead_dot_dispatch(
+                    &self.codes[..hidden],
+                    self.model.head_row(j, hidden),
+                );
             }
         });
         // logit_real = acc · s / 2^F  (the head table is Q.F).
