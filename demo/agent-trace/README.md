@@ -3,12 +3,14 @@
 `run.sh` runs a small, deterministic **agent episode** over the checked-in
 M7 tinybit model: K rounds (default 3) of {greedy, integer-only CIS-1
 `FullInt` decode of up to N tokens (default 16), scan the decoded text for
-one `CALC(<int> <op> <int>)` tool call, run the tool, append the decoded
-text and the tool's result to the running prompt for the next round}. The
-whole episode is hash-chained into one **AEGIS-TRACE v0** receipt: artifact
-SHA-256s, K, N, the initial prompt, and one line per step (the step's token
-ids, which tool ran, its input/output, and that step's own decode-chain
-digest), followed by a `trace-chain` digest that folds every step together.
+one tool call — `CALC(<int> <op> <int>)`, or (only when a table is given)
+`LOOKUP(<key>)` — run the tool, append the decoded text and the tool's
+result to the running prompt for the next round}. The whole episode is
+hash-chained into one **AEGIS-TRACE v0** receipt: artifact SHA-256s, K, N,
+the initial prompt (and a `table-sha256` line when a table was used), and
+one line per step (the step's token ids, which tool ran, its input/output,
+and that step's own decode-chain digest), followed by a `trace-chain`
+digest that folds every step together.
 
 `verify` replays the entire episode from the receipt's header (artifacts,
 K, N, initial prompt) on the local machine and compares every step and the
@@ -39,6 +41,7 @@ AEGIS_ARTIFACTS=<dir>   # expects MODEL.SAF / EMBED.BIN / VOCAB.BIN in it
 AEGIS_MODEL=<file>      # override MODEL.SAF individually
 AEGIS_EMBED=<file>      # override EMBED.BIN individually
 AEGIS_VOCAB=<file>      # override VOCAB.BIN individually
+AEGIS_TABLE=<file>      # optional LOOKUP table (see "LOOKUP tool" below)
 ```
 
 ## Cross-machine recipe
@@ -86,6 +89,39 @@ name/input/output bytes, and chain digests**, per the same CIS-1 decode
 path `cis_witness` uses — not text-level correctness or model quality. No
 claim about any model other than the specific artifacts hashed in the
 receipt. No timing is printed anywhere.
+
+## LOOKUP tool
+
+`LOOKUP(<key>)`, `key` matching `[A-Za-z0-9_.-]{1,64}`, resolves against a
+fixed table given with `--table <path>` (or `AEGIS_TABLE=<path>` for
+`run.sh`) — a plain-text `key<TAB>value` file, one row per line, UTF-8,
+values up to 256 bytes with no tab or newline in them. A key that is not in
+the table resolves to the literal `NONE`, not an error — a miss is a valid,
+recorded outcome, just like `CALC`'s errors are recorded rather than
+crashing. `demo/agent-trace/tables/demo.tsv` is a ready-made example (ten
+part-number-to-description rows).
+
+`LOOKUP` only exists when a table is given. With no `--table`, the scanner
+never looks for `LOOKUP(` at all, and a table-less episode's receipt and
+genesis fold are identical to what they would have been before this tool
+existed — no format bump, no new header line.
+
+When a table is given, its sha256 and byte length are folded into the trace
+genesis (after the prompt, in that order: table sha256 as 32 raw bytes,
+then table length as a big-endian u64) and the receipt gets a
+`table-sha256 <64 hex>` header line. `verify` requires the same `--table`
+file: it re-hashes it and rejects a mismatch, or a receipt with
+`table-sha256` and no `--table` given at all, as `VERIFY FAIL` before ever
+attempting a replay. A `--table` passed for a receipt that has no
+`table-sha256` line prints a stderr note and is ignored: that episode never
+consulted a table, so the flag cannot change the verdict.
+
+The scanner treats `CALC` and `LOOKUP` calls uniformly: within one step's
+newly decoded text, it finds whichever of `CALC(` or `LOOKUP(` starts
+earliest and attempts to parse only that occurrence per its own grammar. If
+that occurrence fails to parse, the step is `no-tool` — the scanner never
+falls back to a later occurrence of either tool. Both tools may appear
+across different steps of the same episode.
 
 ## Prompting note
 
@@ -139,6 +175,20 @@ certificate chain. `ATTEST.txt`'s bookkeeping fields (hostname, time-utc,
 tpm-manufacturer, hierarchy) are plain text written by this script, not
 themselves TPM-signed — only `quote.msg`/`quote.sig`/`quote.pcrs` and the
 nonce are.
+
+LOOKUP: the M7 tinybit model (23cfad0a…) never emitted a `CALC` or `LOOKUP`
+call in any receipt tried on box2 (a table-less M7 receipt against a
+few-shot `LOOKUP` prompt verified bit-for-bit as `tool=no-tool` — the
+mechanism works, the model just never triggers it); the 2B (bitnet2b
+artifacts, facb3597…) model, given the same Q/A few-shot style that worked
+for `CALC`, emitted `tool=lookup` in both steps of a K=2 episode against
+`demo/agent-trace/tables/demo.tsv` (`LOOKUP(P-317)` → "Filter, oil,
+spin-on cartridge", then `LOOKUP(P-100)` → "Gasket, O-ring, fuel line, 1/4
+in.") and verified bit-for-bit on box2 (trace-chain d2e734b7c6a3b558…).
+Tampering one value in a copy of the table changed its sha256, and
+`verify --table <tampered copy>` correctly failed with `FAIL artifact:
+TABLE hash mismatch` before attempting a replay, for both the M7 and 2B
+receipts.
 
 ## Optional: TPM attestation of the receipt
 
