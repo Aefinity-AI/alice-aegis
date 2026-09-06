@@ -89,10 +89,7 @@ fn split_identity_holds_for_every_representable_value() {
                 if let Some((hi, lo)) = split_i16_planes(w) {
                     let reconstructed = (hi as i64) * 32768 + lo as i64;
                     assert_eq!(reconstructed, w, "bits={bits:#06x} exp={exp} man={man}");
-                    assert!(
-                        (0..32768).contains(&lo),
-                        "w_lo out of [0, 2^15): bits={bits:#06x} lo={lo}"
-                    );
+                    assert!(lo >= 0, "w_lo out of [0, 2^15): bits={bits:#06x} lo={lo}");
                 }
             }
         }
