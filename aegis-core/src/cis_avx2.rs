@@ -155,61 +155,47 @@ unsafe fn tmv_i8_avx2(
     let full_blocks = n_bytes / BLOCK_BYTES;
     let tail_start_b = full_blocks * BLOCK_BYTES;
 
-    for (row, out) in output.iter_mut().enumerate().take(dim_out) {
-        let w_row = &weights_packed[row * n_bytes..(row + 1) * n_bytes];
-        let mut acc = _mm256_setzero_si256();
+    // Bit-pair k of every byte. `srli_epi16` shifts 16-bit lanes, so bits from
+    // the high byte migrate into the low byte — but only into positions
+    // >= 8 - 2k >= 2, which `pair_mask` (bits 0..1) discards. Each byte's
+    // extracted pair is therefore its own.
+    //
+    // The shift is an instruction immediate, so k must be const: the four
+    // steps are const-generic rather than a runtime loop. `a` is passed in
+    // (already loaded by the caller) rather than loaded here, so the same
+    // activation register can be reused across several output rows in one
+    // block — see `ROWS_BLK` below.
+    //
+    // A nested item does NOT inherit the outer `target_feature`. If this were
+    // ever emitted out of line it would be a featureless fn taking __m256i by
+    // value from an +avx2 caller — the classic AVX ABI mismatch, silently
+    // wrong. It inlines today; after A14 this programme does not rest a
+    // correctness guarantee on that.
+    #[target_feature(enable = "avx2")]
+    unsafe fn step<const SHIFT: i32>(v: __m256i, a: __m256i, c: &Consts) -> __m256i {
+        let codes = _mm256_and_si256(_mm256_srli_epi16::<SHIFT>(v), c.pair_mask);
+        let w = _mm256_shuffle_epi8(c.code_lut, codes);
+        // vpsignb IS ternary multiply: +1 -> a, -1 -> -a, 0 -> 0.
+        let prod = _mm256_sign_epi8(a, w);
+        // i8 -> i16 -> i32, exact: |prod| <= 127, |pair| <= 254.
+        let pairs = _mm256_maddubs_epi16(c.ones_u8, prod);
+        _mm256_madd_epi16(pairs, c.ones_i16)
+    }
 
-        for blk in 0..full_blocks {
-            let b0 = blk * BLOCK_BYTES;
-            let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
-
-            // Bit-pair k of every byte. `srli_epi16` shifts 16-bit lanes, so
-            // bits from the high byte migrate into the low byte — but only into
-            // positions >= 8 - 2k >= 2, which `pair_mask` (bits 0..1) discards.
-            // Each byte's extracted pair is therefore its own.
-            //
-            // The shift is an instruction immediate, so k must be const: the
-            // four steps are const-generic rather than a runtime loop.
-            // A nested item does NOT inherit the outer `target_feature`. If this
-            // were ever emitted out of line it would be a featureless fn taking
-            // __m256i by value from an +avx2 caller — the classic AVX ABI
-            // mismatch, silently wrong. It inlines today; after A14 this
-            // programme does not rest a correctness guarantee on that.
-            #[target_feature(enable = "avx2")]
-            unsafe fn step<const SHIFT: i32, const K: usize>(
-                v: __m256i,
-                lanes: &[i8],
-                n_bytes: usize,
-                b0: usize,
-                c: &Consts,
-            ) -> __m256i {
-                let codes = _mm256_and_si256(_mm256_srli_epi16::<SHIFT>(v), c.pair_mask);
-                let w = _mm256_shuffle_epi8(c.code_lut, codes);
-                let a = _mm256_loadu_si256(lanes.as_ptr().add(K * n_bytes + b0) as *const __m256i);
-                // vpsignb IS ternary multiply: +1 -> a, -1 -> -a, 0 -> 0.
-                let prod = _mm256_sign_epi8(a, w);
-                // i8 -> i16 -> i32, exact: |prod| <= 127, |pair| <= 254.
-                let pairs = _mm256_maddubs_epi16(c.ones_u8, prod);
-                _mm256_madd_epi16(pairs, c.ones_i16)
-            }
-
-            let q0 = step::<0, 0>(v, lanes, n_bytes, b0, &c);
-            let q1 = step::<2, 1>(v, lanes, n_bytes, b0, &c);
-            let q2 = step::<4, 2>(v, lanes, n_bytes, b0, &c);
-            let q3 = step::<6, 3>(v, lanes, n_bytes, b0, &c);
-            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q0, q1));
-            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q2, q3));
-        }
-
-        // Horizontal sum. Reassociation is exact for integers (see module doc).
+    #[target_feature(enable = "avx2")]
+    unsafe fn hsum(acc: __m256i) -> i32 {
+        // Reassociation is exact for integers (see module doc).
         let lo = _mm256_castsi256_si128(acc);
         let hi = _mm256_extracti128_si256(acc, 1);
         let s = _mm_add_epi32(lo, hi);
         let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b01_00_11_10));
         let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b10_11_00_01));
-        let mut total = _mm_cvtsi128_si32(s);
+        _mm_cvtsi128_si32(s)
+    }
 
-        // Tail bytes, in the reference's own arithmetic.
+    #[target_feature(enable = "avx2")]
+    unsafe fn tail_sum(w_row: &[u8], input: &[i8], tail_start_b: usize, n_bytes: usize) -> i32 {
+        let mut total = 0i32;
         for (off, &b) in w_row[tail_start_b..n_bytes].iter().enumerate() {
             let base = 4 * (tail_start_b + off);
             for k in 0..4 {
@@ -222,8 +208,76 @@ unsafe fn tmv_i8_avx2(
                 total += wv * input[base + k] as i32;
             }
         }
+        total
+    }
 
-        *out = total;
+    // Register-block `ROWS_BLK` output rows per tile: the four deinterleaved
+    // activation vectors for a given block are identical across every row (the
+    // activation vector does not depend on the row), so loading them once per
+    // block and reusing them across `ROWS_BLK` independent row accumulators
+    // turns `4 * full_blocks * dim_out` activation loads into
+    // `4 * full_blocks * ceil(dim_out / ROWS_BLK)`. `ROWS_BLK = 4` keeps the
+    // live register count (4 accumulators + 4 shared `a` vectors + per-row
+    // `v`/codes/products) inside the 16 architectural YMM registers.
+    const ROWS_BLK: usize = 4;
+    let row_tiles = dim_out / ROWS_BLK;
+
+    for tile in 0..row_tiles {
+        let row0 = tile * ROWS_BLK;
+        let mut acc = [_mm256_setzero_si256(); ROWS_BLK];
+
+        for blk in 0..full_blocks {
+            let b0 = blk * BLOCK_BYTES;
+            let a0 = _mm256_loadu_si256(lanes.as_ptr().add(b0) as *const __m256i);
+            let a1 = _mm256_loadu_si256(lanes.as_ptr().add(n_bytes + b0) as *const __m256i);
+            let a2 = _mm256_loadu_si256(lanes.as_ptr().add(2 * n_bytes + b0) as *const __m256i);
+            let a3 = _mm256_loadu_si256(lanes.as_ptr().add(3 * n_bytes + b0) as *const __m256i);
+
+            for r in 0..ROWS_BLK {
+                let w_row = &weights_packed[(row0 + r) * n_bytes..(row0 + r + 1) * n_bytes];
+                let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
+
+                let q0 = step::<0>(v, a0, &c);
+                let q1 = step::<2>(v, a1, &c);
+                let q2 = step::<4>(v, a2, &c);
+                let q3 = step::<6>(v, a3, &c);
+                acc[r] = _mm256_add_epi32(acc[r], _mm256_add_epi32(q0, q1));
+                acc[r] = _mm256_add_epi32(acc[r], _mm256_add_epi32(q2, q3));
+            }
+        }
+
+        for r in 0..ROWS_BLK {
+            let w_row = &weights_packed[(row0 + r) * n_bytes..(row0 + r + 1) * n_bytes];
+            let mut total = hsum(acc[r]);
+            total += tail_sum(w_row, input, tail_start_b, n_bytes);
+            output[row0 + r] = total;
+        }
+    }
+
+    // Remainder rows (dim_out not a multiple of ROWS_BLK): same per-block
+    // decode, one row at a time, activation reloaded from `lanes` per block
+    // since there is no sibling row left to amortise it over.
+    for row in (row_tiles * ROWS_BLK)..dim_out {
+        let w_row = &weights_packed[row * n_bytes..(row + 1) * n_bytes];
+        let mut acc = _mm256_setzero_si256();
+        for blk in 0..full_blocks {
+            let b0 = blk * BLOCK_BYTES;
+            let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
+            let a0 = _mm256_loadu_si256(lanes.as_ptr().add(b0) as *const __m256i);
+            let a1 = _mm256_loadu_si256(lanes.as_ptr().add(n_bytes + b0) as *const __m256i);
+            let a2 = _mm256_loadu_si256(lanes.as_ptr().add(2 * n_bytes + b0) as *const __m256i);
+            let a3 = _mm256_loadu_si256(lanes.as_ptr().add(3 * n_bytes + b0) as *const __m256i);
+
+            let q0 = step::<0>(v, a0, &c);
+            let q1 = step::<2>(v, a1, &c);
+            let q2 = step::<4>(v, a2, &c);
+            let q3 = step::<6>(v, a3, &c);
+            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q0, q1));
+            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q2, q3));
+        }
+        let mut total = hsum(acc);
+        total += tail_sum(w_row, input, tail_start_b, n_bytes);
+        output[row] = total;
     }
 }
 
