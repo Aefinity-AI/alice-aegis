@@ -16,13 +16,16 @@ fn lcg_next(state: &mut u64) -> u64 {
 }
 
 /// A finite (non-inf/nan) BF16 bit pattern whose magnitude is inside
-/// `bf16_to_fixed`'s Q.F range (`sh <= 36`, i.e. `exp <= 150` for F=20),
-/// covering both signs and every mantissa bit pattern.
+/// `dot_i8_bf16q`'s OWN Q.F i32-range assert (`|w| < 2^31`), not just
+/// `bf16_to_fixed`'s looser `sh <= 36` bound. At the largest mantissa
+/// (`m = 0xFF`), `m << sh < 2^31` requires `sh <= 23`, i.e. `exp <= 137`
+/// for F=20 (`sh = exp - 114`) — `bf16_to_fixed` alone would accept
+/// `exp` up to 150, but `dot_i8_bf16q` would then panic on its own
+/// tighter assert, which is exactly what a "random finite bf16" generator
+/// for THIS dot must not produce.
 fn random_finite_bf16_in_range(state: &mut u64) -> u16 {
     let sign = ((lcg_next(state) >> 33) & 1) as u16;
-    // exp in [0, 150]: spans zero, subnormals, and every normal exponent
-    // this dot path can legally see (sh = exp - 114 <= 36).
-    let exp = ((lcg_next(state) >> 40) % 151) as u16;
+    let exp = ((lcg_next(state) >> 40) % 138) as u16;
     let man = ((lcg_next(state) >> 40) % 128) as u16;
     (sign << 15) | (exp << 7) | man
 }
@@ -190,7 +193,7 @@ fn matches_bf16_to_fixed_reference_pointwise() {
     // exponent range, to localize any conversion bug independent of the
     // dot's own accumulation.
     let mut state = 0xF00D_u64;
-    for exp in 0..=150i32 {
+    for exp in 0..=137i32 {
         for _ in 0..8 {
             let man = (lcg_next(&mut state) % 128) as u16;
             let sign = (lcg_next(&mut state) & 1) as u16;
