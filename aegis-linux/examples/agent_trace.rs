@@ -53,14 +53,15 @@
 //!
 //! Suite binding: `--suite-sha256 <64 lowercase hex>` folds an arbitrary
 //! caller-supplied 32-byte digest (e.g. the sha256 of an eval suite TSV)
-//! into the trace genesis under its own domain tag, distinct from the
-//! table's, so a suite hash and a table hash can never collide even if
-//! given the same 32 bytes. `gen` validates the hex and writes a
-//! `suite-sha256 <64 hex>` header line. `verify` folds a suite-sha256
-//! header exactly as `gen` did; if `--suite-sha256` is also given on the
-//! command line and disagrees with the header, verify fails before
-//! replay. A receipt with no `suite-sha256` header is unaffected — fully
-//! backward compatible.
+//! into the trace genesis, after the table slot, under its own `b"SUITE"`
+//! domain tag. The pre-existing table fold (table_sha then table_len, no
+//! tag) is left byte-for-byte unchanged — archived table-bound receipts
+//! generated before this flag existed must keep verifying. `gen` validates
+//! the hex and writes a `suite-sha256 <64 hex>` header line. `verify` folds
+//! a suite-sha256 header exactly as `gen` did; if `--suite-sha256` is also
+//! given on the command line and disagrees with the header, verify fails
+//! before replay. A receipt with no `suite-sha256` header is unaffected —
+//! fully backward compatible.
 
 use aegis_core::cis_infer::{CisEngine, CisMode, CisModel, argmax_i64};
 use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
@@ -379,18 +380,24 @@ const TRACE_DOMAIN: &[u8] = b"AEGIS-TRACE v0\n";
 /// `WITNESS_DOMAIN_V1`, so a trace-chain digest can never collide with a
 /// plain decode-chain digest.
 ///
-/// Fold order (exact): TRACE_DOMAIN, model_sha, embed_sha, vocab_sha,
+/// Fold order (exact, UNCHANGED for the table case from the pre-suite-hash
+/// code — this is load-bearing: archived receipts that declare
+/// table-sha256, generated before --suite-sha256 existed, must keep
+/// verifying byte-for-byte): TRACE_DOMAIN, model_sha, embed_sha, vocab_sha,
 /// k (BE u64), n (BE u64), prompt.len() (BE u64), prompt bytes, THEN — only
-/// when `table` is `Some((table_sha, table_len))` — the tag `b"TABLE"`,
-/// table_sha (32 raw bytes), table_len (BE u64), THEN — only when `suite`
-/// is `Some(suite_sha)` — the tag `b"SUITE"` followed by suite_sha (32 raw
-/// bytes). The `b"TABLE"`/`b"SUITE"` tags are the domain-separation: without
-/// them a table hash and a suite hash of the same 32 bytes (with the table
-/// slot's implicit length matching) could fold identically; with them a
-/// suite hash can never be mistaken for a table hash or vice versa. A call
-/// with neither `table` nor `suite` folds none of that trailing material,
-/// so its digest is byte-identical to the pre-LOOKUP genesis fold (this is
-/// what keeps existing v0 receipts verifying unchanged).
+/// when `table` is `Some((table_sha, table_len))` — table_sha (32 raw
+/// bytes) followed by table_len (BE u64), with no tag (exactly as before
+/// this fold gained a suite hash), THEN — only when `suite` is
+/// `Some(suite_sha)` — the tag `b"SUITE"` followed by suite_sha (32 raw
+/// bytes). The `b"SUITE"` tag is the only new domain-separation: it sits
+/// after the (untagged) table slot, so a suite hash can never be mistaken
+/// for a table hash — the table slot's own position and its trailing
+/// table_len already make it unambiguous on its own, and adding a tag
+/// there would have changed every existing table-bound receipt's genesis,
+/// which is exactly what must not happen. A call with neither `table` nor
+/// `suite` folds none of that trailing material, so its digest is
+/// byte-identical to the pre-LOOKUP genesis fold (this is what keeps
+/// existing v0 receipts verifying unchanged).
 fn trace_genesis(
     model_sha: &[u8; 32],
     embed_sha: &[u8; 32],
@@ -411,7 +418,6 @@ fn trace_genesis(
     s.update(&(prompt.len() as u64).to_be_bytes());
     s.update(prompt);
     if let Some((table_sha, table_len)) = table {
-        s.update(b"TABLE");
         s.update(table_sha);
         s.update(&table_len.to_be_bytes());
     }
@@ -1542,10 +1548,45 @@ mod tests {
     }
 
     #[test]
-    fn trace_genesis_domain_separates_table_and_suite_hash() {
-        // Same 32 bytes used as a table hash vs a suite hash must fold to
-        // different genesis digests — the `b"TABLE"`/`b"SUITE"` tags are
-        // what prevent the collision.
+    fn trace_genesis_table_fold_is_unchanged_from_pre_suite_hash_code() {
+        // Load-bearing: this exact digest was computed independently
+        // (sha256 of the documented byte sequence: TRACE_DOMAIN + 3x32
+        // artifact shas + k/n/prompt-len BE u64 + prompt + table_sha(32) +
+        // table_len BE u64, no tag) BEFORE --suite-sha256 existed. Archived
+        // receipts that declare table-sha256 depend on this fold never
+        // changing. If this test ever needs to change, an archived
+        // table-bound receipt has just been broken.
+        let model_sha = [1u8; 32];
+        let embed_sha = [2u8; 32];
+        let vocab_sha = [3u8; 32];
+        let table_sha = [9u8; 32];
+        let g = trace_genesis(
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            3,
+            16,
+            b"hello",
+            Some((&table_sha, 32)),
+            None,
+        );
+        let expected: [u8; 32] = [
+            0x65, 0x0f, 0x2b, 0x11, 0x05, 0x73, 0x60, 0x3f, 0x20, 0x9a, 0x27, 0x43, 0x34, 0xea,
+            0x5c, 0xee, 0x71, 0x23, 0x7e, 0xff, 0xb4, 0xd8, 0xa8, 0x25, 0xb7, 0x59, 0x84, 0x39,
+            0x91, 0xf5, 0x18, 0x01,
+        ];
+        assert_eq!(g, expected, "table-bound genesis fold must not change");
+    }
+
+    #[test]
+    fn trace_genesis_suite_hash_differs_from_table_hash_of_same_bytes() {
+        // Same 32 bytes used as a table hash vs a suite hash fold to
+        // different genesis digests. This is NOT because the table slot is
+        // tagged (it is deliberately untagged, unchanged from before) but
+        // because a suite hash is folded in an additional, later position
+        // (after the table slot, tagged b"SUITE") — a table-only fold and a
+        // suite-only fold of the same bytes cover different byte ranges by
+        // construction and can never collide.
         let model_sha = [1u8; 32];
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
@@ -1572,7 +1613,7 @@ mod tests {
         );
         assert_ne!(
             g_table, g_suite,
-            "a table hash and a suite hash of the same bytes must not collide"
+            "a table-bound genesis and a suite-bound genesis of the same bytes must differ"
         );
     }
 

@@ -198,14 +198,16 @@ across different steps of the same episode.
 
 `gen`/`verify` also accept `--suite-sha256 <64 lowercase hex>` — an
 arbitrary caller-supplied digest (e.g. the sha256 of an external eval
-suite file) folded into the trace genesis under its own domain tag,
-distinct from the table's, so a suite hash can never be mistaken for a
-table hash even given the same 32 bytes. `gen` writes a
-`suite-sha256 <64 hex>` receipt header; `verify` folds that header into
-genesis the same way, and if `--suite-sha256` is also given on the command
-line and disagrees with it, fails with a mismatch error before replay. A
-receipt with no `suite-sha256` header verifies unchanged, with or without
-the flag. See `demo/agent-trace/eval/run_suite.sh` for a real caller.
+suite file) folded into the trace genesis after the table slot, under its
+own `suite-sha256`-specific domain tag. The pre-existing table fold
+(table sha256, then table length) is unchanged, so receipts declaring
+`table-sha256` continue to verify exactly as before this flag existed.
+`gen` writes a `suite-sha256 <64 hex>` receipt header; `verify` folds that
+header into genesis the same way, and if `--suite-sha256` is also given on
+the command line and disagrees with it, fails with a mismatch error before
+replay. A receipt with no `suite-sha256` header verifies unchanged, with
+or without the flag. See `demo/agent-trace/eval/run_suite.sh` for a real
+caller.
 
 ## Prompting note
 

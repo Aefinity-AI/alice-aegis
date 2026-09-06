@@ -96,8 +96,10 @@ Works on a partial `summary.tsv` (fewer rows than the suite/smoke file).
   out to need a code change, that change is a NEEDS item for alice-aegis,
   not something done inside this plan." That code change has since landed:
   `agent_trace gen`/`verify` accept an optional `--suite-sha256 <64hex>`
-  that folds the given 32 bytes into the trace genesis under its own domain
-  tag (distinct from the table's, so the two can never collide) and records
+  that folds the given 32 bytes into the trace genesis after the table
+  slot, under its own domain tag (the pre-existing table fold is
+  byte-for-byte unchanged, so archived table-bound receipts keep
+  verifying) and records
   a `suite-sha256 <64hex>` receipt header. `run_suite.sh` passes
   `--suite-sha256 $(sha256sum "$ITEMS")` to every `gen` and `verify` call,
   so every receipt this harness produces now binds the suite file's hash
