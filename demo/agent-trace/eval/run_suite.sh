@@ -4,7 +4,17 @@
 # append one row per item to <outdir>/summary.tsv.
 #
 # Usage:
-#   run_suite.sh <items.tsv> <outdir> [--template T1|T3] [--bin <agent_trace>] [--limit N]
+#   run_suite.sh <items.tsv> <outdir> [--template T1|T3] [--bin <agent_trace>] [--limit N] [--attest]
+#
+# --attest: after each item's receipt is generated and verified, also runs
+# demo/agent-trace/run.sh attest <receipt> <outdir>/attest/<item_id> (the
+# existing TPM-quote-over-the-full-receipt-digest attestation; see
+# demo/edge-receipt/attest.sh). Never touches an item's verify_result column
+# (attestation is an independent, optional check). Adds an eleventh
+# attest_rc column to summary.tsv (only when --attest is given — without
+# the flag, summary.tsv/RUN.txt/timing.tsv are byte-identical to a run
+# without this flag) and three lines to RUN.txt: attest-requested,
+# attest-count, attest-fail. See eval/README.md.
 #
 # Env:
 #   AEGIS_MODEL / AEGIS_EMBED / AEGIS_VOCAB   — artifact file paths, OR
@@ -41,7 +51,7 @@ ROOT="$(cd "$HERE/../../.." && pwd)"
 TABLE_FILE="$HERE/../tables/demo.tsv"
 
 usage() {
-    echo "usage: run_suite.sh <items.tsv> <outdir> [--template T1|T3] [--bin <agent_trace>] [--limit N]" >&2
+    echo "usage: run_suite.sh <items.tsv> <outdir> [--template T1|T3] [--bin <agent_trace>] [--limit N] [--attest]" >&2
     exit 2
 }
 
@@ -52,6 +62,7 @@ shift 2
 TEMPLATE="T1"
 BIN_OVERRIDE=""
 LIMIT=0
+ATTEST=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -66,6 +77,10 @@ while [ $# -gt 0 ]; do
         --limit)
             LIMIT="${2:?--limit needs an argument}"
             shift 2
+            ;;
+        --attest)
+            ATTEST=1
+            shift
             ;;
         *)
             echo "unknown argument: $1" >&2
@@ -94,6 +109,7 @@ if [ -n "$BIN_OVERRIDE" ]; then
     AGENT_TRACE_BIN="$BIN_OVERRIDE"
 fi
 N="${N:-24}"
+RUN_SH="$ROOT/demo/agent-trace/run.sh"
 
 for f in "$MODEL" "$EMBED" "$VOCAB"; do
     if [ ! -f "$f" ]; then
@@ -109,11 +125,19 @@ if [ ! -f "$TABLE_FILE" ]; then
     echo "missing table file: $TABLE_FILE" >&2
     exit 1
 fi
+if [ "$ATTEST" -eq 1 ] && [ ! -x "$RUN_SH" ]; then
+    echo "--attest given but run.sh not found or not executable: $RUN_SH" >&2
+    exit 1
+fi
 
 mkdir -p "$OUTDIR/receipts" "$OUTDIR/prompts"
+if [ "$ATTEST" -eq 1 ]; then
+    mkdir -p "$OUTDIR/attest"
+fi
 SUMMARY="$OUTDIR/summary.tsv"
 TIMING="$OUTDIR/timing.tsv"
 RUNTXT="$OUTDIR/RUN.txt"
+ATTESTLOG="$OUTDIR/attest.tsv"
 
 sha256_file() { sha256sum "$1" | awk '{print $1}'; }
 
@@ -123,10 +147,17 @@ sha256_file() { sha256sum "$1" | awk '{print $1}'; }
 SUITE_SHA256="$(sha256_file "$ITEMS")"
 
 if [ ! -f "$SUMMARY" ]; then
-    printf 'item_id\tbucket\ttool_expected\ttool_observed\targ_match\toutput_match\ttrace_chain\treceipt_path\tverify_result\tbox\n' > "$SUMMARY"
+    if [ "$ATTEST" -eq 1 ]; then
+        printf 'item_id\tbucket\ttool_expected\ttool_observed\targ_match\toutput_match\ttrace_chain\treceipt_path\tverify_result\tbox\tattest_rc\n' > "$SUMMARY"
+    else
+        printf 'item_id\tbucket\ttool_expected\ttool_observed\targ_match\toutput_match\ttrace_chain\treceipt_path\tverify_result\tbox\n' > "$SUMMARY"
+    fi
 fi
 if [ ! -f "$TIMING" ]; then
     printf 'item_id\tgen_s\tverify_s\n' > "$TIMING"
+fi
+if [ "$ATTEST" -eq 1 ] && [ ! -f "$ATTESTLOG" ]; then
+    printf 'item_id\tattest_rc\n' > "$ATTESTLOG"
 fi
 if [ ! -f "$RUNTXT" ]; then
     {
@@ -332,8 +363,30 @@ print(",".join(one(t) for t in s.split(",")))
         fi
     fi
 
+    # --attest: independent of verify_result — a TPM quote over this
+    # item's own receipt digest (see demo/edge-receipt/attest.sh and
+    # demo/agent-trace/run.sh's cmd_attest), stored under
+    # <outdir>/attest/<item_id>/. Only attempted when gen produced a
+    # receipt at all (gen_ok=1); an attest failure never changes
+    # verify_result above. attest_rc: "skip" (no receipt to attest),
+    # "0" (attest.sh quote succeeded), or the nonzero exit code.
+    attest_rc=""
+    if [ "$ATTEST" -eq 1 ]; then
+        if [ "$gen_ok" -eq 1 ]; then
+            attest_item_dir="$OUTDIR/attest/${item_id}"
+            mkdir -p "$attest_item_dir"
+            attest_status=0
+            "$RUN_SH" attest "$receipt" "$attest_item_dir" \
+                > "$OUTDIR/receipts/${item_id}.attest.out" \
+                2> "$OUTDIR/receipts/${item_id}.attest.err" || attest_status=$?
+            attest_rc="$attest_status"
+        else
+            attest_rc="skip"
+        fi
+    fi
+
     {
-        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
             "$(tsv_field_escape "$item_id")" \
             "$(tsv_field_escape "$bucket")" \
             "$(tsv_field_escape "$exp_tool")" \
@@ -344,11 +397,35 @@ print(",".join(one(t) for t in s.split(",")))
             "$(tsv_field_escape "$receipt")" \
             "$verify_result" \
             "$host"
+        if [ "$ATTEST" -eq 1 ]; then
+            printf '\t%s' "$(tsv_field_escape "$attest_rc")"
+        fi
+        printf '\n'
     } >> "$SUMMARY"
 
     printf '%s\t%s\t%s\n' "$item_id" "$gen_s" "$verify_s" >> "$TIMING"
 
-    echo "item $item_id: gen_ok=$gen_ok verify=$verify_result tool_observed=$tool_observed_norm" >&2
+    if [ "$ATTEST" -eq 1 ]; then
+        printf '%s\t%s\n' "$(tsv_field_escape "$item_id")" "$(tsv_field_escape "$attest_rc")" >> "$ATTESTLOG"
+    fi
+
+    echo "item $item_id: gen_ok=$gen_ok verify=$verify_result tool_observed=$tool_observed_norm attest_rc=${attest_rc:-n/a}" >&2
 done
+
+if [ "$ATTEST" -eq 1 ] && [ -f "$ATTESTLOG" ]; then
+    attest_count="$(tail -n +2 "$ATTESTLOG" | wc -l | tr -d ' ')"
+    attest_fail="$(tail -n +2 "$ATTESTLOG" | awk -F'\t' '$2!="0"{c++} END{print c+0}')"
+    # Idempotent: strip any attest-* lines from a prior invocation of this
+    # script against the same outdir (a resumed run with --attest may run
+    # this block more than once), then append fresh totals covering every
+    # item recorded in $ATTESTLOG so far (not just this invocation's items).
+    grep -v '^attest-\(requested\|count\|fail\) ' "$RUNTXT" > "$RUNTXT.tmp" || true
+    mv "$RUNTXT.tmp" "$RUNTXT"
+    {
+        echo "attest-requested yes"
+        echo "attest-count $attest_count"
+        echo "attest-fail $attest_fail"
+    } >> "$RUNTXT"
+fi
 
 echo "done: wrote/updated $SUMMARY" >&2

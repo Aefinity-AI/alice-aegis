@@ -74,6 +74,50 @@ prompts. `--limit N` caps how many not-yet-done items are run this
 invocation (the run is resumable — items already in `summary.tsv` are
 skipped on a re-run).
 
+## Optional per-item TPM attestation (`--attest`)
+
+```
+./run_suite.sh smoke.tsv /tmp/eval-smoke --attest
+```
+
+With `--attest`, after each item's receipt is generated and verified, the
+runner also calls `demo/agent-trace/run.sh attest <receipt> <outdir>/attest/<item_id>`
+— the same TPM-quote mechanism used by the single-episode demo (see
+`demo/edge-receipt/attest.sh`). Per `attest.sh`'s own doc comment, the quote's
+qualifying data (nonce) is the item's **full** `trace-chain` receipt digest
+(all 64 hex chars / 32 bytes), not a truncated prefix, so the quote binds the
+entire receipt, not just part of it.
+
+What is recorded:
+
+- `<outdir>/attest/<item_id>/` — one directory per item, holding whatever
+  `attest.sh quote` writes there (`ATTEST.txt`, `ak.pem`, `quote.msg`,
+  `quote.sig`, `quote.pcrs`, etc — see `demo/edge-receipt/README.md`/
+  `attest.sh` for the field list).
+- `<outdir>/receipts/<item_id>.attest.out` / `.attest.err` — the `run.sh
+  attest` call's stdout/stderr for that item.
+- `<outdir>/attest.tsv` — `item_id`, `attest_rc` for every attested item
+  (`attest_rc` is `0` on success, a nonzero exit code on failure, or `skip`
+  if the item had no receipt to attest because `gen` itself failed).
+- `<outdir>/summary.tsv` gains an eleventh `attest_rc` column, holding the
+  same value as `attest.tsv` for that item — added **only** when `--attest`
+  is given; without the flag `summary.tsv`'s ten-column layout (and
+  `RUN.txt`/`timing.tsv`) is unchanged from a run without this option, so
+  `score.py` (which reads columns by name) keeps working either way.
+- `<outdir>/RUN.txt` gains three lines, written/refreshed once the whole
+  run's items have been processed (safe to run this more than once against
+  the same `<outdir>`, e.g. on a resumed run):
+  `attest-requested yes`, `attest-count N` (items attested, `skip`s
+  included), `attest-fail M` (items whose `attest_rc` was neither `0` nor
+  absent — i.e. a nonzero exit code; `skip` counts as a fail here since no
+  attestation was produced). These three lines are never written when
+  `--attest` is not given.
+
+An attest failure (missing TPM, `attest.sh` erroring, etc) is independent of
+`agent_trace verify` and never changes an item's `verify_result` column —
+attestation is an optional, additional check layered on top of a receipt
+that already verified (or didn't) on its own.
+
 ## Scoring
 
 ```
