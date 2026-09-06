@@ -24,9 +24,15 @@
 //! output — itself a recorded, deterministic step outcome, not a crash.
 //!
 //! Scanner policy (same for one tool or two): find the earliest starting
-//! occurrence of `CALC(` or `LOOKUP(` in the step's newly decoded text
-//! (never the prompt or earlier steps) and attempt to parse *only* that
-//! occurrence per its own grammar. If it fails to parse, the step is
+//! occurrence of `CALC(` or `LOOKUP(` in the step's newly decoded text and
+//! attempt to parse *only* that occurrence per its own grammar. Exception:
+//! if the step's running prompt (trailing whitespace trimmed) itself ends
+//! with an unclosed `CALC(` or `LOOKUP(` opener — e.g. a suite that primes
+//! the prompt with `"A: CALC("` so the model transcribes only the
+//! arguments — that opener is carried as a scan prefix and the newly
+//! decoded text is scanned as `prefix + decoded_text`, so a continuation
+//! like `"3 + 4)"` closes the call. A prompt with no trailing opener scans
+//! exactly as before (prefix is empty). If it fails to parse, the step is
 //! `no-tool` — the scanner never falls back to a later occurrence or the
 //! other tool. Both tools may appear across one episode (different steps).
 //!
@@ -324,11 +330,35 @@ fn find_tool_call(text: &str, table_present: bool) -> Option<ToolCall<'_>> {
     }
 }
 
-/// Run the tool scanner over one step's decoded text. Deterministic: same
-/// text and table in, same `ToolOutcome` out, always. `table` is `None` for
-/// a table-less episode, in which case `LOOKUP(...)` is never recognized.
-fn run_tool(decoded_text: &str, table: Option<&LookupTable>) -> ToolOutcome {
-    match find_tool_call(decoded_text, table.is_some()) {
+/// If `prompt` (trailing whitespace trimmed) ends with an unclosed `CALC(`
+/// or `LOOKUP(` opener, return that literal opener so the caller can carry
+/// it as a scan prefix for the step's decoded text. Otherwise `""`, which
+/// makes the caller's scan identical to scanning `decoded_text` alone.
+fn prompt_scan_prefix(prompt: &str) -> &'static str {
+    let trimmed = prompt.trim_end();
+    if trimmed.ends_with("CALC(") {
+        "CALC("
+    } else if trimmed.ends_with("LOOKUP(") {
+        "LOOKUP("
+    } else {
+        ""
+    }
+}
+
+/// Run the tool scanner over one step's decoded text, optionally prefixed
+/// by an opener carried over from the prompt (see `prompt_scan_prefix`).
+/// Deterministic: same prefix, text, and table in, same `ToolOutcome` out,
+/// always. `table` is `None` for a table-less episode, in which case
+/// `LOOKUP(...)` is never recognized. `prefix` is `""` in the pre-existing
+/// (no trailing opener) case, so the scan is byte-identical to scanning
+/// `decoded_text` alone.
+fn run_tool(prefix: &str, decoded_text: &str, table: Option<&LookupTable>) -> ToolOutcome {
+    let scanned: std::borrow::Cow<str> = if prefix.is_empty() {
+        std::borrow::Cow::Borrowed(decoded_text)
+    } else {
+        std::borrow::Cow::Owned(format!("{prefix}{decoded_text}"))
+    };
+    match find_tool_call(&scanned, table.is_some()) {
         None => ToolOutcome {
             name: "no-tool",
             input: Vec::new(),
@@ -582,7 +612,8 @@ fn replay_episode(
             n,
         );
         let decoded_text = tokenizer.decode(&toks);
-        let outcome = run_tool(&decoded_text, table);
+        let prefix = prompt_scan_prefix(&prompt);
+        let outcome = run_tool(prefix, &decoded_text, table);
 
         trace_chain = trace_fold_step(
             trace_chain,
@@ -1136,6 +1167,63 @@ mod tests {
         assert!(find_calc("CALC(3 + 4").is_none());
     }
 
+    // --- prompt-side opener prefix (T3: prompt ends "A: CALC(") ---
+
+    #[test]
+    fn prompt_scan_prefix_detects_calc_opener() {
+        assert_eq!(prompt_scan_prefix("Q: 758 + 927\nA: CALC("), "CALC(");
+    }
+
+    #[test]
+    fn prompt_scan_prefix_detects_lookup_opener() {
+        assert_eq!(prompt_scan_prefix("Q: P-100\nA: LOOKUP("), "LOOKUP(");
+    }
+
+    #[test]
+    fn prompt_scan_prefix_ignores_trailing_whitespace() {
+        assert_eq!(prompt_scan_prefix("A: CALC(   \n  "), "CALC(");
+    }
+
+    #[test]
+    fn prompt_scan_prefix_empty_when_no_trailing_opener() {
+        assert_eq!(prompt_scan_prefix("Q: 3 + 4\nA:"), "");
+        assert_eq!(prompt_scan_prefix("CALC(1 + 1) already closed"), "");
+    }
+
+    #[test]
+    fn run_tool_carries_calc_prefix_from_prompt() {
+        // Prompt ended "A: CALC(", model only transcribes the continuation.
+        let o = run_tool("CALC(", "758 + 927). ", None);
+        assert_eq!(o.name, "calc");
+        assert_eq!(o.input, b"CALC(758 + 927)");
+        assert_eq!(o.output, b"1685");
+    }
+
+    #[test]
+    fn run_tool_carries_lookup_prefix_from_prompt() {
+        let mut map = std::collections::HashMap::new();
+        map.insert("P-100".to_string(), "widget".to_string());
+        let t = LookupTable {
+            map,
+            sha256: [0u8; 32],
+            len: 0,
+        };
+        let o = run_tool("LOOKUP(", "P-100) done", Some(&t));
+        assert_eq!(o.name, "lookup");
+        assert_eq!(o.input, b"LOOKUP(P-100)");
+        assert_eq!(o.output, b"widget");
+    }
+
+    #[test]
+    fn run_tool_no_prefix_is_unchanged() {
+        // Empty prefix must behave byte-identically to the pre-existing
+        // (no trailing opener) scan.
+        let with_prefix = run_tool("", "prefix CALC(2 + 2) suffix", None);
+        assert_eq!(with_prefix.name, "calc");
+        assert_eq!(with_prefix.input, b"CALC(2 + 2)");
+        assert_eq!(with_prefix.output, b"4");
+    }
+
     // --- calc eval: checked arithmetic ---
 
     #[test]
@@ -1164,7 +1252,7 @@ mod tests {
 
     #[test]
     fn run_tool_no_match_is_no_tool() {
-        let o = run_tool("plain text", None);
+        let o = run_tool("", "plain text", None);
         assert_eq!(o.name, "no-tool");
         assert!(o.input.is_empty());
         assert!(o.output.is_empty());
@@ -1172,7 +1260,7 @@ mod tests {
 
     #[test]
     fn run_tool_success_is_calc() {
-        let o = run_tool("prefix CALC(2 + 2) suffix", None);
+        let o = run_tool("", "prefix CALC(2 + 2) suffix", None);
         assert_eq!(o.name, "calc");
         assert_eq!(o.input, b"CALC(2 + 2)");
         assert_eq!(o.output, b"4");
@@ -1180,7 +1268,7 @@ mod tests {
 
     #[test]
     fn run_tool_error_is_calc_error() {
-        let o = run_tool("CALC(9 / 0)", None);
+        let o = run_tool("", "CALC(9 / 0)", None);
         assert_eq!(o.name, "calc-error");
         assert_eq!(o.output, b"div-by-zero");
     }
@@ -1352,9 +1440,9 @@ mod tests {
 
     #[test]
     fn tool_result_text_is_deterministic_and_reflects_outcome() {
-        let o = run_tool("CALC(2 + 2)", None);
+        let o = run_tool("", "CALC(2 + 2)", None);
         assert_eq!(tool_result_text(&o), "\nTOOL[calc]=4\n");
-        let o2 = run_tool("no call", None);
+        let o2 = run_tool("", "no call", None);
         assert_eq!(tool_result_text(&o2), "\nTOOL[no-tool]=\n");
     }
 
@@ -1427,7 +1515,7 @@ mod tests {
     #[test]
     fn lookup_hit_returns_table_value() {
         let t = parse_table(&demo_table_bytes()).unwrap();
-        let o = run_tool("please LOOKUP(P-100) now", Some(&t));
+        let o = run_tool("", "please LOOKUP(P-100) now", Some(&t));
         assert_eq!(o.name, "lookup");
         assert_eq!(o.input, b"LOOKUP(P-100)");
         assert_eq!(o.output, b"Gasket, O-ring, fuel line");
@@ -1436,7 +1524,7 @@ mod tests {
     #[test]
     fn lookup_miss_returns_none_literal() {
         let t = parse_table(&demo_table_bytes()).unwrap();
-        let o = run_tool("LOOKUP(P-999)", Some(&t));
+        let o = run_tool("", "LOOKUP(P-999)", Some(&t));
         assert_eq!(o.name, "lookup");
         assert_eq!(o.output, b"NONE");
     }
@@ -1446,7 +1534,7 @@ mod tests {
         // No table present: LOOKUP( text is inert, exactly like any other
         // plain text — this is what keeps a table-less episode identical to
         // the pre-LOOKUP behavior.
-        let o = run_tool("LOOKUP(P-100)", None);
+        let o = run_tool("", "LOOKUP(P-100)", None);
         assert_eq!(o.name, "no-tool");
     }
 
@@ -1467,9 +1555,9 @@ mod tests {
     #[test]
     fn scanner_picks_earliest_of_calc_and_lookup() {
         let t = parse_table(&demo_table_bytes()).unwrap();
-        let o = run_tool("first LOOKUP(P-100) then CALC(1 + 1)", Some(&t));
+        let o = run_tool("", "first LOOKUP(P-100) then CALC(1 + 1)", Some(&t));
         assert_eq!(o.name, "lookup");
-        let o2 = run_tool("first CALC(1 + 1) then LOOKUP(P-100)", Some(&t));
+        let o2 = run_tool("", "first CALC(1 + 1) then LOOKUP(P-100)", Some(&t));
         assert_eq!(o2.name, "calc");
     }
 
@@ -1478,7 +1566,7 @@ mod tests {
         let t = parse_table(&demo_table_bytes()).unwrap();
         // Earliest is an invalid LOOKUP( — scanner must not fall back to the
         // later, valid CALC(...).
-        let o = run_tool("LOOKUP(bad key) then CALC(1 + 1)", Some(&t));
+        let o = run_tool("", "LOOKUP(bad key) then CALC(1 + 1)", Some(&t));
         assert_eq!(o.name, "no-tool");
     }
 

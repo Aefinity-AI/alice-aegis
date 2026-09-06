@@ -35,6 +35,14 @@
 # generalization beyond the plan's literal "same content as T1" wording;
 # logged here as a deviation, not silently decided — see eval/README.md.
 #
+# The prompt-side "CALC(" opener this leaves unclosed is honored by
+# agent_trace's scanner: when a step's running prompt (trailing whitespace
+# trimmed) itself ends with "CALC(" or "LOOKUP(", that opener is carried as
+# a scan prefix over the step's newly decoded text, so the model's
+# continuation (e.g. "758 + 927).") closes the call and is scored natively
+# instead of being missed as tool=NONE. See agent_trace.rs's
+# `prompt_scan_prefix` / `run_tool` and eval/README.md.
+#
 # Resumable: an item_id already present in <outdir>/summary.tsv is skipped.
 # Never aborts the whole run on one item's gen/verify failure — records
 # verify_result FAIL (or a receipt-parse failure) for that item and
