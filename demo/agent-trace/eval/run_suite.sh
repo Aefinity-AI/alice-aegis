@@ -130,14 +130,37 @@ if [ "$ATTEST" -eq 1 ] && [ ! -x "$RUN_SH" ]; then
     exit 1
 fi
 
-mkdir -p "$OUTDIR/receipts" "$OUTDIR/prompts"
-if [ "$ATTEST" -eq 1 ]; then
-    mkdir -p "$OUTDIR/attest"
-fi
 SUMMARY="$OUTDIR/summary.tsv"
 TIMING="$OUTDIR/timing.tsv"
 RUNTXT="$OUTDIR/RUN.txt"
 ATTESTLOG="$OUTDIR/attest.tsv"
+
+SUMMARY_HEADER_NOATTEST='item_id	bucket	tool_expected	tool_observed	arg_match	output_match	trace_chain	receipt_path	verify_result	box'
+SUMMARY_HEADER_ATTEST="${SUMMARY_HEADER_NOATTEST}	attest_rc"
+if [ "$ATTEST" -eq 1 ]; then
+    EXPECTED_SUMMARY_HEADER="$SUMMARY_HEADER_ATTEST"
+else
+    EXPECTED_SUMMARY_HEADER="$SUMMARY_HEADER_NOATTEST"
+fi
+
+# Resuming into an outdir whose existing summary.tsv was produced with a
+# different --attest setting would append rows with a different column
+# count than its own header (a ragged TSV silently corrupting the file).
+# Check before touching anything in $OUTDIR (mkdir included).
+if [ -f "$SUMMARY" ]; then
+    existing_header="$(head -n1 "$SUMMARY")"
+    if [ "$existing_header" != "$EXPECTED_SUMMARY_HEADER" ]; then
+        echo "run_suite.sh: refusing to resume into $OUTDIR: existing summary.tsv header does not match this invocation's --attest setting." >&2
+        echo "  existing header  ($SUMMARY): $existing_header" >&2
+        echo "  this invocation's header : $EXPECTED_SUMMARY_HEADER" >&2
+        exit 2
+    fi
+fi
+
+mkdir -p "$OUTDIR/receipts" "$OUTDIR/prompts"
+if [ "$ATTEST" -eq 1 ]; then
+    mkdir -p "$OUTDIR/attest"
+fi
 
 sha256_file() { sha256sum "$1" | awk '{print $1}'; }
 
@@ -147,11 +170,7 @@ sha256_file() { sha256sum "$1" | awk '{print $1}'; }
 SUITE_SHA256="$(sha256_file "$ITEMS")"
 
 if [ ! -f "$SUMMARY" ]; then
-    if [ "$ATTEST" -eq 1 ]; then
-        printf 'item_id\tbucket\ttool_expected\ttool_observed\targ_match\toutput_match\ttrace_chain\treceipt_path\tverify_result\tbox\tattest_rc\n' > "$SUMMARY"
-    else
-        printf 'item_id\tbucket\ttool_expected\ttool_observed\targ_match\toutput_match\ttrace_chain\treceipt_path\tverify_result\tbox\n' > "$SUMMARY"
-    fi
+    printf '%s\n' "$EXPECTED_SUMMARY_HEADER" > "$SUMMARY"
 fi
 if [ ! -f "$TIMING" ]; then
     printf 'item_id\tgen_s\tverify_s\n' > "$TIMING"

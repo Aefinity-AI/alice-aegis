@@ -113,6 +113,12 @@ What is recorded:
   attestation was produced). These three lines are never written when
   `--attest` is not given.
 
+Resuming into an outdir whose `summary.tsv` was already started with a
+different `--attest` setting (10-column file but `--attest` given now, or
+vice versa) is refused: `run_suite.sh` compares the existing header against
+the one this invocation would use, and exits 2 with a one-line message
+naming the outdir and both headers, before touching anything in `<outdir>`.
+
 An attest failure (missing TPM, `attest.sh` erroring, etc) is independent of
 `agent_trace verify` and never changes an item's `verify_result` column —
 attestation is an optional, additional check layered on top of a receipt
