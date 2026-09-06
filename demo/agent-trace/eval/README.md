@@ -90,19 +90,23 @@ Works on a partial `summary.tsv` (fewer rows than the suite/smoke file).
   uses `/` (truncating toward zero, matching `i64::checked_div`) and `%`
   (remainder with the sign of the dividend, matching `i64::checked_rem`)
   instead of the plan's non-existent `//`.
-- **Suite-hash folding into the receipt.** Plan section 5 notes that
+- **Suite-hash folding into the receipt — DONE.** Plan section 5 noted that
   folding the eval item-suite's own sha256 into the cryptographic trace
   chain (the way `table-sha256` is folded for LOOKUP items) "if... turns
   out to need a code change, that change is a NEEDS item for alice-aegis,
-  not something done inside this plan." No such code change was made here.
-  `RUN.txt` records the suite file's sha256 (see below) but that hash is
-  **not** part of the cryptographic trace-chain digest for CALC-only items
-  — only LOOKUP items fold a hash (the table's) into genesis. A verifier
-  who only has the receipt cannot detect a swapped suite file for a
-  CALC-only item; `RUN.txt` is the out-of-band record for that. If this
-  matters more later, it is a NEEDS item for alice-aegis (extend
-  `trace_genesis` to optionally fold an item-suite hash), not something
-  decided or done by this eval harness.
+  not something done inside this plan." That code change has since landed:
+  `agent_trace gen`/`verify` accept an optional `--suite-sha256 <64hex>`
+  that folds the given 32 bytes into the trace genesis after the table
+  slot, under its own domain tag (the pre-existing table fold is
+  byte-for-byte unchanged, so archived table-bound receipts keep
+  verifying) and records
+  a `suite-sha256 <64hex>` receipt header. `run_suite.sh` passes
+  `--suite-sha256 $(sha256sum "$ITEMS")` to every `gen` and `verify` call,
+  so every receipt this harness produces now binds the suite file's hash
+  into its own cryptographic chain — a receipt generated under a different
+  suite file will not verify unless the same hash is supplied or embedded,
+  for CALC-only items as well as LOOKUP items. `RUN.txt`'s `suite-sha256`
+  line remains as the human-readable out-of-band record.
 - **Mixed-item (K=2) column conventions.** The plan's summary/suite TSV
   formats do not define how a 2-step mixed item's `expected_tool`/
   `tool_observed`/`arg_match`/`output_match` should represent two steps in

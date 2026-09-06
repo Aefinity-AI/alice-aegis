@@ -27,3 +27,10 @@ required-features = ["act_stats"]
 [[example]]
 name = "active_set_digest"
 required-features = ["active_set_digest"]
+
+# agent_trace carries its own #[cfg(test)] suite (fold-order pins, parser
+# rejects, suite-hash tests). Cargo defaults examples to test = false, so
+# without this line `cargo test` (what CI runs) silently skips all of them.
+[[example]]
+name = "agent_trace"
+test = true
