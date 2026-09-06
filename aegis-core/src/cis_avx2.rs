@@ -41,6 +41,16 @@
 //! deinterleaved **once per matvec** and reused across all `dim_out` rows, so
 //! the cost is O(dim_in) against O(dim_out x dim_in) of work.
 //!
+//! Decode is by **nibble**, not by bit-pair: a byte's low nibble packs
+//! bit-pairs 0 and 1, its high nibble packs bit-pairs 2 and 3. Two `pshufb`
+//! lookups against the same nibble (one LUT keyed on the nibble's low
+//! bit-pair, one on its high bit-pair) decode both bit-pairs in that nibble,
+//! so extracting the nibble once (an `and`, or a `srli_epi16` + `and` for the
+//! high nibble) feeds two decodes instead of one. This halves the
+//! shift/mask instruction count of extracting four bit-pairs individually
+//! (3 instructions for both nibbles vs. 8 for four separate `srli_epi16` +
+//! `and` bit-pair extractions) while issuing the same four `pshufb`s.
+//!
 //! Widening is exact at every step: products are in `[-127, 127]`, pair sums
 //! in `[-254, 254]` (i16), quad sums in `[-508, 508]` (i32).
 //!
@@ -70,10 +80,16 @@ const BLOCK_BYTES: usize = 32;
 /// The loop-invariant broadcast vectors, hoisted once per call. Grouped so the
 /// inner step takes a reference rather than four separate register arguments.
 struct Consts {
-    /// code -> value map applied with `pshufb`; `11` is defined-as-zero.
-    code_lut: __m256i,
-    /// isolates the low bit-pair of every byte.
-    pair_mask: __m256i,
+    /// nibble (low 2 bits = bit-pair 0) -> value map applied with `pshufb`;
+    /// `11` is defined-as-zero. Indexed by a whole nibble so one `pshufb`
+    /// decodes bit-pair 0 (or 2) of every byte in a single instruction; see
+    /// `code_lut_hi` for bit-pair 1 (or 3) of the same nibble.
+    code_lut_lo: __m256i,
+    /// nibble -> value map for the *high* bit-pair of the nibble (bit-pair 1
+    /// within the low nibble, bit-pair 3 within the high nibble).
+    code_lut_hi: __m256i,
+    /// isolates the low nibble of every byte.
+    nibble_mask: __m256i,
     /// unsigned 1s, the `maddubs` multiplicand that turns it into a pair-add.
     ones_u8: __m256i,
     /// signed 1s, the `madd` multiplicand that turns it into a quad-add.
@@ -140,20 +156,70 @@ unsafe fn tmv_i8_avx2(
     dim_out: usize,
     n_bytes: usize,
 ) {
-    // code -> value, applied with `pshufb`. Codes are 0..=3; `11` is
-    // defined-as-zero, matching `cis::wcode` and its golden vectors.
+    // Nibble -> two values, applied with `pshufb`. A byte's low nibble packs
+    // bit-pairs 0 and 1; its high nibble packs bit-pairs 2 and 3. Indexing a
+    // 16-entry LUT by the whole nibble decodes one bit-pair per `pshufb`, the
+    // same instruction count as decoding by 2-bit code (`code_lut` in the
+    // prior version of this kernel), but the *nibble extraction* shared by
+    // both LUT lookups costs 3 instructions total (one `and` for the low
+    // nibble, one `srli_epi16` + `and` for the high nibble) versus the prior
+    // per-bit-pair `srli_epi16` + `and` (2 instructions x 4 = 8). Codes are
+    // 0..=3; `11` is defined-as-zero, matching `cis::wcode` and its golden
+    // vectors.
     let c = Consts {
-        code_lut: _mm256_setr_epi8(
-            0, 1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // low 128-bit lane
-            0, 1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // high 128-bit lane
+        // index n -> wcode(n & 0b11): period-4 repeat over the 4-bit index.
+        code_lut_lo: _mm256_setr_epi8(
+            0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, 0, // low 128-bit lane
+            0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, 0, // high 128-bit lane
         ),
-        pair_mask: _mm256_set1_epi8(0b11),
+        // index n -> wcode((n >> 2) & 0b11): four values, each held for 4
+        // consecutive indices.
+        code_lut_hi: _mm256_setr_epi8(
+            0, 0, 0, 0, 1, 1, 1, 1, -1, -1, -1, -1, 0, 0, 0, 0, // low 128-bit lane
+            0, 0, 0, 0, 1, 1, 1, 1, -1, -1, -1, -1, 0, 0, 0, 0, // high 128-bit lane
+        ),
+        nibble_mask: _mm256_set1_epi8(0x0F),
         ones_u8: _mm256_set1_epi8(1),
         ones_i16: _mm256_set1_epi16(1),
     };
 
     let full_blocks = n_bytes / BLOCK_BYTES;
     let tail_start_b = full_blocks * BLOCK_BYTES;
+
+    // Decode all four bit-pairs of `v` at once: `nibble_mask` (bits 0..3)
+    // isolates each byte's own low nibble directly (no cross-byte bleed,
+    // since `and` doesn't shift). For the high nibble, `srli_epi16` shifts
+    // 16-bit lanes right by 4: within one byte this brings bits 4..7 down to
+    // 0..3 (what we want); the bits that shift in from the neighbouring byte
+    // land at position >= 4, which `nibble_mask` discards. Each byte's high
+    // nibble is therefore its own, by the same argument the prior version of
+    // this kernel made for its 2-bit `pair_mask`.
+    //
+    // A nested item does NOT inherit the outer `target_feature`. If this were
+    // ever emitted out of line it would be a featureless fn taking __m256i by
+    // value from an +avx2 caller — the classic AVX ABI mismatch, silently
+    // wrong. It inlines today; after A14 this programme does not rest a
+    // correctness guarantee on that.
+    #[target_feature(enable = "avx2")]
+    unsafe fn decode(v: __m256i, c: &Consts) -> [__m256i; 4] {
+        let lo_nib = _mm256_and_si256(v, c.nibble_mask);
+        let hi_nib = _mm256_and_si256(_mm256_srli_epi16::<4>(v), c.nibble_mask);
+        [
+            _mm256_shuffle_epi8(c.code_lut_lo, lo_nib), // bit-pair 0
+            _mm256_shuffle_epi8(c.code_lut_hi, lo_nib), // bit-pair 1
+            _mm256_shuffle_epi8(c.code_lut_lo, hi_nib), // bit-pair 2
+            _mm256_shuffle_epi8(c.code_lut_hi, hi_nib), // bit-pair 3
+        ]
+    }
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn widen(a: __m256i, w: __m256i, c: &Consts) -> __m256i {
+        // vpsignb IS ternary multiply: +1 -> a, -1 -> -a, 0 -> 0.
+        let prod = _mm256_sign_epi8(a, w);
+        // i8 -> i16 -> i32, exact: |prod| <= 127, |pair| <= 254.
+        let pairs = _mm256_maddubs_epi16(c.ones_u8, prod);
+        _mm256_madd_epi16(pairs, c.ones_i16)
+    }
 
     for (row, out) in output.iter_mut().enumerate().take(dim_out) {
         let w_row = &weights_packed[row * n_bytes..(row + 1) * n_bytes];
@@ -162,43 +228,15 @@ unsafe fn tmv_i8_avx2(
         for blk in 0..full_blocks {
             let b0 = blk * BLOCK_BYTES;
             let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
+            let w = decode(v, &c);
 
-            // Bit-pair k of every byte. `srli_epi16` shifts 16-bit lanes, so
-            // bits from the high byte migrate into the low byte — but only into
-            // positions >= 8 - 2k >= 2, which `pair_mask` (bits 0..1) discards.
-            // Each byte's extracted pair is therefore its own.
-            //
-            // The shift is an instruction immediate, so k must be const: the
-            // four steps are const-generic rather than a runtime loop.
-            // A nested item does NOT inherit the outer `target_feature`. If this
-            // were ever emitted out of line it would be a featureless fn taking
-            // __m256i by value from an +avx2 caller — the classic AVX ABI
-            // mismatch, silently wrong. It inlines today; after A14 this
-            // programme does not rest a correctness guarantee on that.
-            #[target_feature(enable = "avx2")]
-            unsafe fn step<const SHIFT: i32, const K: usize>(
-                v: __m256i,
-                lanes: &[i8],
-                n_bytes: usize,
-                b0: usize,
-                c: &Consts,
-            ) -> __m256i {
-                let codes = _mm256_and_si256(_mm256_srli_epi16::<SHIFT>(v), c.pair_mask);
-                let w = _mm256_shuffle_epi8(c.code_lut, codes);
-                let a = _mm256_loadu_si256(lanes.as_ptr().add(K * n_bytes + b0) as *const __m256i);
-                // vpsignb IS ternary multiply: +1 -> a, -1 -> -a, 0 -> 0.
-                let prod = _mm256_sign_epi8(a, w);
-                // i8 -> i16 -> i32, exact: |prod| <= 127, |pair| <= 254.
-                let pairs = _mm256_maddubs_epi16(c.ones_u8, prod);
-                _mm256_madd_epi16(pairs, c.ones_i16)
+            let mut q = [_mm256_setzero_si256(); 4];
+            for k in 0..4 {
+                let a = _mm256_loadu_si256(lanes.as_ptr().add(k * n_bytes + b0) as *const __m256i);
+                q[k] = widen(a, w[k], &c);
             }
-
-            let q0 = step::<0, 0>(v, lanes, n_bytes, b0, &c);
-            let q1 = step::<2, 1>(v, lanes, n_bytes, b0, &c);
-            let q2 = step::<4, 2>(v, lanes, n_bytes, b0, &c);
-            let q3 = step::<6, 3>(v, lanes, n_bytes, b0, &c);
-            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q0, q1));
-            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q2, q3));
+            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q[0], q[1]));
+            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q[2], q[3]));
         }
 
         // Horizontal sum. Reassociation is exact for integers (see module doc).
