@@ -875,10 +875,22 @@ impl<'m, 'a> CisEngine<'m, 'a> {
 
     /// Leg C1: byte-identical-by-construction ternary matvec dispatch (see
     /// `cis_avx2`/`cis_neon` module docs — both are proven bit-identical to
-    /// `cis::ternary_matvec_i8` and honor its own force-scalar race toggle).
-    /// Only reached when `active_set_digest` is compiled in; the default
-    /// build calls `cis::ternary_matvec_i8` directly, unchanged.
-    #[cfg(feature = "active_set_digest")]
+    /// `cis::ternary_matvec_i8`). Unified 2026-09: the default (no-feature)
+    /// build now takes this same path, not just the `active_set_digest`
+    /// verify build — see state/reports/2026-09-06-VERIFY-TIMING-2B-BOX1.md
+    /// (8/8 suite receipts PASS bit-for-bit at 5.2-5.8x with this dispatch)
+    /// and ledger A44 (AVX2 kernel byte-identical to scalar). Both
+    /// `ternary_matvec_i8_avx2` and `ternary_matvec_i8_neon` do their OWN
+    /// runtime capability check (`ops::simd_on()` / the neon force-scalar
+    /// toggle) and fall back to `cis::ternary_matvec_i8` internally when the
+    /// CPU lacks the ISA, the shape is too small to block, or the `-128`
+    /// hazard is hit — so this function only has to pick the per-arch entry
+    /// point, not re-implement feature detection. Under `scalar_only` we
+    /// skip `cis_avx2` entirely (not merely rely on its internal check) so
+    /// the CIS-1 chain keeps the zero-x86-intrinsics property that feature
+    /// promises. Only the entry point is unconditional now; the
+    /// active-neuron-set recording used for digesting is still gated behind
+    /// `active_set_digest`, unchanged.
     #[inline]
     fn tmv_dispatch(
         output: &mut [i32],
@@ -887,7 +899,11 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         dim_out: usize,
         dim_in: usize,
     ) {
-        #[cfg(target_arch = "x86_64")]
+        #[cfg(all(
+            target_arch = "x86_64",
+            not(target_os = "uefi"),
+            not(feature = "scalar_only")
+        ))]
         {
             crate::cis_avx2::ternary_matvec_i8_avx2(output, input, weights_packed, dim_out, dim_in);
         }
@@ -895,22 +911,17 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         {
             crate::cis_neon::ternary_matvec_i8_neon(output, input, weights_packed, dim_out, dim_in);
         }
-        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        #[cfg(not(any(
+            all(
+                target_arch = "x86_64",
+                not(target_os = "uefi"),
+                not(feature = "scalar_only")
+            ),
+            target_arch = "aarch64"
+        )))]
         {
             crate::cis::ternary_matvec_i8(output, input, weights_packed, dim_out, dim_in);
         }
-    }
-
-    #[cfg(not(feature = "active_set_digest"))]
-    #[inline]
-    fn tmv_dispatch(
-        output: &mut [i32],
-        input: &[i8],
-        weights_packed: &[u8],
-        dim_out: usize,
-        dim_in: usize,
-    ) {
-        crate::cis::ternary_matvec_i8(output, input, weights_packed, dim_out, dim_in);
     }
 
     /// One decode step: token embedding through all layers, integer residual
@@ -1676,5 +1687,37 @@ mod tests {
         assert_eq!(argmax_i64(&[5, 9, 9, 1]), 1);
         assert_eq!(argmax_i64(&[3, 3, 3]), 0);
         assert_eq!(argmax_i64(&[i64::MIN, i64::MIN]), 0);
+    }
+
+    /// `TernaryEngine::tmv_dispatch` is now the single (no-cfg-split)
+    /// dispatch used by every build. It must equal the scalar reference on
+    /// every shape it might route to `cis_avx2`/`cis_neon`, including the
+    /// tail/fallback/-128-hazard shapes those kernels themselves carve out.
+    /// This is deliberately independent of `cis_avx2_equivalence.rs` /
+    /// `cis_neon_equivalence.rs` (which test the kernels directly): this one
+    /// pins the *dispatch function* the inference engine actually calls.
+    #[test]
+    fn tmv_dispatch_matches_scalar_reference() {
+        let mut state = 0xC15_DEED_7C4E_00D1u64.wrapping_add(1);
+        let shapes = [(1usize, 128usize), (3, 132), (5, 260), (7, 64), (2, 4)];
+        for (dim_out, dim_in) in shapes {
+            let n_bytes = dim_in / 4;
+            let mut input = vec![0i8; dim_in];
+            for x in input.iter_mut() {
+                *x = (((lcg_next(&mut state) >> 40) % 255) as i32 - 127) as i8;
+            }
+            let mut weights = vec![0u8; dim_out * n_bytes];
+            for w in weights.iter_mut() {
+                *w = (lcg_next(&mut state) & 0xFF) as u8;
+            }
+            let mut want = vec![0i32; dim_out];
+            let mut got = vec![0i32; dim_out];
+            crate::cis::ternary_matvec_i8(&mut want, &input, &weights, dim_out, dim_in);
+            CisEngine::tmv_dispatch(&mut got, &input, &weights, dim_out, dim_in);
+            assert_eq!(
+                want, got,
+                "tmv_dispatch diverged from scalar reference at dim_out={dim_out} dim_in={dim_in}"
+            );
+        }
     }
 }

@@ -37,12 +37,17 @@ int8_act = []
 # (ReLU^2 activation-sparsity probe). Counting only — no kernel change, no
 # effect on computed values. Allocates per token; OFF by default.
 act_stats = []
-# Leg C1 (2026-08-29 pre-reg, state/reports/2026-08-29-COMPACT-AXIS-PREREG.md):
-# routes CIS-1 FullInt matvecs through the byte-identical-by-construction
-# AVX2/NEON kernels (cis_avx2/cis_neon) instead of calling cis::ternary_matvec_i8
-# directly, and records the per (step, layer) active-neuron set (down_proj
-# input nonzero indices) for cross-ISA / fast-vs-scalar digesting. OFF by
-# default: the default build's call sites and CIS_DECODE digest are untouched.
+# Leg C1 (2026-08-29 pre-reg, state/reports/2026-08-29-COMPACT-AXIS-PREREG.md).
+# Originally this feature also routed CIS-1 FullInt matvecs through the
+# byte-identical-by-construction AVX2/NEON kernels (cis_avx2/cis_neon) instead
+# of calling cis::ternary_matvec_i8 directly. As of 2026-09-06
+# (state/reports/2026-09-06-VERIFY-TIMING-2B-BOX1.md: 8/8 suite receipts PASS
+# bit-for-bit at 5.2-5.8x; ledger A44) that routing is unconditional in
+# CisEngine::tmv_dispatch for every build, default included — this feature no
+# longer controls it. What this feature still gates: recording the per
+# (step, layer) active-neuron set (down_proj input nonzero indices) for
+# cross-ISA / fast-vs-scalar digesting. OFF by default: the default build's
+# call sites and CIS_DECODE digest are untouched by this feature.
 active_set_digest = []
 # E7c (2026-09-03): compile out every #[target_feature(enable = "avx2", ...)]
 # kernel body in ops.rs (and the ops_bitplane/ops_colskip modules entirely —
