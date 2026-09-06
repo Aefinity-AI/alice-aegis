@@ -31,6 +31,11 @@ pub mod witness;
 
 #[cfg(all(target_arch = "x86_64", not(target_os = "uefi")))]
 pub mod cis_avx2;
+// Amdahl-decomposition phase counters (RDTSC/RDTSCP), gated behind
+// `phase-timers`, default OFF. x86_64-only: it uses the same intrinsics as
+// `inference`, which it instruments.
+#[cfg(all(target_arch = "x86_64", feature = "phase-timers"))]
+pub mod phase_timers;
 // aarch64's first earned fast kernel (see doctrine above): NEON CIS-1 TMV,
 // bit-identical to the reference by the same test discipline as cis_avx2.
 #[cfg(target_arch = "aarch64")]
