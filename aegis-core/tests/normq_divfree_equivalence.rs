@@ -6,7 +6,7 @@
 //! codes and `ActScale` are bit-identical to the old u128-division path.
 
 use aegis_core::cis::rne_div;
-use aegis_core::cis_infer::{normq, quantq, ActScale, GQ};
+use aegis_core::cis_infer::{ActScale, GQ, normq, quantq};
 
 // ---------------------------------------------------------------------------
 // Tiny deterministic xorshift64* PRNG (no new crate dependency).

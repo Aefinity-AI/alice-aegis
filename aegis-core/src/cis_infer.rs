@@ -63,7 +63,7 @@ macro_rules! timed_phase {
 use crate::attention::RopeCache;
 use crate::cis::rne_div;
 use crate::cis_attn::{
-    inv_sqrt_q30, relu2_q20, rope_apply_i, silu_q20, softmax_i, ExpLut, RopeTableI,
+    ExpLut, RopeTableI, inv_sqrt_q30, relu2_q20, rope_apply_i, silu_q20, softmax_i,
 };
 use crate::kvcache::KVCache;
 use crate::model::{Activation, FullBitNetPipeline, ModelConfig};
@@ -138,11 +138,7 @@ pub fn bf16_to_fixed(bits: u16, frac: u32) -> i64 {
     } else {
         rne_shr(m, -sh)
     };
-    if neg {
-        -v
-    } else {
-        v
-    }
+    if neg { -v } else { v }
 }
 
 /// Exact f32 → signed fixed-point with `frac` fractional bits, RNE.
@@ -176,11 +172,7 @@ pub fn f32_to_fixed(bits: u32, frac: u32) -> i64 {
     } else {
         rne_div(m as i128, 1i128 << (-sh)) as i64
     };
-    if neg {
-        -v
-    } else {
-        v
-    }
+    if neg { -v } else { v }
 }
 
 /// Exact f32 decomposition: value = (−1)^neg · m · 2^e with m odd (0 → m=0).
@@ -599,11 +591,7 @@ fn dequant_scale_f64(w: &FRatio, s: &ActScale) -> f64 {
         return 0.0;
     }
     let v = (w.m as f64) * (s.num as f64) / (s.den as f64) * exp2_f64(w.e);
-    if w.neg {
-        -v
-    } else {
-        v
-    }
+    if w.neg { -v } else { v }
 }
 
 /// Exact multiplier taking a matvec accumulator onto a Q.`frac` fixed-point
