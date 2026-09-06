@@ -102,6 +102,14 @@ mod phases_report {
         /// deliberately mixes two different call-site kinds (see
         /// `accumulate`'s doc comment).
         static TOKENS: RefCell<u64> = const { RefCell::new(0) };
+        /// `(raw_ticks, pairs)` for `CisModel::new_with_options`'s one-time
+        /// LM-head plane conversion (`headconv`), one pair per `decode_step`
+        /// call (K of them per episode) — see `accumulate_headconv`. Timed
+        /// around the constructor call in `decode_step`, deliberately NOT
+        /// inside any `PhaseCycles`/`Phase::*` slot: that struct's fields are
+        /// engine-owned, per decode step, and headconv happens once, before
+        /// the engine exists.
+        static HEADCONV: RefCell<(u64, u64)> = const { RefCell::new((0, 0)) };
     }
 
     /// Fold one `decode_step` call's engine-owned `PhaseCycles` into the
@@ -118,6 +126,16 @@ mod phases_report {
             acc.total_pairs = acc.total_pairs.wrapping_add(pc.total_pairs);
         });
         TOKENS.with(|t| *t.borrow_mut() += tokens_forward);
+    }
+
+    /// Fold one `CisModel::new_with_options` call's LM-head plane conversion
+    /// span into the process-wide `headconv` total.
+    pub fn accumulate_headconv(ticks: u64) {
+        HEADCONV.with(|c| {
+            let mut c = c.borrow_mut();
+            c.0 = c.0.wrapping_add(ticks);
+            c.1 = c.1.wrapping_add(1);
+        });
     }
 
     /// Calibrate TSC ticks/second against `CLOCK_MONOTONIC` over a >= 200 ms
@@ -157,6 +175,7 @@ mod phases_report {
     pub fn print_table(overhead_total: u64, overhead_mean: f64, tsc_hz: f64) {
         let pc = ACC.with(|acc| *acc.borrow());
         let tokens_forward = TOKENS.with(|t| *t.borrow());
+        let (headconv_raw, headconv_pairs) = HEADCONV.with(|c| *c.borrow());
 
         let named: [(&str, Phase); 7] = [
             ("gemv", Phase::Gemv),
@@ -219,7 +238,35 @@ mod phases_report {
              tsc_hz={tsc_hz:.0} overhead_ticks={overhead_total}",
             pc.total_pairs
         );
+
+        // headconv: the one-time LM-head plane conversion inside
+        // `CisModel::new_with_options`, timed around that call in
+        // `decode_step` — NOT part of `total_ticks`/`total_pairs` above (see
+        // the `HEADCONV` thread_local's doc comment), so it is printed as
+        // its own line rather than folded into the PHASE table's rows or
+        // its `other` bucket.
+        let headconv_ticks = phase_timers::corrected(headconv_raw, headconv_pairs, overhead_mean);
+        let headconv_ms = if tsc_hz > 0.0 {
+            1000.0 * headconv_ticks / tsc_hz
+        } else {
+            0.0
+        };
+        println!("headconv ticks={headconv_ticks:.0} pairs={headconv_pairs} ms={headconv_ms:.1}");
     }
+}
+
+/// `AEGIS_HEAD_PRECONVERT=0` disables the one-time LM-head i16 hi/lo plane
+/// conversion (`CisModel::new_with_options`'s `preconvert_head` argument),
+/// keeping the pre-existing on-the-fly BF16 path unconditionally — an A/B
+/// switch and a tiny-RAM-host escape hatch (the plane representation costs
+/// `+4` bytes per weight over the BF16 table already held in memory). Unset,
+/// or set to anything other than `"0"`, leaves preconversion ON (the
+/// default `CisModel::new` also uses). Read once per `decode_step` call
+/// (cheap; `std::env::var` is not on any hot path here).
+fn head_preconvert_enabled() -> bool {
+    std::env::var("AEGIS_HEAD_PRECONVERT")
+        .map(|v| v != "0")
+        .unwrap_or(true)
 }
 
 fn hex(b: &[u8]) -> String {
@@ -665,7 +712,15 @@ fn decode_step(
     n: usize,
 ) -> (Vec<u32>, [u8; 32]) {
     let pipeline = FullBitNetPipeline::new(tensors, embed_bytes, config).expect("build pipeline");
-    let cis_model = CisModel::new(&pipeline, config).expect("CIS model conversion");
+    #[cfg(feature = "phase-timers")]
+    let __headconv_start = aegis_core::phase_timers::tick_start();
+    let cis_model = CisModel::new_with_options(&pipeline, config, head_preconvert_enabled())
+        .expect("CIS model conversion");
+    #[cfg(feature = "phase-timers")]
+    {
+        let __headconv_end = aegis_core::phase_timers::tick_end();
+        phases_report::accumulate_headconv(__headconv_end.wrapping_sub(__headconv_start));
+    }
     let mut engine = CisEngine::new_with_mode(&cis_model, CisMode::FullInt);
 
     let prompt_ids = tokenizer.encode(prompt);
