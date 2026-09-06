@@ -28,6 +28,9 @@ receipts, summaries, or rate numbers are checked in.
   `agent_trace verify`, writes `<outdir>/summary.tsv`, `<outdir>/RUN.txt`,
   `<outdir>/timing.tsv`, and per-item receipts/prompts. Resumable.
 - `score.py` — reads a `summary.tsv` and prints per-bucket / overall rates
+- `check_verbatim.py` — receipt-only detector for shot-copied or key-snapped
+  tool arguments (step-0 argument must appear verbatim in the last `Q:` line
+  of the receipt's own prompt); `test_check_verbatim.py` is its unittest
   with Wilson 95% intervals, plus the plan's pre-registered red flags.
 
 ## Generating the suite
@@ -131,6 +134,25 @@ python3 score.py /tmp/eval-smoke-m7/summary.tsv
 ```
 
 Works on a partial `summary.tsv` (fewer rows than the suite/smoke file).
+
+## Verbatim-argument check (receipt-only)
+
+```
+python3 check_verbatim.py /tmp/eval-smoke-m7/receipts /tmp/eval-smoke-m7/summary.tsv
+```
+
+Flags every receipt whose step-0 tool argument is not a verbatim substring of
+the last `Q:` line of the receipt's prompt. It reads nothing but the receipt,
+so a verifier can apply it without the suite or the model. On EVAL-60 T1 (2B,
+2026-09-06) it flagged the three lookup near-miss items where the model snapped
+the key to a real one (`p-100` -> `LOOKUP(P-100)`, `Q-205` -> `LOOKUP(P-205)`,
+`part.local` -> `LOOKUP(P-100)`) and the distractor it answered by copying a
+shot (`two + two` -> `CALC(2 + 2)`), with zero false positives on the 47
+correct calls. It is a report, not a gate: exit status is always 0.
+
+Known gap: only step 0 is checked. K>1 receipts record the initial prompt
+only, so a step-1 argument copied from a shot (EVAL-60 T1 `mixed_02`) is not
+visible to this rule until the receipt carries per-step queries.
 
 ## Deviations from the plan (logged, not silent)
 
