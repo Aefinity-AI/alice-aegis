@@ -47,7 +47,9 @@ fn random_lengths_are_bit_identical() {
     // Deliberately mixes lengths that are not multiples of the AVX2 dot's
     // 4-element block, plus the block size itself and the real LM-head
     // hidden size.
-    let lengths = [0usize, 1, 2, 3, 4, 5, 7, 8, 15, 16, 17, 64, 65, 2560];
+    let lengths = [
+        0usize, 1, 2, 3, 4, 5, 7, 8, 15, 16, 17, 64, 65, 255, 256, 257, 511, 512, 513, 2560,
+    ];
     for &n in &lengths {
         let mut state = 0xA1CE_5EED_0000_0100u64 ^ (n as u64);
         let a: Vec<i8> = (0..n).map(|_| random_i8(&mut state)).collect();
@@ -204,5 +206,62 @@ fn matches_bf16_to_fixed_reference_pointwise() {
             let got = dot_i8_bf16q_avx2(&a, &row);
             assert_eq!(want, got, "bits={bits:#06x} exp={exp} man={man}");
         }
+    }
+}
+
+/// `dot_i8_bf16q_avx2_wide`'s own fast-path guard (`-30 <= sh <= 21`, a
+/// narrower window than `dot_i8_bf16q`'s `sh <= 36`) is a private
+/// implementation detail, not part of the public contract — but it must
+/// still be invisible: every one of these rows drives the wide kernel from
+/// squarely inside the guard to just outside it on both ends (sh = 21, 22,
+/// -30, -31), and every row is `WIDE_BLOCK`-aligned (16 elements) so the
+/// wide kernel, not the 4-wide/scalar fallback for short rows, is what's
+/// actually exercised.
+#[test]
+fn wide_kernel_guard_boundary_is_bit_identical() {
+    // sh = exp - 114 for normals (F = 20): sh=21 -> exp=135 (inside),
+    // sh=22 -> exp=136 (just outside, falls back), sh=-30 -> exp=84
+    // (inside), sh=-31 -> exp=83 (just outside, falls back).
+    let edge_exps: [u16; 4] = [135, 136, 84, 83];
+    let mans: [u16; 3] = [0, 1, 0x7F];
+    for &exp in &edge_exps {
+        for &man in &mans {
+            for sign in [0u16, 1] {
+                let bits: u16 = (sign << 15) | (exp << 7) | man;
+                let mut a = vec![0i8; 16];
+                let mut row = vec![0u8; 32];
+                for i in 0..16 {
+                    a[i] = if i % 2 == 0 { 127 } else { -127 };
+                    row[i * 2..i * 2 + 2].copy_from_slice(&bits.to_le_bytes());
+                }
+                assert_dot_identical(&a, &row, &format!("wide guard exp={exp} man={man:#04x}"));
+            }
+        }
+    }
+}
+
+/// The wide kernel's `i32` accumulators (`acc_lo`/`acc_hi`) flush every 256
+/// elements specifically so a per-lane sum of adversarial (maximum
+/// magnitude, alternating-sign) products cannot approach `i32::MAX` — see
+/// `dot_i8_bf16q_avx2_wide`'s doc comment for the exact bound. This drives
+/// every element to the largest magnitude the wide kernel's own fast path
+/// accepts (`sh = 21`, `man = 0x7F`, i.e. `w_q` at its maximum admitted by
+/// the `-30 <= sh <= 21` guard) paired with activations at `i8`'s own
+/// extremes (`-128`/`127`), across enough elements to force multiple
+/// accumulator flushes (`2560` = 10 flushes of `256`, plus a non-flush-
+/// aligned `2561` and a just-past-one-flush `257`).
+#[test]
+fn accumulation_bound_adversarial_rows_are_bit_identical() {
+    let bits_pos: u16 = (135u16 << 7) | 0x7F; // sh=21, man=0x7F, +
+    let bits_neg: u16 = (1u16 << 15) | (135u16 << 7) | 0x7F; // sh=21, man=0x7F, -
+    for &n in &[256usize, 257, 511, 512, 2560, 2561] {
+        let mut a = vec![0i8; n];
+        let mut row = vec![0u8; n * 2];
+        for i in 0..n {
+            a[i] = if i % 2 == 0 { -128 } else { 127 };
+            let bits = if i % 4 < 2 { bits_pos } else { bits_neg };
+            row[i * 2..i * 2 + 2].copy_from_slice(&bits.to_le_bytes());
+        }
+        assert_dot_identical(&a, &row, &format!("adversarial accumulation n={n}"));
     }
 }

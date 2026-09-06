@@ -274,6 +274,10 @@ unsafe fn tmv_i8_avx2(
 /// are load-bearing here, not just a width choice.
 const DOT_BLOCK: usize = 4;
 
+/// Elements consumed per block of the wider, pure-integer LM-head kernel
+/// (`dot_i8_bf16q_avx2_wide`, below `dot_i8_bf16q_avx2_inner`'s module doc).
+const WIDE_BLOCK: usize = 16;
+
 /// AVX2 dot of i8 activations against a BF16 table row, converting each BF16
 /// element to Q.F on the fly. Byte-identical to
 /// [`crate::cis_infer::dot_i8_bf16q`] for every input, falling back to it
@@ -317,17 +321,249 @@ pub fn dot_i8_bf16q_avx2(a: &[i8], row: &[u8]) -> i64 {
     debug_assert_eq!(a.len() * 2, row.len());
     let n = a.len();
 
-    if !crate::ops::simd_on() || n < DOT_BLOCK {
+    if !crate::ops::simd_on() {
         return dot_i8_bf16q(a, row);
     }
 
-    // SAFETY: `simd_on()` confirmed AVX2 is supported and OS-enabled, which
-    // is this function's only CPU precondition. `n >= DOT_BLOCK` holds, and
-    // `dot_i8_bf16q_avx2_inner` bounds every access against `n` and `row`
-    // before dereferencing, falling back to the scalar reference (which
-    // re-validates from scratch) whenever any element fails a precondition
-    // the scalar path would have rejected.
-    unsafe { dot_i8_bf16q_avx2_inner(a, row, n) }
+    if n >= WIDE_BLOCK {
+        // SAFETY: `simd_on()` confirmed AVX2 is supported and OS-enabled,
+        // which is this function's only CPU precondition.
+        // `dot_i8_bf16q_avx2_wide` bounds every access against `n` and
+        // `row` before dereferencing, and falls back to the scalar
+        // reference over the WHOLE original `(a, row)` (not just its own
+        // slice of it) whenever any element fails a precondition the
+        // scalar path would have rejected, so the returned value (and any
+        // panic) is exactly what `dot_i8_bf16q(a, row)` would have
+        // produced. Its own tail (`n % WIDE_BLOCK` elements) is handled by
+        // recursing into this same function on the suffix, which routes to
+        // `dot_i8_bf16q_avx2_inner` or the scalar reference as appropriate;
+        // integer addition is associative, so splitting the sum at any
+        // boundary is exact.
+        return unsafe { dot_i8_bf16q_avx2_wide(a, row, n) };
+    }
+
+    if n >= DOT_BLOCK {
+        // SAFETY: `simd_on()` confirmed AVX2 is supported and OS-enabled, which
+        // is this function's only CPU precondition. `n >= DOT_BLOCK` holds, and
+        // `dot_i8_bf16q_avx2_inner` bounds every access against `n` and `row`
+        // before dereferencing, falling back to the scalar reference (which
+        // re-validates from scratch) whenever any element fails a precondition
+        // the scalar path would have rejected.
+        return unsafe { dot_i8_bf16q_avx2_inner(a, row, n) };
+    }
+
+    dot_i8_bf16q(a, row)
+}
+
+/// # Safety
+/// AVX2 must be supported and OS-enabled (see [`crate::ops::avx2_active`]).
+/// `row` must be `2 * n` bytes and `a` must be `n` elements, with `n >=
+/// WIDE_BLOCK`.
+///
+/// # Method — a 16-wide, pure-integer BF16->Q.F conversion
+///
+/// `dot_i8_bf16q_avx2_inner` (above) widens every BF16 value into a 64-bit
+/// lane because the general conversion can reach ~44 bits (`sh` up to 36).
+/// Real LM-head rows overwhelmingly do not need that headroom: this kernel
+/// takes a narrower conversion (32-bit lanes, 8 BF16 values per `__m256i`)
+/// that is exact whenever `-30 <= sh <= 21`, which keeps `|w_q| < 2^30`
+/// (worst case mantissa `0xFF`: `0xFF << 21 < 2^30`; the right-shift branch
+/// only ever shrinks `m <= 0xFF`, so it is always far inside the bound).
+/// Any BF16 value whose `sh` falls outside that window — including every
+/// inf/nan (`exp == 0xFF` forces `sh = 141`) and every magnitude
+/// `dot_i8_bf16q` itself would reject — is caught by the same `sh` test
+/// (`sh > 21` alone already exceeds `dot_i8_bf16q`'s own `sh <= 36` bound,
+/// so anything that would panic there is routed to the scalar fallback
+/// here, never computed), and the ENTIRE original `(a, row)` — not just
+/// this block — is recomputed by `dot_i8_bf16q` so the returned value or
+/// panic is identical to the scalar reference's.
+///
+/// Once `w_q` (`i32`, `|w_q| < 2^30`) is known for 16 elements (two 8-lane
+/// halves), each is split exactly as `w_q = (w_hi << 15) + w_lo`:
+/// `w_hi = w_q >> 15` (arithmetic, i.e. floor division) and
+/// `w_lo = w_q - (w_hi << 15)`, which is therefore always in `[0, 2^15)`
+/// regardless of `w_q`'s sign (the remainder of a floor division is
+/// nonnegative). Both halves fit `i16` exactly: `|w_q| < 2^30` implies
+/// `w_hi` in `[-2^15, 2^15 - 1]` and `w_lo` in `[0, 2^15 - 1]`.
+///
+/// `w_hi` and `w_lo` (each 2x8 `i32` lanes) are packed to 16 `i16` lanes
+/// with `vpackssdw` (exact, no saturation, by the bound above) plus one
+/// `vpermq` to undo `vpackssdw`'s cross-128-bit-lane interleave, restoring
+/// sequential element order so they line up with the 16 activations loaded
+/// by a single `vpmovsxbw` (`i8` -> `i16`, also sequential order, exact
+/// since every `i8` fits `i16`). `vpmaddwd(w_half, a)` then computes, for
+/// each output lane `k`, `w_half[2k]*a[2k] + w_half[2k+1]*a[2k+1]` exactly
+/// (`i16 * i16 -> i32`, no overflow: `|w_hi| <= 32768`, `|a| <= 127`, one
+/// product `<= 32768*127 = 4,161,536`, a pair sum `<= 8,323,072`, both far
+/// inside `i32`) — this is already a partial dot-product reduction (a
+/// 2-element inner sum), which is fine because the final answer is itself a
+/// sum over all elements, and integer addition is associative.
+///
+/// `acc_lo`/`acc_hi` (`i32`, 8 lanes each) accumulate these per-block
+/// results directly; every 256 elements (16 blocks — comfortably inside the
+/// bound worked out above: 16 additions of a value `<= 8,323,072` per lane
+/// is `<= 133,169,152`, far under `2^31`) they are horizontally summed
+/// (safe in `i32`: summing 8 such lanes is `<= 1,065,353,216 < 2^31`) and
+/// folded into the running `i64` total as `sum_lo + (sum_hi << 15)` — the
+/// promotion to `i64` happens before the `<< 15`, so this step cannot
+/// overflow either. No floating-point instruction appears anywhere in this
+/// kernel (the FullInt property `dot_i8_bf16q_avx2_inner` documents above).
+#[target_feature(enable = "avx2")]
+unsafe fn dot_i8_bf16q_avx2_wide(a: &[i8], row: &[u8], n: usize) -> i64 {
+    let zero = _mm256_setzero_si256();
+
+    // Exact BF16 -> Q.F (i32) conversion, valid only when `-30 <= sh <= 21`
+    // (see the fn-level doc above for the bound). Returns `(w_q,
+    // out_of_range)`; `out_of_range` is an all-ones/all-zeros per-lane mask
+    // (from a `vpcmpgtd`), true in any lane this fast path must not be
+    // trusted for.
+    #[target_feature(enable = "avx2")]
+    unsafe fn wq_i32(bits: __m256i) -> (__m256i, __m256i) {
+        let zero = _mm256_setzero_si256();
+        let one = _mm256_set1_epi32(1);
+        let c_7f = _mm256_set1_epi32(0x7F);
+        let c_80 = _mm256_set1_epi32(0x80);
+        let c_8000 = _mm256_set1_epi32(0x8000);
+        let c_ff = _mm256_set1_epi32(0xFF);
+        let c_134 = _mm256_set1_epi32(134);
+        let c_neg133 = _mm256_set1_epi32(-133);
+        let c_frac = _mm256_set1_epi32(F as i32);
+        let c_sh_hi = _mm256_set1_epi32(21);
+        let c_sh_lo = _mm256_set1_epi32(-30);
+
+        let sign_set = _mm256_cmpgt_epi32(_mm256_and_si256(bits, c_8000), zero);
+        let exp = _mm256_and_si256(_mm256_srli_epi32::<7>(bits), c_ff);
+        let man = _mm256_and_si256(bits, c_7f);
+        let exp_is_zero = _mm256_cmpeq_epi32(exp, zero);
+
+        let man_or_80 = _mm256_or_si256(man, c_80);
+        let m = _mm256_blendv_epi8(man_or_80, man, exp_is_zero);
+        let e_normal = _mm256_sub_epi32(exp, c_134);
+        let e = _mm256_blendv_epi8(e_normal, c_neg133, exp_is_zero);
+        let sh = _mm256_add_epi32(e, c_frac);
+
+        let out_of_range = _mm256_or_si256(
+            _mm256_cmpgt_epi32(sh, c_sh_hi),
+            _mm256_cmpgt_epi32(c_sh_lo, sh),
+        );
+
+        let sh_ge0 = _mm256_cmpgt_epi32(sh, _mm256_set1_epi32(-1));
+
+        // Left-shift branch (sh >= 0): amount clamped to 0 when unused.
+        let shl_amt = _mm256_blendv_epi8(zero, sh, sh_ge0);
+        let left_val = _mm256_sllv_epi32(m, shl_amt);
+
+        // Right-shift (RNE) branch (sh < 0): k = -sh, in `[1, 30]` for any
+        // lane this fast path trusts (the `out_of_range` guard above);
+        // lanes where this branch is unused (sh >= 0, or genuinely
+        // out-of-range) may compute a meaningless `k`, but AVX2's variable
+        // shifts are defined for every count (>= 32 yields 0), so this is
+        // never undefined behaviour — only ever a discarded value.
+        let k = _mm256_sub_epi32(zero, sh);
+        let floor = _mm256_srlv_epi32(m, k);
+        let low_mask = _mm256_sub_epi32(_mm256_sllv_epi32(one, k), one);
+        let rem = _mm256_and_si256(m, low_mask);
+        let half = _mm256_sllv_epi32(one, _mm256_sub_epi32(k, one));
+        let rem_gt_half = _mm256_cmpgt_epi32(rem, half);
+        let rem_eq_half = _mm256_cmpeq_epi32(rem, half);
+        let floor_odd = _mm256_cmpeq_epi32(_mm256_and_si256(floor, one), one);
+        let round_up = _mm256_or_si256(rem_gt_half, _mm256_and_si256(rem_eq_half, floor_odd));
+        let right_val = _mm256_add_epi32(floor, _mm256_blendv_epi8(zero, one, round_up));
+
+        let v_mag = _mm256_blendv_epi8(right_val, left_val, sh_ge0);
+        let v_neg = _mm256_sub_epi32(zero, v_mag);
+        let v = _mm256_blendv_epi8(v_mag, v_neg, sign_set);
+        (v, out_of_range)
+    }
+
+    // Undo `vpackssdw`'s cross-128-bit-lane interleave: `_mm256_packs_epi32(lo,
+    // hi)` yields 64-bit-qword order `[lo.low, hi.low, lo.high, hi.high]`;
+    // permuting qwords `(0, 2, 1, 3)` restores sequential element order.
+    #[target_feature(enable = "avx2")]
+    unsafe fn pack16(lo: __m256i, hi: __m256i) -> __m256i {
+        _mm256_permute4x64_epi64(_mm256_packs_epi32(lo, hi), 0b11_01_10_00)
+    }
+
+    let full_blocks = n / WIDE_BLOCK;
+    let tail_start = full_blocks * WIDE_BLOCK;
+
+    let mut acc_lo = zero;
+    let mut acc_hi = zero;
+    let mut total: i64 = 0;
+    let mut blocks_since_flush: u32 = 0;
+    // Flush before 16 accumulated blocks (256 elements) — see the fn-level
+    // doc for why that bound keeps every lane inside i32.
+    const FLUSH_BLOCKS: u32 = 16;
+
+    macro_rules! flush {
+        () => {{
+            let hsum = |v: __m256i| -> i32 {
+                let lo = _mm256_castsi256_si128(v);
+                let hi = _mm256_extracti128_si256(v, 1);
+                let s = _mm_add_epi32(lo, hi);
+                let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b01_00_11_10));
+                let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b10_11_00_01));
+                _mm_cvtsi128_si32(s)
+            };
+            let sum_lo = hsum(acc_lo) as i64;
+            let sum_hi = hsum(acc_hi) as i64;
+            total += sum_lo + (sum_hi << 15);
+            acc_lo = zero;
+            acc_hi = zero;
+            blocks_since_flush = 0;
+        }};
+    }
+
+    for blk in 0..full_blocks {
+        let base = blk * WIDE_BLOCK;
+
+        let bits0_16 = _mm_loadu_si128(row.as_ptr().add(base * 2) as *const __m128i);
+        let bits0 = _mm256_cvtepu16_epi32(bits0_16);
+        let bits1_16 = _mm_loadu_si128(row.as_ptr().add((base + 8) * 2) as *const __m128i);
+        let bits1 = _mm256_cvtepu16_epi32(bits1_16);
+
+        let (w0, oor0) = wq_i32(bits0);
+        let (w1, oor1) = wq_i32(bits1);
+        let oor = _mm256_or_si256(oor0, oor1);
+        if _mm256_movemask_epi8(oor) != 0 {
+            // Whole ORIGINAL row, not just this block: reproduces
+            // `dot_i8_bf16q`'s value (or panic) exactly.
+            return dot_i8_bf16q(a, row);
+        }
+
+        let w_hi0 = _mm256_srai_epi32::<15>(w0);
+        let w_lo0 = _mm256_sub_epi32(w0, _mm256_slli_epi32::<15>(w_hi0));
+        let w_hi1 = _mm256_srai_epi32::<15>(w1);
+        let w_lo1 = _mm256_sub_epi32(w1, _mm256_slli_epi32::<15>(w_hi1));
+
+        let w_hi = pack16(w_hi0, w_hi1);
+        let w_lo = pack16(w_lo0, w_lo1);
+
+        let act8 = _mm_loadu_si128(a.as_ptr().add(base) as *const __m128i);
+        let act = _mm256_cvtepi8_epi16(act8);
+
+        acc_lo = _mm256_add_epi32(acc_lo, _mm256_madd_epi16(w_lo, act));
+        acc_hi = _mm256_add_epi32(acc_hi, _mm256_madd_epi16(w_hi, act));
+        blocks_since_flush += 1;
+        if blocks_since_flush == FLUSH_BLOCKS {
+            flush!();
+        }
+    }
+    if blocks_since_flush > 0 {
+        flush!();
+    }
+
+    // Tail (`n % WIDE_BLOCK` elements): exact by associativity. Recursing
+    // into the public entry point routes it to `dot_i8_bf16q_avx2_inner` or
+    // the scalar reference as its own length dictates, preserving both the
+    // value and any panic (a panic in the tail is still a panic on the
+    // ORIGINAL `a`/`row` bytes at that position, so its message is
+    // identical regardless of which kernel raises it).
+    if tail_start < n {
+        total += dot_i8_bf16q_avx2(&a[tail_start..], &row[tail_start * 2..]);
+    }
+
+    total
 }
 
 /// # Safety
