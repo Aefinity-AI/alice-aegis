@@ -63,7 +63,7 @@ macro_rules! timed_phase {
 use crate::attention::RopeCache;
 use crate::cis::rne_div;
 use crate::cis_attn::{
-    ExpLut, RopeTableI, inv_sqrt_q30, relu2_q20, rope_apply_i, silu_q20, softmax_i,
+    inv_sqrt_q30, relu2_q20, rope_apply_i, silu_q20, softmax_i, ExpLut, RopeTableI,
 };
 use crate::kvcache::KVCache;
 use crate::model::{Activation, FullBitNetPipeline, ModelConfig};
@@ -138,7 +138,11 @@ pub fn bf16_to_fixed(bits: u16, frac: u32) -> i64 {
     } else {
         rne_shr(m, -sh)
     };
-    if neg { -v } else { v }
+    if neg {
+        -v
+    } else {
+        v
+    }
 }
 
 /// Exact f32 → signed fixed-point with `frac` fractional bits, RNE.
@@ -172,7 +176,11 @@ pub fn f32_to_fixed(bits: u32, frac: u32) -> i64 {
     } else {
         rne_div(m as i128, 1i128 << (-sh)) as i64
     };
-    if neg { -v } else { v }
+    if neg {
+        -v
+    } else {
+        v
+    }
 }
 
 /// Exact f32 decomposition: value = (−1)^neg · m · 2^e with m odd (0 → m=0).
@@ -312,6 +320,21 @@ pub struct ActScale {
     pub den: u128,
 }
 
+/// Round-half-to-even step given an exact floor quotient `q` and exact
+/// remainder `r` (`0 <= r < den`) of `num / den`, i.e. the second half of
+/// what `rne_div` computes — shared here so `normq` and `quantq` can supply
+/// `(q, r)` from a division-free path (or a cheaper narrower division) and
+/// still apply the identical, normative rounding rule.
+#[inline]
+fn rne_round(q: i128, r: i128, den: i128) -> i128 {
+    debug_assert!(den > 0 && r >= 0 && r < den, "rne_round: r out of range");
+    if 2 * r > den || (2 * r == den && q & 1 != 0) {
+        q + 1
+    } else {
+        q
+    }
+}
+
 /// RMSNorm (gain `g`, Q.GQ) followed by per-token absmax quantization onto
 /// the i8 grid, all in exact integer arithmetic.
 ///
@@ -347,9 +370,46 @@ pub fn normq(codes: &mut [i8], h: &[i64], g: &[i32]) -> ActScale {
         }
         return ActScale { num: 0, den: 1 };
     }
+    // Division-free per-element quotient: one i128/u128 reciprocal division
+    // per call (not per element), then a multiply + shift + exact remainder
+    // correction per element, replacing the u128 `rne_div` slow-path division
+    // that otherwise dominates this loop (profiled at ~12% of 2B verify wall
+    // time, ~33M calls/receipt).
+    //
+    // k = bit_length(a) + 8 puts the reciprocal R = floor(2^k / a) in
+    // [2^8, 2^9) (since 2^(k-1) <= 2^k/a's scale... precisely: a in
+    // [2^(bits-1), 2^bits), so 2^k/a in (2^8, 2^9]). For each element,
+    // num = u*127 with |num| <= 127*a < 2^88, so |num*R| < 2^88 * 2^9 =
+    // 2^97, safely inside i128. q_est = (num*R) >> k (arithmetic shift =
+    // floor) satisfies |q_est - floor(num/a)| < 1: R underestimates the
+    // true 2^k/a by less than 1 (integer floor of the division), so the
+    // error introduced is < num/a scaled by (1/2^k), i.e.
+    // < |num| / 2^k <= 127*a/2^k < 127/2^8 < 1. Since the true floor and
+    // q_est are both integers within 1 of each other, at most one
+    // correction step in each direction restores the exact floor quotient
+    // and its exact remainder — verified with a debug_assert below, and
+    // exhaustively against `rne_div` in
+    // aegis-core/tests/normq_divfree_equivalence.rs.
+    let k = (128 - a.leading_zeros() as i32) + 8;
+    let r_recip: i128 = ((1u128 << k) / a as u128) as i128;
     for ((c, &hi), &gi) in codes.iter_mut().zip(h).zip(g) {
         let u = hi as i128 * gi as i128;
-        *c = rne_div(u * 127, a).clamp(-127, 127) as i8;
+        let num = u * 127;
+        let mut q = (num * r_recip) >> k;
+        let mut r = num - q * a;
+        let mut steps: u32 = 0;
+        while r < 0 {
+            q -= 1;
+            r += a;
+            steps += 1;
+        }
+        while r >= a {
+            q += 1;
+            r -= a;
+            steps += 1;
+        }
+        debug_assert!(steps <= 1, "normq: reciprocal estimate off by >1 ULP");
+        *c = rne_round(q, r, a).clamp(-127, 127) as i8;
     }
     let mut s2: u128 = 0;
     for &hi in h {
@@ -385,8 +445,15 @@ pub fn quantq(codes: &mut [i8], h: &[i64], frac: u32) -> ActScale {
         }
         return ActScale { num: 0, den: 1 };
     }
+    // `hi*127` and `a` both fit i64 here (|hi| < 2^50 => |hi*127| < 2^57,
+    // a < 2^50), so a hardware 64/64 division replaces the u128 slow-path
+    // `rne_div` division; the RNE rule itself is unchanged (shared via
+    // `rne_round`).
     for (c, &hi) in codes.iter_mut().zip(h) {
-        *c = rne_div(hi as i128 * 127, a as i128).clamp(-127, 127) as i8;
+        let num = hi * 127;
+        let q = num.div_euclid(a);
+        let r = num.rem_euclid(a);
+        *c = rne_round(q as i128, r as i128, a as i128).clamp(-127, 127) as i8;
     }
     ActScale {
         num: a as u128,
@@ -532,7 +599,11 @@ fn dequant_scale_f64(w: &FRatio, s: &ActScale) -> f64 {
         return 0.0;
     }
     let v = (w.m as f64) * (s.num as f64) / (s.den as f64) * exp2_f64(w.e);
-    if w.neg { -v } else { v }
+    if w.neg {
+        -v
+    } else {
+        v
+    }
 }
 
 /// Exact multiplier taking a matvec accumulator onto a Q.`frac` fixed-point
