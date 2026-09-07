@@ -2179,7 +2179,19 @@ mod tests {
         for _ in 0..2_000 {
             let m = (1u64 << 62) + (lcg_next(&mut state) % (1u64 << 62));
             let e = -1 - (lcg_next(&mut state) % 126) as i32; // -126..=-1
-            let x = lcg_next(&mut state) as i64;
+            // Bound |x| so |x*m| >> (-e) cannot exceed i64 range (with slack
+            // for RNE rounding up by one ULP) — this test is about the
+            // rounding path matching, not the overflow guard, which the
+            // shape of real activations already respects.
+            let shift = (-e) as u32;
+            let bound_i128 = ((i64::MAX as i128 / 2) << shift) / (m as i128);
+            let bound = bound_i128.min(i64::MAX as i128) as i64;
+            let x = if bound == 0 {
+                0i64
+            } else {
+                let range = 2 * bound as i128 + 1;
+                ((lcg_next(&mut state) as i128).rem_euclid(range) - bound as i128) as i64
+            };
             let scale = QScale64 { m, e };
             let p = x as i128 * m as i128;
             let want = if -e >= 127 {
