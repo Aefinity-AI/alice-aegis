@@ -55,7 +55,7 @@ jobs:
         run: |
           B=dist/agent_trace-${{ matrix.target }}
           file "$B"
-          file "$B" | grep -q 'statically linked' || { echo "::error::$B is not statically linked"; exit 1; }
+          file "$B" | grep -Eq 'statically linked|static-pie linked' || { echo "::error::$B is not statically linked"; exit 1; }
           if ldd "$B" 2>&1 | grep -q '=>'; then echo "::error::$B has dynamic dependencies"; ldd "$B"; exit 1; fi
 
       - name: Run the whole demo against the static binary (no cargo at run time)
