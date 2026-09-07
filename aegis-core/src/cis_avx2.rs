@@ -484,7 +484,6 @@ const _: () = assert!((FLUSH_BLOCKS_MM * 2032) < i16::MAX as usize);
 /// `lanes` must be the per-token stride-4 deinterleave of `inputs`
 /// (`n_tok * 4 * n_bytes` long, token `t`'s deinterleave at
 /// `lanes[t*4*n_bytes..]`), and `inputs` must contain no `i8::MIN`.
-#[allow(unused_assignments)]
 #[target_feature(enable = "avx2")]
 unsafe fn tmm_i8_avx2(
     outputs: &mut [i32],
@@ -517,18 +516,6 @@ unsafe fn tmm_i8_avx2(
     let full_blocks = n_bytes / BLOCK_BYTES;
     let tail_start_b = full_blocks * BLOCK_BYTES;
 
-    #[target_feature(enable = "avx2")]
-    unsafe fn decode(v: __m256i, c: &Consts) -> [__m256i; 4] {
-        let lo_nib = _mm256_and_si256(v, c.nibble_mask);
-        let hi_nib = _mm256_and_si256(_mm256_srli_epi16::<4>(v), c.nibble_mask);
-        [
-            _mm256_shuffle_epi8(c.code_lut_lo, lo_nib), // bit-pair 0
-            _mm256_shuffle_epi8(c.code_lut_hi, lo_nib), // bit-pair 1
-            _mm256_shuffle_epi8(c.code_lut_lo, hi_nib), // bit-pair 2
-            _mm256_shuffle_epi8(c.code_lut_hi, hi_nib), // bit-pair 3
-        ]
-    }
-
     // Per-token `sum_a` (v3b offset-identity correction, see
     // `tmv_i8_avx2`): computed once per call, over exactly the
     // block-covered activation range for that token.
@@ -541,87 +528,257 @@ unsafe fn tmm_i8_avx2(
             .sum();
     }
 
+    // Dispatch each tile to a MONOMORPHIC `tmm_tile::<M>` instantiation
+    // (`M` a compile-time constant, not the runtime `tile_len` the old
+    // single generic-length body used). This matters: with a runtime
+    // bound, `[__m256i; TOK_TILE]` accumulator arrays can't be proven to
+    // stay in registers across the block loop (LLVM can't unroll a
+    // runtime-trip-count inner loop over 8 array slots), so they spill to
+    // the stack and every token-block does load+add+store instead of a
+    // register add — silently defeating the whole point of decoding a
+    // block once per tile. A `const M` per call site lets LLVM unroll
+    // `for ti in 0..M` fully and keep all M accumulators in ymm registers
+    // for the instantiation's whole lifetime.
     let mut tile_start = 0usize;
     while tile_start < n_tok {
         let tile_len = (n_tok - tile_start).min(TOK_TILE);
+        match tile_len {
+            8 => tmm_tile::<8>(
+                outputs,
+                inputs,
+                lanes,
+                weights_packed,
+                dim_out,
+                n_bytes,
+                tile_start,
+                &sum_a,
+                &c,
+                full_blocks,
+                tail_start_b,
+                dim_in,
+            ),
+            7 => tmm_tile::<7>(
+                outputs,
+                inputs,
+                lanes,
+                weights_packed,
+                dim_out,
+                n_bytes,
+                tile_start,
+                &sum_a,
+                &c,
+                full_blocks,
+                tail_start_b,
+                dim_in,
+            ),
+            6 => tmm_tile::<6>(
+                outputs,
+                inputs,
+                lanes,
+                weights_packed,
+                dim_out,
+                n_bytes,
+                tile_start,
+                &sum_a,
+                &c,
+                full_blocks,
+                tail_start_b,
+                dim_in,
+            ),
+            5 => tmm_tile::<5>(
+                outputs,
+                inputs,
+                lanes,
+                weights_packed,
+                dim_out,
+                n_bytes,
+                tile_start,
+                &sum_a,
+                &c,
+                full_blocks,
+                tail_start_b,
+                dim_in,
+            ),
+            4 => tmm_tile::<4>(
+                outputs,
+                inputs,
+                lanes,
+                weights_packed,
+                dim_out,
+                n_bytes,
+                tile_start,
+                &sum_a,
+                &c,
+                full_blocks,
+                tail_start_b,
+                dim_in,
+            ),
+            3 => tmm_tile::<3>(
+                outputs,
+                inputs,
+                lanes,
+                weights_packed,
+                dim_out,
+                n_bytes,
+                tile_start,
+                &sum_a,
+                &c,
+                full_blocks,
+                tail_start_b,
+                dim_in,
+            ),
+            2 => tmm_tile::<2>(
+                outputs,
+                inputs,
+                lanes,
+                weights_packed,
+                dim_out,
+                n_bytes,
+                tile_start,
+                &sum_a,
+                &c,
+                full_blocks,
+                tail_start_b,
+                dim_in,
+            ),
+            1 => tmm_tile::<1>(
+                outputs,
+                inputs,
+                lanes,
+                weights_packed,
+                dim_out,
+                n_bytes,
+                tile_start,
+                &sum_a,
+                &c,
+                full_blocks,
+                tail_start_b,
+                dim_in,
+            ),
+            _ => unreachable!("tile_len in 1..=TOK_TILE(8)"),
+        }
+        tile_start += tile_len;
+    }
+}
 
-        for row in 0..dim_out {
-            let w_row = &weights_packed[row * n_bytes..(row + 1) * n_bytes];
-            let mut acc32 = [_mm256_setzero_si256(); TOK_TILE];
-            let mut acc16 = [_mm256_setzero_si256(); TOK_TILE];
-            let mut blocks_since_flush = 0usize;
+/// Nibble/pshufb decode of one 32-byte packed-weight block into its 4
+/// offset-code (`u = w+1 in {0,1,2}`) lane vectors. Shared by
+/// [`tmm_tile`]; textually independent from `tmv_i8_avx2`'s own copy on
+/// purpose (see `tmm_i8_avx2`'s doc).
+#[target_feature(enable = "avx2")]
+unsafe fn decode(v: __m256i, c: &Consts) -> [__m256i; 4] {
+    let lo_nib = _mm256_and_si256(v, c.nibble_mask);
+    let hi_nib = _mm256_and_si256(_mm256_srli_epi16::<4>(v), c.nibble_mask);
+    [
+        _mm256_shuffle_epi8(c.code_lut_lo, lo_nib), // bit-pair 0
+        _mm256_shuffle_epi8(c.code_lut_hi, lo_nib), // bit-pair 1
+        _mm256_shuffle_epi8(c.code_lut_lo, hi_nib), // bit-pair 2
+        _mm256_shuffle_epi8(c.code_lut_hi, hi_nib), // bit-pair 3
+    ]
+}
 
-            // Widens every active tile slot's i16 accumulator into i32 and
-            // resets it; safe on an empty run, so it doubles as the
-            // periodic flush and the final one after the block loop.
-            macro_rules! flush {
-                () => {
-                    for ti in 0..tile_len {
-                        acc32[ti] =
-                            _mm256_add_epi32(acc32[ti], _mm256_madd_epi16(acc16[ti], c.ones_i16));
-                        acc16[ti] = _mm256_setzero_si256();
-                    }
-                    blocks_since_flush = 0;
-                };
-            }
+/// One `M`-token tile (`M` a compile-time constant in `1..=TOK_TILE`),
+/// every `dim_out` row of it. `M` monomorphizes the accumulator arrays
+/// (`[__m256i; M]`) and their loops (`for ti in 0..M`) so LLVM can keep
+/// all `M` token accumulators live in ymm registers across the whole
+/// block loop instead of spilling a runtime-length array to the stack —
+/// see the dispatch comment in `tmm_i8_avx2`.
+///
+/// # Safety
+/// Same contract as `tmm_i8_avx2`: AVX2 must be OS-enabled; `lanes` must
+/// be `tmm_i8_avx2`'s per-token stride-4 deinterleave of `inputs`;
+/// `inputs` must contain no `i8::MIN`; `tile_start + M <= n_tok` (the
+/// token count implicit in `sum_a`'s length and `lanes`'s layout).
+#[allow(clippy::too_many_arguments, unused_assignments)]
+#[target_feature(enable = "avx2")]
+unsafe fn tmm_tile<const M: usize>(
+    outputs: &mut [i32],
+    inputs: &[i8],
+    lanes: &[i8],
+    weights_packed: &[u8],
+    dim_out: usize,
+    n_bytes: usize,
+    tile_start: usize,
+    sum_a: &[i32],
+    c: &Consts,
+    full_blocks: usize,
+    tail_start_b: usize,
+    dim_in: usize,
+) {
+    for row in 0..dim_out {
+        let w_row = &weights_packed[row * n_bytes..(row + 1) * n_bytes];
+        let mut acc32 = [_mm256_setzero_si256(); M];
+        let mut acc16 = [_mm256_setzero_si256(); M];
+        let mut blocks_since_flush = 0usize;
 
-            for blk in 0..full_blocks {
-                let b0 = blk * BLOCK_BYTES;
-                let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
-                let w = decode(v, &c);
-
-                for ti in 0..tile_len {
-                    let tok = tile_start + ti;
-                    let lane_base = tok * 4 * n_bytes;
-                    let mut pk = [_mm256_setzero_si256(); 4];
-                    for (k, pkk) in pk.iter_mut().enumerate() {
-                        let a = _mm256_loadu_si256(
-                            lanes.as_ptr().add(lane_base + k * n_bytes + b0) as *const __m256i,
-                        );
-                        *pkk = _mm256_maddubs_epi16(w[k], a);
-                    }
-                    // 3 adds folding the 4 lane pair-sums into one, then 1
-                    // more into the per-token i16 accumulator.
-                    let s01 = _mm256_add_epi16(pk[0], pk[1]);
-                    let s23 = _mm256_add_epi16(pk[2], pk[3]);
-                    let pair = _mm256_add_epi16(s01, s23);
-                    acc16[ti] = _mm256_add_epi16(acc16[ti], pair);
+        // Widens every tile slot's i16 accumulator into i32 and resets
+        // it; safe on an empty run, so it doubles as the periodic flush
+        // and the final one after the block loop.
+        macro_rules! flush {
+            () => {
+                for ti in 0..M {
+                    acc32[ti] =
+                        _mm256_add_epi32(acc32[ti], _mm256_madd_epi16(acc16[ti], c.ones_i16));
+                    acc16[ti] = _mm256_setzero_si256();
                 }
-                blocks_since_flush += 1;
-                if blocks_since_flush == FLUSH_BLOCKS_MM {
-                    flush!();
-                }
-            }
-            flush!();
-
-            for ti in 0..tile_len {
-                let tok = tile_start + ti;
-                let lo = _mm256_castsi256_si128(acc32[ti]);
-                let hi = _mm256_extracti128_si256(acc32[ti], 1);
-                let s = _mm_add_epi32(lo, hi);
-                let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b01_00_11_10));
-                let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b10_11_00_01));
-                let mut total = _mm_cvtsi128_si32(s) - sum_a[tok];
-
-                // Tail bytes, in the reference's own arithmetic.
-                for (off, &b) in w_row[tail_start_b..n_bytes].iter().enumerate() {
-                    let base = 4 * (tail_start_b + off);
-                    for k in 0..4 {
-                        let code = (b >> (2 * k)) & 0b11;
-                        let wv: i32 = match code {
-                            1 => 1,
-                            2 => -1,
-                            _ => 0,
-                        };
-                        total += wv * inputs[tok * dim_in + base + k] as i32;
-                    }
-                }
-
-                outputs[tok * dim_out + row] = total;
-            }
+                blocks_since_flush = 0;
+            };
         }
 
-        tile_start += tile_len;
+        for blk in 0..full_blocks {
+            let b0 = blk * BLOCK_BYTES;
+            let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
+            let w = decode(v, c);
+
+            for ti in 0..M {
+                let tok = tile_start + ti;
+                let lane_base = tok * 4 * n_bytes;
+                let mut pk = [_mm256_setzero_si256(); 4];
+                for (k, pkk) in pk.iter_mut().enumerate() {
+                    let a = _mm256_loadu_si256(
+                        lanes.as_ptr().add(lane_base + k * n_bytes + b0) as *const __m256i
+                    );
+                    *pkk = _mm256_maddubs_epi16(w[k], a);
+                }
+                // 3 adds folding the 4 lane pair-sums into one, then 1
+                // more into the per-token i16 accumulator.
+                let s01 = _mm256_add_epi16(pk[0], pk[1]);
+                let s23 = _mm256_add_epi16(pk[2], pk[3]);
+                let pair = _mm256_add_epi16(s01, s23);
+                acc16[ti] = _mm256_add_epi16(acc16[ti], pair);
+            }
+            blocks_since_flush += 1;
+            if blocks_since_flush == FLUSH_BLOCKS_MM {
+                flush!();
+            }
+        }
+        flush!();
+
+        for ti in 0..M {
+            let tok = tile_start + ti;
+            let lo = _mm256_castsi256_si128(acc32[ti]);
+            let hi = _mm256_extracti128_si256(acc32[ti], 1);
+            let s = _mm_add_epi32(lo, hi);
+            let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b01_00_11_10));
+            let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b10_11_00_01));
+            let mut total = _mm_cvtsi128_si32(s) - sum_a[tok];
+
+            // Tail bytes, in the reference's own arithmetic.
+            for (off, &b) in w_row[tail_start_b..n_bytes].iter().enumerate() {
+                let base = 4 * (tail_start_b + off);
+                for k in 0..4 {
+                    let code = (b >> (2 * k)) & 0b11;
+                    let wv: i32 = match code {
+                        1 => 1,
+                        2 => -1,
+                        _ => 0,
+                    };
+                    total += wv * inputs[tok * dim_in + base + k] as i32;
+                }
+            }
+
+            outputs[tok * dim_out + row] = total;
+        }
     }
 }
 

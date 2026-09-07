@@ -598,3 +598,89 @@ fn matmul_extremes() {
         );
     }
 }
+
+// ---------------------------------------------------------------------
+// Kernel microbench: tmm_8tok vs 8x tmv (ignored by default; run with
+// `cargo test --release ... -- --ignored --nocapture bench_tmm_vs_tmv`).
+// Shape is one real MLP up-projection (dim_out=6912, dim_in=2560,
+// BitNet-2B scale). Not a correctness test — the equality check inside
+// it is a sanity guard, not the point; the point is the printed
+// BENCH line, which is the raw log this PR's A/B claims are read from
+// (see the PR body's finding section).
+// ---------------------------------------------------------------------
+#[test]
+#[ignore]
+fn bench_tmm_vs_tmv() {
+    use std::time::Instant;
+
+    const DIM_OUT: usize = 6912;
+    const DIM_IN: usize = 2560;
+    const N_TOK: usize = 8;
+    const REPS: usize = 10;
+
+    let mut rng = Rng(0xB1E2_C3A4_D5F6_9788);
+    let n_bytes = packed_len(1, DIM_IN); // packed bytes per row (dim_out=1 trick)
+    let weights: Vec<u8> = (0..DIM_OUT * n_bytes)
+        .map(|_| (rng.next() & 0xFF) as u8)
+        .collect();
+    let inputs: Vec<i8> = (0..N_TOK * DIM_IN)
+        .map(|_| {
+            // Avoid i8::MIN so this measures the fast path, not the
+            // whole-call scalar fallback.
+            let v = (rng.next() & 0xFF) as i8;
+            if v == i8::MIN { 0 } else { v }
+        })
+        .collect();
+
+    // Correctness sanity: batched matmul must equal 8 independent matvecs.
+    let mut got_mm = vec![0i32; N_TOK * DIM_OUT];
+    ternary_matmul_i8_avx2(&mut got_mm, &inputs, &weights, DIM_OUT, DIM_IN, N_TOK);
+    let mut got_mv = vec![0i32; N_TOK * DIM_OUT];
+    for t in 0..N_TOK {
+        ternary_matvec_i8_avx2(
+            &mut got_mv[t * DIM_OUT..(t + 1) * DIM_OUT],
+            &inputs[t * DIM_IN..(t + 1) * DIM_IN],
+            &weights,
+            DIM_OUT,
+            DIM_IN,
+        );
+    }
+    assert_eq!(got_mm, got_mv, "bench_tmm_vs_tmv: outputs diverged");
+
+    // Time REPS reps of each, timing the SAME shape/data both ways.
+    let mut out_mm = vec![0i32; N_TOK * DIM_OUT];
+    let t0 = Instant::now();
+    for _ in 0..REPS {
+        ternary_matmul_i8_avx2(&mut out_mm, &inputs, &weights, DIM_OUT, DIM_IN, N_TOK);
+    }
+    let tmm_ms = t0.elapsed().as_secs_f64() * 1000.0;
+
+    let mut out_mv = vec![0i32; DIM_OUT];
+    let t1 = Instant::now();
+    for _ in 0..REPS {
+        for t in 0..N_TOK {
+            ternary_matvec_i8_avx2(
+                &mut out_mv,
+                &inputs[t * DIM_IN..(t + 1) * DIM_IN],
+                &weights,
+                DIM_OUT,
+                DIM_IN,
+            );
+        }
+    }
+    let tmv_ms = t1.elapsed().as_secs_f64() * 1000.0;
+
+    // Bytes of packed weight streamed: tmm decodes each block ONCE for
+    // the whole 8-token tile (n_bytes*DIM_OUT total, once); tmv decodes
+    // it fresh for every one of the 8 independent matvec calls
+    // (n_bytes*DIM_OUT*N_TOK total) — this is the traffic difference the
+    // kernel exists to remove.
+    let weight_bytes = (DIM_OUT * n_bytes) as f64;
+    let tmm_gbps = (weight_bytes * REPS as f64) / (tmm_ms / 1000.0) / 1e9;
+    let tmv_gbps = (weight_bytes * N_TOK as f64 * REPS as f64) / (tmv_ms / 1000.0) / 1e9;
+    let speedup = tmv_ms / tmm_ms;
+
+    println!(
+        "BENCH tmm_8tok_ms={tmm_ms:.3} tmv_8x_ms={tmv_ms:.3} speedup={speedup:.3} tmm_gbps={tmm_gbps:.2} tmv_gbps={tmv_gbps:.2}"
+    );
+}
