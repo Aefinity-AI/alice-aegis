@@ -51,21 +51,39 @@
 //! (3 instructions for both nibbles vs. 8 for four separate `srli_epi16` +
 //! `and` bit-pair extractions) while issuing the same four `pshufb`s.
 //!
-//! Widening is exact at every step: products are in `[-127, 127]`, pair sums
-//! in `[-254, 254]` (i16). `tmv_i8_avx2` (v3) accumulates up to `FLUSH_BLOCKS`
-//! pair sums per i16 lane before widening to i32 — `FLUSH_BLOCKS * 254 <
-//! i16::MAX` is asserted at compile time, so the i16 accumulator can never
-//! overflow.
+//! Widening is exact at every step. **v3b** decodes weights offset by one,
+//! `u = w + 1 in {0, 1, 2}` (u8), instead of `w in {-1, 0, +1}` (i8). Since
+//! `sum_j u_j * a_j = sum_j w_j * a_j + sum_j a_j`, the dot product is
+//! `acc - sum_a`, where `sum_a` (the sum of activations over the full-block
+//! range) is computed once per call and subtracted once per row after the
+//! horizontal sum. This lets `vpmaddubsw(u, a)` compute the pair sum directly
+//! (`u` unsigned, `a` signed — exactly the operand types `vpmaddubsw`
+//! requires) with **no `vpsignb` negate step**: on Broadwell `vpsignb`,
+//! `vpmaddubsw`, and `vpsrlw` are all port-0-only, so removing `vpsignb` drops
+//! 4 port-0 uops per block (9 -> 5 per 32-byte block; ~20 vs ~24 total).
+//!
+//! Products are now `u * a` with `u in [0, 2]`, `a in [-127, 127]`, so
+//! `|u * a| <= 2 * 127 = 254` and a pair sum is in `[-508, 508]` (i16) — twice
+//! the old bound (`vpmaddubsw` itself only saturates past `+-32767`, so no
+//! individual pair sum can saturate). `tmv_i8_avx2` (v3b) accumulates up to
+//! `FLUSH_BLOCKS` pair sums per i16 lane before widening to i32 —
+//! `FLUSH_BLOCKS * 508 < i16::MAX` is asserted at compile time, so the i16
+//! accumulator can never overflow.
+//!
+//! This offset identity is exact and order-independent (integer addition
+//! associates), so `tmv_i8_avx2` remains bit-identical to the scalar
+//! reference for every legal input — same guarantee as v3, cheaper kernel.
 //!
 //! # The `-128` hazard, handled rather than documented away
 //!
-//! `vpsignb` negates within i8, so `-(-128)` wraps to `-128`; the scalar
-//! reference computes in i32 and yields `+128`. CIS-1 forbids `-128` by
-//! construction (`quantize_activations_i32` clamps to `|q| <= 127`), but a
-//! kernel whose entire value is bit-exactness must not be *conditionally*
-//! bit-exact. The deinterleave pass — which already touches every activation —
-//! detects any `-128` and routes the whole call to the scalar reference. The
-//! guarantee is therefore unconditional for every possible input.
+//! v3b has no negate step, so `u * (-128) in {0, -128, -256}` is exact with no
+//! wraparound hazard on its own. The `-128` guard is kept anyway (scope
+//! discipline: this change is the offset-weight identity, not a re-audit of
+//! the hazard path) — CIS-1 forbids `-128` by construction
+//! (`quantize_activations_i32` clamps to `|q| <= 127`), and the deinterleave
+//! pass, which already touches every activation, detects any `-128` and
+//! routes the whole call to the scalar reference regardless. A follow-up
+//! could drop this fallback now that it is provably unnecessary here.
 
 // Matches `ops.rs`: the AVX2 kernels in this crate carry their preconditions in
 // a `# Safety` section on the function rather than per-intrinsic blocks. Every
@@ -93,8 +111,6 @@ struct Consts {
     code_lut_hi: __m256i,
     /// isolates the low nibble of every byte.
     nibble_mask: __m256i,
-    /// unsigned 1s, the `maddubs` multiplicand that turns it into a pair-add.
-    ones_u8: __m256i,
     /// signed 1s, the `madd` multiplicand that turns it into a quad-add.
     ones_i16: __m256i,
 }
@@ -176,24 +192,33 @@ unsafe fn tmv_i8_avx2(
     // 0..=3; `11` is defined-as-zero, matching `cis::wcode` and its golden
     // vectors.
     let c = Consts {
-        // index n -> wcode(n & 0b11): period-4 repeat over the 4-bit index.
+        // index n -> wcode(n & 0b11) + 1: period-4 repeat over the 4-bit
+        // index, offset by one so the decoded value is the unsigned
+        // `u = w + 1 in {0, 1, 2}` v3b's `vpmaddubsw` consumes directly (code
+        // 1 -> 2, code 2 -> 0, codes 0 and 3 -> 1; `11` is still
+        // defined-as-zero, i.e. `u = 1`).
         code_lut_lo: _mm256_setr_epi8(
-            0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, 0, // low 128-bit lane
-            0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, 0, 0, 1, -1, 0, // high 128-bit lane
+            1, 2, 0, 1, 1, 2, 0, 1, 1, 2, 0, 1, 1, 2, 0, 1, // low 128-bit lane
+            1, 2, 0, 1, 1, 2, 0, 1, 1, 2, 0, 1, 1, 2, 0, 1, // high 128-bit lane
         ),
-        // index n -> wcode((n >> 2) & 0b11): four values, each held for 4
-        // consecutive indices.
+        // index n -> wcode((n >> 2) & 0b11) + 1: four values, each held for 4
+        // consecutive indices, offset by one exactly as `code_lut_lo` above.
         code_lut_hi: _mm256_setr_epi8(
-            0, 0, 0, 0, 1, 1, 1, 1, -1, -1, -1, -1, 0, 0, 0, 0, // low 128-bit lane
-            0, 0, 0, 0, 1, 1, 1, 1, -1, -1, -1, -1, 0, 0, 0, 0, // high 128-bit lane
+            1, 1, 1, 1, 2, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, // low 128-bit lane
+            1, 1, 1, 1, 2, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, // high 128-bit lane
         ),
         nibble_mask: _mm256_set1_epi8(0x0F),
-        ones_u8: _mm256_set1_epi8(1),
         ones_i16: _mm256_set1_epi16(1),
     };
 
     let full_blocks = n_bytes / BLOCK_BYTES;
     let tail_start_b = full_blocks * BLOCK_BYTES;
+
+    // v3b offset identity: sum_j u_j * a_j = sum_j w_j * a_j + sum_j a_j, so
+    // dot = acc - sum_a. `sum_a` runs over exactly the activations the block
+    // loop below covers (elements `0..4*tail_start_b`); the tail loop below
+    // is unaffected (it uses `w` directly, not `u`).
+    let sum_a: i32 = input[0..4 * tail_start_b].iter().map(|&x| x as i32).sum();
 
     // Decode all four bit-pairs of `v` at once: `nibble_mask` (bits 0..3)
     // isolates each byte's own low nibble directly (no cross-byte bleed,
@@ -221,28 +246,38 @@ unsafe fn tmv_i8_avx2(
         ]
     }
 
-    // v3: widen once per row instead of once per block. `vpsignb` +
-    // `vpmaddubsw` (both port 0 on Broadwell) are the only per-k, per-block
-    // work now; the old third per-k, per-block port-0 op (`vpmaddwd` widening
-    // straight to i32) is replaced by an i16 `vpaddw` (port 1/5, not port 0)
-    // accumulating four independent pair-sum lanes (one per `k`, so the four
-    // add chains have no cross-iteration dependency). This is 8 port-0 uops
-    // per block instead of 12.
+    // v3b: widen once per row instead of once per block, same as v3, but with
+    // no `vpsignb` negate step at all. `decode` now yields the *offset*
+    // weight `u = w + 1 in {0, 1, 2}` (unsigned) directly, so `pair_sum` is a
+    // single `vpmaddubsw(u, a)` — `u` unsigned, `a` signed, exactly the
+    // operand types the instruction wants — computing
+    // `u0*a0 + u1*a1 = (w0+1)*a0 + (w1+1)*a1` per adjacent pair. Per block
+    // this is 1 activation load + 1 `vpmaddubsw` + 1 `vpaddw`
+    // (`vpaddw` is port 1/5, not port 0): only `vpmaddubsw` is port-0-only per
+    // k, so 4 port-0 uops per block from this loop (plus 1 for the decode's
+    // `vpsrlw`) = 5 port-0 uops per block, vs v3's 9 (`vpsignb` +
+    // `vpmaddubsw` per k, plus the decode `vpsrlw`).
     //
-    // i16 accumulation cannot run forever: each pair sum is in `[-254, 254]`
-    // (see `pair_sum`'s doc), so summing `FLUSH_BLOCKS` of them into one i16
-    // lane must stay inside `[i16::MIN, i16::MAX]`. `FLUSH_BLOCKS * 254 <
-    // i16::MAX` is checked at compile time below, so no i16 accumulator can
-    // ever overflow regardless of input.
+    // Since `sum_j u_j*a_j = sum_j w_j*a_j + sum_j a_j`, the true dot product
+    // is `acc - sum_a` (see `sum_a` above) — computed once per row after the
+    // horizontal sum, not per block.
+    //
+    // i16 accumulation cannot run forever: each pair sum is now in
+    // `[-508, 508]` (`u in [0, 2]`, `a in [-127, 127]`, so `|u*a| <= 254` and
+    // a pair sum is `<= 2 * 254 = 508`; `vpmaddubsw` itself only saturates
+    // past `+-32767`, so no individual pair sum saturates). Summing
+    // `FLUSH_BLOCKS` of them into one i16 lane must stay inside
+    // `[i16::MIN, i16::MAX]`. `FLUSH_BLOCKS * 508 < i16::MAX` is checked at
+    // compile time below (`64 * 508 = 32512 < 32767`), so no i16 accumulator
+    // can ever overflow regardless of input.
     const FLUSH_BLOCKS: usize = 64;
-    const _: () = assert!((FLUSH_BLOCKS * 254) < i16::MAX as usize);
+    const _: () = assert!((FLUSH_BLOCKS * 508) < i16::MAX as usize);
 
     #[target_feature(enable = "avx2")]
-    unsafe fn pair_sum(a: __m256i, w: __m256i, c: &Consts) -> __m256i {
-        // vpsignb IS ternary multiply: +1 -> a, -1 -> -a, 0 -> 0.
-        let prod = _mm256_sign_epi8(a, w);
-        // i8 -> i16 adjacent-pair sum, exact: |prod| <= 127, |pair| <= 254.
-        _mm256_maddubs_epi16(c.ones_u8, prod)
+    unsafe fn pair_sum(a: __m256i, u: __m256i, _c: &Consts) -> __m256i {
+        // u8 (u, decoded offset weight) x i8 (a, activation) -> i16
+        // adjacent-pair sum, exact: |u*a| <= 254, |pair| <= 508.
+        _mm256_maddubs_epi16(u, a)
     }
 
     for (row, out) in output.iter_mut().enumerate().take(dim_out) {
@@ -288,7 +323,9 @@ unsafe fn tmv_i8_avx2(
         let s = _mm_add_epi32(lo, hi);
         let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b01_00_11_10));
         let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b10_11_00_01));
-        let mut total = _mm_cvtsi128_si32(s);
+        // v3b offset identity: acc = sum_j (w_j+1)*a_j over the full-block
+        // range = sum_j w_j*a_j + sum_a, so the true dot needs `- sum_a` once.
+        let mut total = _mm_cvtsi128_si32(s) - sum_a;
 
         // Tail bytes, in the reference's own arithmetic.
         for (off, &b) in w_row[tail_start_b..n_bytes].iter().enumerate() {

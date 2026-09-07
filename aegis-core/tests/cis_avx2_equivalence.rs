@@ -296,3 +296,128 @@ fn row_independence_holds() {
         assert_eq!(all[r], one[0], "row {r} is not independent");
     }
 }
+
+#[test]
+fn v3b_offset_identity_extremes() {
+    // v3b decodes u = w + 1 in {0, 1, 2} and computes acc - sum_a instead of
+    // v3's signed vpsignb product. Every combination of the live activation
+    // extremes (+127, -127, alternating +-127, and -128 which must still
+    // route to scalar) against the live weight extremes (all +1, all -1, all
+    // zero, all code 0b11, random) must remain bit-identical to the scalar
+    // reference: the offset identity must hold at every corner, not just
+    // typical inputs.
+    let dim_out = 3usize;
+    let dim_in = 8192usize; // == 64 * 128, exactly FLUSH_BLOCKS blocks.
+    let all_plus = vec![0b01_01_01_01u8; packed_len(dim_out, dim_in)];
+    let all_minus = vec![0b10_10_10_10u8; packed_len(dim_out, dim_in)];
+    let all_zero = vec![0u8; packed_len(dim_out, dim_in)];
+    let all_eleven = vec![0xFFu8; packed_len(dim_out, dim_in)];
+    let mut rng = Rng(0xB16B_00B5_B16B_00B5);
+    let random_weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+        .map(|_| (rng.next() & 0xFF) as u8)
+        .collect();
+
+    let weight_cases: [(&[u8], &str); 5] = [
+        (&all_plus, "all +1"),
+        (&all_minus, "all -1"),
+        (&all_zero, "all 0"),
+        (&all_eleven, "all code 11"),
+        (&random_weights, "random"),
+    ];
+
+    let alternating: Vec<i8> = (0..dim_in)
+        .map(|i| if i % 2 == 0 { 127 } else { -127 })
+        .collect();
+    let all_min: Vec<i8> = vec![i8::MIN; dim_in];
+
+    let input_cases: [(&[i8], &str); 4] = [
+        (&vec![127i8; dim_in], "all +127"),
+        (&vec![-127i8; dim_in], "all -127"),
+        (&alternating, "alternating +-127"),
+        (&all_min, "all -128 (must route to scalar)"),
+    ];
+
+    for (weights, wname) in weight_cases {
+        for (input, iname) in input_cases {
+            assert_identical(
+                input,
+                weights,
+                dim_out,
+                dim_in,
+                &format!("v3b extremes: weights={wname} input={iname}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn v3b_flush_bound_508_exact() {
+    // All +127 (and all -127) activations against all +1 weights (u = 2) make
+    // each of the two activations in a pair contribute u*a = 2*127 = 254 in
+    // the same direction, so each pair sum is exactly +-508 and FLUSH_BLOCKS
+    // = 64 of them accumulate to exactly 64 * 508 = 32512 (< i16::MAX =
+    // 32767) right at the widths that are exact multiples of
+    // FLUSH_BLOCKS*BLOCK_BYTES*4, and one block short/long of that boundary.
+    // This is the worst-case magnitude the compile-time assert in
+    // cis_avx2.rs is sized against.
+    let dim_out = 2usize;
+    const FLUSH_BLOCKS_BOUNDARY: usize = 64 * 32 * 4; // FLUSH_BLOCKS * BLOCK_BYTES * 4 == 8192
+    for &dim_in in &[
+        FLUSH_BLOCKS_BOUNDARY - 4,
+        FLUSH_BLOCKS_BOUNDARY,
+        FLUSH_BLOCKS_BOUNDARY + 4,
+    ] {
+        let all_plus = vec![0b01_01_01_01u8; packed_len(dim_out, dim_in)];
+        for v in [127i8, -127] {
+            let input = vec![v; dim_in];
+            assert_identical(
+                &input,
+                &all_plus,
+                dim_out,
+                dim_in,
+                &format!("v3b flush bound 508, dim_in={dim_in} v={v}"),
+            );
+        }
+    }
+
+    // The exact-boundary case must also match the expected arithmetic value,
+    // so a mutually-consistent-but-wrong pair cannot pass.
+    let dim_in = FLUSH_BLOCKS_BOUNDARY;
+    let all_plus = vec![0b01_01_01_01u8; packed_len(dim_out, dim_in)];
+    let input = vec![127i8; dim_in];
+    let mut got = vec![0i32; dim_out];
+    ternary_matvec_i8_avx2(&mut got, &input, &all_plus, dim_out, dim_in);
+    assert!(
+        got.iter().all(|&v| v == 127 * dim_in as i32),
+        "all +1 weights x 127 at the flush bound must equal 127*dim_in = {}, got {got:?}",
+        127 * dim_in as i32
+    );
+}
+
+#[test]
+fn v3b_two_hundred_random_cases_are_bit_identical() {
+    // Same coverage style as `v3_two_hundred_random_cases_are_bit_identical`,
+    // re-run for the v3b kernel: random shapes including dim_in below one
+    // block and shapes with a tail.
+    let mut rng = Rng(0x0FFB_0FFB_0FFB_0FFBu64);
+    let dim_in_choices = [4usize, 60, 128, 132, 512, 2560, 4096, 6912, 8192, 8320];
+    let dim_out_choices = [1usize, 2, 3, 7, 16, 64];
+
+    for i in 0..200u32 {
+        let dim_in = dim_in_choices[(rng.next() as usize) % dim_in_choices.len()];
+        let dim_out = dim_out_choices[(rng.next() as usize) % dim_out_choices.len()];
+        let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+            .map(|_| (rng.next() & 0xFF) as u8)
+            .collect();
+        let input: Vec<i8> = (0..dim_in)
+            .map(|_| ((rng.next() % 255) as i32 - 127) as i8)
+            .collect();
+        assert_identical(
+            &input,
+            &weights,
+            dim_out,
+            dim_in,
+            &format!("v3b random#{i} {dim_out}x{dim_in}"),
+        );
+    }
+}
