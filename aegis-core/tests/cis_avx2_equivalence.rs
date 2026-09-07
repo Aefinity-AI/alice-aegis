@@ -623,14 +623,20 @@ fn bench_tmm_vs_tmv() {
     let weights: Vec<u8> = (0..DIM_OUT * n_bytes)
         .map(|_| (rng.next() & 0xFF) as u8)
         .collect();
+    // Clamp to -127..=127: `has_min` routes the WHOLE call to the scalar
+    // reference on any `i8::MIN` activation, anywhere, so an unclamped
+    // uniform byte distribution (~1/256 chance per element, ~1 in this
+    // many elements) makes this bench measure the scalar fallback rate,
+    // not the AVX2 kernel it's named for. Asserted below, not just
+    // commented, so a future edit that reintroduces the bug fails loudly
+    // (Rule D: bit-exactness / preconditions over silent drift).
     let inputs: Vec<i8> = (0..N_TOK * DIM_IN)
-        .map(|_| {
-            // Avoid i8::MIN so this measures the fast path, not the
-            // whole-call scalar fallback.
-            let v = (rng.next() & 0xFF) as i8;
-            if v == i8::MIN { 0 } else { v }
-        })
+        .map(|_| ((rng.next() & 0xFF) as i8).max(-127))
         .collect();
+    assert!(
+        !inputs.iter().any(|&x| x == i8::MIN),
+        "bench_tmm_vs_tmv: input contains i8::MIN — would silently measure the scalar fallback"
+    );
 
     // Correctness sanity: batched matmul must equal 8 independent matvecs.
     let mut got_mm = vec![0i32; N_TOK * DIM_OUT];

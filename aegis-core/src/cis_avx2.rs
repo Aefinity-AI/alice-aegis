@@ -346,7 +346,7 @@ unsafe fn tmv_i8_avx2(
 }
 
 // ---------------------------------------------------------------------------
-// Batched prefill: ternary GEMM over an 8-token tile (v3b decode reused).
+// Batched prefill: ternary GEMM over a TOK_TILE-token tile (v3b decode reused).
 // ---------------------------------------------------------------------------
 
 /// AVX2 ternary GEMM for batched prefill: `n_tok` tokens' activations
@@ -460,12 +460,18 @@ pub fn ternary_matmul_i8_avx2(
     }
 }
 
-/// Tokens processed per tile. Register budget: `TOK_TILE` per-token i16
-/// accumulators (one ymm each) + 4 decoded weight vectors (`w[0..4]`,
-/// decoded once per block and shared across the whole tile) + 1 constant
-/// (`ones_i16`) = 13 ymm, inside Broadwell's 16 architectural ymm
-/// registers with headroom for the compiler's own scheduling.
-const TOK_TILE: usize = 8;
+/// Tokens processed per tile. Register budget at `M = TOK_TILE`: `M`
+/// per-token i16 accumulators + 4 decoded weight vectors (`w[0..4]`,
+/// decoded once per block, shared across the tile) + 1 constant
+/// (`ones_i16`) + the transient `vpmaddubsw` products folded immediately
+/// (no separate `pk` array — see `tmm_tile`'s inline fold). At `M = 8`
+/// this was `8 + 4 + 1 = 13` *named* ymm values, but the 4 in-flight
+/// `vpmaddubsw` results live before folding plus the compiler's own
+/// scheduling headroom measurably exceeded Broadwell's 16 architectural
+/// ymm registers (objdump: 1426 `rsp`/`rbp` lines in `tmm_i8_avx2` vs 47
+/// in `tmv_i8_avx2` — real spilling, not noise). `M = 4`
+/// (`4 + 4 + 1 = 9` named values) leaves headroom for the fold.
+const TOK_TILE: usize = 4;
 
 /// Blocks a token's i16 accumulator sums before widening to i32 (mirrors
 /// `tmv_i8_avx2`'s `FLUSH_BLOCKS`, at a different bound because this
@@ -543,62 +549,6 @@ unsafe fn tmm_i8_avx2(
     while tile_start < n_tok {
         let tile_len = (n_tok - tile_start).min(TOK_TILE);
         match tile_len {
-            8 => tmm_tile::<8>(
-                outputs,
-                inputs,
-                lanes,
-                weights_packed,
-                dim_out,
-                n_bytes,
-                tile_start,
-                &sum_a,
-                &c,
-                full_blocks,
-                tail_start_b,
-                dim_in,
-            ),
-            7 => tmm_tile::<7>(
-                outputs,
-                inputs,
-                lanes,
-                weights_packed,
-                dim_out,
-                n_bytes,
-                tile_start,
-                &sum_a,
-                &c,
-                full_blocks,
-                tail_start_b,
-                dim_in,
-            ),
-            6 => tmm_tile::<6>(
-                outputs,
-                inputs,
-                lanes,
-                weights_packed,
-                dim_out,
-                n_bytes,
-                tile_start,
-                &sum_a,
-                &c,
-                full_blocks,
-                tail_start_b,
-                dim_in,
-            ),
-            5 => tmm_tile::<5>(
-                outputs,
-                inputs,
-                lanes,
-                weights_packed,
-                dim_out,
-                n_bytes,
-                tile_start,
-                &sum_a,
-                &c,
-                full_blocks,
-                tail_start_b,
-                dim_in,
-            ),
             4 => tmm_tile::<4>(
                 outputs,
                 inputs,
@@ -655,7 +605,7 @@ unsafe fn tmm_i8_avx2(
                 tail_start_b,
                 dim_in,
             ),
-            _ => unreachable!("tile_len in 1..=TOK_TILE(8)"),
+            _ => unreachable!("tile_len in 1..=TOK_TILE(4)"),
         }
         tile_start += tile_len;
     }
@@ -733,18 +683,37 @@ unsafe fn tmm_tile<const M: usize>(
             for ti in 0..M {
                 let tok = tile_start + ti;
                 let lane_base = tok * 4 * n_bytes;
-                let mut pk = [_mm256_setzero_si256(); 4];
-                for (k, pkk) in pk.iter_mut().enumerate() {
-                    let a = _mm256_loadu_si256(
-                        lanes.as_ptr().add(lane_base + k * n_bytes + b0) as *const __m256i
-                    );
-                    *pkk = _mm256_maddubs_epi16(w[k], a);
-                }
-                // 3 adds folding the 4 lane pair-sums into one, then 1
-                // more into the per-token i16 accumulator.
-                let s01 = _mm256_add_epi16(pk[0], pk[1]);
-                let s23 = _mm256_add_epi16(pk[2], pk[3]);
-                let pair = _mm256_add_epi16(s01, s23);
+                // No `pk` array: each `vpmaddubsw` takes its activation
+                // lane straight off `lanes` as a load, so the compiler
+                // never has to name (and hold live) 4 separate product
+                // registers before folding -- it can fold as each
+                // product becomes available. Folded as `(m0+m1)+(m2+m3)`
+                // (same 3 adds, same associativity/order as before --
+                // exact, unchanged arithmetic) directly into the
+                // per-token i16 accumulator.
+                let m0 = _mm256_maddubs_epi16(
+                    w[0],
+                    _mm256_loadu_si256(lanes.as_ptr().add(lane_base + b0) as *const __m256i),
+                );
+                let m1 = _mm256_maddubs_epi16(
+                    w[1],
+                    _mm256_loadu_si256(
+                        lanes.as_ptr().add(lane_base + n_bytes + b0) as *const __m256i
+                    ),
+                );
+                let m2 = _mm256_maddubs_epi16(
+                    w[2],
+                    _mm256_loadu_si256(
+                        lanes.as_ptr().add(lane_base + 2 * n_bytes + b0) as *const __m256i
+                    ),
+                );
+                let m3 = _mm256_maddubs_epi16(
+                    w[3],
+                    _mm256_loadu_si256(
+                        lanes.as_ptr().add(lane_base + 3 * n_bytes + b0) as *const __m256i
+                    ),
+                );
+                let pair = _mm256_add_epi16(_mm256_add_epi16(m0, m1), _mm256_add_epi16(m2, m3));
                 acc16[ti] = _mm256_add_epi16(acc16[ti], pair);
             }
             blocks_since_flush += 1;
