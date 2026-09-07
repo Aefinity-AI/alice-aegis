@@ -73,7 +73,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::cis::{check_tmv_preconditions, ternary_matvec_i8};
-use crate::cis_infer::{dot_i8_bf16q, F};
+use crate::cis_infer::{F, dot_i8_bf16q};
 use alloc::vec;
 use core::arch::x86_64::*;
 
