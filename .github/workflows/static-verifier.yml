@@ -1,0 +1,98 @@
+name: static-verifier
+
+# Packaging gate: the agent_trace verifier must build as a fully static musl
+# executable on both ISAs and, as that single file, still run the complete
+# demo/agent-trace self-test (gen -> verify PASS -> 3 tamper mutations FAIL)
+# with no toolchain present at run time. Binaries are uploaded as artifacts.
+#
+# CLAUDE.md Rule A: correctness / packaging artifact ONLY. No timing figure
+# from this workflow may ever be recorded or quoted.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  static:
+    name: static musl verifier + demo self-test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+            target: x86_64-unknown-linux-musl
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+            target: aarch64-unknown-linux-musl
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ matrix.arch }}-musl-cargo-${{ hashFiles('**/Cargo.toml', '**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.arch }}-musl-cargo-
+
+      - name: Build the static verifier
+        run: bash scripts/build-static.sh ${{ matrix.arch }}
+
+      - name: Prove it is static
+        run: |
+          B=dist/agent_trace-${{ matrix.target }}
+          file "$B"
+          file "$B" | grep -q 'statically linked' || { echo "::error::$B is not statically linked"; exit 1; }
+          if ldd "$B" 2>&1 | grep -q '=>'; then echo "::error::$B has dynamic dependencies"; ldd "$B"; exit 1; fi
+
+      - name: Run the whole demo against the static binary (no cargo at run time)
+        run: |
+          B="$PWD/dist/agent_trace-${{ matrix.target }}"
+          # Move the toolchain out of PATH so a hidden cargo dependency would fail loudly.
+          env -i PATH=/usr/bin:/bin HOME="$HOME" AEGIS_AGENT_TRACE_BIN="$B" \
+            bash demo/agent-trace/run.sh all "Once upon a time" 3 16 2>&1 | tee demo.log
+          grep -q 'VERIFY PASS' demo.log || { echo '::error::static verifier did not print VERIFY PASS'; exit 1; }
+          grep -q 'TAMPER SELFTEST: PASS' demo.log || { echo '::error::tamper self-test did not pass with the static verifier'; exit 1; }
+
+      - name: Upload the binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent_trace-${{ matrix.target }}
+          path: |
+            dist/agent_trace-${{ matrix.target }}
+            dist/agent_trace-${{ matrix.target }}.sha256
+          if-no-files-found: error
+
+  image:
+    name: from-scratch container image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -f packaging/Dockerfile -t alice-verify:ci .
+      - name: Verify a freshly generated receipt from inside the image
+        run: |
+          A=model-lab/tinybit/m7_final_gate_work/artifacts
+          # gen with the image, verify with the image; then flip a byte and require FAIL.
+          docker run --rm -v "$PWD/$A:/a:ro" alice-verify:ci gen /a/MODEL.SAF /a/EMBED.BIN /a/VOCAB.BIN 3 16 "Once upon a time" > receipt.txt
+          docker run --rm -v "$PWD/$A:/a:ro" -v "$PWD/receipt.txt:/r.txt:ro" alice-verify:ci verify /a/MODEL.SAF /a/EMBED.BIN /a/VOCAB.BIN /r.txt | tee verify.log
+          grep -q 'VERIFY PASS' verify.log
+          # same mutation as demo/agent-trace/run.sh tamper 1/3: bump step 0's token id
+          awk 'done==0 && /^step 0: / { match($0,/toks=[0-9]+/); t=substr($0,RSTART+5,RLENGTH-5); sub("toks=" t,"toks=" (t+1)); done=1 } { print }' receipt.txt > bad.txt
+          ! cmp -s receipt.txt bad.txt
+          ! docker run --rm -v "$PWD/$A:/a:ro" -v "$PWD/bad.txt:/r.txt:ro" alice-verify:ci verify /a/MODEL.SAF /a/EMBED.BIN /a/VOCAB.BIN /r.txt
+      - name: Image size
+        run: docker image inspect alice-verify:ci --format 'size={{.Size}} bytes'
