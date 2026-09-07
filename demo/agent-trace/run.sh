@@ -46,12 +46,22 @@ need_artifacts() {
 
 cmd_build() {
     need_artifacts
+    if [ -n "${AEGIS_AGENT_TRACE_BIN:-}" ]; then
+        # A prebuilt verifier (e.g. the static musl binary from
+        # scripts/build-static.sh, or the one inside packaging/Dockerfile)
+        # was supplied: nothing to build, just check it is runnable.
+        [ -x "$AEGIS_AGENT_TRACE_BIN" ] || { echo "AEGIS_AGENT_TRACE_BIN=$AEGIS_AGENT_TRACE_BIN is not executable" >&2; exit 1; }
+        echo "== build: skipped, using prebuilt $AEGIS_AGENT_TRACE_BIN ==" >&2
+        return 0
+    fi
     echo "== build: agent_trace (aegis-linux, release, CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS) ==" >&2
     ( cd "$ROOT/aegis-linux" && run cargo build --release --example agent_trace )
     echo "build done." >&2
 }
 
-agent_trace_bin() { echo "$ROOT/aegis-linux/target/release/examples/agent_trace"; }
+# Override with AEGIS_AGENT_TRACE_BIN=<path> to run every subcommand against a
+# prebuilt verifier binary instead of the cargo build in this tree.
+agent_trace_bin() { echo "${AEGIS_AGENT_TRACE_BIN:-$ROOT/aegis-linux/target/release/examples/agent_trace}"; }
 
 cmd_gen() {
     need_artifacts
