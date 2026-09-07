@@ -98,6 +98,10 @@ impl Sha256 {
         }
 
         // Compress whole blocks directly from `data`, no intermediate copy.
+        // `chunks_exact` (not `as_chunks`) is intentional here: it is stable
+        // on every target this crate supports, including older toolchains
+        // used for the UEFI build; do not "fix" this per clippy's suggestion.
+        #[allow(clippy::chunks_exact_to_as_chunks)]
         let mut chunks = data.chunks_exact(64);
         for chunk in &mut chunks {
             let block: &[u8; 64] = chunk
