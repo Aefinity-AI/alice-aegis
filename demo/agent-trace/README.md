@@ -158,7 +158,12 @@ MANIFEST.txt        # sha256sum-style "hash  path" line for every member above, 
   name/input/output, and per-step decode-chain digest, and therefore the
   final trace-chain digest.
 - The `tamper` mutations (flip a token id, flip a tool-output byte, drop a
-  step) are each independently rejected by `verify`.
+  step, flip a hex nibble of the last step's `q=` field) are each
+  independently rejected by `verify`. The `q=` mutation targets the last
+  step on purpose: on a K>=2 receipt that step's query digest binds a
+  prompt that already contains the earlier steps' tool results, so the
+  rejection (`STEP n QUERY MISMATCH`) shows the per-step binding on a
+  chain, not just on the initial prompt.
 
 ## What a PASS does NOT prove
 
