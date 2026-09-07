@@ -173,21 +173,16 @@ fi
 WT_COMMIT="$(git -C "$WT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 log "worktree: $WT commit=$WT_COMMIT (detached from origin/$BRANCH; main checkout untouched)"
 
-log "-- build gemm_tile: CARGO_BUILD_JOBS=2 nice -n 10 cargo run --release --bench gemm_tile"
-( cd "$WT/aegis-core" && CARGO_BUILD_JOBS=2 nice -n 10 cargo run --release --bench gemm_tile ) >"$RAW/build_gemm_tile.log" 2>&1
+log "-- build gemm_tile: CARGO_BUILD_JOBS=2 nice -n 10 cargo build --release --bin gemm_tile"
+( cd "$WT/aegis-core" && CARGO_BUILD_JOBS=2 nice -n 10 cargo build --release --bin gemm_tile ) >>"$RAW/build_gemm_tile.log" 2>&1
 BUILD_RC=$?
 if [ $BUILD_RC -ne 0 ]; then
     fail "gemm_tile build failed (exit $BUILD_RC) — see $RAW/build_gemm_tile.log"
 fi
-# The gemm_tile bench is built to the standard target/release/deps directory
-# Find the built binary (cargo run --bench builds it but also runs it; we'll run it ourselves with perf)
-BIN_PATTERN="$WT/aegis-core/target/release/deps/gemm_tile-*"
-BIN=""
-for candidate in $BIN_PATTERN; do
-    [ -f "$candidate" ] && [ ! -name "$candidate" -name "*.d" ] && BIN="$candidate" && break
-done
+# The gemm_tile binary is built to target/release/gemm_tile
+BIN="$WT/aegis-core/target/release/gemm_tile"
 if [ ! -x "$BIN" ]; then
-    fail "gemm_tile binary not found at $BIN_PATTERN"
+    fail "gemm_tile binary not found at $BIN"
 fi
 log "built: $BIN"
 
