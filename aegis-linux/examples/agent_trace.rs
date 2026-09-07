@@ -88,10 +88,10 @@
 //! before replay. A receipt with no `suite-sha256` header is unaffected —
 //! fully backward compatible.
 
-use aegis_core::cis_infer::{argmax_i64, CisEngine, CisMode, CisModel};
+use aegis_core::cis_infer::{CisEngine, CisMode, CisModel, argmax_i64};
 use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
 use aegis_core::tokenizer::AegisTokenizer;
-use aegis_core::witness::{hex_lower, sha256, Sha256, WitnessChain, WitnessHeader};
+use aegis_core::witness::{Sha256, WitnessChain, WitnessHeader, hex_lower, sha256};
 
 /// `--phases`: an Amdahl decomposition of `verify`'s FullInt CIS replay,
 /// printed AFTER the normal VERIFY PASS/FAIL line and never changing it —
