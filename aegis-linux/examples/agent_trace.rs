@@ -42,11 +42,30 @@
 //! (K=3, N=16 by default).
 //!
 //!   agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> ["prompt"] [--table <path>] [--suite-sha256 <64hex>] > receipt
-//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>] [--suite-sha256 <64hex>]
+//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases]
 //!
 //! Rule A: prints no timing, ever. Rule B: the receipt carries a commit hash
 //! and hostname (informational only — NOT folded into the trace chain, so a
 //! receipt generated on one machine still verifies bit-for-bit on another).
+//!
+//! Multi-receipt verify: the three artifacts (MODEL.SAF, EMBED.BIN,
+//! VOCAB.BIN) are read and hashed ONCE, and the `SafeTensors` parse,
+//! `FullBitNetPipeline`, and `CisModel` (including its one-time LM-head
+//! plane pre-conversion) are built ONCE for the whole process — not once
+//! per receipt — then every receipt is verified in order against that same
+//! model state (`decode_step` still creates a FRESH `CisEngine` per
+//! episode step; see its doc comment). With exactly one receipt argument,
+//! output is byte-identical to single-receipt verify before this existed:
+//! no `==` header, no `SUMMARY` line, exit 0/1 exactly as before. With
+//! several receipts: a `== <receipt path>` line precedes each receipt's
+//! own PASS/FAIL output, a FAIL does not stop the run (every receipt is
+//! attempted), and a final `SUMMARY pass=<n> fail=<m>` line reports the
+//! totals; the process exits 1 if any receipt failed, 0 otherwise.
+//! `--phases`: with one receipt the table prints right after its PASS
+//! line, unchanged from before; with several receipts one table
+//! accumulated across every receipt's replay prints once, after
+//! `SUMMARY`, regardless of the individual PASS/FAIL outcomes (it is a
+//! performance report, not a verify verdict).
 //!
 //! Table binding: when `--table` is given, the table file's sha256 and byte
 //! length are folded into the trace genesis (see `trace_genesis`'s doc
@@ -103,12 +122,15 @@ mod phases_report {
         /// `accumulate`'s doc comment).
         static TOKENS: RefCell<u64> = const { RefCell::new(0) };
         /// `(raw_ticks, pairs)` for `CisModel::new_with_options`'s one-time
-        /// LM-head plane conversion (`headconv`), one pair per `decode_step`
-        /// call (K of them per episode) — see `accumulate_headconv`. Timed
-        /// around the constructor call in `decode_step`, deliberately NOT
-        /// inside any `PhaseCycles`/`Phase::*` slot: that struct's fields are
+        /// LM-head plane conversion (`headconv`) — see `accumulate_headconv`.
+        /// Timed around the ONE `CisModel::new_with_options` call `main`
+        /// makes for the whole process (previously timed once per
+        /// `decode_step` call, i.e. K times per episode, before model state
+        /// was hoisted out of `decode_step`; `pairs` is now 1 per process
+        /// regardless of episode or receipt count). Deliberately NOT inside
+        /// any `PhaseCycles`/`Phase::*` slot: that struct's fields are
         /// engine-owned, per decode step, and headconv happens once, before
-        /// the engine exists.
+        /// any engine exists.
         static HEADCONV: RefCell<(u64, u64)> = const { RefCell::new((0, 0)) };
     }
 
@@ -128,8 +150,8 @@ mod phases_report {
         TOKENS.with(|t| *t.borrow_mut() += tokens_forward);
     }
 
-    /// Fold one `CisModel::new_with_options` call's LM-head plane conversion
-    /// span into the process-wide `headconv` total.
+    /// Fold the (now single, process-wide) `CisModel::new_with_options`
+    /// call's LM-head plane conversion span into the `headconv` total.
     pub fn accumulate_headconv(ticks: u64) {
         HEADCONV.with(|c| {
             let mut c = c.borrow_mut();
@@ -240,18 +262,21 @@ mod phases_report {
         );
 
         // headconv: the one-time LM-head plane conversion inside
-        // `CisModel::new_with_options`, timed around that call in
-        // `decode_step` — NOT part of `total_ticks`/`total_pairs` above (see
-        // the `HEADCONV` thread_local's doc comment), so it is printed as
-        // its own line rather than folded into the PHASE table's rows or
-        // its `other` bucket.
+        // `CisModel::new_with_options`, timed around the single call `main`
+        // makes for the whole process (per-process, not per `decode_step`
+        // call — see the `HEADCONV` thread_local's doc comment) — NOT part
+        // of `total_ticks`/`total_pairs` above, so it is printed as its own
+        // line rather than folded into the PHASE table's rows or its
+        // `other` bucket.
         let headconv_ticks = phase_timers::corrected(headconv_raw, headconv_pairs, overhead_mean);
         let headconv_ms = if tsc_hz > 0.0 {
             1000.0 * headconv_ticks / tsc_hz
         } else {
             0.0
         };
-        println!("headconv ticks={headconv_ticks:.0} pairs={headconv_pairs} ms={headconv_ms:.1}");
+        println!(
+            "headconv (per-process) ticks={headconv_ticks:.0} pairs={headconv_pairs} ms={headconv_ms:.1}"
+        );
     }
 }
 
@@ -699,11 +724,18 @@ struct EpisodeReplay {
 /// and its full i64 logit vector into a per-step `WitnessChain` exactly the
 /// way `cis_witness` folds decode steps. Returns the decoded token ids and
 /// that chain's digest.
+///
+/// Takes the already-built `&CisModel` — `main` parses `SafeTensors` and
+/// builds the `FullBitNetPipeline`/`CisModel` (with its one-time LM-head
+/// plane conversion) exactly ONCE per process now, not once per call to
+/// this function. This function still creates only a FRESH `CisEngine`
+/// per call: the engine (not the model) owns all per-step KV state, so
+/// "fresh engine seeded at position 0, no KV carried across steps" is
+/// completely unchanged from before model construction was hoisted out —
+/// only the repeated (parse, pipeline, LM-head conversion) work is gone.
 #[allow(clippy::too_many_arguments)]
 fn decode_step(
-    tensors: &SafeTensors,
-    embed_bytes: &[u8],
-    config: &ModelConfig,
+    cis_model: &CisModel,
     tokenizer: &AegisTokenizer,
     model_sha: &[u8; 32],
     embed_sha: &[u8; 32],
@@ -711,26 +743,16 @@ fn decode_step(
     prompt: &str,
     n: usize,
 ) -> (Vec<u32>, [u8; 32]) {
-    let pipeline = FullBitNetPipeline::new(tensors, embed_bytes, config).expect("build pipeline");
-    #[cfg(feature = "phase-timers")]
-    let __headconv_start = aegis_core::phase_timers::tick_start();
-    let cis_model = CisModel::new_with_options(&pipeline, config, head_preconvert_enabled())
-        .expect("CIS model conversion");
-    #[cfg(feature = "phase-timers")]
-    {
-        let __headconv_end = aegis_core::phase_timers::tick_end();
-        phases_report::accumulate_headconv(__headconv_end.wrapping_sub(__headconv_start));
-    }
-    let mut engine = CisEngine::new_with_mode(&cis_model, CisMode::FullInt);
+    let mut engine = CisEngine::new_with_mode(cis_model, CisMode::FullInt);
 
     let prompt_ids = tokenizer.encode(prompt);
     assert!(!prompt_ids.is_empty(), "step prompt tokenized to nothing");
     assert!(
-        prompt_ids.len() + n <= config.max_position_embeddings,
+        prompt_ids.len() + n <= cis_model.config.max_position_embeddings,
         "step prompt ({}) + N ({}) exceeds max_position_embeddings ({})",
         prompt_ids.len(),
         n,
-        config.max_position_embeddings
+        cis_model.config.max_position_embeddings
     );
 
     let step_header = WitnessHeader {
@@ -779,9 +801,8 @@ fn decode_step(
 /// bit-for-bit.
 #[allow(clippy::too_many_arguments)]
 fn replay_episode(
-    model_bytes: &[u8],
-    embed_bytes: &[u8],
-    vocab_bytes: &[u8],
+    cis_model: &CisModel,
+    tokenizer: &AegisTokenizer,
     model_sha: &[u8; 32],
     embed_sha: &[u8; 32],
     vocab_sha: &[u8; 32],
@@ -791,14 +812,6 @@ fn replay_episode(
     table: Option<&LookupTable>,
     suite_sha: Option<&[u8; 32]>,
 ) -> EpisodeReplay {
-    let tensors = SafeTensors::deserialize(model_bytes).expect("parse MODEL.SAF");
-    let cfg_json = tensors
-        .metadata_field("aegis_config")
-        .expect("read __metadata__")
-        .expect("MODEL.SAF carries no aegis_config — repack in the forge");
-    let config = ModelConfig::from_json(&cfg_json).expect("parse aegis_config");
-    let tokenizer = AegisTokenizer::new(vocab_bytes).expect("parse VOCAB.BIN");
-
     let mut prompt = initial_prompt.to_string();
     let mut trace_chain = trace_genesis(
         model_sha,
@@ -814,15 +827,7 @@ fn replay_episode(
 
     for step_idx in 0..k {
         let (toks, decode_chain) = decode_step(
-            &tensors,
-            embed_bytes,
-            &config,
-            &tokenizer,
-            model_sha,
-            embed_sha,
-            vocab_sha,
-            &prompt,
-            n,
+            cis_model, tokenizer, model_sha, embed_sha, vocab_sha, &prompt, n,
         );
         let decoded_text = tokenizer.decode(&toks);
         let prefix = prompt_scan_prefix(&prompt);
@@ -881,21 +886,17 @@ fn check_header_bounds(
 /// Pre-flight checks on receipt-derived (hostile) header fields before
 /// `verify` calls `replay_episode`. `replay_episode`'s own asserts are for
 /// `gen`'s trusted inputs and are left as-is; this function exists so a
-/// malformed receipt fails cleanly instead of panicking. Reads the config
-/// the same way `replay_episode` does (same trusted MODEL.SAF/VOCAB.BIN).
+/// malformed receipt fails cleanly instead of panicking. Takes the
+/// already-parsed config and tokenizer (built once per process by `main`,
+/// same trusted MODEL.SAF/VOCAB.BIN every receipt is checked against)
+/// instead of re-parsing them per receipt.
 fn validate_receipt_header(
-    model_bytes: &[u8],
-    vocab_bytes: &[u8],
+    config: &ModelConfig,
+    tokenizer: &AegisTokenizer,
     prompt: &str,
     k: usize,
     n: usize,
 ) -> Result<(), String> {
-    let tensors = SafeTensors::deserialize(model_bytes)?;
-    let cfg_json = tensors
-        .metadata_field("aegis_config")?
-        .ok_or_else(|| "MODEL.SAF carries no aegis_config".to_string())?;
-    let config = ModelConfig::from_json(&cfg_json)?;
-    let tokenizer = AegisTokenizer::new(vocab_bytes)?;
     let prompt_ids = tokenizer.encode(prompt);
     check_header_bounds(k, n, prompt_ids.len(), config.max_position_embeddings)
 }
@@ -978,7 +979,7 @@ fn main() {
             "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>]"
         );
         eprintln!(
-            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <receipt-file> [--table <path>] [--suite-sha256 <64hex>] [--phases]"
+            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases]"
         );
         std::process::exit(2);
     }
@@ -1019,6 +1020,32 @@ fn main() {
     let embed_sha = sha256(&embed_bytes);
     let vocab_sha = sha256(&vocab_bytes);
 
+    // Parse SafeTensors, build the config/tokenizer, and build the
+    // FullBitNetPipeline + CisModel (with its one-time LM-head plane
+    // pre-conversion) exactly ONCE per process — previously this whole
+    // sequence repeated inside `decode_step`, K times per episode, once per
+    // receipt. Every `gen`/`verify` receipt below shares this same model
+    // state; `decode_step` still creates only a fresh `CisEngine` per
+    // episode step (see its doc comment).
+    let tensors = SafeTensors::deserialize(&model_bytes).expect("parse MODEL.SAF");
+    let cfg_json = tensors
+        .metadata_field("aegis_config")
+        .expect("read __metadata__")
+        .expect("MODEL.SAF carries no aegis_config — repack in the forge");
+    let config = ModelConfig::from_json(&cfg_json).expect("parse aegis_config");
+    let tokenizer = AegisTokenizer::new(&vocab_bytes).expect("parse VOCAB.BIN");
+    let pipeline =
+        FullBitNetPipeline::new(&tensors, &embed_bytes, &config).expect("build pipeline");
+    #[cfg(feature = "phase-timers")]
+    let __headconv_start = aegis_core::phase_timers::tick_start();
+    let cis_model = CisModel::new_with_options(&pipeline, &config, head_preconvert_enabled())
+        .expect("CIS model conversion");
+    #[cfg(feature = "phase-timers")]
+    {
+        let __headconv_end = aegis_core::phase_timers::tick_end();
+        phases_report::accumulate_headconv(__headconv_end.wrapping_sub(__headconv_start));
+    }
+
     match mode {
         "gen" => {
             let k: usize = args.get(5).and_then(|s| s.parse().ok()).unwrap_or(3);
@@ -1034,9 +1061,8 @@ fn main() {
             });
 
             let r = replay_episode(
-                &model_bytes,
-                &embed_bytes,
-                &vocab_bytes,
+                &cis_model,
+                &tokenizer,
                 &model_sha,
                 &embed_sha,
                 &vocab_sha,
@@ -1076,282 +1102,351 @@ fn main() {
             println!("trace-chain {}", hex(&r.trace_chain));
         }
         "verify" => {
-            let wtext = std::fs::read_to_string(&args[5]).expect("read receipt");
-            let mut w_model = String::new();
-            let mut w_embed = String::new();
-            let mut w_vocab = String::new();
-            let mut w_k = 0usize;
-            let mut w_n = 0usize;
-            let mut w_prompt = String::new();
-            let mut w_steps: Vec<(Vec<u32>, String, String, String, String)> = Vec::new();
-            let mut w_trace_chain = String::new();
-            let mut w_table_sha: Option<String> = None;
-            let mut w_suite_sha: Option<String> = None;
-
-            for line in wtext.lines() {
-                if let Some(rest) = line.strip_prefix("step ") {
-                    // "IDX: toks=.. tool=.. in=.. out=.. decode-chain=.."
-                    let (label, body) = rest.split_once(':').unwrap_or((rest, ""));
-                    let position = w_steps.len();
-                    if let Err(reason) = check_step_label(label, position) {
-                        println!("FAIL structure: {reason}");
-                        std::process::exit(1);
-                    }
-                    let rest = body.trim();
-                    let mut toks = Vec::new();
-                    let mut tool = String::new();
-                    let mut input = String::new();
-                    let mut output = String::new();
-                    let mut dchain = String::new();
-                    for field in rest.split_whitespace() {
-                        if let Some(v) = field.strip_prefix("toks=") {
-                            toks = v
-                                .split(',')
-                                .filter(|s| !s.is_empty())
-                                .map(|s| s.parse().expect("token id"))
-                                .collect();
-                        } else if let Some(v) = field.strip_prefix("tool=") {
-                            tool = v.to_string();
-                        } else if let Some(v) = field.strip_prefix("in=") {
-                            input = v.to_string();
-                        } else if let Some(v) = field.strip_prefix("out=") {
-                            output = v.to_string();
-                        } else if let Some(v) = field.strip_prefix("decode-chain=") {
-                            dchain = v.to_string();
-                        }
-                    }
-                    w_steps.push((toks, tool, input, output, dchain));
-                    continue;
-                }
-                let mut it = line.splitn(2, ' ');
-                let (key, v) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
-                match key {
-                    "model" => w_model = v.into(),
-                    "embed" => w_embed = v.into(),
-                    "vocab" => w_vocab = v.into(),
-                    "K" => w_k = v.parse().expect("K"),
-                    "N" => w_n = v.parse().expect("N"),
-                    "prompt-hex" => {
-                        let bytes = match unhex(v) {
-                            Ok(b) => b,
-                            Err(()) => {
-                                println!("FAIL structure: malformed hex in prompt-hex");
-                                std::process::exit(1);
-                            }
-                        };
-                        w_prompt = match String::from_utf8(bytes) {
-                            Ok(s) => s,
-                            Err(_) => {
-                                println!("FAIL structure: malformed hex in prompt-hex");
-                                std::process::exit(1);
-                            }
-                        };
-                    }
-                    "trace-chain" => w_trace_chain = v.into(),
-                    "table-sha256" => {
-                        if v.len() != 64
-                            || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-                        {
-                            println!(
-                                "FAIL structure: malformed table-sha256 (want 64 lowercase hex)"
-                            );
-                            std::process::exit(1);
-                        }
-                        w_table_sha = Some(v.into());
-                    }
-                    "suite-sha256" => {
-                        if v.len() != 64
-                            || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-                        {
-                            println!(
-                                "FAIL structure: malformed suite-sha256 (want 64 lowercase hex)"
-                            );
-                            std::process::exit(1);
-                        }
-                        w_suite_sha = Some(v.into());
-                    }
-                    _ => {}
-                }
-            }
-
-            let mut fail = false;
-            for (name, local, claimed) in [
-                ("MODEL", hex(&model_sha), &w_model),
-                ("EMBED", hex(&embed_sha), &w_embed),
-                ("VOCAB", hex(&vocab_sha), &w_vocab),
-            ] {
-                if &local != claimed {
-                    println!(
-                        "FAIL artifact: {name} hash mismatch (receipt {} vs local {})",
-                        short16(claimed),
-                        short16(&local)
-                    );
-                    fail = true;
-                }
-            }
-            if fail {
-                std::process::exit(1);
-            }
-
-            if w_steps.len() != w_k {
-                println!(
-                    "FAIL structure: receipt claims K={} but has {} step lines",
-                    w_k,
-                    w_steps.len()
+            let receipt_paths = &args[5..];
+            if receipt_paths.len() == 1 {
+                let pass = verify_one(
+                    &receipt_paths[0],
+                    &cis_model,
+                    &tokenizer,
+                    &model_sha,
+                    &embed_sha,
+                    &vocab_sha,
+                    table_path.as_ref(),
+                    suite_sha256_arg,
                 );
-                std::process::exit(1);
-            }
-
-            if let Err(reason) =
-                validate_receipt_header(&model_bytes, &vocab_bytes, &w_prompt, w_k, w_n)
-            {
-                println!("FAIL structure: {reason}");
-                std::process::exit(1);
-            }
-
-            // Table resolution: only when the receipt declares a
-            // table-sha256 does verify require and use a --table. A --table
-            // given for a receipt with no table-sha256 line is ignored
-            // (the episode it describes never consulted one).
-            let table: Option<LookupTable> = match &w_table_sha {
-                Some(claimed) => {
-                    let path = match &table_path {
-                        Some(p) => p,
-                        None => {
-                            println!(
-                                "VERIFY FAIL — receipt declares table-sha256 {} but no --table was given",
-                                short16(claimed)
-                            );
-                            std::process::exit(1);
-                        }
-                    };
-                    let bytes = std::fs::read(path).unwrap_or_else(|e| {
-                        println!("VERIFY FAIL — could not read --table {path}: {e}");
-                        std::process::exit(1);
-                    });
-                    let local_sha = hex(&sha256(&bytes));
-                    if &local_sha != claimed {
-                        println!(
-                            "FAIL artifact: TABLE hash mismatch (receipt {} vs local {})",
-                            short16(claimed),
-                            short16(&local_sha)
-                        );
-                        std::process::exit(1);
-                    }
-                    match parse_table(&bytes) {
-                        Ok(t) => Some(t),
-                        Err(reason) => {
-                            println!("FAIL structure: bad --table: {reason}");
-                            std::process::exit(1);
-                        }
-                    }
+                if !pass {
+                    std::process::exit(1);
                 }
-                None => {
-                    if table_path.is_some() {
-                        eprintln!(
-                            "note: --table given but the receipt has no table-sha256 line; ignored"
-                        );
-                    }
-                    None
+                // --phases: printed only after a PASS (a FAIL already
+                // exited above), never altering the PASS line or exit code
+                // above it — unchanged from before multi-receipt verify
+                // existed.
+                #[cfg(feature = "phase-timers")]
+                if let Some((overhead_total, overhead_mean, tsc_hz)) = phase_calib {
+                    phases_report::print_table(overhead_total, overhead_mean, tsc_hz);
                 }
-            };
-
-            // Suite resolution: a receipt's suite-sha256 header (if any) is
-            // authoritative and must be folded into genesis exactly as gen
-            // did. A --suite-sha256 argument is only ever a cross-check
-            // against that header — it is never folded on its own, and a
-            // receipt with no header is unaffected regardless of whether
-            // --suite-sha256 was passed.
-            let suite_sha: Option<[u8; 32]> = match &w_suite_sha {
-                Some(header_hex) => {
-                    let header_bytes = parse_suite_sha256(header_hex).unwrap_or_else(|reason| {
-                        println!("FAIL structure: {reason}");
-                        std::process::exit(1);
-                    });
-                    if let Some(arg_bytes) = suite_sha256_arg {
-                        let arg_hex = hex(&arg_bytes);
-                        if &arg_hex != header_hex {
-                            println!(
-                                "VERIFY FAIL — suite-sha256 mismatch: receipt {header_hex}, argument {arg_hex}"
-                            );
-                            std::process::exit(1);
-                        }
-                    }
-                    Some(header_bytes)
-                }
-                None => None,
-            };
-
-            let r = replay_episode(
-                &model_bytes,
-                &embed_bytes,
-                &vocab_bytes,
-                &model_sha,
-                &embed_sha,
-                &vocab_sha,
-                &w_prompt,
-                w_k,
-                w_n,
-                table.as_ref(),
-                suite_sha.as_ref(),
-            );
-
-            let local_trace_chain = hex(&r.trace_chain);
-            println!("receipt trace-chain {}", short16(&w_trace_chain));
-            println!("local   trace-chain {}", short16(&local_trace_chain));
-
-            if r.steps.len() != w_steps.len() {
-                println!(
-                    "VERIFY FAIL — replay produced {} steps, receipt has {}",
-                    r.steps.len(),
-                    w_steps.len()
-                );
-                std::process::exit(1);
-            }
-
-            let mut mismatch = false;
-            for (i, (local, (w_toks, w_tool, w_in, w_out, w_dchain))) in
-                r.steps.iter().zip(w_steps.iter()).enumerate()
-            {
-                let local_toks_match = &local.toks == w_toks;
-                let local_tool_match = local.tool_name == w_tool;
-                let local_in_match = hex(&local.tool_input) == *w_in;
-                let local_out_match = hex(&local.tool_output) == *w_out;
-                let local_dchain_match = hex(&local.decode_chain) == *w_dchain;
-                if !(local_toks_match
-                    && local_tool_match
-                    && local_in_match
-                    && local_out_match
-                    && local_dchain_match)
-                {
-                    println!(
-                        "step {i} divergence: toks-match={local_toks_match} tool-match={local_tool_match} in-match={local_in_match} out-match={local_out_match} decode-chain-match={local_dchain_match}"
-                    );
-                    mismatch = true;
-                }
-            }
-
-            if !mismatch && local_trace_chain == w_trace_chain {
-                println!(
-                    "VERIFY PASS — replay reproduced {} steps and the full trace chain bit-for-bit",
-                    r.steps.len()
-                );
             } else {
-                println!("VERIFY FAIL — replay diverged from the receipt");
-                std::process::exit(1);
-            }
-
-            // --phases: printed only after a PASS (a FAIL already exited
-            // above), never altering the PASS line or exit code above it.
-            #[cfg(feature = "phase-timers")]
-            if let Some((overhead_total, overhead_mean, tsc_hz)) = phase_calib {
-                phases_report::print_table(overhead_total, overhead_mean, tsc_hz);
+                let mut n_pass = 0usize;
+                let mut n_fail = 0usize;
+                for path in receipt_paths {
+                    println!("== {path}");
+                    let pass = verify_one(
+                        path,
+                        &cis_model,
+                        &tokenizer,
+                        &model_sha,
+                        &embed_sha,
+                        &vocab_sha,
+                        table_path.as_ref(),
+                        suite_sha256_arg,
+                    );
+                    if pass {
+                        n_pass += 1;
+                    } else {
+                        n_fail += 1;
+                    }
+                }
+                println!("SUMMARY pass={n_pass} fail={n_fail}");
+                // One accumulated --phases table across every receipt this
+                // process verified, printed once at the end regardless of
+                // individual PASS/FAIL outcomes (a performance report, not
+                // a verify verdict) — see the module doc comment's
+                // multi-receipt verify entry.
+                #[cfg(feature = "phase-timers")]
+                if let Some((overhead_total, overhead_mean, tsc_hz)) = phase_calib {
+                    phases_report::print_table(overhead_total, overhead_mean, tsc_hz);
+                }
+                if n_fail > 0 {
+                    std::process::exit(1);
+                }
             }
         }
         other => {
             eprintln!("unknown mode {other}");
             std::process::exit(2);
         }
+    }
+}
+
+/// Verify one receipt against the already-hashed artifacts and the
+/// process-wide `CisModel`/tokenizer `main` built once (see the module doc
+/// comment's multi-receipt verify entry). Prints exactly the lines
+/// `agent_trace verify` printed for a single receipt before multi-receipt
+/// support existed; returns `true` on `VERIFY PASS`, `false` on any FAIL
+/// (structural or replay divergence) instead of exiting the process, so
+/// `main` can continue to the next receipt when several were given.
+/// `--phases` printing is the caller's responsibility (see `main`), not
+/// this function's — the single- and multi-receipt CLI shapes print the
+/// table at different points, but neither ever prints it from inside here.
+#[allow(clippy::too_many_arguments)]
+fn verify_one(
+    receipt_path: &str,
+    cis_model: &CisModel,
+    tokenizer: &AegisTokenizer,
+    model_sha: &[u8; 32],
+    embed_sha: &[u8; 32],
+    vocab_sha: &[u8; 32],
+    table_path: Option<&String>,
+    suite_sha256_arg: Option<[u8; 32]>,
+) -> bool {
+    let wtext = std::fs::read_to_string(receipt_path).expect("read receipt");
+    let mut w_model = String::new();
+    let mut w_embed = String::new();
+    let mut w_vocab = String::new();
+    let mut w_k = 0usize;
+    let mut w_n = 0usize;
+    let mut w_prompt = String::new();
+    let mut w_steps: Vec<(Vec<u32>, String, String, String, String)> = Vec::new();
+    let mut w_trace_chain = String::new();
+    let mut w_table_sha: Option<String> = None;
+    let mut w_suite_sha: Option<String> = None;
+
+    for line in wtext.lines() {
+        if let Some(rest) = line.strip_prefix("step ") {
+            // "IDX: toks=.. tool=.. in=.. out=.. decode-chain=.."
+            let (label, body) = rest.split_once(':').unwrap_or((rest, ""));
+            let position = w_steps.len();
+            if let Err(reason) = check_step_label(label, position) {
+                println!("FAIL structure: {reason}");
+                return false;
+            }
+            let rest = body.trim();
+            let mut toks = Vec::new();
+            let mut tool = String::new();
+            let mut input = String::new();
+            let mut output = String::new();
+            let mut dchain = String::new();
+            for field in rest.split_whitespace() {
+                if let Some(v) = field.strip_prefix("toks=") {
+                    toks = v
+                        .split(',')
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.parse().expect("token id"))
+                        .collect();
+                } else if let Some(v) = field.strip_prefix("tool=") {
+                    tool = v.to_string();
+                } else if let Some(v) = field.strip_prefix("in=") {
+                    input = v.to_string();
+                } else if let Some(v) = field.strip_prefix("out=") {
+                    output = v.to_string();
+                } else if let Some(v) = field.strip_prefix("decode-chain=") {
+                    dchain = v.to_string();
+                }
+            }
+            w_steps.push((toks, tool, input, output, dchain));
+            continue;
+        }
+        let mut it = line.splitn(2, ' ');
+        let (key, v) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
+        match key {
+            "model" => w_model = v.into(),
+            "embed" => w_embed = v.into(),
+            "vocab" => w_vocab = v.into(),
+            "K" => w_k = v.parse().expect("K"),
+            "N" => w_n = v.parse().expect("N"),
+            "prompt-hex" => {
+                let bytes = match unhex(v) {
+                    Ok(b) => b,
+                    Err(()) => {
+                        println!("FAIL structure: malformed hex in prompt-hex");
+                        return false;
+                    }
+                };
+                w_prompt = match String::from_utf8(bytes) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        println!("FAIL structure: malformed hex in prompt-hex");
+                        return false;
+                    }
+                };
+            }
+            "trace-chain" => w_trace_chain = v.into(),
+            "table-sha256" => {
+                if v.len() != 64 || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+                    println!("FAIL structure: malformed table-sha256 (want 64 lowercase hex)");
+                    return false;
+                }
+                w_table_sha = Some(v.into());
+            }
+            "suite-sha256" => {
+                if v.len() != 64 || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+                    println!("FAIL structure: malformed suite-sha256 (want 64 lowercase hex)");
+                    return false;
+                }
+                w_suite_sha = Some(v.into());
+            }
+            _ => {}
+        }
+    }
+
+    let mut fail = false;
+    for (name, local, claimed) in [
+        ("MODEL", hex(model_sha), &w_model),
+        ("EMBED", hex(embed_sha), &w_embed),
+        ("VOCAB", hex(vocab_sha), &w_vocab),
+    ] {
+        if &local != claimed {
+            println!(
+                "FAIL artifact: {name} hash mismatch (receipt {} vs local {})",
+                short16(claimed),
+                short16(&local)
+            );
+            fail = true;
+        }
+    }
+    if fail {
+        return false;
+    }
+
+    if w_steps.len() != w_k {
+        println!(
+            "FAIL structure: receipt claims K={} but has {} step lines",
+            w_k,
+            w_steps.len()
+        );
+        return false;
+    }
+
+    if let Err(reason) = validate_receipt_header(&cis_model.config, tokenizer, &w_prompt, w_k, w_n)
+    {
+        println!("FAIL structure: {reason}");
+        return false;
+    }
+
+    // Table resolution: only when the receipt declares a
+    // table-sha256 does verify require and use a --table. A --table
+    // given for a receipt with no table-sha256 line is ignored
+    // (the episode it describes never consulted one).
+    let table: Option<LookupTable> = match &w_table_sha {
+        Some(claimed) => {
+            let path = match &table_path {
+                Some(p) => p,
+                None => {
+                    println!(
+                        "VERIFY FAIL — receipt declares table-sha256 {} but no --table was given",
+                        short16(claimed)
+                    );
+                    return false;
+                }
+            };
+            let bytes = match std::fs::read(path) {
+                Ok(b) => b,
+                Err(e) => {
+                    println!("VERIFY FAIL — could not read --table {path}: {e}");
+                    return false;
+                }
+            };
+            let local_sha = hex(&sha256(&bytes));
+            if &local_sha != claimed {
+                println!(
+                    "FAIL artifact: TABLE hash mismatch (receipt {} vs local {})",
+                    short16(claimed),
+                    short16(&local_sha)
+                );
+                return false;
+            }
+            match parse_table(&bytes) {
+                Ok(t) => Some(t),
+                Err(reason) => {
+                    println!("FAIL structure: bad --table: {reason}");
+                    return false;
+                }
+            }
+        }
+        None => {
+            if table_path.is_some() {
+                eprintln!("note: --table given but the receipt has no table-sha256 line; ignored");
+            }
+            None
+        }
+    };
+
+    // Suite resolution: a receipt's suite-sha256 header (if any) is
+    // authoritative and must be folded into genesis exactly as gen
+    // did. A --suite-sha256 argument is only ever a cross-check
+    // against that header — it is never folded on its own, and a
+    // receipt with no header is unaffected regardless of whether
+    // --suite-sha256 was passed.
+    let suite_sha: Option<[u8; 32]> = match &w_suite_sha {
+        Some(header_hex) => {
+            let header_bytes = match parse_suite_sha256(header_hex) {
+                Ok(b) => b,
+                Err(reason) => {
+                    println!("FAIL structure: {reason}");
+                    return false;
+                }
+            };
+            if let Some(arg_bytes) = suite_sha256_arg {
+                let arg_hex = hex(&arg_bytes);
+                if &arg_hex != header_hex {
+                    println!(
+                        "VERIFY FAIL — suite-sha256 mismatch: receipt {header_hex}, argument {arg_hex}"
+                    );
+                    return false;
+                }
+            }
+            Some(header_bytes)
+        }
+        None => None,
+    };
+
+    let r = replay_episode(
+        cis_model,
+        tokenizer,
+        model_sha,
+        embed_sha,
+        vocab_sha,
+        &w_prompt,
+        w_k,
+        w_n,
+        table.as_ref(),
+        suite_sha.as_ref(),
+    );
+
+    let local_trace_chain = hex(&r.trace_chain);
+    println!("receipt trace-chain {}", short16(&w_trace_chain));
+    println!("local   trace-chain {}", short16(&local_trace_chain));
+
+    if r.steps.len() != w_steps.len() {
+        println!(
+            "VERIFY FAIL — replay produced {} steps, receipt has {}",
+            r.steps.len(),
+            w_steps.len()
+        );
+        return false;
+    }
+
+    let mut mismatch = false;
+    for (i, (local, (w_toks, w_tool, w_in, w_out, w_dchain))) in
+        r.steps.iter().zip(w_steps.iter()).enumerate()
+    {
+        let local_toks_match = &local.toks == w_toks;
+        let local_tool_match = local.tool_name == w_tool;
+        let local_in_match = hex(&local.tool_input) == *w_in;
+        let local_out_match = hex(&local.tool_output) == *w_out;
+        let local_dchain_match = hex(&local.decode_chain) == *w_dchain;
+        if !(local_toks_match
+            && local_tool_match
+            && local_in_match
+            && local_out_match
+            && local_dchain_match)
+        {
+            println!(
+                "step {i} divergence: toks-match={local_toks_match} tool-match={local_tool_match} in-match={local_in_match} out-match={local_out_match} decode-chain-match={local_dchain_match}"
+            );
+            mismatch = true;
+        }
+    }
+
+    if !mismatch && local_trace_chain == w_trace_chain {
+        println!(
+            "VERIFY PASS — replay reproduced {} steps and the full trace chain bit-for-bit",
+            r.steps.len()
+        );
+        true
+    } else {
+        println!("VERIFY FAIL — replay diverged from the receipt");
+        false
     }
 }
 

@@ -43,6 +43,26 @@ impl Default for Sha256 {
     }
 }
 
+/// Compute message schedule word `i` into the 16-word rolling buffer `w`
+/// (indexed mod 16). For `i < 16` the word was already loaded from the
+/// block and is returned unchanged; for `i >= 16` the extension formula
+/// overwrites the slot that held `w[i-16]` (no longer needed) with the new
+/// word for `w[i]`, so the buffer never grows past 16 entries.
+#[inline(always)]
+fn sched_word(w: &mut [u32; 16], i: usize) -> u32 {
+    let idx = i & 15;
+    if i >= 16 {
+        let x15 = w[(i + 1) & 15]; // w[i-15] == w[i+1 mod 16]
+        let x2 = w[(i + 14) & 15]; // w[i-2]  == w[i+14 mod 16]
+        let x16 = w[idx]; // w[i-16] == w[i mod 16], about to be overwritten
+        let x7 = w[(i + 9) & 15]; // w[i-7]  == w[i+9 mod 16]
+        let s0 = x15.rotate_right(7) ^ x15.rotate_right(18) ^ (x15 >> 3);
+        let s1 = x2.rotate_right(17) ^ x2.rotate_right(19) ^ (x2 >> 10);
+        w[idx] = x16.wrapping_add(s0).wrapping_add(x7).wrapping_add(s1);
+    }
+    w[idx]
+}
+
 impl Sha256 {
     pub fn new() -> Self {
         Sha256 {
@@ -56,10 +76,17 @@ impl Sha256 {
         }
     }
 
+    /// Absorb `data`. Whole 64-byte blocks are compressed straight out of
+    /// the input slice via `chunks_exact` — no copy into `self.block`.
+    /// Only a leftover tail (less than 64 bytes, carried across calls) ever
+    /// touches `self.block`.
     pub fn update(&mut self, mut data: &[u8]) {
         self.total = self.total.wrapping_add(data.len() as u64);
-        while !data.is_empty() {
-            let take = core::cmp::min(64 - self.blen, data.len());
+
+        // Finish a partial block carried from a previous call, if any.
+        if self.blen > 0 {
+            let need = 64 - self.blen;
+            let take = core::cmp::min(need, data.len());
             self.block[self.blen..self.blen + take].copy_from_slice(&data[..take]);
             self.blen += take;
             data = &data[take..];
@@ -69,10 +96,27 @@ impl Sha256 {
                 self.blen = 0;
             }
         }
+
+        // Compress whole blocks directly from `data`, no intermediate copy.
+        let mut chunks = data.chunks_exact(64);
+        for chunk in &mut chunks {
+            let block: &[u8; 64] = chunk
+                .try_into()
+                .expect("chunks_exact(64) yields 64-byte slices");
+            self.compress(block);
+        }
+
+        // Carry any remaining tail (< 64 bytes) into self.block.
+        let rem = chunks.remainder();
+        if !rem.is_empty() {
+            self.block[..rem.len()].copy_from_slice(rem);
+            self.blen = rem.len();
+        }
     }
 
+    #[inline]
     fn compress(&mut self, block: &[u8; 64]) {
-        let mut w = [0u32; 64];
+        let mut w = [0u32; 16];
         for i in 0..16 {
             w[i] = u32::from_be_bytes([
                 block[i * 4],
@@ -81,38 +125,107 @@ impl Sha256 {
                 block[i * 4 + 3],
             ]);
         }
-        for i in 16..64 {
-            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
-            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-            w[i] = w[i - 16]
-                .wrapping_add(s0)
-                .wrapping_add(w[i - 7])
-                .wrapping_add(s1);
-        }
+
         let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = self.h;
-        for i in 0..64 {
-            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
-            let ch = (e & f) ^ (!e & g);
-            let t1 = h
-                .wrapping_add(s1)
-                .wrapping_add(ch)
-                .wrapping_add(K[i])
-                .wrapping_add(w[i]);
-            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
-            let maj = (a & b) ^ (a & c) ^ (b & c);
-            let t2 = s0.wrapping_add(maj);
-            h = g;
-            g = f;
-            f = e;
-            e = d.wrapping_add(t1);
-            d = c;
-            c = b;
-            b = a;
-            a = t1.wrapping_add(t2);
+
+        // Fully unrolled 64 rounds. Each `round!` invocation names the 8
+        // working variables in their current role order (a..h); the roles
+        // rotate by one position every round (see the generated call list
+        // below), so the "shuffle" is a compile-time renaming of locals —
+        // no runtime move of h=g; g=f; ... — and every round's message word
+        // comes from the 16-word rolling schedule via `sched_word`, never a
+        // materialized `[u32; 64]`.
+        macro_rules! round {
+            ($va:ident, $vb:ident, $vc:ident, $vd:ident, $ve:ident, $vf:ident, $vg:ident, $vh:ident, $i:expr) => {{
+                let wi = sched_word(&mut w, $i);
+                let s1 = $ve.rotate_right(6) ^ $ve.rotate_right(11) ^ $ve.rotate_right(25);
+                let ch = ($ve & $vf) ^ (!$ve & $vg);
+                let t1 = $vh
+                    .wrapping_add(s1)
+                    .wrapping_add(ch)
+                    .wrapping_add(K[$i])
+                    .wrapping_add(wi);
+                let s0 = $va.rotate_right(2) ^ $va.rotate_right(13) ^ $va.rotate_right(22);
+                let maj = ($va & $vb) ^ ($va & $vc) ^ ($vb & $vc);
+                let t2 = s0.wrapping_add(maj);
+                $vd = $vd.wrapping_add(t1);
+                $vh = t1.wrapping_add(t2);
+            }};
         }
-        for (i, v) in [a, b, c, d, e, f, g, h].iter().enumerate() {
-            self.h[i] = self.h[i].wrapping_add(*v);
-        }
+
+        round!(a, b, c, d, e, f, g, h, 0);
+        round!(h, a, b, c, d, e, f, g, 1);
+        round!(g, h, a, b, c, d, e, f, 2);
+        round!(f, g, h, a, b, c, d, e, 3);
+        round!(e, f, g, h, a, b, c, d, 4);
+        round!(d, e, f, g, h, a, b, c, 5);
+        round!(c, d, e, f, g, h, a, b, 6);
+        round!(b, c, d, e, f, g, h, a, 7);
+        round!(a, b, c, d, e, f, g, h, 8);
+        round!(h, a, b, c, d, e, f, g, 9);
+        round!(g, h, a, b, c, d, e, f, 10);
+        round!(f, g, h, a, b, c, d, e, 11);
+        round!(e, f, g, h, a, b, c, d, 12);
+        round!(d, e, f, g, h, a, b, c, 13);
+        round!(c, d, e, f, g, h, a, b, 14);
+        round!(b, c, d, e, f, g, h, a, 15);
+        round!(a, b, c, d, e, f, g, h, 16);
+        round!(h, a, b, c, d, e, f, g, 17);
+        round!(g, h, a, b, c, d, e, f, 18);
+        round!(f, g, h, a, b, c, d, e, 19);
+        round!(e, f, g, h, a, b, c, d, 20);
+        round!(d, e, f, g, h, a, b, c, 21);
+        round!(c, d, e, f, g, h, a, b, 22);
+        round!(b, c, d, e, f, g, h, a, 23);
+        round!(a, b, c, d, e, f, g, h, 24);
+        round!(h, a, b, c, d, e, f, g, 25);
+        round!(g, h, a, b, c, d, e, f, 26);
+        round!(f, g, h, a, b, c, d, e, 27);
+        round!(e, f, g, h, a, b, c, d, 28);
+        round!(d, e, f, g, h, a, b, c, 29);
+        round!(c, d, e, f, g, h, a, b, 30);
+        round!(b, c, d, e, f, g, h, a, 31);
+        round!(a, b, c, d, e, f, g, h, 32);
+        round!(h, a, b, c, d, e, f, g, 33);
+        round!(g, h, a, b, c, d, e, f, 34);
+        round!(f, g, h, a, b, c, d, e, 35);
+        round!(e, f, g, h, a, b, c, d, 36);
+        round!(d, e, f, g, h, a, b, c, 37);
+        round!(c, d, e, f, g, h, a, b, 38);
+        round!(b, c, d, e, f, g, h, a, 39);
+        round!(a, b, c, d, e, f, g, h, 40);
+        round!(h, a, b, c, d, e, f, g, 41);
+        round!(g, h, a, b, c, d, e, f, 42);
+        round!(f, g, h, a, b, c, d, e, 43);
+        round!(e, f, g, h, a, b, c, d, 44);
+        round!(d, e, f, g, h, a, b, c, 45);
+        round!(c, d, e, f, g, h, a, b, 46);
+        round!(b, c, d, e, f, g, h, a, 47);
+        round!(a, b, c, d, e, f, g, h, 48);
+        round!(h, a, b, c, d, e, f, g, 49);
+        round!(g, h, a, b, c, d, e, f, 50);
+        round!(f, g, h, a, b, c, d, e, 51);
+        round!(e, f, g, h, a, b, c, d, 52);
+        round!(d, e, f, g, h, a, b, c, 53);
+        round!(c, d, e, f, g, h, a, b, 54);
+        round!(b, c, d, e, f, g, h, a, 55);
+        round!(a, b, c, d, e, f, g, h, 56);
+        round!(h, a, b, c, d, e, f, g, 57);
+        round!(g, h, a, b, c, d, e, f, 58);
+        round!(f, g, h, a, b, c, d, e, 59);
+        round!(e, f, g, h, a, b, c, d, 60);
+        round!(d, e, f, g, h, a, b, c, 61);
+        round!(c, d, e, f, g, h, a, b, 62);
+        round!(b, c, d, e, f, g, h, a, 63);
+
+        self.h[0] = self.h[0].wrapping_add(a);
+        self.h[1] = self.h[1].wrapping_add(b);
+        self.h[2] = self.h[2].wrapping_add(c);
+        self.h[3] = self.h[3].wrapping_add(d);
+        self.h[4] = self.h[4].wrapping_add(e);
+        self.h[5] = self.h[5].wrapping_add(f);
+        self.h[6] = self.h[6].wrapping_add(g);
+        self.h[7] = self.h[7].wrapping_add(h);
     }
 
     pub fn finalize(mut self) -> [u8; 32] {
