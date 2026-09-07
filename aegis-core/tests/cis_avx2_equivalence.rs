@@ -599,6 +599,131 @@ fn matmul_extremes() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// v4 (software-pipelined tmv, pointer-bumped tmm): explicit full_blocks
+// coverage.
+// ---------------------------------------------------------------------------
+
+/// `full_blocks = n_bytes / BLOCK_BYTES` selects, block by block, which of
+/// the two parity accumulators (`acc16[0]`/`acc16[1]`) in the v4 tmv
+/// pipeline a block lands in, and how many total/odd/even blocks the tile
+/// and flush logic sees. Exercise `full_blocks` in
+/// `{0, 1, 2, 3, 5, 64, 65, 129, 130}` explicitly (odd and even counts,
+/// counts that leave an odd or even number in each parity, and one count at
+/// each side of the old single-set FLUSH_BLOCKS=64 boundary plus the new
+/// 2*FLUSH_BLOCKS=128 boundary), each with zero and with one tail byte, for
+/// both `ternary_matvec_i8_avx2` and `ternary_matmul_i8_avx2` (`n_tok` in
+/// `1..=9`, spanning below/at/above `TOK_TILE=4`).
+#[test]
+fn full_block_count_coverage_tmv_and_tmm() {
+    let full_blocks_cases = [0usize, 1, 2, 3, 5, 64, 65, 129, 130];
+    let dim_out = 3usize;
+
+    for &fb in &full_blocks_cases {
+        for &tail_bytes in &[0usize, 1] {
+            // dim_in must stay a multiple of 4 (CIS-1 packs 4 weights/byte)
+            // and, when fb == 0 and tail_bytes == 0, there is no legal
+            // nonzero shape (dim_in = 0), so skip that one combination.
+            if fb == 0 && tail_bytes == 0 {
+                continue;
+            }
+            let n_bytes = fb * 32 + tail_bytes;
+            let dim_in = 4 * n_bytes;
+
+            let mut rng = Rng(0xA5A5_5A5A_A5A5_5A5A ^ (fb as u64) ^ ((tail_bytes as u64) << 40));
+            let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+                .map(|_| (rng.next() & 0xFF) as u8)
+                .collect();
+
+            // tmv: single token.
+            let input: Vec<i8> = (0..dim_in)
+                .map(|_| ((rng.next() % 255) as i32 - 127) as i8)
+                .collect();
+            assert_identical(
+                &input,
+                &weights,
+                dim_out,
+                dim_in,
+                &format!("tmv full_blocks={fb} tail_bytes={tail_bytes}"),
+            );
+
+            // tmm: n_tok spanning below/at/above TOK_TILE=4, across 1..=9.
+            for n_tok in 1..=9usize {
+                let inputs: Vec<i8> = (0..n_tok * dim_in)
+                    .map(|_| ((rng.next() % 255) as i32 - 127) as i8)
+                    .collect();
+                let mut got = vec![0i32; n_tok * dim_out];
+                ternary_matmul_i8_avx2(&mut got, &inputs, &weights, dim_out, dim_in, n_tok);
+                for t in 0..n_tok {
+                    let mut want = vec![0i32; dim_out];
+                    ternary_matvec_i8(
+                        &mut want,
+                        &inputs[t * dim_in..(t + 1) * dim_in],
+                        &weights,
+                        dim_out,
+                        dim_in,
+                    );
+                    assert_eq!(
+                        want,
+                        got[t * dim_out..(t + 1) * dim_out],
+                        "tmm full_blocks={fb} tail_bytes={tail_bytes} n_tok={n_tok}: \
+                         token {t} diverged"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// The v4 tmv pipeline's flush cadence flushes every `2*FLUSH_BLOCKS=128`
+/// total blocks; each parity accumulator therefore sees at most
+/// `FLUSH_BLOCKS=64` blocks per flush ONLY IF the parity split holds across
+/// flush-cycle boundaries however many total blocks there are. This drives
+/// dim_in across widths that land one block short of, exactly at, and one
+/// block past 128-block multiples (256 blocks = two flush cycles; 127/129
+/// blocks straddle a cycle boundary with an odd total), on top of the
+/// existing single-flush-cycle boundary coverage in
+/// `v3b_flush_bound_508_exact`.
+#[test]
+fn v4_two_flush_cycle_boundary_shapes_are_bit_identical() {
+    let dim_out = 3usize;
+    // In blocks: one short of / at / one past one and two 2*FLUSH_BLOCKS
+    // (=128) cycles.
+    let full_blocks_cases = [127usize, 128, 129, 255, 256, 257];
+    for &fb in &full_blocks_cases {
+        let dim_in = fb * 128;
+        let mut rng = Rng(0xC0FF_EEC0_FFEE_C0FFu64 ^ fb as u64);
+        let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+            .map(|_| (rng.next() & 0xFF) as u8)
+            .collect();
+        let input: Vec<i8> = (0..dim_in)
+            .map(|_| ((rng.next() % 255) as i32 - 127) as i8)
+            .collect();
+        assert_identical(
+            &input,
+            &weights,
+            dim_out,
+            dim_in,
+            &format!("v4 two-flush-cycle full_blocks={fb}"),
+        );
+
+        // Worst-case magnitude at these widths too: all +1 weights x all
+        // +127 activations, which is what the compile-time i16 bound is
+        // sized against.
+        let all_plus = vec![0b01_01_01_01u8; packed_len(dim_out, dim_in)];
+        for v in [127i8, -127] {
+            let input = vec![v; dim_in];
+            assert_identical(
+                &input,
+                &all_plus,
+                dim_out,
+                dim_in,
+                &format!("v4 two-flush-cycle extreme full_blocks={fb} v={v}"),
+            );
+        }
+    }
+}
+
 // ---------------------------------------------------------------------
 // Kernel microbench: tmm_8tok vs 8x tmv (ignored by default; run with
 // `cargo test --release ... -- --ignored --nocapture bench_tmm_vs_tmv`).

@@ -269,7 +269,11 @@ unsafe fn tmv_i8_avx2(
     // `FLUSH_BLOCKS` of them into one i16 lane must stay inside
     // `[i16::MIN, i16::MAX]`. `FLUSH_BLOCKS * 508 < i16::MAX` is checked at
     // compile time below (`64 * 508 = 32512 < 32767`), so no i16 accumulator
-    // can ever overflow regardless of input.
+    // can ever overflow regardless of input. This bound is per-ACCUMULATOR,
+    // not per-loop-iteration; the v4 software-pipelined loop below still
+    // gives each of the eight accumulators (`acc16a`/`acc16b`) at most
+    // `FLUSH_BLOCKS` blocks between flushes (see the loop's own comment), so
+    // the proof is unchanged.
     const FLUSH_BLOCKS: usize = 64;
     const _: () = assert!((FLUSH_BLOCKS * 508) < i16::MAX as usize);
 
@@ -283,37 +287,90 @@ unsafe fn tmv_i8_avx2(
     for (row, out) in output.iter_mut().enumerate().take(dim_out) {
         let w_row = &weights_packed[row * n_bytes..(row + 1) * n_bytes];
         let mut acc = _mm256_setzero_si256();
-        let mut acc16 = [_mm256_setzero_si256(); 4];
+        // v4: split the four i16 pair-sum accumulators into two independent
+        // sets — `acc16[0]` takes even-indexed blocks, `acc16[1]` takes
+        // odd-indexed blocks — so the two half-chains have no data
+        // dependency on each other. Combined with the one-block decode
+        // lookahead below, this lets the out-of-order scheduler have two
+        // independent ~14-21 cycle dependency chains in flight at once
+        // instead of one, which is what a single 60-entry reservation
+        // station needs to keep port 0 fed (see
+        // state/reports/2026-09-07-PERF-I8-KERNELS-BOX1.md, "the limiter is
+        // the reservation station").
+        let mut acc16 = [[_mm256_setzero_si256(); 4]; 2];
         let mut blocks_since_flush = 0usize;
 
-        // Widens all four i16 pair-sum accumulators into `acc` (i32) and
+        // Widens all eight i16 pair-sum accumulators into `acc` (i32) and
         // resets them. Safe to call on an empty run (adds zero) so it can
         // double as both the periodic flush and the final, possibly-partial
         // one after the loop.
         macro_rules! flush {
             () => {
-                for k in 0..4 {
-                    acc = _mm256_add_epi32(acc, _mm256_madd_epi16(acc16[k], c.ones_i16));
-                    acc16[k] = _mm256_setzero_si256();
+                for parity in 0..2 {
+                    for k in 0..4 {
+                        acc =
+                            _mm256_add_epi32(acc, _mm256_madd_epi16(acc16[parity][k], c.ones_i16));
+                        acc16[parity][k] = _mm256_setzero_si256();
+                    }
                 }
                 blocks_since_flush = 0;
             };
         }
 
+        // v4 software pipeline: decode block `blk+1`'s weights (`w_next`)
+        // BEFORE consuming block `blk`'s decoded weights (`w_cur`) in the
+        // four `vpmaddubsw`s below. The decode (load -> and/vpsrlw ->
+        // vpshufb) and the multiply-add are independent once `w_cur` is
+        // already in registers, so placing the next block's decode ahead of
+        // the current block's madds in program order gives the scheduler a
+        // second, independent chain to work on while the first chain's
+        // 5-cycle `vpmaddubsw` and `vpaddw` are in flight, instead of
+        // waiting for this block's decode to retire before the next one can
+        // start. Only one decoded-weight set (`w_cur`, 4 registers) is named
+        // across a loop boundary; `w_next` is transient within one
+        // iteration. Register budget: 8 acc16 + 1 acc32 (`acc`) + 4 w_cur (+
+        // transiently 4 w_next during the handoff) + 3 consts (`lut_lo`,
+        // `lut_hi`, `nibble_mask`; `ones_i16` is only live at a flush) = 16
+        // ymm in steady state.
+        //
+        // Flush cadence: blocks alternate strictly even/odd by absolute
+        // index, so ANY 2*FLUSH_BLOCKS consecutive blocks contain exactly
+        // FLUSH_BLOCKS even-indexed and FLUSH_BLOCKS odd-indexed ones,
+        // regardless of where the window starts — flushing every
+        // `2*FLUSH_BLOCKS` total blocks therefore gives each of `acc16[0]`
+        // and `acc16[1]` at most `FLUSH_BLOCKS` blocks before a flush, the
+        // exact bound the compile-time assert above proves safe. The final,
+        // possibly-partial window has <= FLUSH_BLOCKS of either parity too
+        // (a window of < 2*FLUSH_BLOCKS consecutive integers has at most
+        // FLUSH_BLOCKS of each parity), so it is covered by the same proof.
+        let mut w_cur = if full_blocks > 0 {
+            decode(_mm256_loadu_si256(w_row.as_ptr() as *const __m256i), &c)
+        } else {
+            [_mm256_setzero_si256(); 4]
+        };
         for blk in 0..full_blocks {
             let b0 = blk * BLOCK_BYTES;
-            let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
-            let w = decode(v, &c);
+            let w_next = if blk + 1 < full_blocks {
+                decode(
+                    _mm256_loadu_si256(w_row.as_ptr().add(b0 + BLOCK_BYTES) as *const __m256i),
+                    &c,
+                )
+            } else {
+                w_cur // unused after this iteration (loop ends); avoids an
+                // out-of-bounds load on the last block.
+            };
 
+            let parity = blk & 1;
             for k in 0..4 {
                 let a = _mm256_loadu_si256(lanes.as_ptr().add(k * n_bytes + b0) as *const __m256i);
-                let pair = pair_sum(a, w[k], &c);
-                acc16[k] = _mm256_add_epi16(acc16[k], pair);
+                let pair = pair_sum(a, w_cur[k], &c);
+                acc16[parity][k] = _mm256_add_epi16(acc16[parity][k], pair);
             }
             blocks_since_flush += 1;
-            if blocks_since_flush == FLUSH_BLOCKS {
+            if blocks_since_flush == 2 * FLUSH_BLOCKS {
                 flush!();
             }
+            w_cur = w_next;
         }
         flush!();
 
@@ -675,14 +732,30 @@ unsafe fn tmm_tile<const M: usize>(
             };
         }
 
-        for blk in 0..full_blocks {
-            let b0 = blk * BLOCK_BYTES;
-            let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
+        // v4: per-token, per-lane pointers, computed ONCE per row and bumped
+        // by `BLOCK_BYTES` each block instead of recomputed from scratch
+        // (`lane_base + k*n_bytes + b0`) every block for every token. The
+        // old recomputation was loop-invariant except for the `+ b0` term,
+        // but the compiler was not folding it into a running pointer (see
+        // state/reports/2026-09-07-PERF-I8-KERNELS-BOX1.md's port-6 finding
+        // — scalar address arithmetic showing up as issued uops); an
+        // explicit `.add(lane_base + k*n_bytes)` base plus a `.add(
+        // BLOCK_BYTES)` bump per iteration is address arithmetic only —
+        // same bytes read in the same order, so it changes nothing about
+        // which values are summed or in what order.
+        let lane_ptr: [[*const i8; 4]; M] = core::array::from_fn(|ti| {
+            let tok = tile_start + ti;
+            let lane_base = tok * 4 * n_bytes;
+            core::array::from_fn(|k| lanes.as_ptr().wrapping_add(lane_base + k * n_bytes))
+        });
+        let mut lane_ptr = lane_ptr;
+        let mut w_ptr = w_row.as_ptr();
+
+        for _blk in 0..full_blocks {
+            let v = _mm256_loadu_si256(w_ptr as *const __m256i);
             let w = decode(v, c);
 
             for ti in 0..M {
-                let tok = tile_start + ti;
-                let lane_base = tok * 4 * n_bytes;
                 // No `pk` array: each `vpmaddubsw` takes its activation
                 // lane straight off `lanes` as a load, so the compiler
                 // never has to name (and hold live) 4 separate product
@@ -693,29 +766,27 @@ unsafe fn tmm_tile<const M: usize>(
                 // per-token i16 accumulator.
                 let m0 = _mm256_maddubs_epi16(
                     w[0],
-                    _mm256_loadu_si256(lanes.as_ptr().add(lane_base + b0) as *const __m256i),
+                    _mm256_loadu_si256(lane_ptr[ti][0] as *const __m256i),
                 );
                 let m1 = _mm256_maddubs_epi16(
                     w[1],
-                    _mm256_loadu_si256(
-                        lanes.as_ptr().add(lane_base + n_bytes + b0) as *const __m256i
-                    ),
+                    _mm256_loadu_si256(lane_ptr[ti][1] as *const __m256i),
                 );
                 let m2 = _mm256_maddubs_epi16(
                     w[2],
-                    _mm256_loadu_si256(
-                        lanes.as_ptr().add(lane_base + 2 * n_bytes + b0) as *const __m256i
-                    ),
+                    _mm256_loadu_si256(lane_ptr[ti][2] as *const __m256i),
                 );
                 let m3 = _mm256_maddubs_epi16(
                     w[3],
-                    _mm256_loadu_si256(
-                        lanes.as_ptr().add(lane_base + 3 * n_bytes + b0) as *const __m256i
-                    ),
+                    _mm256_loadu_si256(lane_ptr[ti][3] as *const __m256i),
                 );
                 let pair = _mm256_add_epi16(_mm256_add_epi16(m0, m1), _mm256_add_epi16(m2, m3));
                 acc16[ti] = _mm256_add_epi16(acc16[ti], pair);
+                for k in 0..4 {
+                    lane_ptr[ti][k] = lane_ptr[ti][k].add(BLOCK_BYTES);
+                }
             }
+            w_ptr = w_ptr.add(BLOCK_BYTES);
             blocks_since_flush += 1;
             if blocks_since_flush == FLUSH_BLOCKS_MM {
                 flush!();
