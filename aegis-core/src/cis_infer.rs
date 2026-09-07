@@ -61,7 +61,7 @@ macro_rules! timed_phase {
 }
 
 use crate::attention::RopeCache;
-use crate::cis::{rne_div, rne_round, rne_shr_i128};
+use crate::cis::{rne_round, rne_shr_i128};
 use crate::cis_attn::{
     ExpLut, RopeTableI, inv_sqrt_q30, relu2_q20, rope_apply_i, silu_q20, softmax_i,
 };
@@ -1505,16 +1505,16 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                                 // i128 accumulator so the total needs no
                                 // headroom argument regardless of head_dim.
                                 let mut acc: i128 = 0;
-                                let mut qc = qh.chunks_exact(8);
-                                let mut kc = kh.chunks_exact(8);
-                                for (qch, kch) in qc.by_ref().zip(kc.by_ref()) {
+                                let (qch, qrem) = qh.as_chunks::<8>();
+                                let (kch, krem) = kh.as_chunks::<8>();
+                                for (qa, ka) in qch.iter().zip(kch.iter()) {
                                     let mut chunk_sum: i64 = 0;
-                                    for (qv, kv) in qch.iter().zip(kch.iter()) {
+                                    for (qv, kv) in qa.iter().zip(ka.iter()) {
                                         chunk_sum += *qv as i64 * *kv as i64;
                                     }
                                     acc += chunk_sum as i128;
                                 }
-                                for (qv, kv) in qc.remainder().iter().zip(kc.remainder().iter()) {
+                                for (qv, kv) in qrem.iter().zip(krem.iter()) {
                                     acc += *qv as i128 * *kv as i128;
                                 }
                                 // · 1/sqrt(head_dim) (Q0.30), onto Q.SCORE_F:
@@ -1551,10 +1551,10 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                                     *m += p * *v as i64;
                                 }
                             }
-                            for d in 0..head_dim {
+                            for (d, &m) in imix.iter().enumerate() {
                                 // Q.(QK_F+PROB_F) → Q.F.
                                 self.fixed[h_idx * head_dim + d] =
-                                    rne_shr_i128(imix[d] as i128, QK_F + PROB_F - F) as i64;
+                                    rne_shr_i128(m as i128, QK_F + PROB_F - F) as i64;
                             }
                         }
                     });
@@ -1843,6 +1843,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cis::rne_div;
 
     fn lcg_next(state: &mut u64) -> u64 {
         *state = state
@@ -2191,16 +2192,16 @@ mod tests {
         }
         fn chunked_dot(a: &[i32], b: &[i32]) -> i128 {
             let mut acc: i128 = 0;
-            let mut ac = a.chunks_exact(8);
-            let mut bc = b.chunks_exact(8);
-            for (ach, bch) in ac.by_ref().zip(bc.by_ref()) {
+            let (ach, arem) = a.as_chunks::<8>();
+            let (bch, brem) = b.as_chunks::<8>();
+            for (aa, ba) in ach.iter().zip(bch.iter()) {
                 let mut chunk_sum: i64 = 0;
-                for (x, y) in ach.iter().zip(bch.iter()) {
+                for (x, y) in aa.iter().zip(ba.iter()) {
                     chunk_sum += *x as i64 * *y as i64;
                 }
                 acc += chunk_sum as i128;
             }
-            for (x, y) in ac.remainder().iter().zip(bc.remainder().iter()) {
+            for (x, y) in arem.iter().zip(brem.iter()) {
                 acc += *x as i128 * *y as i128;
             }
             acc
