@@ -243,7 +243,8 @@ fn v3_two_hundred_random_cases_are_bit_identical() {
     // >= 200 random (shape, weights, activations) triples across a wide
     // range of dim_in (below/at/above the flush boundary) and dim_out.
     let mut rng = Rng(0x5EED_5EED_5EED_5EEDu64);
-    let dim_in_choices = [4usize, 60, 128, 131, 512, 2560, 4096, 6912, 8192, 8320];
+    // Every value here must be a multiple of 4: CIS-1 packs 4 weights/byte.
+    let dim_in_choices = [4usize, 60, 128, 132, 512, 2560, 4096, 6912, 8192, 8320];
     let dim_out_choices = [1usize, 2, 3, 7, 16, 64];
 
     for i in 0..200u32 {
