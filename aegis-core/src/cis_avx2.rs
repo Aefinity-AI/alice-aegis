@@ -300,20 +300,55 @@ unsafe fn tmv_i8_avx2(
             };
         }
 
+        // v5a: one-block software-pipelined decode. Decode block `blk+1`'s
+        // four weight vectors (`w_next`) BEFORE consuming block `blk`'s
+        // already-decoded weights (`w_cur`) in the four `pair_sum`s below.
+        // The decode (load -> and/vpsrlw -> vpshufb) and the multiply-add
+        // are independent once `w_cur` already holds this iteration's
+        // values, so placing the next block's decode ahead of the current
+        // block's madds in program order gives the out-of-order scheduler a
+        // second, independent chain to issue while the first chain's
+        // `vpmaddubsw`/`vpaddw` are in flight, instead of waiting for this
+        // block's decode to retire before starting the next one.
+        //
+        // `acc16[4]` and the `FLUSH_BLOCKS` cadence are UNCHANGED from the
+        // incumbent kernel above — only the decode is reordered, so the
+        // per-accumulator overflow proof above (each of the four `acc16`
+        // lanes still receives exactly one pair-sum per block, flushed every
+        // `FLUSH_BLOCKS` blocks) is untouched.
+        //
+        // Register budget across the loop boundary: 4 `acc16` + 4 `w_cur` +
+        // 3 consts (`lut_lo`, `lut_hi`, `nibble_mask`; `ones_i16` and `acc`
+        // are only live at a flush) = 11 named ymm in steady state. `w_next`
+        // (4 registers) is transient within one iteration, live only across
+        // the handoff `w_cur = w_next` at the bottom of the loop.
+        let mut w_cur = if full_blocks > 0 {
+            decode(_mm256_loadu_si256(w_row.as_ptr() as *const __m256i), &c)
+        } else {
+            [_mm256_setzero_si256(); 4]
+        };
         for blk in 0..full_blocks {
             let b0 = blk * BLOCK_BYTES;
-            let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
-            let w = decode(v, &c);
+            let w_next = if blk + 1 < full_blocks {
+                decode(
+                    _mm256_loadu_si256(w_row.as_ptr().add(b0 + BLOCK_BYTES) as *const __m256i),
+                    &c,
+                )
+            } else {
+                w_cur // unused after this iteration (loop ends); avoids an
+                // out-of-bounds load on the last block.
+            };
 
             for k in 0..4 {
                 let a = _mm256_loadu_si256(lanes.as_ptr().add(k * n_bytes + b0) as *const __m256i);
-                let pair = pair_sum(a, w[k], &c);
+                let pair = pair_sum(a, w_cur[k], &c);
                 acc16[k] = _mm256_add_epi16(acc16[k], pair);
             }
             blocks_since_flush += 1;
             if blocks_since_flush == FLUSH_BLOCKS {
                 flush!();
             }
+            w_cur = w_next;
         }
         flush!();
 
