@@ -25,9 +25,13 @@ digests and `verify` exits 1. A pre-format-2 (`AEGIS-TRACE v0`) receipt
 still verifies exactly as before — no `ctx=`/`q=` fields expected — and
 prints one extra `NOTE: format-1 receipt, per-step query binding not
 present` line. `verify` also prints a non-fatal `WARNING step n: ...` line
-when a step's tool-call argument does not appear verbatim anywhere in that
-step's own context (format-2 only) — the per-step generalization of
+when a step's tool-call argument does not appear verbatim in the externally
+supplied text that step had seen — the initial prompt's last `Q:` line plus
+every prior tool result, never the model's own generated text (format-2
+only) — the per-step generalization of
 `demo/agent-trace/eval/check_verbatim.py`'s step-0-only, receipt-only rule.
+The model's own text is excluded on purpose: a model that writes its own
+`Q: 2 + 2` line and then calls `CALC(2 + 2)` must not satisfy the rule.
 
 No files are downloaded. Everything comes from
 `model-lab/tinybit/m7_final_gate_work/artifacts/` already in this repo

@@ -111,8 +111,11 @@
 //! MISMATCH` / `STEP n QUERY MISMATCH` on a mismatch (in addition to, not
 //! instead of, the pre-existing toks/tool/in/out/decode-chain checks); it
 //! also prints one `WARNING step n: ...` line (never a failure) per step
-//! whose tool-call argument does not appear verbatim in that step's own
-//! context — the generalization, to every step, of the step-0-only rule
+//! whose tool-call argument does not appear verbatim in the externally
+//! supplied text seen by that step (the initial prompt's last `Q:` line
+//! plus every prior tool result; the model's own generated text is never
+//! consulted, so a self-authored `Q:` line cannot satisfy the rule) — the
+//! generalization, to every step, of the step-0-only rule
 //! `check_verbatim.py` applies from outside the receipt. Neither `ctx=`/
 //! `q=` nor the WARNING line are folded into the trace chain (see
 //! `StepRecord::ctx_digest`'s doc comment for why); a format-1
@@ -387,7 +390,7 @@ fn query_mismatch_msg(step: usize) -> String {
 }
 
 /// Format-2 gen/verify message: this step's tool-call argument was not
-/// found verbatim in the step's own context — a WARNING, never a failure
+/// found verbatim in the step's externally supplied text — a WARNING, never a failure
 /// (see the module doc comment's format-2 entry).
 fn verbatim_warning_msg(step: usize) -> String {
     format!("WARNING step {step}: tool argument not found verbatim in context")
@@ -713,6 +716,23 @@ fn last_q_line(text: &str) -> &str {
         .unwrap_or("")
 }
 
+/// The verbatim-argument rule for one step. `external_text` is everything
+/// the model was shown that did NOT come from the model itself: the initial
+/// prompt's last `Q:` line (step 0's question; the few-shot examples above
+/// it are deliberately excluded, as in `check_verbatim.py`) plus every tool
+/// result appended so far. The model's own decoded text is never consulted:
+/// EVAL-60 T1 `mixed_02` (2026-09-07, format 2 on box1) showed the model
+/// writing its own `Q: 2 + 2` line at step 0 and then calling `CALC(2 + 2)`
+/// at step 1 — a rule that scans the running prompt's last `Q:` line accepts
+/// that self-authored question, which is exactly the case the rule exists to
+/// flag. `true` for `no-tool` or a call with no parseable argument text.
+fn verbatim_ok_for(external_text: &str, tool_input: &[u8]) -> bool {
+    match extract_call_arg(tool_input) {
+        Some(arg) if !arg.is_empty() => external_text.contains(arg),
+        _ => true,
+    }
+}
+
 /// Deterministic text appended to the running prompt after a tool runs.
 /// `prompt_k = prompt_{k-1} + decoded_text + tool_result_text`.
 fn tool_result_text(outcome: &ToolOutcome) -> String {
@@ -832,10 +852,11 @@ struct StepRecord {
     query_digest: [u8; 32],
     /// `true` when `tool_name` is `"no-tool"` (nothing to check) or the
     /// tool call's argument (the text inside `CALC(...)`/`LOOKUP(...)`)
-    /// appears verbatim somewhere in this step's context (`ctx_digest`'s
-    /// preimage) — specifically its last `Q:`-prefixed line, mirroring
-    /// `demo/agent-trace/eval/check_verbatim.py`'s step-0-only rule but
-    /// generalized to every step via the per-step context. `false` means a
+    /// appears verbatim in the externally supplied text the model had seen
+    /// by this step: the initial prompt's last `Q:`-prefixed line plus every
+    /// prior tool result, never the model's own generated text (see
+    /// `verbatim_ok_for`). At step 0 this is exactly
+    /// `demo/agent-trace/eval/check_verbatim.py`'s rule. `false` means a
     /// step-2+ verbatim-argument WARNING should print (format-2 only,
     /// never a failure — see the module doc comment's verbatim rule note).
     verbatim_ok: bool,
@@ -958,6 +979,10 @@ fn replay_episode(
     // itself), then `Some(previous step's tool_result_text)` from step 1
     // on — see `StepRecord::query_digest`'s doc comment.
     let mut prev_tool_result: Option<String> = None;
+    // Externally supplied text only: the initial prompt's last `Q:` line
+    // plus every tool result so far. Never the model's own decoded text —
+    // see `verbatim_ok_for`.
+    let mut external_text = last_q_line(initial_prompt).to_string();
 
     for step_idx in 0..k {
         let query_bytes: &[u8] = match &prev_tool_result {
@@ -983,13 +1008,11 @@ fn replay_episode(
             &outcome.output,
         );
 
-        let verbatim_ok = match extract_call_arg(&outcome.input) {
-            Some(arg) if !arg.is_empty() => last_q_line(&prompt).contains(arg),
-            _ => true, // no-tool, or a call with no parseable argument text
-        };
+        let verbatim_ok = verbatim_ok_for(&external_text, &outcome.input);
 
         let tool_result = tool_result_text(&outcome);
         prompt = prompt + &decoded_text + &tool_result;
+        external_text.push_str(&tool_result);
         prev_tool_result = Some(tool_result);
 
         steps.push(StepRecord {
@@ -1728,6 +1751,30 @@ mod tests {
     }
 
     // --- prompt-side opener prefix (T3: prompt ends "A: CALC(") ---
+
+    #[test]
+    fn verbatim_rule_rejects_argument_only_present_in_model_generated_text() {
+        // EVAL-60 T1 mixed_02: step-0 question "part P-206", model output
+        // included its own "Q: 2 + 2" line, step 1 called CALC(2 + 2).
+        let external = "part P-206\nTOOL[lookup]=Bolt, hex head, 1/4-20 x 3/4 in.\n";
+        assert!(!verbatim_ok_for(external, b"CALC(2 + 2)"));
+        assert!(verbatim_ok_for(external, b"LOOKUP(P-206)"));
+    }
+
+    #[test]
+    fn verbatim_rule_accepts_argument_from_a_tool_result_or_no_tool() {
+        let external = "part P-100\nTOOL[lookup]=see part P-4023\n";
+        assert!(verbatim_ok_for(external, b"LOOKUP(P-4023)"));
+        assert!(verbatim_ok_for(external, b"no-tool"));
+        assert!(verbatim_ok_for(external, b"CALC()"));
+    }
+
+    #[test]
+    fn verbatim_rule_step0_ignores_few_shot_examples() {
+        // last_q_line drops the shots, so a shot-copied argument is flagged.
+        let prompt = "Q: 2 + 2\nA: CALC(2 + 2).\nQ: two + two\nA:";
+        assert!(!verbatim_ok_for(last_q_line(prompt), b"CALC(2 + 2)"));
+    }
 
     #[test]
     fn prompt_scan_prefix_detects_calc_opener() {
