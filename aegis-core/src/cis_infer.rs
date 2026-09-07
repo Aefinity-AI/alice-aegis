@@ -116,6 +116,26 @@ fn rne_shr(m: i64, k: i32) -> i64 {
     }
 }
 
+/// Exact RNE division of a signed i128 by 2^k (1 ≤ k ≤ 126) in pure
+/// shift/mask arithmetic — bit-identical to `rne_div(p, 1i128 << k)` for
+/// ANY sign of `p` (asserted exhaustively/randomly in tests). Unlike
+/// `rne_shr` (nonnegative i64 only), this covers the signed i128 products
+/// that `QScale64::rescale`, `f32_to_fixed`, and `fix_q_vec` divide by a
+/// runtime power of two — `rne_div`'s i128/i128 division there compiles to
+/// `compiler_builtins::u128_div_rem` (~100 cycles) and dominates the FullInt
+/// Act phase (~5 G ticks / 15 % of a 2B verify). An arithmetic right shift
+/// is `div_euclid` by `2^k` (floor), and masking off the low `k` bits is
+/// `rem_euclid` — so the exact quotient/remainder pair `rne_div` computes
+/// via `i128::div_euclid`/`rem_euclid` is available here without a divide;
+/// `rne_round` then applies the single normative rounding rule to it.
+#[inline]
+fn rne_shr_i128(p: i128, k: u32) -> i128 {
+    debug_assert!((1..=126).contains(&k));
+    let floor = p >> k; // arithmetic shift == div_euclid(p, 2^k) for any sign
+    let rem = p & ((1i128 << k) - 1); // == rem_euclid(p, 2^k), 0 <= rem < 2^k
+    rne_round(floor, rem, 1i128 << k)
+}
+
 /// Exact BF16 → signed fixed-point with `frac` fractional bits, RNE.
 /// Works on the bit pattern only. Inf/NaN and magnitudes that would exceed
 /// ~2^44 are load-time errors, not silent saturation.
@@ -170,7 +190,7 @@ pub fn f32_to_fixed(bits: u32, frac: u32) -> i64 {
     } else if -sh >= 63 {
         0
     } else {
-        rne_div(m as i128, 1i128 << (-sh)) as i64
+        rne_shr_i128(m as i128, (-sh) as u32) as i64
     };
     if neg { -v } else { v }
 }
@@ -290,7 +310,7 @@ impl QScale64 {
         } else if -self.e >= 127 {
             0 // |p| < 2^126 ⇒ |p|/2^127 < 1/2 strictly: rounds to 0
         } else {
-            rne_div(p, 1i128 << (-self.e))
+            rne_shr_i128(p, (-self.e) as u32)
         };
         assert!(
             v >= i64::MIN as i128 && v <= i64::MAX as i128,
@@ -520,9 +540,8 @@ fn fix_q_vec(v: &mut [i64]) -> u32 {
         "fix_q_vec: FullInt MLP product exceeds Q0 headroom — model divergence"
     );
     if shift > 0 {
-        let d = 1i128 << shift;
         for x in v.iter_mut() {
-            *x = rne_div(*x as i128, d) as i64;
+            *x = rne_shr_i128(*x as i128, shift) as i64;
         }
     }
     F - shift
@@ -2084,6 +2103,91 @@ mod tests {
             for k in 1..=62 {
                 assert_eq!(rne_shr(m, k), rne_div(m as i128, 1i128 << k) as i64);
             }
+        }
+    }
+
+    #[test]
+    fn rne_shr_i128_matches_rne_div_small_sweep() {
+        // (a) small signed values, every shift 1..=126.
+        for p in -(1i128 << 12)..(1i128 << 12) {
+            for k in 1u32..=126 {
+                assert_eq!(
+                    rne_shr_i128(p, k),
+                    rne_div(p, 1i128 << k),
+                    "rne_shr_i128({p}, {k})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rne_shr_i128_matches_rne_div_edge_values() {
+        // (b) edge magnitudes (near the i128 headroom bound, near ties) at a
+        // representative spread of shifts.
+        for k in [1u32, 2, 20, 31, 62, 63, 64, 100, 126] {
+            let half = 1i128 << (k - 1);
+            let mut vals: Vec<i128> = vec![
+                (1i128 << 126) - 1,
+                (1i128 << 126) - (1i128 << k),
+                1i128 << 125,
+                (1i128 << 63) + 1,
+                (1i128 << 63) - 1,
+                half,
+                3 * half,
+                half + 1,
+                half - 1,
+            ];
+            vals.extend(vals.clone().iter().map(|v| -v));
+            for p in vals {
+                assert_eq!(
+                    rne_shr_i128(p, k),
+                    rne_div(p, 1i128 << k),
+                    "rne_shr_i128({p}, {k})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rne_shr_i128_matches_rne_div_random() {
+        // (c) 10_000 pseudo-random signed i128 with |p| < 2^126, k in 1..=126
+        // (aegis-core is no_std + libm only — reuse the module's seeded LCG,
+        // not a rand crate).
+        let mut state = 0xAC7_5EED_0000_00C1u64 ^ 0x1234_5678_9ABC_DEF0;
+        for _ in 0..10_000 {
+            let hi = lcg_next(&mut state) as i128;
+            let lo = lcg_next(&mut state) as i128;
+            let mut p = ((hi << 64) | (lo & 0xFFFF_FFFF_FFFF_FFFF)) % (1i128 << 126);
+            if lcg_next(&mut state) & 1 == 1 {
+                p = -p;
+            }
+            let k = 1 + (lcg_next(&mut state) % 126) as u32;
+            assert_eq!(
+                rne_shr_i128(p, k),
+                rne_div(p, 1i128 << k),
+                "rne_shr_i128({p}, {k})"
+            );
+        }
+    }
+
+    #[test]
+    fn qscale64_rescale_matches_inline_rne_div() {
+        // Round-trip: QScale64::rescale must equal the old formula (rne_div
+        // against a runtime power of two) computed inline, for random
+        // (m, e, x).
+        let mut state = 0xAC7_5EED_0000_00C2u64;
+        for _ in 0..2_000 {
+            let m = (1u64 << 62) + (lcg_next(&mut state) % (1u64 << 62));
+            let e = -1 - (lcg_next(&mut state) % 126) as i32; // -126..=-1
+            let x = lcg_next(&mut state) as i64;
+            let scale = QScale64 { m, e };
+            let p = x as i128 * m as i128;
+            let want = if -e >= 127 {
+                0
+            } else {
+                rne_div(p, 1i128 << (-e))
+            };
+            assert_eq!(scale.rescale(x) as i128, want, "m={m} e={e} x={x}");
         }
     }
 
