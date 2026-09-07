@@ -150,6 +150,12 @@ pub fn ternary_matvec_i8_avx2(
 /// AVX2 must be supported and OS-enabled (see [`crate::ops::avx2_active`]).
 /// `lanes` must be the stride-4 deinterleave of `input`, `4 * n_bytes` long,
 /// and `input` must contain no `i8::MIN`.
+// See `dot_i8_bf16q_avx2_wide`'s own `#[allow(unused_assignments)]` doc
+// (below): the `flush!()` macro's final call resets `blocks_since_flush` to 0
+// even though nothing reads it afterward — correct (the reset is what makes
+// it safe to call `flush!()` unconditionally at both the periodic point and
+// after the loop), just spuriously flagged by `unused_assignments`.
+#[allow(unused_assignments)]
 #[target_feature(enable = "avx2")]
 unsafe fn tmv_i8_avx2(
     output: &mut [i32],
