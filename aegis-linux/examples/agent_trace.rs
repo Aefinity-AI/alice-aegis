@@ -88,10 +88,10 @@
 //! before replay. A receipt with no `suite-sha256` header is unaffected —
 //! fully backward compatible.
 
-use aegis_core::cis_infer::{CisEngine, CisMode, CisModel, argmax_i64};
+use aegis_core::cis_infer::{argmax_i64, CisEngine, CisMode, CisModel};
 use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
 use aegis_core::tokenizer::AegisTokenizer;
-use aegis_core::witness::{Sha256, WitnessChain, WitnessHeader, hex_lower, sha256};
+use aegis_core::witness::{hex_lower, sha256, Sha256, WitnessChain, WitnessHeader};
 
 /// `--phases`: an Amdahl decomposition of `verify`'s FullInt CIS replay,
 /// printed AFTER the normal VERIFY PASS/FAIL line and never changing it —
@@ -290,6 +290,18 @@ mod phases_report {
 /// (cheap; `std::env::var` is not on any hot path here).
 fn head_preconvert_enabled() -> bool {
     std::env::var("AEGIS_HEAD_PRECONVERT")
+        .map(|v| v != "0")
+        .unwrap_or(true)
+}
+
+/// `AEGIS_PREFILL_BATCH=0` forces `CisEngine::forward_prefill_int` back onto
+/// its sequential per-token `forward_step_int` loop instead of the batched
+/// ternary-GEMM path (`CisEngine::set_prefill_batch`) — an A/B switch only;
+/// both paths are bit-identical by construction. Unset, or set to anything
+/// other than `"0"`, leaves batching ON (the engine's own default). Read
+/// once per `decode_step` call, same discipline as `head_preconvert_enabled`.
+fn prefill_batch_enabled() -> bool {
+    std::env::var("AEGIS_PREFILL_BATCH")
         .map(|v| v != "0")
         .unwrap_or(true)
 }
@@ -744,6 +756,7 @@ fn decode_step(
     n: usize,
 ) -> (Vec<u32>, [u8; 32]) {
     let mut engine = CisEngine::new_with_mode(cis_model, CisMode::FullInt);
+    engine.set_prefill_batch(prefill_batch_enabled());
 
     let prompt_ids = tokenizer.encode(prompt);
     assert!(!prompt_ids.is_empty(), "step prompt tokenized to nothing");
@@ -764,11 +777,12 @@ fn decode_step(
     };
     let mut chain = WitnessChain::from_header(&step_header);
 
-    let mut pos = 0usize;
-    for &t in &prompt_ids {
-        engine.forward_step_int(t, pos);
-        pos += 1;
-    }
+    // Batched prefill (ternary GEMM over token tiles): bit-identical to the
+    // sequential `forward_step_int` loop it replaces — see
+    // `CisEngine::forward_prefill_int`'s doc for why. `AEGIS_PREFILL_BATCH=0`
+    // forces the old sequential loop for A/B.
+    engine.forward_prefill_int(&prompt_ids, 0);
+    let mut pos = prompt_ids.len();
 
     let mut generated = Vec::with_capacity(n);
     for _ in 0..n {
