@@ -3,6 +3,15 @@
 rates from the eval plan section 4, with Wilson 95% score intervals
 (stdlib only). Works on a partial summary (fewer rows than the suite).
 
+Bucket-agnostic by design: every bucket (including K=2 buckets "mixed" and
+"chain") is scored identically off `tool_expected`/`tool_observed`/
+`arg_match`/`output_match` — the comma-joined K=2 comparison lives in
+run_suite.sh, which already fills those columns as a single joined string
+per row (see eval/README.md 'Caveat: comma-joined fields'), so `score.py`
+never needs to know a bucket's K. A summary with no "chain" rows (the
+default 60-item suite) or only "chain" rows (a chain-only run) both work
+with no special-casing.
+
 Usage: score.py <summary.tsv>
 """
 from __future__ import annotations

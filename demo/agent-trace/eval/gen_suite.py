@@ -19,6 +19,7 @@ Rust's i64::checked_rem) instead. See eval/README.md.
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import random
 import sys
@@ -29,6 +30,7 @@ SEED = 20260906
 
 HERE = Path(__file__).resolve().parent
 TABLE_PATH = HERE.parent / "tables" / "demo.tsv"
+CHAIN_TABLE_PATH = HERE.parent / "tables" / "chain.tsv"
 
 TSV_HEADER = [
     "item_id",
@@ -134,6 +136,16 @@ def load_table_keys() -> list[str]:
         key = line.split("\t", 1)[0]
         keys.append(key)
     return keys
+
+
+def load_table_from(path: Path) -> dict[str, str]:
+    table: dict[str, str] = {}
+    for line in path.read_text().splitlines():
+        if not line:
+            continue
+        k, v = line.split("\t", 1)
+        table[k] = v
+    return table
 
 
 # ---------------------------------------------------------------------
@@ -350,6 +362,52 @@ def build_mixed(rng: random.Random, keys: list[str], table: dict) -> list[dict]:
     return rows
 
 
+def build_chain(table: dict[str, str]) -> list[dict]:
+    """"chain" bucket (K=2, NOT part of the default 60-item suite): each
+    item's step-1 LOOKUP hits a "superseded" row (P-901..P-906 in
+    tables/chain.tsv) whose value text names a second, real key ("Superseded,
+    see part P-100"). Unlike `build_mixed`, step 2's question is not primed
+    by any few-shot in the initial prompt -- it only exists in the text
+    `agent_trace` appends after step 1 runs (`TOOL[lookup]=<row text>`), so a
+    step-2 verbatim argument here is a genuine positive case for the
+    per-step verbatim rule (see `verbatim_ok_for` in agent_trace.rs and
+    eval/README.md 'Chain items'). The two few-shot examples use P-402/P-403
+    -- present in chain.tsv but never a chain target or superseded key --
+    so the shots never leak either half of any chain answer.
+    """
+    shot_a, shot_b = "P-402", "P-403"
+    rows = []
+    for i in range(1, 7):
+        key = f"P-90{i}"
+        value = table[key]
+        # value is exactly "Superseded, see part <target key>"
+        target = value.rsplit(" ", 1)[-1]
+        prompt = (
+            f"Q: part {shot_a}\nA: {lookup_call(shot_a)}.\n"
+            f"Q: part {shot_b}\nA: {lookup_call(shot_b)}.\n"
+            f"Q: part {key}\nA:"
+        )
+        rows.append(
+            {
+                "item_id": f"chain_{i:02d}",
+                "bucket": "chain",
+                "prompt_template_id": "T2T2",
+                "prompt_text": prompt,
+                "expected_tool": "LOOKUP,LOOKUP",
+                "expected_input": f"{lookup_call(key)},{lookup_call(target)}",
+                "expected_output": f"{value},{table[target]}",
+                "notes": (
+                    f"K=2 chain: step-1 LOOKUP({key}) result names step-2's "
+                    f"real question (part {target}); step-2's argument "
+                    "appears only in the appended TOOL[lookup]=... text, "
+                    "never in the initial prompt (see eval/README.md "
+                    "'Chain items')"
+                ),
+            }
+        )
+    return rows
+
+
 def build_distractor(rng: random.Random) -> list[dict]:
     del rng
     rows = [
@@ -461,7 +519,47 @@ def sha256_of(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate the tool-call eval suite. With no arguments, writes "
+            "suite.tsv and smoke.tsv exactly as before (byte-identical "
+            "run to run). --bucket chain writes only the 6-item 'chain' "
+            "bucket (not part of the default 60-item suite) to its own "
+            "file."
+        )
+    )
+    parser.add_argument(
+        "--bucket",
+        choices=["chain"],
+        default=None,
+        help="generate only this extra bucket instead of the default suite",
+    )
+    parser.add_argument(
+        "--table",
+        default=None,
+        help="table TSV to use for --bucket chain (default: tables/chain.tsv)",
+    )
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="output path for --bucket chain (default: eval/chain.tsv)",
+    )
+    return parser.parse_args(argv)
+
+
 def main() -> int:
+    args = parse_args(sys.argv[1:])
+
+    if args.bucket == "chain":
+        table_path = Path(args.table) if args.table else CHAIN_TABLE_PATH
+        out_path = Path(args.out) if args.out else HERE / "chain.tsv"
+        table = load_table_from(table_path)
+        rows = build_chain(table)
+        write_tsv(out_path, rows)
+        print(f"{out_path} sha256={sha256_of(out_path)} ({len(rows)} items)")
+        return 0
+
     rows = build_suite()
     suite_path = HERE / "suite.tsv"
     write_tsv(suite_path, rows)
