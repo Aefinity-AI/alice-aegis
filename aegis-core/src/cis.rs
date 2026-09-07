@@ -261,6 +261,42 @@ pub fn ternary_matvec_i8(
     }
 }
 
+/// Batched TMV: `n_tok` independent TMVs sharing one weight matrix, each
+/// applied to one token's activation row. `inputs` is `n_tok x dim_in`
+/// row-major (token `t`'s activations at `inputs[t*dim_in..][..dim_in]`),
+/// `outputs` is `n_tok x dim_out` row-major. This is the reference this
+/// crate's batched-prefill AVX2 kernel (`cis_avx2::ternary_matmul_i8_avx2`)
+/// must match bit-for-bit: it is defined as nothing more than the per-token
+/// loop below, so any implementation that reuses decoded weight blocks
+/// across tokens (instead of redecoding per token) is provably equivalent by
+/// integer associativity/distributivity, never merely "close".
+pub fn ternary_matmul_i8(
+    outputs: &mut [i32],
+    inputs: &[i8],
+    weights_packed: &[u8],
+    dim_out: usize,
+    dim_in: usize,
+    n_tok: usize,
+) {
+    assert!(
+        outputs.len() >= n_tok * dim_out,
+        "outputs shorter than n_tok*dim_out"
+    );
+    assert!(
+        inputs.len() >= n_tok * dim_in,
+        "inputs shorter than n_tok*dim_in"
+    );
+    for t in 0..n_tok {
+        ternary_matvec_i8(
+            &mut outputs[t * dim_out..(t + 1) * dim_out],
+            &inputs[t * dim_in..(t + 1) * dim_in],
+            weights_packed,
+            dim_out,
+            dim_in,
+        );
+    }
+}
+
 /// Dynamic per-token activation quantization onto the i8 grid, integer-only.
 ///
 /// The integer analog of `ops::quantize_activations_int8` (per-token absmax,

@@ -90,7 +90,7 @@
 // unsafe operation below is a load or an intrinsic covered by that contract.
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use crate::cis::{check_tmv_preconditions, ternary_matvec_i8};
+use crate::cis::{check_tmv_preconditions, ternary_matmul_i8, ternary_matvec_i8};
 use crate::cis_infer::{F, dot_i8_bf16q};
 use alloc::vec;
 use core::arch::x86_64::*;
@@ -342,6 +342,286 @@ unsafe fn tmv_i8_avx2(
         }
 
         *out = total;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Batched prefill: ternary GEMM over an 8-token tile (v3b decode reused).
+// ---------------------------------------------------------------------------
+
+/// AVX2 ternary GEMM for batched prefill: `n_tok` tokens' activations
+/// against ONE packed ternary weight matrix, reading each packed weight
+/// block ONCE per `TOK_TILE`-token tile instead of once per token (as
+/// `n_tok` independent calls to [`ternary_matvec_i8_avx2`] would cost).
+/// Byte-identical to [`crate::cis::ternary_matmul_i8`] for every input —
+/// that function IS this kernel's definition (a per-token loop over
+/// [`ternary_matvec_i8`]); integer addition/multiplication associate and
+/// distribute exactly, so decoding a weight block once and applying it to
+/// several tokens instead of redecoding it per token changes nothing but
+/// which order the same additions happen in. Falls back to the scalar
+/// reference under the same three conditions [`ternary_matvec_i8_avx2`]
+/// does: AVX2 unavailable/disabled, the shape too small to block, or any
+/// activation hitting the `-128` hazard (checked across ALL tokens, so the
+/// whole call — never a per-token mix of kernel and reference — routes to
+/// the reference).
+///
+/// # Reuse argument
+///
+/// Per weight block, the single-token kernel issues 1 activation load + 1
+/// `vpmaddubsw` (port-0-only) + 1 `vpaddw` per row, i.e. it reads the block
+/// from memory once per output row it's needed for — but needs the SAME
+/// block once per *token* it processes, since each token is a separate
+/// call. Prefilling `TOK_TILE = 8` tokens the old way reads a block 8 times
+/// (once per token's call); this kernel decodes the block once (4
+/// `pshufb` + 2 mask ops) and issues one `vpmaddubsw` per token against the
+/// SAME decoded weight vectors — 4 port-0 `vpmaddubsw` uops per
+/// token-block (~4 cycles per token-block on Broadwell, where `vpmaddubsw`
+/// is port-0-only) against the ~9.7 cycles per token-block the pre-v3b
+/// single-token kernel needed, while the packed-weight BYTE traffic drops
+/// `TOK_TILE`x: the lever this kernel exists for is memory bandwidth, and
+/// this is where it comes from — decode cost is now amortized over 8
+/// tokens instead of paid once per token.
+pub fn ternary_matmul_i8_avx2(
+    outputs: &mut [i32],
+    inputs: &[i8],
+    weights_packed: &[u8],
+    dim_out: usize,
+    dim_in: usize,
+    n_tok: usize,
+) {
+    assert!(
+        outputs.len() >= n_tok * dim_out,
+        "outputs shorter than n_tok*dim_out"
+    );
+    assert!(
+        inputs.len() >= n_tok * dim_in,
+        "inputs shorter than n_tok*dim_in"
+    );
+    if n_tok == 0 {
+        return;
+    }
+    // Per-token preconditions are identical for every token (same dim_out,
+    // dim_in, weights_packed): checking once against token 0's slices
+    // reproduces the same panic (message and occurrence) the scalar
+    // reference's per-token loop would hit on its own first iteration.
+    check_tmv_preconditions(
+        &outputs[..dim_out],
+        &inputs[..dim_in],
+        weights_packed,
+        dim_out,
+        dim_in,
+    );
+    let n_bytes = dim_in / 4;
+
+    if !crate::ops::simd_on() || n_bytes < BLOCK_BYTES {
+        ternary_matmul_i8(outputs, inputs, weights_packed, dim_out, dim_in, n_tok);
+        return;
+    }
+
+    // Deinterleave every token's activations into the four stride-4
+    // subsequences the bit-pair extraction consumes (same per-token layout
+    // `ternary_matvec_i8_avx2` uses), and detect the -128 hazard across ALL
+    // tokens in the same pass.
+    let mut lanes = vec![0i8; n_tok * 4 * n_bytes];
+    let mut has_min = false;
+    for t in 0..n_tok {
+        let inp = &inputs[t * dim_in..t * dim_in + dim_in];
+        let out_lanes = &mut lanes[t * 4 * n_bytes..(t + 1) * 4 * n_bytes];
+        for j in 0..n_bytes {
+            for k in 0..4 {
+                let v = inp[4 * j + k];
+                has_min |= v == i8::MIN;
+                out_lanes[k * n_bytes + j] = v;
+            }
+        }
+    }
+    if has_min {
+        ternary_matmul_i8(outputs, inputs, weights_packed, dim_out, dim_in, n_tok);
+        return;
+    }
+
+    // SAFETY: `simd_on()` confirmed AVX2 is supported and OS-enabled, which
+    // is this function's only CPU precondition. Shapes are re-checked
+    // inside: `n_bytes >= BLOCK_BYTES` holds, `lanes` is exactly
+    // `n_tok * 4 * n_bytes` long, and the callee bounds every weight,
+    // activation, and output access against `dim_out`/`n_bytes`/`n_tok`
+    // before dereferencing.
+    unsafe {
+        tmm_i8_avx2(
+            outputs,
+            inputs,
+            &lanes,
+            weights_packed,
+            dim_out,
+            dim_in,
+            n_bytes,
+            n_tok,
+        )
+    }
+}
+
+/// Tokens processed per tile. Register budget: `TOK_TILE` per-token i16
+/// accumulators (one ymm each) + 4 decoded weight vectors (`w[0..4]`,
+/// decoded once per block and shared across the whole tile) + 1 constant
+/// (`ones_i16`) = 13 ymm, inside Broadwell's 16 architectural ymm
+/// registers with headroom for the compiler's own scheduling.
+const TOK_TILE: usize = 8;
+
+/// Blocks a token's i16 accumulator sums before widening to i32 (mirrors
+/// `tmv_i8_avx2`'s `FLUSH_BLOCKS`, at a different bound because this
+/// kernel's per-block per-token contribution is larger). A block's
+/// contribution to one token's i16 accumulator is the sum of that token's
+/// four lane pair-sums (`vpmaddubsw(u, a)`, `u in [0, 2]`, `a in
+/// [-127, 127]`), each `<= 508` in magnitude (`tmv_i8_avx2`'s bound), so
+/// `<= 4 * 508 = 2032` per block per token. `FLUSH_BLOCKS_MM * 2032` must
+/// stay under `i16::MAX` for the i16 accumulator to never overflow:
+/// `16 * 2032 = 32512 < 32767`.
+const FLUSH_BLOCKS_MM: usize = 16;
+const _: () = assert!((FLUSH_BLOCKS_MM * 2032) < i16::MAX as usize);
+
+/// # Safety
+/// AVX2 must be supported and OS-enabled (see [`crate::ops::avx2_active`]).
+/// `lanes` must be the per-token stride-4 deinterleave of `inputs`
+/// (`n_tok * 4 * n_bytes` long, token `t`'s deinterleave at
+/// `lanes[t*4*n_bytes..]`), and `inputs` must contain no `i8::MIN`.
+#[allow(unused_assignments)]
+#[target_feature(enable = "avx2")]
+unsafe fn tmm_i8_avx2(
+    outputs: &mut [i32],
+    inputs: &[i8],
+    lanes: &[i8],
+    weights_packed: &[u8],
+    dim_out: usize,
+    dim_in: usize,
+    n_bytes: usize,
+    n_tok: usize,
+) {
+    // Same LUTs/constants as `tmv_i8_avx2` — see that function's doc for
+    // the derivation; duplicated here (not shared via `Consts::new()`)
+    // because `Consts` has no constructor and this keeps the two kernels
+    // textually independent, which is deliberate: neither should have to
+    // change because the other's internal layout changed.
+    let c = Consts {
+        code_lut_lo: _mm256_setr_epi8(
+            1, 2, 0, 1, 1, 2, 0, 1, 1, 2, 0, 1, 1, 2, 0, 1, // low 128-bit lane
+            1, 2, 0, 1, 1, 2, 0, 1, 1, 2, 0, 1, 1, 2, 0, 1, // high 128-bit lane
+        ),
+        code_lut_hi: _mm256_setr_epi8(
+            1, 1, 1, 1, 2, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, // low 128-bit lane
+            1, 1, 1, 1, 2, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, // high 128-bit lane
+        ),
+        nibble_mask: _mm256_set1_epi8(0x0F),
+        ones_i16: _mm256_set1_epi16(1),
+    };
+
+    let full_blocks = n_bytes / BLOCK_BYTES;
+    let tail_start_b = full_blocks * BLOCK_BYTES;
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn decode(v: __m256i, c: &Consts) -> [__m256i; 4] {
+        let lo_nib = _mm256_and_si256(v, c.nibble_mask);
+        let hi_nib = _mm256_and_si256(_mm256_srli_epi16::<4>(v), c.nibble_mask);
+        [
+            _mm256_shuffle_epi8(c.code_lut_lo, lo_nib), // bit-pair 0
+            _mm256_shuffle_epi8(c.code_lut_hi, lo_nib), // bit-pair 1
+            _mm256_shuffle_epi8(c.code_lut_lo, hi_nib), // bit-pair 2
+            _mm256_shuffle_epi8(c.code_lut_hi, hi_nib), // bit-pair 3
+        ]
+    }
+
+    // Per-token `sum_a` (v3b offset-identity correction, see
+    // `tmv_i8_avx2`): computed once per call, over exactly the
+    // block-covered activation range for that token.
+    let mut sum_a = vec![0i32; n_tok];
+    for (t, sa) in sum_a.iter_mut().enumerate() {
+        let base = t * dim_in;
+        *sa = inputs[base..base + 4 * tail_start_b]
+            .iter()
+            .map(|&x| x as i32)
+            .sum();
+    }
+
+    let mut tile_start = 0usize;
+    while tile_start < n_tok {
+        let tile_len = (n_tok - tile_start).min(TOK_TILE);
+
+        for row in 0..dim_out {
+            let w_row = &weights_packed[row * n_bytes..(row + 1) * n_bytes];
+            let mut acc32 = [_mm256_setzero_si256(); TOK_TILE];
+            let mut acc16 = [_mm256_setzero_si256(); TOK_TILE];
+            let mut blocks_since_flush = 0usize;
+
+            // Widens every active tile slot's i16 accumulator into i32 and
+            // resets it; safe on an empty run, so it doubles as the
+            // periodic flush and the final one after the block loop.
+            macro_rules! flush {
+                () => {
+                    for ti in 0..tile_len {
+                        acc32[ti] =
+                            _mm256_add_epi32(acc32[ti], _mm256_madd_epi16(acc16[ti], c.ones_i16));
+                        acc16[ti] = _mm256_setzero_si256();
+                    }
+                    blocks_since_flush = 0;
+                };
+            }
+
+            for blk in 0..full_blocks {
+                let b0 = blk * BLOCK_BYTES;
+                let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
+                let w = decode(v, &c);
+
+                for ti in 0..tile_len {
+                    let tok = tile_start + ti;
+                    let lane_base = tok * 4 * n_bytes;
+                    let mut pk = [_mm256_setzero_si256(); 4];
+                    for (k, pkk) in pk.iter_mut().enumerate() {
+                        let a = _mm256_loadu_si256(
+                            lanes.as_ptr().add(lane_base + k * n_bytes + b0) as *const __m256i,
+                        );
+                        *pkk = _mm256_maddubs_epi16(w[k], a);
+                    }
+                    // 3 adds folding the 4 lane pair-sums into one, then 1
+                    // more into the per-token i16 accumulator.
+                    let s01 = _mm256_add_epi16(pk[0], pk[1]);
+                    let s23 = _mm256_add_epi16(pk[2], pk[3]);
+                    let pair = _mm256_add_epi16(s01, s23);
+                    acc16[ti] = _mm256_add_epi16(acc16[ti], pair);
+                }
+                blocks_since_flush += 1;
+                if blocks_since_flush == FLUSH_BLOCKS_MM {
+                    flush!();
+                }
+            }
+            flush!();
+
+            for ti in 0..tile_len {
+                let tok = tile_start + ti;
+                let lo = _mm256_castsi256_si128(acc32[ti]);
+                let hi = _mm256_extracti128_si256(acc32[ti], 1);
+                let s = _mm_add_epi32(lo, hi);
+                let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b01_00_11_10));
+                let s = _mm_add_epi32(s, _mm_shuffle_epi32(s, 0b10_11_00_01));
+                let mut total = _mm_cvtsi128_si32(s) - sum_a[tok];
+
+                // Tail bytes, in the reference's own arithmetic.
+                for (off, &b) in w_row[tail_start_b..n_bytes].iter().enumerate() {
+                    let base = 4 * (tail_start_b + off);
+                    for k in 0..4 {
+                        let code = (b >> (2 * k)) & 0b11;
+                        let wv: i32 = match code {
+                            1 => 1,
+                            2 => -1,
+                            _ => 0,
+                        };
+                        total += wv * inputs[tok * dim_in + base + k] as i32;
+                    }
+                }
+
+                outputs[tok * dim_out + row] = total;
+            }
+        }
+
+        tile_start += tile_len;
     }
 }
 
