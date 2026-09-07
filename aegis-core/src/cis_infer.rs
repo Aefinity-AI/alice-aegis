@@ -1063,6 +1063,13 @@ pub struct CisEngine<'m, 'a> {
     exp_lut: Option<ExpLut>,
     rope_i: Option<RopeTableI>,
     isq_q30: i64,
+    /// `forward_prefill_int` dispatch toggle: `true` (default) batches
+    /// multi-token prompts through `tmm_dispatch`'s ternary GEMM;
+    /// `false` forces the sequential `forward_step_int`-per-token loop
+    /// (`AEGIS_PREFILL_BATCH=0` on the aegis-linux side; see
+    /// `set_prefill_batch`). Both paths are bit-identical by construction —
+    /// this exists for A/B and debugging, never correctness.
+    prefill_batch: bool,
     /// Leg C1 (2026-08-29 pre-reg): per (step, layer) sorted list of nonzero
     /// indices in the down_proj input (`self.fixed[..inter]` post-activation,
     /// pre-quant) — the active-neuron set a column-skip kernel would consume.
@@ -1129,6 +1136,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
             exp_lut: full.then(ExpLut::new),
             rope_i: full.then(|| RopeTableI::new(max_pos, head_dim, c.rope_theta.to_bits())),
             isq_q30: inv_sqrt_q30(head_dim as u64),
+            prefill_batch: true,
             model,
             #[cfg(feature = "active_set_digest")]
             active_sets: alloc::vec::Vec::new(),
@@ -1144,6 +1152,14 @@ impl<'m, 'a> CisEngine<'m, 'a> {
     #[cfg(feature = "phase-timers")]
     pub fn reset_phase_cycles(&mut self) {
         self.phase_cycles = crate::phase_timers::PhaseCycles::zero();
+    }
+
+    /// Force (`false`) or restore (`true`, the default) batched multi-token
+    /// prefill in `forward_prefill_int`. `aegis-core` is `no_std`, so the
+    /// `AEGIS_PREFILL_BATCH=0` environment override itself is read on the
+    /// `aegis-linux` side and plumbed in through this setter, not read here.
+    pub fn set_prefill_batch(&mut self, on: bool) {
+        self.prefill_batch = on;
     }
 
     /// Leg C1: byte-identical-by-construction ternary matvec dispatch (see
@@ -1194,6 +1210,48 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         )))]
         {
             crate::cis::ternary_matvec_i8(output, input, weights_packed, dim_out, dim_in);
+        }
+    }
+
+    /// Batched-prefill counterpart of `tmv_dispatch`: same per-arch-entry-
+    /// point-only discipline (`ternary_matmul_i8_avx2` does its own runtime
+    /// `simd_on()` check and falls back to `cis::ternary_matmul_i8`
+    /// internally for small shapes and the `-128` hazard), same
+    /// `scalar_only` zero-x86-intrinsics exception. No NEON GEMM tile exists
+    /// yet, so aarch64 (and any non-x86_64/`scalar_only` build) takes the
+    /// portable per-token-loop scalar reference — correct, just without the
+    /// weight-reuse win this dispatch exists for on x86_64.
+    #[inline]
+    fn tmm_dispatch(
+        outputs: &mut [i32],
+        inputs: &[i8],
+        weights_packed: &[u8],
+        dim_out: usize,
+        dim_in: usize,
+        n_tok: usize,
+    ) {
+        #[cfg(all(
+            target_arch = "x86_64",
+            not(target_os = "uefi"),
+            not(feature = "scalar_only")
+        ))]
+        {
+            crate::cis_avx2::ternary_matmul_i8_avx2(
+                outputs,
+                inputs,
+                weights_packed,
+                dim_out,
+                dim_in,
+                n_tok,
+            );
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            not(target_os = "uefi"),
+            not(feature = "scalar_only")
+        )))]
+        {
+            crate::cis::ternary_matmul_i8(outputs, inputs, weights_packed, dim_out, dim_in, n_tok);
         }
     }
 
@@ -1269,6 +1327,176 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         &self.logits[..self.model.config.vocab_size]
     }
 
+    /// FullInt attention core for ONE token at `seq_pos` in `layer_idx`:
+    /// RoPE-I rotation, KV-cache write, i128 score dots against every
+    /// cached position `0..=seq_pos`, SOFTMAX-I, and the probability-
+    /// weighted V mix — writing `self.fixed[..hidden]`. Consumes
+    /// `self.qi[..hidden]`/`self.ki[..kv_dim]`/`self.vi[..kv_dim]`, which
+    /// the caller must have already filled with this token's q/k/v
+    /// projections, rescaled onto the Q.QK_F grid (pre-RoPE) exactly as
+    /// `forward_step_int`'s Stage 1 does.
+    ///
+    /// Factored out of `forward_step_int` so `forward_prefill_int`'s
+    /// batched-prefill path calls the SAME arithmetic, unchanged, once per
+    /// token: this stage is inherently sequential over `seq_pos` (each
+    /// token's scores depend on every cached K/V up to its own position,
+    /// including earlier tokens in the same prefill chunk), so batching
+    /// never applies here — only to the q/k/v/o/up/gate/down_proj GEMVs
+    /// surrounding it, which is exactly where `tmm_dispatch` batches.
+    fn attn_token_int(&mut self, layer_idx: usize, seq_pos: usize) {
+        let c = &self.model.config;
+        let hidden = c.hidden_size;
+        let num_heads = c.num_attention_heads;
+        let num_kv_heads = c.num_key_value_heads;
+        let head_dim = hidden / num_heads;
+        let kv_dim = num_kv_heads * head_dim;
+        let max_pos = c.max_position_embeddings;
+
+        let lut = self.exp_lut.as_ref().expect("FullInt: exp LUT");
+        let rt = self.rope_i.as_ref().expect("FullInt: RoPE-I table");
+
+        // Attn span, part 1: ROPE-I. Phase::Attn doc comment covers
+        // "RoPE-I + i128 score dots + SOFTMAX-I + V mix"; the KV-cache
+        // *write* immediately below is timed separately as Phase::Kv (its
+        // doc explains why the read side stays inside Attn instead).
+        timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Attn, {
+            rope_apply_i(
+                &mut self.qi[..hidden],
+                &mut self.ki[..kv_dim],
+                seq_pos,
+                num_heads,
+                num_kv_heads,
+                head_dim,
+                rt,
+            );
+        });
+        let slot = (layer_idx * max_pos + seq_pos) * kv_dim;
+        timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Kv, {
+            self.k_icache[slot..slot + kv_dim].copy_from_slice(&self.ki[..kv_dim]);
+            self.v_icache[slot..slot + kv_dim].copy_from_slice(&self.vi[..kv_dim]);
+        });
+
+        // Attn span, part 2: score dots + SOFTMAX-I + V mix (includes the
+        // KV-cache READ traffic — see Phase::Kv's doc comment for why that
+        // read side is not split out).
+        timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Attn, {
+            for h_idx in 0..num_heads {
+                let kv_h = h_idx / (num_heads / num_kv_heads);
+                let qh = &self.qi[h_idx * head_dim..(h_idx + 1) * head_dim];
+                // Pre-RoPE the rescale sites assert |q|,|k| < 2^29; ROPE-I
+                // rotates by cos/sin with |cos|,|sin| <= 2^30
+                // (cis_attn::RopeTableI), so a rotated component is a sum of
+                // two products each < 2^29 * 2^30 = 2^59, i.e. < 2^60 in
+                // magnitude — post-RoPE |q|,|k| < 2^30 (the √2 + 1 ulp
+                // growth the rope_apply_i doc describes). Every
+                // q[i] * k[i] product below is therefore < 2^60, and a
+                // chunk of 8 such products summed in i64 is < 8 * 2^60 =
+                // 2^63, exact (no overflow).
+                debug_assert!(qh.iter().all(|v| v.unsigned_abs() < 1 << 30));
+                for t in 0..=seq_pos {
+                    let kb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
+                    let kh = &self.k_icache[kb..kb + head_dim];
+                    debug_assert!(kh.iter().all(|v| v.unsigned_abs() < 1 << 30));
+                    // Exact dot on the Q.(2·QK_F) grid: chunks of 8 products
+                    // summed in i64 (exact, see the bound above), each
+                    // chunk sum folded into an i128 accumulator so the
+                    // total needs no headroom argument regardless of
+                    // head_dim.
+                    let mut acc: i128 = 0;
+                    let (qch, qrem) = qh.as_chunks::<8>();
+                    let (kch, krem) = kh.as_chunks::<8>();
+                    for (qa, ka) in qch.iter().zip(kch.iter()) {
+                        let mut chunk_sum: i64 = 0;
+                        for (qv, kv) in qa.iter().zip(ka.iter()) {
+                            chunk_sum += *qv as i64 * *kv as i64;
+                        }
+                        acc += chunk_sum as i128;
+                    }
+                    for (qv, kv) in qrem.iter().zip(krem.iter()) {
+                        acc += *qv as i128 * *kv as i128;
+                    }
+                    // · 1/sqrt(head_dim) (Q0.30), onto Q.SCORE_F:
+                    // 2·QK_F + 30 − SCORE_F = 38 bits back down.
+                    let sc = rne_shr_i128(acc * self.isq_q30 as i128, 2 * QK_F + 30 - SCORE_F);
+                    assert!(
+                        sc >= i64::MIN as i128 && sc <= i64::MAX as i128,
+                        "FullInt: score exceeds i64"
+                    );
+                    self.iscores[t] = sc as i64;
+                }
+                softmax_i(
+                    &mut self.iscores[..=seq_pos],
+                    &mut self.iprobs[..=seq_pos],
+                    lut,
+                );
+                // V mix, t-outer/d-inner: reads v_icache[vb..vb+head_dim]
+                // contiguously (stride kv_dim only across t, not per
+                // element), which vectorizes and touches each cache line
+                // once per t instead of once per (t, d) pair.
+                let imix = &mut self.imix[..head_dim];
+                imix.fill(0);
+                for t in 0..=seq_pos {
+                    let p = self.iprobs[t] as i64;
+                    let vb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
+                    // |p| <= 2^15, |v| < 2^30, T <= max_pos <= 2^17 =>
+                    // |Σ| < 2^15 * 2^30 * 2^17 = 2^62, exact.
+                    for (m, v) in imix.iter_mut().zip(&self.v_icache[vb..vb + head_dim]) {
+                        *m += p * *v as i64;
+                    }
+                }
+                for (d, &m) in imix.iter().enumerate() {
+                    // Q.(QK_F+PROB_F) → Q.F.
+                    self.fixed[h_idx * head_dim + d] =
+                        rne_shr_i128(m as i128, QK_F + PROB_F - F) as i64;
+                }
+            }
+        });
+    }
+
+    /// FullInt ACT-I for one token: gate/up (already GEMV/GEMM-projected
+    /// into `up`/`gate`, Q.acc) land on the Q.F grid via exact rational
+    /// rescale, then integer relu²/silu with RNE requants, then a
+    /// per-vector re-fix onto a residual-safe block exponent (spec §5.10
+    /// gap) — writes `out[..inter]`, returns the chosen fractional width.
+    ///
+    /// Factored out of `forward_step_int` so `forward_prefill_int`'s
+    /// batched path runs the exact same elementwise arithmetic per token;
+    /// batching only changes how `up`/`gate` were produced (one GEMM call
+    /// for the whole chunk instead of one GEMV call per token), never this
+    /// stage. Takes no `&self` at all (unlike `attn_token_int`) because
+    /// every input it needs is already a plain slice/value — nothing here
+    /// is KV-cache- or position-dependent.
+    #[allow(clippy::too_many_arguments)]
+    fn act_mlp_token(
+        up: &[i32],
+        gate: &[i32],
+        up_s: &FRatio,
+        gate_s: &FRatio,
+        s_mlp: ActScale,
+        act: Activation,
+        lut: &ExpLut,
+        out: &mut [i64],
+    ) -> u32 {
+        let inter = out.len();
+        let (ng, qg) = fixed_qscale(gate_s, &s_mlp, F);
+        let (nu, qu) = fixed_qscale(up_s, &s_mlp, F);
+        for i in 0..inter {
+            let g = qg.rescale(gate[i] as i64);
+            let g = if ng { -g } else { g };
+            let u = qu.rescale(up[i] as i64);
+            let u = if nu { -u } else { u };
+            assert!(
+                g.unsigned_abs() < 1 << 40 && u.unsigned_abs() < 1 << 40,
+                "FullInt: MLP value exceeds Q.20 headroom"
+            );
+            out[i] = match act {
+                Activation::Relu2 => relu2_q20(g, u),
+                Activation::Silu => silu_q20(g, u, lut),
+            };
+        }
+        fix_q_vec(out)
+    }
+
     pub fn forward_step_int(&mut self, current_tok: u32, seq_pos: usize) {
         // Amdahl total span: one `record_total` pair per call, i.e. per
         // token forward-passed through every layer (prefill AND generated
@@ -1294,7 +1522,20 @@ impl<'m, 'a> CisEngine<'m, 'a> {
         self.model.emb_row_to_q(current_tok, &mut self.h[..hidden]);
 
         let max_pos = c.max_position_embeddings;
-        for (layer_idx, layer) in self.model.layers.iter().enumerate() {
+        let num_layers = self.model.layers.len();
+        for layer_idx in 0..num_layers {
+            // Index-based, not `self.model.layers.iter().enumerate()`: the
+            // FullInt arm below calls `self.attn_token_int` (`&mut self`),
+            // and an iterator over `self.model.layers` would hold an
+            // immutable borrow of `self.model` across the WHOLE loop (needed
+            // for its own `.next()`), conflicting with any `&mut self` call
+            // anywhere in the body. Indexing borrows `self.model.layers`
+            // fresh, only as long as this `layer` binding's own last use —
+            // which ends right where the FullInt arm's `layer.*` reads do,
+            // before the `&mut self` call. The second `layer` binding below
+            // (after the match) is a deliberately SEPARATE, later borrow for
+            // the same reason.
+            let layer = &self.model.layers[layer_idx];
             // --- attention block -------------------------------------------
             let s_in = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
                 normq(&mut self.codes[..hidden], &self.h[..hidden], &layer.ln1)
@@ -1401,8 +1642,6 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                     // scores are exact i128 dots scaled by 1/sqrt(head_dim)
                     // onto Q.SCORE_F; SOFTMAX-I yields Q0.15 probabilities;
                     // the V mix is an exact integer dot requantized to Q.F.
-                    let lut = self.exp_lut.as_ref().expect("FullInt: exp LUT");
-                    let rt = self.rope_i.as_ref().expect("FullInt: RoPE-I table");
                     timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
                         Self::tmv_dispatch(
                             &mut self.acc_a[..hidden],
@@ -1454,114 +1693,20 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                         *o = v as i32;
                     }
 
-                    // Attn span, part 1: ROPE-I. Phase::Attn doc comment
-                    // covers "RoPE-I + i128 score dots + SOFTMAX-I + V mix";
-                    // the KV-cache *write* immediately below is timed
-                    // separately as Phase::Kv (its doc explains why the
-                    // read side stays inside Attn instead).
-                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Attn, {
-                        rope_apply_i(
-                            &mut self.qi[..hidden],
-                            &mut self.ki[..kv_dim],
-                            seq_pos,
-                            num_heads,
-                            num_kv_heads,
-                            head_dim,
-                            rt,
-                        );
-                    });
-                    let slot = (layer_idx * max_pos + seq_pos) * kv_dim;
-                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Kv, {
-                        self.k_icache[slot..slot + kv_dim].copy_from_slice(&self.ki[..kv_dim]);
-                        self.v_icache[slot..slot + kv_dim].copy_from_slice(&self.vi[..kv_dim]);
-                    });
-
-                    // Attn span, part 2: score dots + SOFTMAX-I + V mix
-                    // (includes the KV-cache READ traffic — see
-                    // Phase::Kv's doc comment for why that read side is not
-                    // split out).
-                    timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Attn, {
-                        for h_idx in 0..num_heads {
-                            let kv_h = h_idx / (num_heads / num_kv_heads);
-                            let qh = &self.qi[h_idx * head_dim..(h_idx + 1) * head_dim];
-                            // Pre-RoPE the rescale sites (~1443-1483) assert
-                            // |q|,|k| < 2^29; ROPE-I rotates by cos/sin with
-                            // |cos|,|sin| <= 2^30 (cis_attn::RopeTableI), so a
-                            // rotated component is a sum of two products each
-                            // < 2^29 * 2^30 = 2^59, i.e. < 2^60 in magnitude —
-                            // post-RoPE |q|,|k| < 2^30 (the √2 + 1 ulp growth
-                            // the rope_apply_i doc describes). Every
-                            // q[i] * k[i] product below is therefore
-                            // < 2^60, and a chunk of 8 such products summed in
-                            // i64 is < 8 * 2^60 = 2^63, exact (no overflow).
-                            debug_assert!(qh.iter().all(|v| v.unsigned_abs() < 1 << 30));
-                            for t in 0..=seq_pos {
-                                let kb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
-                                let kh = &self.k_icache[kb..kb + head_dim];
-                                debug_assert!(kh.iter().all(|v| v.unsigned_abs() < 1 << 30));
-                                // Exact dot on the Q.(2·QK_F) grid: chunks of
-                                // 8 products summed in i64 (exact, see the
-                                // bound above), each chunk sum folded into an
-                                // i128 accumulator so the total needs no
-                                // headroom argument regardless of head_dim.
-                                let mut acc: i128 = 0;
-                                let (qch, qrem) = qh.as_chunks::<8>();
-                                let (kch, krem) = kh.as_chunks::<8>();
-                                for (qa, ka) in qch.iter().zip(kch.iter()) {
-                                    let mut chunk_sum: i64 = 0;
-                                    for (qv, kv) in qa.iter().zip(ka.iter()) {
-                                        chunk_sum += *qv as i64 * *kv as i64;
-                                    }
-                                    acc += chunk_sum as i128;
-                                }
-                                for (qv, kv) in qrem.iter().zip(krem.iter()) {
-                                    acc += *qv as i128 * *kv as i128;
-                                }
-                                // · 1/sqrt(head_dim) (Q0.30), onto Q.SCORE_F:
-                                // 2·QK_F + 30 − SCORE_F = 38 bits back down.
-                                let sc = rne_shr_i128(
-                                    acc * self.isq_q30 as i128,
-                                    2 * QK_F + 30 - SCORE_F,
-                                );
-                                assert!(
-                                    sc >= i64::MIN as i128 && sc <= i64::MAX as i128,
-                                    "FullInt: score exceeds i64"
-                                );
-                                self.iscores[t] = sc as i64;
-                            }
-                            softmax_i(
-                                &mut self.iscores[..=seq_pos],
-                                &mut self.iprobs[..=seq_pos],
-                                lut,
-                            );
-                            // V mix, t-outer/d-inner: reads
-                            // v_icache[vb..vb+head_dim] contiguously (stride
-                            // kv_dim only across t, not per element), which
-                            // vectorizes and touches each cache line once per
-                            // t instead of once per (t, d) pair.
-                            let imix = &mut self.imix[..head_dim];
-                            imix.fill(0);
-                            for t in 0..=seq_pos {
-                                let p = self.iprobs[t] as i64;
-                                let vb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
-                                // |p| <= 2^15, |v| < 2^30, T <= max_pos <= 2^17
-                                // => |Σ| < 2^15 * 2^30 * 2^17 = 2^62, exact.
-                                for (m, v) in imix.iter_mut().zip(&self.v_icache[vb..vb + head_dim])
-                                {
-                                    *m += p * *v as i64;
-                                }
-                            }
-                            for (d, &m) in imix.iter().enumerate() {
-                                // Q.(QK_F+PROB_F) → Q.F.
-                                self.fixed[h_idx * head_dim + d] =
-                                    rne_shr_i128(m as i128, QK_F + PROB_F - F) as i64;
-                            }
-                        }
-                    });
+                    // Attn core (RoPE-I + KV write + score dots + SOFTMAX-I
+                    // + V mix), factored into `attn_token_int` so
+                    // `forward_prefill_int`'s batched path runs the exact
+                    // same arithmetic per token — see that method's doc.
+                    self.attn_token_int(layer_idx, seq_pos);
                     // FullInt lands exactly on the Q.F grid.
                     F
                 }
             };
+            // Fresh borrow (see the comment at the loop's `let layer = ..`
+            // above): the previous `layer` binding's last use was inside the
+            // match arm, before `self.attn_token_int`'s `&mut self` call;
+            // this one starts strictly after it, so the two never overlap.
+            let layer = &self.model.layers[layer_idx];
             let s_o = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
                 match &layer.attn_sub {
                     Some(g) => normq(&mut self.codes[..hidden], &self.fixed[..hidden], g),
@@ -1650,32 +1795,25 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                     // up/gate and down_proj Gemv spans on either side of it.
                     timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Act, {
                         let lut = self.exp_lut.as_ref().expect("FullInt: exp LUT");
-                        let (ng, qg) = fixed_qscale(&layer.gate_s, &s_mlp, F);
-                        let (nu, qu) = fixed_qscale(&layer.up_s, &s_mlp, F);
-                        for i in 0..inter {
-                            let g = qg.rescale(self.acc_b[i] as i64);
-                            let g = if ng { -g } else { g };
-                            let u = qu.rescale(self.acc_a[i] as i64);
-                            let u = if nu { -u } else { u };
-                            assert!(
-                                g.unsigned_abs() < 1 << 40 && u.unsigned_abs() < 1 << 40,
-                                "FullInt: MLP value exceeds Q.20 headroom"
-                            );
-                            self.fixed[i] = match c.hidden_act {
-                                Activation::Relu2 => relu2_q20(g, u),
-                                Activation::Silu => silu_q20(g, u, lut),
-                            };
-                        }
                         // FullInt escape valve (spec §5.10 gap): the ACT-I
-                        // output above is exact Q.20 already, but at
-                        // BitNet-2B scale its magnitude can exceed the
-                        // normq/quantq 2^50 residual headroom. Re-fix onto a
-                        // per-vector block exponent G ≤ F, mirroring
-                        // `fix_f32_vec`'s hybrid-boundary contract but
-                        // derived purely from the integer magnitude (never a
-                        // float). M7-scale products stay under the
+                        // output is exact Q.20 already, but at BitNet-2B
+                        // scale its magnitude can exceed the normq/quantq
+                        // 2^50 residual headroom, so `act_mlp_token` re-fixes
+                        // it onto a per-vector block exponent G ≤ F,
+                        // mirroring `fix_f32_vec`'s hybrid-boundary contract
+                        // but derived purely from the integer magnitude
+                        // (never a float). M7-scale products stay under the
                         // headroom, so this degenerates to G = F, unshifted.
-                        fix_q_vec(&mut self.fixed[..inter])
+                        Self::act_mlp_token(
+                            &self.acc_a[..inter],
+                            &self.acc_b[..inter],
+                            &layer.up_s,
+                            &layer.gate_s,
+                            s_mlp,
+                            c.hidden_act,
+                            lut,
+                            &mut self.fixed[..inter],
+                        )
                     })
                 }
             };
@@ -1722,6 +1860,297 @@ impl<'m, 'a> CisEngine<'m, 'a> {
             self.phase_cycles
                 .record_total(__amdahl_total_start, __amdahl_total_end);
         }
+    }
+
+    /// Batched multi-token prefill. `CisMode::Hybrid` and single-token calls
+    /// fall through unchanged to the sequential `forward_step_int` loop
+    /// (Hybrid's f32 attention/activation stages have no batched
+    /// counterpart here; one token has nothing to batch). Otherwise
+    /// processes `tokens` in chunks of `PREFILL_CHUNK`, running each chunk
+    /// through [`Self::forward_prefill_chunk`] — see that method's doc for
+    /// why the result is bit-identical to the sequential path.
+    ///
+    /// `AEGIS_PREFILL_BATCH=0` (`set_prefill_batch(false)`) forces the
+    /// sequential loop unconditionally, for A/B and debugging.
+    pub fn forward_prefill_int(&mut self, tokens: &[u32], start_pos: usize) {
+        if self.mode != CisMode::FullInt || tokens.len() < 2 || !self.prefill_batch {
+            let mut pos = start_pos;
+            for &t in tokens {
+                self.forward_step_int(t, pos);
+                pos += 1;
+            }
+            return;
+        }
+
+        // Amdahl total span: ONE `record_total` pair for the whole prefill
+        // call, matching `forward_step_int`'s one-pair-per-token-forwarded
+        // convention at the call-site granularity `forward_prefill_int`
+        // itself represents (the caller's own `tokens_forward` accounting,
+        // e.g. `agent_trace`'s witness/step bookkeeping, is unchanged
+        // either way — it counts tokens, not calls).
+        #[cfg(feature = "phase-timers")]
+        let __amdahl_total_start = crate::phase_timers::tick_start();
+
+        const PREFILL_CHUNK: usize = 64;
+        for (ci, chunk) in tokens.chunks(PREFILL_CHUNK).enumerate() {
+            let chunk_start = start_pos + ci * PREFILL_CHUNK;
+            self.forward_prefill_chunk(chunk, chunk_start);
+        }
+
+        #[cfg(feature = "phase-timers")]
+        {
+            let __amdahl_total_end = crate::phase_timers::tick_end();
+            self.phase_cycles
+                .record_total(__amdahl_total_start, __amdahl_total_end);
+        }
+    }
+
+    /// One chunk (`T = chunk.len() <= PREFILL_CHUNK` tokens) of batched
+    /// FullInt prefill, starting at absolute position `start_pos`. Runs the
+    /// SAME per-layer sequence `forward_step_int` runs — norm, q/k/v
+    /// project, attention core, o_proj, residual, norm, up/gate project,
+    /// activation, down_proj, residual — but with `T`-wide scratch so every
+    /// `tmm_dispatch` GEMM call decodes each packed weight block ONCE for
+    /// the whole chunk instead of once per token (`tmv_dispatch`'s cost,
+    /// paid `T` times, is what batching removes). The attention core itself
+    /// (`attn_token_int`) and the MLP elementwise stage (`act_mlp_token`)
+    /// are inherently per-token (KV-cache dependent / pointwise) and run
+    /// unchanged, once per token, sharing the exact same code
+    /// `forward_step_int` calls — so every arithmetic step any single
+    /// output element goes through is identical to the sequential path;
+    /// batching only changes which weight-block/token pairs are multiplied
+    /// together in one `tmm_dispatch` call, which integer
+    /// addition/multiplication's associativity/distributivity makes exact,
+    /// never approximate.
+    ///
+    /// Scratch buffers are allocated once here, sized to `T`, and reused
+    /// across every layer of the chunk (none allocated inside the layer
+    /// loop).
+    fn forward_prefill_chunk(&mut self, chunk: &[u32], start_pos: usize) {
+        let c = &self.model.config;
+        let hidden = c.hidden_size;
+        let inter = c.intermediate_size;
+        let num_heads = c.num_attention_heads;
+        let num_kv_heads = c.num_key_value_heads;
+        let head_dim = hidden / num_heads;
+        let kv_dim = num_kv_heads * head_dim;
+        let t_n = chunk.len();
+        let zero_scale = ActScale { num: 0, den: 1 };
+
+        // Persistent-across-layers: each token's full residual stream.
+        let mut hb = vec![0i64; t_n * hidden];
+        // Persistent-across-the-o_proj/down_proj gemm: quantized codes for
+        // every token in the chunk, built by the per-token loop just
+        // before the batched gemm that consumes them.
+        let mut codes_h_b = vec![0i8; t_n * hidden];
+        let mut codes_i_b = vec![0i8; t_n * inter];
+        // Scratch reused across q/k/v/o/down_proj gemm calls (sized to the
+        // widest use: hidden).
+        let mut acc_h_b = vec![0i32; t_n * hidden];
+        let mut acc_kv_b = vec![0i32; t_n * kv_dim];
+        let mut acc_up_b = vec![0i32; t_n * inter];
+        let mut acc_gate_b = vec![0i32; t_n * inter];
+        // q/k/v, persistent across the whole chunk's attention phase for
+        // one layer (needed by the per-token sequential attn_token_int
+        // loop, which must run AFTER all T tokens' q/k/v are computed via
+        // the batched gemm above it).
+        let mut qi_b = vec![0i32; t_n * hidden];
+        let mut ki_b = vec![0i32; t_n * kv_dim];
+        let mut vi_b = vec![0i32; t_n * kv_dim];
+        let mut s_in_b = vec![zero_scale; t_n];
+        let mut s_o_b = vec![zero_scale; t_n];
+        let mut s_mlp_b = vec![zero_scale; t_n];
+        let mut s_down_b = vec![zero_scale; t_n];
+
+        for (ti, &tok) in chunk.iter().enumerate() {
+            self.model
+                .emb_row_to_q(tok, &mut hb[ti * hidden..(ti + 1) * hidden]);
+        }
+
+        let num_layers = self.model.layers.len();
+        for layer_idx in 0..num_layers {
+            // Index-based, not `.iter().enumerate()`: the per-token loop
+            // below calls `self.attn_token_int` (`&mut self`), which would
+            // conflict with an iterator's borrow of `self.model` held across
+            // the whole loop body. See the identical comment in
+            // `forward_step_int`. `layer` here is rebound (shadowed) once
+            // more, after that call, further down.
+            let layer = &self.model.layers[layer_idx];
+            // --- attention block: ln1 -> q/k/v gemm (batched) -> per-token
+            // rescale -> per-token attn core -> per-token o_proj-input norm
+            // -> o_proj gemm (batched) -> per-token residual -----------------
+            for ti in 0..t_n {
+                s_in_b[ti] = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                    normq(
+                        &mut codes_h_b[ti * hidden..(ti + 1) * hidden],
+                        &hb[ti * hidden..(ti + 1) * hidden],
+                        &layer.ln1,
+                    )
+                });
+            }
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                Self::tmm_dispatch(&mut acc_h_b, &codes_h_b, layer.q_w, hidden, hidden, t_n);
+            });
+            for ti in 0..t_n {
+                let (neg, qs) = fixed_qscale(&layer.q_s, &s_in_b[ti], QK_F);
+                for (o, &a) in qi_b[ti * hidden..(ti + 1) * hidden]
+                    .iter_mut()
+                    .zip(&acc_h_b[ti * hidden..(ti + 1) * hidden])
+                {
+                    let v = qs.rescale(a as i64);
+                    let v = if neg { -v } else { v };
+                    assert!(v.unsigned_abs() < 1 << 29, "FullInt: q exceeds Q.16 range");
+                    *o = v as i32;
+                }
+            }
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                Self::tmm_dispatch(&mut acc_kv_b, &codes_h_b, layer.k_w, kv_dim, hidden, t_n);
+            });
+            for ti in 0..t_n {
+                let (neg, qs) = fixed_qscale(&layer.k_s, &s_in_b[ti], QK_F);
+                for (o, &a) in ki_b[ti * kv_dim..(ti + 1) * kv_dim]
+                    .iter_mut()
+                    .zip(&acc_kv_b[ti * kv_dim..(ti + 1) * kv_dim])
+                {
+                    let v = qs.rescale(a as i64);
+                    let v = if neg { -v } else { v };
+                    assert!(v.unsigned_abs() < 1 << 29, "FullInt: k exceeds Q.16 range");
+                    *o = v as i32;
+                }
+            }
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                Self::tmm_dispatch(&mut acc_kv_b, &codes_h_b, layer.v_w, kv_dim, hidden, t_n);
+            });
+            for ti in 0..t_n {
+                let (neg, qs) = fixed_qscale(&layer.v_s, &s_in_b[ti], QK_F);
+                for (o, &a) in vi_b[ti * kv_dim..(ti + 1) * kv_dim]
+                    .iter_mut()
+                    .zip(&acc_kv_b[ti * kv_dim..(ti + 1) * kv_dim])
+                {
+                    let v = qs.rescale(a as i64);
+                    let v = if neg { -v } else { v };
+                    assert!(v.unsigned_abs() < 1 << 29, "FullInt: v exceeds Q.16 range");
+                    *o = v as i32;
+                }
+            }
+
+            // Sequential over t: each token's attention depends on every
+            // cached K/V up to its own position, including earlier tokens
+            // in this same chunk (attn_token_int writes this token's K/V
+            // into the cache before returning).
+            for ti in 0..t_n {
+                self.qi[..hidden].copy_from_slice(&qi_b[ti * hidden..(ti + 1) * hidden]);
+                self.ki[..kv_dim].copy_from_slice(&ki_b[ti * kv_dim..(ti + 1) * kv_dim]);
+                self.vi[..kv_dim].copy_from_slice(&vi_b[ti * kv_dim..(ti + 1) * kv_dim]);
+                self.attn_token_int(layer_idx, start_pos + ti);
+                // FullInt attention lands exactly on the Q.F grid (see
+                // forward_step_int's g_attn == F for this mode).
+                s_o_b[ti] = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                    match &layer.attn_sub {
+                        Some(g) => normq(
+                            &mut codes_h_b[ti * hidden..(ti + 1) * hidden],
+                            &self.fixed[..hidden],
+                            g,
+                        ),
+                        None => quantq(
+                            &mut codes_h_b[ti * hidden..(ti + 1) * hidden],
+                            &self.fixed[..hidden],
+                            F,
+                        ),
+                    }
+                });
+            }
+            // Fresh borrow: the previous `layer` binding's last use (q/k/v
+            // gemm dispatch, before the per-token `&mut self` loop above)
+            // ended well before `self.attn_token_int`'s call inside that
+            // loop; this one starts strictly after it.
+            let layer = &self.model.layers[layer_idx];
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                Self::tmm_dispatch(&mut acc_h_b, &codes_h_b, layer.o_w, hidden, hidden, t_n);
+            });
+            for ti in 0..t_n {
+                let (neg, qs) = residual_qscale(&layer.o_s, &s_o_b[ti]);
+                for (hi, &a) in hb[ti * hidden..(ti + 1) * hidden]
+                    .iter_mut()
+                    .zip(&acc_h_b[ti * hidden..(ti + 1) * hidden])
+                {
+                    let d = qs.rescale(a as i64);
+                    *hi += if neg { -d } else { d };
+                }
+            }
+
+            // --- MLP block: ln2 -> up/gate gemm (batched) -> per-token
+            // activation -> down_proj gemm (batched) -> per-token residual --
+            for ti in 0..t_n {
+                s_mlp_b[ti] = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                    normq(
+                        &mut codes_h_b[ti * hidden..(ti + 1) * hidden],
+                        &hb[ti * hidden..(ti + 1) * hidden],
+                        &layer.ln2,
+                    )
+                });
+            }
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                Self::tmm_dispatch(&mut acc_up_b, &codes_h_b, layer.up_w, inter, hidden, t_n);
+                Self::tmm_dispatch(
+                    &mut acc_gate_b,
+                    &codes_h_b,
+                    layer.gate_w,
+                    inter,
+                    hidden,
+                    t_n,
+                );
+            });
+            for ti in 0..t_n {
+                let lut = self.exp_lut.as_ref().expect("FullInt: exp LUT");
+                let g_mlp = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Act, {
+                    Self::act_mlp_token(
+                        &acc_up_b[ti * inter..(ti + 1) * inter],
+                        &acc_gate_b[ti * inter..(ti + 1) * inter],
+                        &layer.up_s,
+                        &layer.gate_s,
+                        s_mlp_b[ti],
+                        c.hidden_act,
+                        lut,
+                        &mut self.fixed[..inter],
+                    )
+                });
+                s_down_b[ti] = timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Norm, {
+                    match &layer.ffn_sub {
+                        Some(g) => normq(
+                            &mut codes_i_b[ti * inter..(ti + 1) * inter],
+                            &self.fixed[..inter],
+                            g,
+                        ),
+                        None => quantq(
+                            &mut codes_i_b[ti * inter..(ti + 1) * inter],
+                            &self.fixed[..inter],
+                            g_mlp,
+                        ),
+                    }
+                });
+            }
+            timed_phase!(self.phase_cycles, crate::phase_timers::Phase::Gemv, {
+                Self::tmm_dispatch(&mut acc_h_b, &codes_i_b, layer.down_w, hidden, inter, t_n);
+            });
+            for ti in 0..t_n {
+                let (neg, qs) = residual_qscale(&layer.down_s, &s_down_b[ti]);
+                for (hi, &a) in hb[ti * hidden..(ti + 1) * hidden]
+                    .iter_mut()
+                    .zip(&acc_h_b[ti * hidden..(ti + 1) * hidden])
+                {
+                    let d = qs.rescale(a as i64);
+                    *hi += if neg { -d } else { d };
+                }
+            }
+        }
+
+        // Only the LAST token's residual state is the engine's forward
+        // position going forward (decode or the next prefill chunk); every
+        // earlier token's `hb` row was fully consumed layer-by-layer above
+        // (its own attention K/V write, its own residual adds) and needs no
+        // further life once this chunk returns.
+        self.h[..hidden].copy_from_slice(&hb[(t_n - 1) * hidden..t_n * hidden]);
     }
 
     /// Final norm + integer LM head over the current residual state.
