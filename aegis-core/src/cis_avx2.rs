@@ -283,35 +283,63 @@ unsafe fn tmv_i8_avx2(
     for (row, out) in output.iter_mut().enumerate().take(dim_out) {
         let w_row = &weights_packed[row * n_bytes..(row + 1) * n_bytes];
         let mut acc = _mm256_setzero_si256();
-        let mut acc16 = [_mm256_setzero_si256(); 4];
+        // v5b: split the four i16 pair-sum accumulators into two
+        // independent sets by block parity — `acc16[0]` takes even-indexed
+        // blocks, `acc16[1]` takes odd-indexed blocks — so the two
+        // half-chains have no data dependency on each other and the
+        // scheduler can have two independent dependency chains in flight
+        // at once instead of one. No decode lookahead: the four weight
+        // vectors for a block are decoded and consumed within the same
+        // iteration, transiently.
+        //
+        // Register budget across the loop boundary: 8 `acc16` + 3 consts
+        // (`lut_lo`, `lut_hi`, `nibble_mask`; `ones_i16` and `acc` are only
+        // live at a flush) = 11 named ymm in steady state. The 4 decoded
+        // weight vectors (`w`) are transient within one iteration, not
+        // named across the loop boundary.
+        let mut acc16 = [[_mm256_setzero_si256(); 4]; 2];
         let mut blocks_since_flush = 0usize;
 
-        // Widens all four i16 pair-sum accumulators into `acc` (i32) and
+        // Widens all eight i16 pair-sum accumulators into `acc` (i32) and
         // resets them. Safe to call on an empty run (adds zero) so it can
         // double as both the periodic flush and the final, possibly-partial
         // one after the loop.
         macro_rules! flush {
             () => {
-                for k in 0..4 {
-                    acc = _mm256_add_epi32(acc, _mm256_madd_epi16(acc16[k], c.ones_i16));
-                    acc16[k] = _mm256_setzero_si256();
+                for parity in 0..2 {
+                    for k in 0..4 {
+                        acc =
+                            _mm256_add_epi32(acc, _mm256_madd_epi16(acc16[parity][k], c.ones_i16));
+                        acc16[parity][k] = _mm256_setzero_si256();
+                    }
                 }
                 blocks_since_flush = 0;
             };
         }
 
+        // Flush cadence: blocks alternate strictly even/odd by absolute
+        // index, so ANY 2*FLUSH_BLOCKS consecutive blocks contain exactly
+        // FLUSH_BLOCKS even-indexed and FLUSH_BLOCKS odd-indexed ones,
+        // regardless of where the window starts — flushing every
+        // `2*FLUSH_BLOCKS` total blocks therefore gives each of `acc16[0]`
+        // and `acc16[1]` at most `FLUSH_BLOCKS` blocks before a flush, the
+        // exact bound the compile-time assert above proves safe. The final,
+        // possibly-partial window has <= FLUSH_BLOCKS of either parity too
+        // (a window of < 2*FLUSH_BLOCKS consecutive integers has at most
+        // FLUSH_BLOCKS of each parity), so it is covered by the same proof.
         for blk in 0..full_blocks {
             let b0 = blk * BLOCK_BYTES;
             let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
             let w = decode(v, &c);
 
+            let parity = blk & 1;
             for k in 0..4 {
                 let a = _mm256_loadu_si256(lanes.as_ptr().add(k * n_bytes + b0) as *const __m256i);
                 let pair = pair_sum(a, w[k], &c);
-                acc16[k] = _mm256_add_epi16(acc16[k], pair);
+                acc16[parity][k] = _mm256_add_epi16(acc16[parity][k], pair);
             }
             blocks_since_flush += 1;
-            if blocks_since_flush == FLUSH_BLOCKS {
+            if blocks_since_flush == 2 * FLUSH_BLOCKS {
                 flush!();
             }
         }
