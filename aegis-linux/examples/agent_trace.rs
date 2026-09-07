@@ -2354,30 +2354,54 @@ mod tests {
     // load the real model rather than a canned fixture; see the module doc
     // comment's format-2 entry for the grammar these receipts carry). ---
 
-    fn load_m7_model() -> (CisModel, AegisTokenizer, [u8; 32], [u8; 32], [u8; 32]) {
+    /// Loads the checked-in M7 tinybit model and leaks its byte buffers to
+    /// `'static` (test-only; a handful of small one-time leaks per test
+    /// binary run, never in `gen`/`verify`'s own real paths) so the
+    /// borrowed `SafeTensors`/`FullBitNetPipeline`/`CisModel`/
+    /// `AegisTokenizer` chain can be returned by value instead of pinning
+    /// this whole test module's helpers to one caller-supplied lifetime.
+    fn load_m7_model() -> (
+        CisModel<'static>,
+        AegisTokenizer<'static>,
+        [u8; 32],
+        [u8; 32],
+        [u8; 32],
+    ) {
         let root = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../model-lab/tinybit/m7_final_gate_work/artifacts"
         );
-        let model_bytes =
-            std::fs::read(format!("{root}/MODEL.SAF")).expect("read MODEL.SAF fixture");
-        let embed_bytes =
-            std::fs::read(format!("{root}/EMBED.BIN")).expect("read EMBED.BIN fixture");
-        let vocab_bytes =
-            std::fs::read(format!("{root}/VOCAB.BIN")).expect("read VOCAB.BIN fixture");
-        let model_sha = sha256(&model_bytes);
-        let embed_sha = sha256(&embed_bytes);
-        let vocab_sha = sha256(&vocab_bytes);
-        let tensors = SafeTensors::deserialize(&model_bytes).expect("parse MODEL.SAF");
+        let model_bytes: &'static [u8] = Box::leak(
+            std::fs::read(format!("{root}/MODEL.SAF"))
+                .expect("read MODEL.SAF fixture")
+                .into_boxed_slice(),
+        );
+        let embed_bytes: &'static [u8] = Box::leak(
+            std::fs::read(format!("{root}/EMBED.BIN"))
+                .expect("read EMBED.BIN fixture")
+                .into_boxed_slice(),
+        );
+        let vocab_bytes: &'static [u8] = Box::leak(
+            std::fs::read(format!("{root}/VOCAB.BIN"))
+                .expect("read VOCAB.BIN fixture")
+                .into_boxed_slice(),
+        );
+        let model_sha = sha256(model_bytes);
+        let embed_sha = sha256(embed_bytes);
+        let vocab_sha = sha256(vocab_bytes);
+        let tensors: &'static SafeTensors = Box::leak(Box::new(
+            SafeTensors::deserialize(model_bytes).expect("parse MODEL.SAF"),
+        ));
         let cfg_json = tensors
             .metadata_field("aegis_config")
             .expect("read __metadata__")
             .expect("MODEL.SAF carries no aegis_config");
         let config = ModelConfig::from_json(&cfg_json).expect("parse aegis_config");
-        let tokenizer = AegisTokenizer::new(&vocab_bytes).expect("parse VOCAB.BIN");
-        let pipeline =
-            FullBitNetPipeline::new(&tensors, &embed_bytes, &config).expect("build pipeline");
-        let cis_model = CisModel::new_with_options(&pipeline, &config, head_preconvert_enabled())
+        let tokenizer = AegisTokenizer::new(vocab_bytes).expect("parse VOCAB.BIN");
+        let pipeline: &'static FullBitNetPipeline<'static> = Box::leak(Box::new(
+            FullBitNetPipeline::new(tensors, embed_bytes, &config).expect("build pipeline"),
+        ));
+        let cis_model = CisModel::new_with_options(pipeline, &config, head_preconvert_enabled())
             .expect("CIS model conversion");
         (cis_model, tokenizer, model_sha, embed_sha, vocab_sha)
     }
