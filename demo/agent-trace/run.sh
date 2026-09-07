@@ -182,15 +182,20 @@ cmd_tamper() {
     if [ "$rc3" -ne 0 ]; then echo "tamper 3 (drop a step): FAIL as expected (exit $rc3)"; else echo "tamper 3 (drop a step): DID NOT FAIL — BUG"; overall=1; fi
 
     echo ""
-    echo "== tamper 4/4: flip a hex nibble of a step's q= field (format-2 only) ==" >&2
+    echo "== tamper 4/4: flip a hex nibble of the LAST step's q= field (format-2 only) ==" >&2
     # A format-1 (AEGIS-TRACE v0) receipt has no q= field to flip; this
     # mutation is a no-op FAIL-as-expected skip in that case (nothing to
     # tamper, so nothing this step can assert), never a false BUG.
+    # The last step is chosen on purpose: on a K>=2 receipt its q= binds the
+    # prompt that already contains the earlier steps' tool results, so this
+    # is the per-step binding the chain buys (step 0's q= only binds the
+    # initial prompt). The verifier reports it as STEP n QUERY MISMATCH.
     local t4="$OUT/tamper-flip-query.txt"
     if grep -q ' q=[0-9a-f]' "$good"; then
-        awk '
-            BEGIN{done=0}
-            /^step / && done==0 && match($0, /q=[0-9a-f]+/) {
+        local last_q_step
+        last_q_step=$(grep -n '^step [0-9]*:.* q=[0-9a-f]' "$good" | tail -1 | cut -d: -f1)
+        awk -v target="$last_q_step" '
+            NR==target && match($0, /q=[0-9a-f]+/) {
                 val=substr($0, RSTART+2, RLENGTH-2)
                 first=substr(val,1,1)
                 if (first=="0") { newfirst="1" } else { newfirst="0" }
@@ -198,16 +203,16 @@ cmd_tamper() {
                 line=$0
                 sub("q=" val, "q=" newval, line)
                 print line
-                done=1
                 next
             }
             {print}
         ' "$good" > "$t4"
+        echo "   (mutated $(sed -n "${last_q_step}p" "$t4" | cut -d: -f1) of $(grep -c '^step ' "$good") steps)" >&2
         set +e
         "$(agent_trace_bin)" verify "$MODEL" "$EMBED" "$VOCAB" "$t4"
         rc4=$?
         set -e
-        if [ "$rc4" -ne 0 ]; then echo "tamper 4 (flip q= field): FAIL as expected (exit $rc4)"; else echo "tamper 4 (flip q= field): DID NOT FAIL — BUG"; overall=1; fi
+        if [ "$rc4" -ne 0 ]; then echo "tamper 4 (flip last step q= field): FAIL as expected (exit $rc4)"; else echo "tamper 4 (flip last step q= field): DID NOT FAIL — BUG"; overall=1; fi
     else
         echo "tamper 4 (flip q= field): skipped — baseline receipt has no q= field (format-1)"
     fi
