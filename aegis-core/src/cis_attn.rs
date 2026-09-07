@@ -20,7 +20,7 @@
 
 use alloc::vec::Vec;
 
-use crate::cis::rne_div;
+use crate::cis::{rne_div, rne_shr_i128};
 
 // ---------------------------------------------------------------------------
 // Normative constants (pinned integer literals; derivation cited in the
@@ -359,8 +359,8 @@ pub fn rope_apply_i(
             let s = tab.sin[off + d] as i128;
             let v0 = v[d] as i128;
             let v1 = v[d + half] as i128;
-            v[d] = rne_div(v0 * c - v1 * s, 1 << 30) as i32;
-            v[d + half] = rne_div(v0 * s + v1 * c, 1 << 30) as i32;
+            v[d] = rne_shr_i128(v0 * c - v1 * s, 30) as i32;
+            v[d + half] = rne_shr_i128(v0 * s + v1 * c, 30) as i32;
         }
     };
     for h in 0..num_heads {
