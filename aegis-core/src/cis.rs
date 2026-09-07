@@ -42,6 +42,44 @@ pub fn rne_div(num: i128, den: i128) -> i128 {
     }
 }
 
+/// Round-half-to-even step given an exact floor quotient `q` and exact
+/// remainder `r` (`0 <= r < den`) of `num / den`, i.e. the second half of
+/// what `rne_div` computes — shared here so `normq`, `quantq`, and
+/// `rne_shr_i128` can supply `(q, r)` from a division-free path (or a
+/// cheaper narrower division) and still apply the identical, normative
+/// rounding rule.
+#[inline]
+pub fn rne_round(q: i128, r: i128, den: i128) -> i128 {
+    debug_assert!(den > 0 && r >= 0 && r < den, "rne_round: r out of range");
+    if 2 * r > den || (2 * r == den && q & 1 != 0) {
+        q + 1
+    } else {
+        q
+    }
+}
+
+/// Exact RNE division of a signed i128 by 2^k (1 ≤ k ≤ 126) in pure
+/// shift/mask arithmetic — bit-identical to `rne_div(p, 1i128 << k)` for
+/// ANY sign of `p` (asserted exhaustively/randomly in tests). Unlike
+/// `rne_shr` (nonnegative i64 only, `cis_infer`), this covers the signed
+/// i128 products that `QScale64::rescale`, `f32_to_fixed`, `fix_q_vec`, and
+/// the FullInt attention score dot / V-mix requants divide by a runtime
+/// power of two — `rne_div`'s i128/i128 division there compiles to
+/// `compiler_builtins::u128_div_rem` (~100 cycles) and dominates both the
+/// FullInt Act phase (~5 G ticks / 15% of a 2B verify) and the Attn phase.
+/// An arithmetic right shift is `div_euclid` by `2^k` (floor), and masking
+/// off the low `k` bits is `rem_euclid` — so the exact quotient/remainder
+/// pair `rne_div` computes via `i128::div_euclid`/`rem_euclid` is available
+/// here without a divide; `rne_round` then applies the single normative
+/// rounding rule to it.
+#[inline]
+pub fn rne_shr_i128(p: i128, k: u32) -> i128 {
+    debug_assert!((1..=126).contains(&k));
+    let floor = p >> k; // arithmetic shift == div_euclid(p, 2^k) for any sign
+    let rem = p & ((1i128 << k) - 1); // == rem_euclid(p, 2^k), 0 <= rem < 2^k
+    rne_round(floor, rem, 1i128 << k)
+}
+
 /// Fixed-point requantization multiplier `(M, S)`: value = M / 2^(31+S),
 /// with `M ∈ [2^30, 2^31)` (spec §1, TFLite/gemmlowp lineage — borrowed
 /// deliberately; CIS-1's novelty is the contract, not this primitive).

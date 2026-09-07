@@ -61,7 +61,7 @@ macro_rules! timed_phase {
 }
 
 use crate::attention::RopeCache;
-use crate::cis::rne_div;
+use crate::cis::{rne_round, rne_shr_i128};
 use crate::cis_attn::{
     ExpLut, RopeTableI, inv_sqrt_q30, relu2_q20, rope_apply_i, silu_q20, softmax_i,
 };
@@ -114,26 +114,6 @@ fn rne_shr(m: i64, k: i32) -> i64 {
     } else {
         floor
     }
-}
-
-/// Exact RNE division of a signed i128 by 2^k (1 ≤ k ≤ 126) in pure
-/// shift/mask arithmetic — bit-identical to `rne_div(p, 1i128 << k)` for
-/// ANY sign of `p` (asserted exhaustively/randomly in tests). Unlike
-/// `rne_shr` (nonnegative i64 only), this covers the signed i128 products
-/// that `QScale64::rescale`, `f32_to_fixed`, and `fix_q_vec` divide by a
-/// runtime power of two — `rne_div`'s i128/i128 division there compiles to
-/// `compiler_builtins::u128_div_rem` (~100 cycles) and dominates the FullInt
-/// Act phase (~5 G ticks / 15 % of a 2B verify). An arithmetic right shift
-/// is `div_euclid` by `2^k` (floor), and masking off the low `k` bits is
-/// `rem_euclid` — so the exact quotient/remainder pair `rne_div` computes
-/// via `i128::div_euclid`/`rem_euclid` is available here without a divide;
-/// `rne_round` then applies the single normative rounding rule to it.
-#[inline]
-fn rne_shr_i128(p: i128, k: u32) -> i128 {
-    debug_assert!((1..=126).contains(&k));
-    let floor = p >> k; // arithmetic shift == div_euclid(p, 2^k) for any sign
-    let rem = p & ((1i128 << k) - 1); // == rem_euclid(p, 2^k), 0 <= rem < 2^k
-    rne_round(floor, rem, 1i128 << k)
 }
 
 /// Exact BF16 → signed fixed-point with `frac` fractional bits, RNE.
@@ -330,21 +310,6 @@ impl QScale64 {
 pub struct ActScale {
     pub num: u128,
     pub den: u128,
-}
-
-/// Round-half-to-even step given an exact floor quotient `q` and exact
-/// remainder `r` (`0 <= r < den`) of `num / den`, i.e. the second half of
-/// what `rne_div` computes — shared here so `normq` and `quantq` can supply
-/// `(q, r)` from a division-free path (or a cheaper narrower division) and
-/// still apply the identical, normative rounding rule.
-#[inline]
-fn rne_round(q: i128, r: i128, den: i128) -> i128 {
-    debug_assert!(den > 0 && r >= 0 && r < den, "rne_round: r out of range");
-    if 2 * r > den || (2 * r == den && q & 1 != 0) {
-        q + 1
-    } else {
-        q
-    }
 }
 
 /// RMSNorm (gain `g`, Q.GQ) followed by per-token absmax quantization onto
@@ -1089,6 +1054,12 @@ pub struct CisEngine<'m, 'a> {
     v_icache: Vec<i32>,
     iscores: Vec<i64>,
     iprobs: Vec<i32>,
+    /// Per-head V-mix accumulator (leg attn-int-fastpath), reused across
+    /// heads/layers via `fill(0)` — the t-outer/d-inner loop interchange
+    /// needs one running sum per `d` instead of the d-outer version's single
+    /// scalar, and `aegis-core` is no_std + alloc with no allocation inside
+    /// `forward_step_int`, so this is sized once here.
+    imix: Vec<i64>,
     exp_lut: Option<ExpLut>,
     rope_i: Option<RopeTableI>,
     isq_q30: i64,
@@ -1154,6 +1125,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
             v_icache: vec![0i32; z(model.layers.len() * max_pos * kv_dim)],
             iscores: vec![0i64; z(max_pos)],
             iprobs: vec![0i32; z(max_pos)],
+            imix: vec![0i64; z(head_dim)],
             exp_lut: full.then(ExpLut::new),
             rope_i: full.then(|| RopeTableI::new(max_pos, head_dim, c.rope_theta.to_bits())),
             isq_q30: inv_sqrt_q30(head_dim as u64),
@@ -1512,19 +1484,44 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                         for h_idx in 0..num_heads {
                             let kv_h = h_idx / (num_heads / num_kv_heads);
                             let qh = &self.qi[h_idx * head_dim..(h_idx + 1) * head_dim];
+                            // Pre-RoPE the rescale sites (~1443-1483) assert
+                            // |q|,|k| < 2^29; ROPE-I rotates by cos/sin with
+                            // |cos|,|sin| <= 2^30 (cis_attn::RopeTableI), so a
+                            // rotated component is a sum of two products each
+                            // < 2^29 * 2^30 = 2^59, i.e. < 2^60 in magnitude —
+                            // post-RoPE |q|,|k| < 2^30 (the √2 + 1 ulp growth
+                            // the rope_apply_i doc describes). Every
+                            // q[i] * k[i] product below is therefore
+                            // < 2^60, and a chunk of 8 such products summed in
+                            // i64 is < 8 * 2^60 = 2^63, exact (no overflow).
+                            debug_assert!(qh.iter().all(|v| v.unsigned_abs() < 1 << 30));
                             for t in 0..=seq_pos {
                                 let kb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
-                                // Exact dot on the Q.(2·QK_F) grid; i128 so no
-                                // headroom argument is ever needed.
+                                let kh = &self.k_icache[kb..kb + head_dim];
+                                debug_assert!(kh.iter().all(|v| v.unsigned_abs() < 1 << 30));
+                                // Exact dot on the Q.(2·QK_F) grid: chunks of
+                                // 8 products summed in i64 (exact, see the
+                                // bound above), each chunk sum folded into an
+                                // i128 accumulator so the total needs no
+                                // headroom argument regardless of head_dim.
                                 let mut acc: i128 = 0;
-                                for (qv, kv) in qh.iter().zip(&self.k_icache[kb..kb + head_dim]) {
+                                let (qch, qrem) = qh.as_chunks::<8>();
+                                let (kch, krem) = kh.as_chunks::<8>();
+                                for (qa, ka) in qch.iter().zip(kch.iter()) {
+                                    let mut chunk_sum: i64 = 0;
+                                    for (qv, kv) in qa.iter().zip(ka.iter()) {
+                                        chunk_sum += *qv as i64 * *kv as i64;
+                                    }
+                                    acc += chunk_sum as i128;
+                                }
+                                for (qv, kv) in qrem.iter().zip(krem.iter()) {
                                     acc += *qv as i128 * *kv as i128;
                                 }
                                 // · 1/sqrt(head_dim) (Q0.30), onto Q.SCORE_F:
                                 // 2·QK_F + 30 − SCORE_F = 38 bits back down.
-                                let sc = rne_div(
+                                let sc = rne_shr_i128(
                                     acc * self.isq_q30 as i128,
-                                    1 << (2 * QK_F + 30 - SCORE_F),
+                                    2 * QK_F + 30 - SCORE_F,
                                 );
                                 assert!(
                                     sc >= i64::MIN as i128 && sc <= i64::MAX as i128,
@@ -1537,16 +1534,27 @@ impl<'m, 'a> CisEngine<'m, 'a> {
                                 &mut self.iprobs[..=seq_pos],
                                 lut,
                             );
-                            for d in 0..head_dim {
-                                // Σ_t p_t·v_t exact in i64 (≤ T·2^15·2^30),
-                                // then Q.(QK_F+PROB_F) → Q.F.
-                                let mut mix: i64 = 0;
-                                for t in 0..=seq_pos {
-                                    let vb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
-                                    mix += self.iprobs[t] as i64 * self.v_icache[vb + d] as i64;
+                            // V mix, t-outer/d-inner: reads
+                            // v_icache[vb..vb+head_dim] contiguously (stride
+                            // kv_dim only across t, not per element), which
+                            // vectorizes and touches each cache line once per
+                            // t instead of once per (t, d) pair.
+                            let imix = &mut self.imix[..head_dim];
+                            imix.fill(0);
+                            for t in 0..=seq_pos {
+                                let p = self.iprobs[t] as i64;
+                                let vb = (layer_idx * max_pos + t) * kv_dim + kv_h * head_dim;
+                                // |p| <= 2^15, |v| < 2^30, T <= max_pos <= 2^17
+                                // => |Σ| < 2^15 * 2^30 * 2^17 = 2^62, exact.
+                                for (m, v) in imix.iter_mut().zip(&self.v_icache[vb..vb + head_dim])
+                                {
+                                    *m += p * *v as i64;
                                 }
+                            }
+                            for (d, &m) in imix.iter().enumerate() {
+                                // Q.(QK_F+PROB_F) → Q.F.
                                 self.fixed[h_idx * head_dim + d] =
-                                    rne_div(mix as i128, 1 << (QK_F + PROB_F - F)) as i64;
+                                    rne_shr_i128(m as i128, QK_F + PROB_F - F) as i64;
                             }
                         }
                     });
@@ -1835,6 +1843,7 @@ impl<'m, 'a> CisEngine<'m, 'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cis::rne_div;
 
     fn lcg_next(state: &mut u64) -> u64 {
         *state = state
@@ -2167,6 +2176,120 @@ mod tests {
                 rne_div(p, 1i128 << k),
                 "rne_shr_i128({p}, {k})"
             );
+        }
+    }
+
+    /// Attn fast-path B: the chunked i64/i128 score dot must equal the
+    /// straightforward i128 reference sum for random pairs of i32 vectors
+    /// with |x| < 2^30 (the post-RoPE bound), across head_dim 64/128/130
+    /// (130 exercises the chunks_exact(8) remainder), plus the all-max,
+    /// all-min, and alternating-sign extremes; and the shift-based requant
+    /// must match `rne_div` for random `isq` in [0, 2^30).
+    #[test]
+    fn chunked_score_dot_matches_reference() {
+        fn reference_dot(a: &[i32], b: &[i32]) -> i128 {
+            a.iter().zip(b).map(|(x, y)| *x as i128 * *y as i128).sum()
+        }
+        fn chunked_dot(a: &[i32], b: &[i32]) -> i128 {
+            let mut acc: i128 = 0;
+            let (ach, arem) = a.as_chunks::<8>();
+            let (bch, brem) = b.as_chunks::<8>();
+            for (aa, ba) in ach.iter().zip(bch.iter()) {
+                let mut chunk_sum: i64 = 0;
+                for (x, y) in aa.iter().zip(ba.iter()) {
+                    chunk_sum += *x as i64 * *y as i64;
+                }
+                acc += chunk_sum as i128;
+            }
+            for (x, y) in arem.iter().zip(brem.iter()) {
+                acc += *x as i128 * *y as i128;
+            }
+            acc
+        }
+        let max = (1i32 << 30) - 1;
+        let min = -max;
+        let mut state =
+            0x5EED_A77B_0D00_0001u64.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0xC0FF_EE00_1234_5678;
+        for head_dim in [64usize, 128, 130] {
+            let cases: Vec<(Vec<i32>, Vec<i32>)> = vec![
+                (vec![max; head_dim], vec![max; head_dim]),
+                (vec![min; head_dim], vec![min; head_dim]),
+                (
+                    (0..head_dim)
+                        .map(|i| if i % 2 == 0 { max } else { min })
+                        .collect(),
+                    (0..head_dim)
+                        .map(|i| if i % 2 == 0 { min } else { max })
+                        .collect(),
+                ),
+            ];
+            for (a, b) in &cases {
+                assert_eq!(
+                    chunked_dot(a, b),
+                    reference_dot(a, b),
+                    "head_dim {head_dim}"
+                );
+            }
+            for _ in 0..2000 {
+                let a: Vec<i32> = (0..head_dim)
+                    .map(|_| (lcg_next(&mut state) as i32) % (1 << 30))
+                    .collect();
+                let b: Vec<i32> = (0..head_dim)
+                    .map(|_| (lcg_next(&mut state) as i32) % (1 << 30))
+                    .collect();
+                let acc = chunked_dot(&a, &b);
+                assert_eq!(acc, reference_dot(&a, &b), "head_dim {head_dim}");
+                let isq = (lcg_next(&mut state) % (1 << 30)) as i128;
+                assert_eq!(rne_shr_i128(acc * isq, 38), rne_div(acc * isq, 1 << 38));
+            }
+        }
+    }
+
+    /// Attn fast-path C: the t-outer/d-inner V-mix accumulation must equal
+    /// the d-outer reference for every d, for random probs/values and
+    /// T in {1, 7, 300}, head_dim 128; and the requant must match `rne_div`.
+    #[test]
+    fn vmix_interchange_matches_reference() {
+        let head_dim = 128usize;
+        let mut state =
+            0x5EED_A77C_0D00_0002u64.wrapping_mul(0x2545_F491_4F6C_DD1D) ^ 0xDEAD_BEEF_0BAD_F00D;
+        for &tlen in &[1usize, 7, 300] {
+            let probs: Vec<i64> = (0..tlen)
+                .map(|_| (lcg_next(&mut state) % (1 << 15)) as i64)
+                .collect();
+            // kv_dim stride is irrelevant to correctness here: use a flat
+            // [tlen][head_dim] layout for the reference/interchange compare.
+            let v: Vec<i32> = (0..tlen * head_dim)
+                .map(|_| {
+                    let x = (lcg_next(&mut state) as i32) % (1 << 30);
+                    if lcg_next(&mut state) & 1 == 1 { -x } else { x }
+                })
+                .collect();
+            // d-outer reference.
+            let mut mix_ref = vec![0i64; head_dim];
+            for d in 0..head_dim {
+                let mut mix: i64 = 0;
+                for t in 0..tlen {
+                    mix += probs[t] * v[t * head_dim + d] as i64;
+                }
+                mix_ref[d] = mix;
+            }
+            // t-outer/d-inner interchange.
+            let mut imix = vec![0i64; head_dim];
+            for t in 0..tlen {
+                let p = probs[t];
+                for (m, x) in imix.iter_mut().zip(&v[t * head_dim..(t + 1) * head_dim]) {
+                    *m += p * *x as i64;
+                }
+            }
+            for d in 0..head_dim {
+                assert_eq!(imix[d], mix_ref[d], "T={tlen} d={d}");
+                assert_eq!(
+                    rne_shr_i128(imix[d] as i128, QK_F + PROB_F - F),
+                    rne_div(imix[d] as i128, 1 << (QK_F + PROB_F - F)),
+                    "T={tlen} d={d}"
+                );
+            }
         }
     }
 
