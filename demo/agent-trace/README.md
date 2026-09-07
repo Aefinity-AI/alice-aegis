@@ -6,17 +6,28 @@ M7 tinybit model: K rounds (default 3) of {greedy, integer-only CIS-1
 one tool call — `CALC(<int> <op> <int>)`, or (only when a table is given)
 `LOOKUP(<key>)` — run the tool, append the decoded text and the tool's
 result to the running prompt for the next round}. The whole episode is
-hash-chained into one **AEGIS-TRACE v0** receipt: artifact SHA-256s, K, N,
-the initial prompt (and a `table-sha256` line when a table was used), and
-one line per step (the step's token ids, which tool ran, its input/output,
-and that step's own decode-chain digest), followed by a `trace-chain`
-digest that folds every step together.
+hash-chained into one **AEGIS-TRACE v1** (format 2) receipt: artifact
+SHA-256s, K, N, the initial prompt (and a `table-sha256` line when a table
+was used), and one line per step (the step's token ids, which tool ran, its
+input/output, that step's own decode-chain digest, and two more fields —
+`ctx=`, the sha256 of the exact prompt text fed to the model that step, and
+`q=`, the sha256 of that step's own newly-appended "query text" — the
+initial prompt at step 0, the previous step's tool result at step 1+),
+followed by a `trace-chain` digest that folds every step together.
 
 `verify` replays the entire episode from the receipt's header (artifacts,
 K, N, initial prompt) on the local machine and compares every step and the
-final trace chain to what the receipt claims — bit-for-bit. Any altered
-token id, tool input, tool output, or dropped step changes the trace chain
-and `verify` exits 1.
+final trace chain to what the receipt claims — bit-for-bit, including the
+`ctx=`/`q=` fields (`STEP n CTX MISMATCH` / `STEP n QUERY MISMATCH` on a
+tampered one). Any altered token id, tool input, tool output, context,
+query, or dropped step changes the trace chain and/or these per-step
+digests and `verify` exits 1. A pre-format-2 (`AEGIS-TRACE v0`) receipt
+still verifies exactly as before — no `ctx=`/`q=` fields expected — and
+prints one extra `NOTE: format-1 receipt, per-step query binding not
+present` line. `verify` also prints a non-fatal `WARNING step n: ...` line
+when a step's tool-call argument does not appear verbatim anywhere in that
+step's own context (format-2 only) — the per-step generalization of
+`demo/agent-trace/eval/check_verbatim.py`'s step-0-only, receipt-only rule.
 
 No files are downloaded. Everything comes from
 `model-lab/tinybit/m7_final_gate_work/artifacts/` already in this repo
@@ -28,7 +39,7 @@ No files are downloaded. Everything comes from
 demo/agent-trace/run.sh build                          # compile agent_trace
 demo/agent-trace/run.sh gen "The quick brown fox" 3 16  # write a receipt (prompt K N)
 demo/agent-trace/run.sh verify <receipt-file>           # replay + check
-demo/agent-trace/run.sh tamper                          # 3 adversarial mutations, each must FAIL
+demo/agent-trace/run.sh tamper                          # 4 adversarial mutations, each must FAIL
 demo/agent-trace/run.sh pack <receipt> [attestdir]      # bundle a receipt (+ table + quote) into one tar
 demo/agent-trace/run.sh verify-bundle <bundle.tar>       # extract + run every applicable check
 demo/agent-trace/run.sh all "The quick brown fox" 3 16  # build + gen + verify + tamper

@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # demo/agent-trace/run.sh — one-command "verified agent episode" demo.
 #
-# Produces an AEGIS-TRACE v0 receipt for a small, deterministic K-step agent
+# Produces an AEGIS-TRACE v1 receipt (format 2: per-step ctx=/q= context and
+# query binding, verified with STEP n CTX/QUERY MISMATCH on tamper; a v0/
+# format-1 receipt still verifies, with a NOTE line) for a small,
+# deterministic K-step agent
 # episode (greedy CIS-1 FullInt decode + a scan for one `calc` tool call,
 # repeated K times over the M7 tinybit model), then replays and verifies
 # that receipt on this machine. A PASS means: given these three artifact
@@ -90,9 +93,10 @@ cmd_verify() {
     "$(agent_trace_bin)" verify "$MODEL" "$EMBED" "$VOCAB" "$receipt" "${TABLE_ARGS[@]}"
 }
 
-# Three adversarial mutations of a known-good receipt, each of which MUST
+# Four adversarial mutations of a known-good receipt, each of which MUST
 # make `verify` print VERIFY FAIL and exit 1: flip a token id, flip a
-# tool-output byte, drop a step line entirely.
+# tool-output byte, drop a step line entirely, or (format-2 receipts only)
+# flip a hex nibble of a step's q= field.
 cmd_tamper() {
     need_artifacts
     mkdir -p "$OUT"
@@ -108,7 +112,7 @@ cmd_tamper() {
     local overall=0
 
     echo ""
-    echo "== tamper 1/3: flip a token id ==" >&2
+    echo "== tamper 1/4: flip a token id ==" >&2
     local t1="$OUT/tamper-flip-token.txt"
     awk '
         BEGIN{done=0}
@@ -131,7 +135,7 @@ cmd_tamper() {
     if [ "$rc1" -ne 0 ]; then echo "tamper 1 (flip token id): FAIL as expected (exit $rc1)"; else echo "tamper 1 (flip token id): DID NOT FAIL — BUG"; overall=1; fi
 
     echo ""
-    echo "== tamper 2/3: flip a tool-output byte ==" >&2
+    echo "== tamper 2/4: flip a tool-output byte ==" >&2
     # A step's tool output is legitimately empty when the tool is "no-tool"
     # (the default prompt rarely provokes the model into emitting a CALC(...)
     # call within N=16 tokens) — there is no byte to flip in an empty field.
@@ -168,7 +172,7 @@ cmd_tamper() {
     if [ "$rc2" -ne 0 ]; then echo "tamper 2 (flip tool-output byte): FAIL as expected (exit $rc2)"; else echo "tamper 2 (flip tool-output byte): DID NOT FAIL — BUG"; overall=1; fi
 
     echo ""
-    echo "== tamper 3/3: drop a step ==" >&2
+    echo "== tamper 3/4: drop a step ==" >&2
     local t3="$OUT/tamper-drop-step.txt"
     grep -v '^step 1: ' "$good" > "$t3"
     set +e
@@ -178,8 +182,39 @@ cmd_tamper() {
     if [ "$rc3" -ne 0 ]; then echo "tamper 3 (drop a step): FAIL as expected (exit $rc3)"; else echo "tamper 3 (drop a step): DID NOT FAIL — BUG"; overall=1; fi
 
     echo ""
+    echo "== tamper 4/4: flip a hex nibble of a step's q= field (format-2 only) ==" >&2
+    # A format-1 (AEGIS-TRACE v0) receipt has no q= field to flip; this
+    # mutation is a no-op FAIL-as-expected skip in that case (nothing to
+    # tamper, so nothing this step can assert), never a false BUG.
+    local t4="$OUT/tamper-flip-query.txt"
+    if grep -q ' q=[0-9a-f]' "$good"; then
+        awk '
+            BEGIN{done=0}
+            /^step / && done==0 && match($0, /q=[0-9a-f]+/) {
+                val=substr($0, RSTART+2, RLENGTH-2)
+                first=substr(val,1,1)
+                if (first=="0") { newfirst="1" } else { newfirst="0" }
+                newval = newfirst substr(val,2)
+                line=$0
+                sub("q=" val, "q=" newval, line)
+                print line
+                done=1
+                next
+            }
+            {print}
+        ' "$good" > "$t4"
+        set +e
+        "$(agent_trace_bin)" verify "$MODEL" "$EMBED" "$VOCAB" "$t4"
+        rc4=$?
+        set -e
+        if [ "$rc4" -ne 0 ]; then echo "tamper 4 (flip q= field): FAIL as expected (exit $rc4)"; else echo "tamper 4 (flip q= field): DID NOT FAIL — BUG"; overall=1; fi
+    else
+        echo "tamper 4 (flip q= field): skipped — baseline receipt has no q= field (format-1)"
+    fi
+
+    echo ""
     if [ "$overall" -eq 0 ]; then
-        echo "TAMPER SELFTEST: PASS — all three mutations were rejected"
+        echo "TAMPER SELFTEST: PASS — every mutation was rejected"
     else
         echo "TAMPER SELFTEST: FAIL — see BUG lines above" >&2
         exit 1

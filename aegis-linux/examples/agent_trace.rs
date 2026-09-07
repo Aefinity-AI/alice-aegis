@@ -87,6 +87,40 @@
 //! given on the command line and disagrees with the header, verify fails
 //! before replay. A receipt with no `suite-sha256` header is unaffected —
 //! fully backward compatible.
+//!
+//! Format 2 — per-step context/query binding: known gap in format 1 (the
+//! `AEGIS-TRACE v0` receipts above): a receipt records only the INITIAL
+//! prompt, so for a K>1 episode the actual text the model was asked at
+//! step 1+ (initial prompt + every prior step's own generation and tool
+//! result) is not in the receipt, and a verbatim-argument check — a tool
+//! call's argument must appear somewhere in what the model was actually
+//! shown — cannot be applied past step 0 (seen on EVAL-60 T1 `mixed_02`/
+//! `mixed_03`; see `demo/agent-trace/eval/check_verbatim.py`, which is
+//! limited to step 0 for exactly this reason). `gen` now always emits
+//! header line `AEGIS-TRACE v1` and adds two fields to every step line:
+//! `ctx=<64 hex>`, sha256 of the exact prompt text `decode_step` was
+//! given for that step (the full accumulated context), and `q=<64 hex>`,
+//! sha256 of that step's own "query text" — the initial prompt at step 0,
+//! or the immediately preceding step's tool-result text at step 1+ (the
+//! text newly appended to the prompt since the previous step). Grammar,
+//! before -> after, one step line:
+//!   step 0: toks=5,9,2 tool=calc in=4341...2029 out=32 decode-chain=<hex>
+//!   step 0: toks=5,9,2 tool=calc in=4341...2029 out=32 decode-chain=<hex> ctx=<hex> q=<hex>
+//! `verify` recomputes both digests from its own replay for every step of
+//! a format-2 (`AEGIS-TRACE v1`) receipt and fails with `STEP n CTX
+//! MISMATCH` / `STEP n QUERY MISMATCH` on a mismatch (in addition to, not
+//! instead of, the pre-existing toks/tool/in/out/decode-chain checks); it
+//! also prints one `WARNING step n: ...` line (never a failure) per step
+//! whose tool-call argument does not appear verbatim in that step's own
+//! context — the generalization, to every step, of the step-0-only rule
+//! `check_verbatim.py` applies from outside the receipt. Neither `ctx=`/
+//! `q=` nor the WARNING line are folded into the trace chain (see
+//! `StepRecord::ctx_digest`'s doc comment for why); a format-1
+//! (`AEGIS-TRACE v0`) receipt verifies exactly as it did before format 2
+//! existed — same trace-genesis/trace-fold-step math, same step-line
+//! fields expected, no `ctx=`/`q=` comparison attempted — and `verify`
+//! prints one extra line, `NOTE: format-1 receipt, per-step query binding
+//! not present`, so that omission is visible rather than silent.
 
 use aegis_core::cis_infer::{CisEngine, CisMode, CisModel, argmax_i64};
 use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
@@ -337,6 +371,32 @@ fn parse_suite_sha256(s: &str) -> Result<[u8; 32], String> {
     out.copy_from_slice(&bytes);
     Ok(out)
 }
+
+/// Format-2 verify message: this step's replayed context digest does not
+/// match the receipt's claimed `ctx=` field. Pulled out as a pure function
+/// (rather than inlined at its one `println!` call site) so its exact
+/// wording is unit-testable without capturing stdout.
+fn ctx_mismatch_msg(step: usize) -> String {
+    format!("STEP {step} CTX MISMATCH")
+}
+
+/// Format-2 verify message: this step's replayed query digest does not
+/// match the receipt's claimed `q=` field. See `ctx_mismatch_msg`.
+fn query_mismatch_msg(step: usize) -> String {
+    format!("STEP {step} QUERY MISMATCH")
+}
+
+/// Format-2 gen/verify message: this step's tool-call argument was not
+/// found verbatim in the step's own context — a WARNING, never a failure
+/// (see the module doc comment's format-2 entry).
+fn verbatim_warning_msg(step: usize) -> String {
+    format!("WARNING step {step}: tool argument not found verbatim in context")
+}
+
+/// Printed once by `verify` for a format-1 (`AEGIS-TRACE v0`) receipt, so
+/// the pre-format-2 gap (no per-step query binding to check) is visible in
+/// the output rather than silently absent.
+const FORMAT1_NOTE: &str = "NOTE: format-1 receipt, per-step query binding not present";
 
 fn unhex(s: &str) -> Result<Vec<u8>, ()> {
     if !s.len().is_multiple_of(2) {
@@ -621,6 +681,38 @@ fn run_tool(prefix: &str, decoded_text: &str, table: Option<&LookupTable>) -> To
     }
 }
 
+/// Strip a matched `CALC(...)`/`LOOKUP(...)` call (as recorded in
+/// `ToolOutcome::input`) down to the text between its parentheses — the
+/// same extraction `demo/agent-trace/eval/check_verbatim.py`'s `ARG_RE`
+/// does on the receipt's `in=` field, kept in sync deliberately: both
+/// implementations answer "what did the model actually claim was the
+/// argument" from the same matched-call bytes. Returns `None` if `input`
+/// is not one well-formed call wrapper (never happens for `calc`/
+/// `calc-error`/`lookup` outcomes, whose `input` is always a matched call;
+/// only reachable defensively).
+fn extract_call_arg(input: &[u8]) -> Option<&str> {
+    let s = core::str::from_utf8(input).ok()?;
+    for prefix in ["CALC(", "LOOKUP("] {
+        if let Some(rest) = s.strip_prefix(prefix) {
+            return rest.strip_suffix(')');
+        }
+    }
+    None
+}
+
+/// The last line starting with `Q:` in `text`, with the prefix stripped and
+/// surrounding whitespace trimmed — `""` if there is none. Mirrors
+/// `check_verbatim.py`'s `last_query`, generalized in this module to run
+/// against any step's accumulated context (`ctx_digest`'s preimage), not
+/// only the initial prompt.
+fn last_q_line(text: &str) -> &str {
+    text.lines()
+        .filter_map(|l| l.strip_prefix("Q:"))
+        .next_back()
+        .map(str::trim)
+        .unwrap_or("")
+}
+
 /// Deterministic text appended to the running prompt after a tool runs.
 /// `prompt_k = prompt_{k-1} + decoded_text + tool_result_text`.
 fn tool_result_text(outcome: &ToolOutcome) -> String {
@@ -724,6 +816,29 @@ struct StepRecord {
     tool_input: Vec<u8>,
     tool_output: Vec<u8>,
     decode_chain: [u8; 32],
+    /// sha256 of the exact prompt text (bytes) fed to `decode_step` for this
+    /// step — format-2 only field. Deliberately NOT folded into
+    /// `trace_fold_step`/`trace_chain`: `verify` recomputes it from its own
+    /// independent replay and compares it directly against the receipt's
+    /// claimed `ctx=` field (see `verify_one`), which is exactly as strong
+    /// a binding without touching `trace_fold_step`'s inputs — required so
+    /// a format-1 receipt's trace-chain math stays byte-for-byte unchanged
+    /// (see the module doc comment's format-2 compatibility rule).
+    ctx_digest: [u8; 32],
+    /// sha256 of this step's "query text": the initial prompt for step 0,
+    /// or the previous step's tool-result text for step >= 1 — i.e. the
+    /// text newly appended to the running prompt since the previous step,
+    /// as opposed to `ctx_digest`'s full accumulated prompt.
+    query_digest: [u8; 32],
+    /// `true` when `tool_name` is `"no-tool"` (nothing to check) or the
+    /// tool call's argument (the text inside `CALC(...)`/`LOOKUP(...)`)
+    /// appears verbatim somewhere in this step's context (`ctx_digest`'s
+    /// preimage) — specifically its last `Q:`-prefixed line, mirroring
+    /// `demo/agent-trace/eval/check_verbatim.py`'s step-0-only rule but
+    /// generalized to every step via the per-step context. `false` means a
+    /// step-2+ verbatim-argument WARNING should print (format-2 only,
+    /// never a failure — see the module doc comment's verbatim rule note).
+    verbatim_ok: bool,
 }
 
 struct EpisodeReplay {
@@ -838,8 +953,20 @@ fn replay_episode(
         suite_sha,
     );
     let mut steps = Vec::with_capacity(k);
+    // The text newly appended to the running prompt since the previous
+    // step: `None` at step 0 (where the query is the initial prompt
+    // itself), then `Some(previous step's tool_result_text)` from step 1
+    // on — see `StepRecord::query_digest`'s doc comment.
+    let mut prev_tool_result: Option<String> = None;
 
     for step_idx in 0..k {
+        let query_bytes: &[u8] = match &prev_tool_result {
+            None => initial_prompt.as_bytes(),
+            Some(tr) => tr.as_bytes(),
+        };
+        let ctx_digest = sha256(prompt.as_bytes());
+        let query_digest = sha256(query_bytes);
+
         let (toks, decode_chain) = decode_step(
             cis_model, tokenizer, model_sha, embed_sha, vocab_sha, &prompt, n,
         );
@@ -856,7 +983,14 @@ fn replay_episode(
             &outcome.output,
         );
 
-        prompt = prompt + &decoded_text + &tool_result_text(&outcome);
+        let verbatim_ok = match extract_call_arg(&outcome.input) {
+            Some(arg) if !arg.is_empty() => last_q_line(&prompt).contains(arg),
+            _ => true, // no-tool, or a call with no parseable argument text
+        };
+
+        let tool_result = tool_result_text(&outcome);
+        prompt = prompt + &decoded_text + &tool_result;
+        prev_tool_result = Some(tool_result);
 
         steps.push(StepRecord {
             toks,
@@ -864,6 +998,9 @@ fn replay_episode(
             tool_input: outcome.input,
             tool_output: outcome.output,
             decode_chain,
+            ctx_digest,
+            query_digest,
+            verbatim_ok,
         });
     }
 
@@ -1087,7 +1224,7 @@ fn main() {
                 suite_sha256_arg.as_ref(),
             );
 
-            println!("AEGIS-TRACE v0");
+            println!("AEGIS-TRACE v1");
             println!("model {}", hex(&model_sha));
             println!("embed {}", hex(&embed_sha));
             println!("vocab {}", hex(&vocab_sha));
@@ -1105,13 +1242,18 @@ fn main() {
             for (i, s) in r.steps.iter().enumerate() {
                 let ids: Vec<String> = s.toks.iter().map(|t| t.to_string()).collect();
                 println!(
-                    "step {i}: toks={} tool={} in={} out={} decode-chain={}",
+                    "step {i}: toks={} tool={} in={} out={} decode-chain={} ctx={} q={}",
                     ids.join(","),
                     s.tool_name,
                     hex(&s.tool_input),
                     hex(&s.tool_output),
-                    hex(&s.decode_chain)
+                    hex(&s.decode_chain),
+                    hex(&s.ctx_digest),
+                    hex(&s.query_digest)
                 );
+                if !s.verbatim_ok {
+                    println!("{}", verbatim_warning_msg(i));
+                }
             }
             println!("trace-chain {}", hex(&r.trace_chain));
         }
@@ -1210,8 +1352,17 @@ fn verify_one(
     let mut w_k = 0usize;
     let mut w_n = 0usize;
     let mut w_prompt = String::new();
-    let mut w_steps: Vec<(Vec<u32>, String, String, String, String)> = Vec::new();
+    let mut w_steps: Vec<(
+        Vec<u32>,
+        String,
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+    )> = Vec::new();
     let mut w_trace_chain = String::new();
+    let mut w_format: u8 = 1;
     let mut w_table_sha: Option<String> = None;
     let mut w_suite_sha: Option<String> = None;
 
@@ -1230,6 +1381,8 @@ fn verify_one(
             let mut input = String::new();
             let mut output = String::new();
             let mut dchain = String::new();
+            let mut ctx: Option<String> = None;
+            let mut query: Option<String> = None;
             for field in rest.split_whitespace() {
                 if let Some(v) = field.strip_prefix("toks=") {
                     toks = v
@@ -1245,14 +1398,28 @@ fn verify_one(
                     output = v.to_string();
                 } else if let Some(v) = field.strip_prefix("decode-chain=") {
                     dchain = v.to_string();
+                } else if let Some(v) = field.strip_prefix("ctx=") {
+                    ctx = Some(v.to_string());
+                } else if let Some(v) = field.strip_prefix("q=") {
+                    query = Some(v.to_string());
                 }
             }
-            w_steps.push((toks, tool, input, output, dchain));
+            w_steps.push((toks, tool, input, output, dchain, ctx, query));
             continue;
         }
         let mut it = line.splitn(2, ' ');
         let (key, v) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
         match key {
+            "AEGIS-TRACE" => {
+                w_format = match v {
+                    "v0" => 1,
+                    "v1" => 2,
+                    other => {
+                        println!("FAIL structure: unknown AEGIS-TRACE format {other:?}");
+                        return false;
+                    }
+                };
+            }
             "model" => w_model = v.into(),
             "embed" => w_embed = v.into(),
             "vocab" => w_vocab = v.into(),
@@ -1325,6 +1492,10 @@ fn verify_one(
     {
         println!("FAIL structure: {reason}");
         return false;
+    }
+
+    if w_format == 1 {
+        println!("{FORMAT1_NOTE}");
     }
 
     // Table resolution: only when the receipt declares a
@@ -1431,7 +1602,7 @@ fn verify_one(
     }
 
     let mut mismatch = false;
-    for (i, (local, (w_toks, w_tool, w_in, w_out, w_dchain))) in
+    for (i, (local, (w_toks, w_tool, w_in, w_out, w_dchain, w_ctx, w_query))) in
         r.steps.iter().zip(w_steps.iter()).enumerate()
     {
         let local_toks_match = &local.toks == w_toks;
@@ -1449,6 +1620,33 @@ fn verify_one(
                 "step {i} divergence: toks-match={local_toks_match} tool-match={local_tool_match} in-match={local_in_match} out-match={local_out_match} decode-chain-match={local_dchain_match}"
             );
             mismatch = true;
+        }
+
+        // Format-2 only: per-step context/query binding. A format-1
+        // receipt carries no ctx=/q= fields (w_ctx/w_query are `None`) and
+        // is otherwise verified exactly as above — see the module doc
+        // comment's format-2 entry and the `FORMAT1_NOTE` line already
+        // printed above.
+        if w_format == 2 {
+            let local_ctx = hex(&local.ctx_digest);
+            match w_ctx {
+                Some(claimed) if *claimed == local_ctx => {}
+                _ => {
+                    println!("{}", ctx_mismatch_msg(i));
+                    mismatch = true;
+                }
+            }
+            let local_query = hex(&local.query_digest);
+            match w_query {
+                Some(claimed) if *claimed == local_query => {}
+                _ => {
+                    println!("{}", query_mismatch_msg(i));
+                    mismatch = true;
+                }
+            }
+            if !local.verbatim_ok {
+                println!("{}", verbatim_warning_msg(i));
+            }
         }
     }
 
@@ -2110,5 +2308,270 @@ mod tests {
         let mut bad = "a".repeat(63);
         bad.push('z');
         assert!(parse_suite_sha256(&bad).is_err());
+    }
+
+    // --- format 2: per-step context/query binding — pure-function pieces ---
+
+    #[test]
+    fn extract_call_arg_strips_calc_wrapper() {
+        assert_eq!(extract_call_arg(b"CALC(2 + 2)"), Some("2 + 2"));
+    }
+
+    #[test]
+    fn extract_call_arg_strips_lookup_wrapper() {
+        assert_eq!(extract_call_arg(b"LOOKUP(P-100)"), Some("P-100"));
+    }
+
+    #[test]
+    fn extract_call_arg_rejects_unwrapped_text() {
+        assert_eq!(extract_call_arg(b"not a call"), None);
+    }
+
+    #[test]
+    fn last_q_line_picks_the_final_q_line() {
+        let ctx = "Q: part P-100\nA: LOOKUP(P-100).\nQ: part P-206\nA:";
+        assert_eq!(last_q_line(ctx), "part P-206");
+    }
+
+    #[test]
+    fn last_q_line_empty_when_no_q_line() {
+        assert_eq!(last_q_line("no questions here"), "");
+    }
+
+    #[test]
+    fn mismatch_messages_match_the_brief_wording() {
+        assert_eq!(ctx_mismatch_msg(2), "STEP 2 CTX MISMATCH");
+        assert_eq!(query_mismatch_msg(2), "STEP 2 QUERY MISMATCH");
+        assert_eq!(
+            verbatim_warning_msg(0),
+            "WARNING step 0: tool argument not found verbatim in context"
+        );
+    }
+
+    // --- format 2: end-to-end round trip + tamper on the checked-in M7
+    // tinybit model (small: MODEL.SAF ~2.7 MB, EMBED.BIN ~6 MB, VOCAB.BIN
+    // ~160 KB — a K=2, N in {8,24} episode over it is cheap, so these tests
+    // load the real model rather than a canned fixture; see the module doc
+    // comment's format-2 entry for the grammar these receipts carry). ---
+
+    fn load_m7_model() -> (CisModel, AegisTokenizer, [u8; 32], [u8; 32], [u8; 32]) {
+        let root = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../model-lab/tinybit/m7_final_gate_work/artifacts"
+        );
+        let model_bytes =
+            std::fs::read(format!("{root}/MODEL.SAF")).expect("read MODEL.SAF fixture");
+        let embed_bytes =
+            std::fs::read(format!("{root}/EMBED.BIN")).expect("read EMBED.BIN fixture");
+        let vocab_bytes =
+            std::fs::read(format!("{root}/VOCAB.BIN")).expect("read VOCAB.BIN fixture");
+        let model_sha = sha256(&model_bytes);
+        let embed_sha = sha256(&embed_bytes);
+        let vocab_sha = sha256(&vocab_bytes);
+        let tensors = SafeTensors::deserialize(&model_bytes).expect("parse MODEL.SAF");
+        let cfg_json = tensors
+            .metadata_field("aegis_config")
+            .expect("read __metadata__")
+            .expect("MODEL.SAF carries no aegis_config");
+        let config = ModelConfig::from_json(&cfg_json).expect("parse aegis_config");
+        let tokenizer = AegisTokenizer::new(&vocab_bytes).expect("parse VOCAB.BIN");
+        let pipeline =
+            FullBitNetPipeline::new(&tensors, &embed_bytes, &config).expect("build pipeline");
+        let cis_model = CisModel::new_with_options(&pipeline, &config, head_preconvert_enabled())
+            .expect("CIS model conversion");
+        (cis_model, tokenizer, model_sha, embed_sha, vocab_sha)
+    }
+
+    /// Render an `EpisodeReplay` as receipt text, `format` 1 (`AEGIS-TRACE
+    /// v0`, no `ctx=`/`q=` fields) or 2 (`AEGIS-TRACE v1`, with them) —
+    /// deliberately independent of `main`'s own printing so a bug shared by
+    /// both would not go unnoticed by these tests.
+    fn render_receipt(
+        format: u8,
+        model_sha: &[u8; 32],
+        embed_sha: &[u8; 32],
+        vocab_sha: &[u8; 32],
+        prompt: &str,
+        k: usize,
+        n: usize,
+        r: &EpisodeReplay,
+    ) -> String {
+        let mut text = String::new();
+        text.push_str(if format == 1 {
+            "AEGIS-TRACE v0\n"
+        } else {
+            "AEGIS-TRACE v1\n"
+        });
+        text.push_str(&format!("model {}\n", hex(model_sha)));
+        text.push_str(&format!("embed {}\n", hex(embed_sha)));
+        text.push_str(&format!("vocab {}\n", hex(vocab_sha)));
+        text.push_str(&format!("K {k}\n"));
+        text.push_str(&format!("N {n}\n"));
+        text.push_str(&format!("prompt-hex {}\n", hex(prompt.as_bytes())));
+        text.push_str("commit test\n");
+        text.push_str("host test\n");
+        for (i, s) in r.steps.iter().enumerate() {
+            let ids: Vec<String> = s.toks.iter().map(|t| t.to_string()).collect();
+            if format == 1 {
+                text.push_str(&format!(
+                    "step {i}: toks={} tool={} in={} out={} decode-chain={}\n",
+                    ids.join(","),
+                    s.tool_name,
+                    hex(&s.tool_input),
+                    hex(&s.tool_output),
+                    hex(&s.decode_chain)
+                ));
+            } else {
+                text.push_str(&format!(
+                    "step {i}: toks={} tool={} in={} out={} decode-chain={} ctx={} q={}\n",
+                    ids.join(","),
+                    s.tool_name,
+                    hex(&s.tool_input),
+                    hex(&s.tool_output),
+                    hex(&s.decode_chain),
+                    hex(&s.ctx_digest),
+                    hex(&s.query_digest)
+                ));
+            }
+        }
+        text.push_str(&format!("trace-chain {}\n", hex(&r.trace_chain)));
+        text
+    }
+
+    /// Flip one hex nibble of `field=` (e.g. `"q="`) on the line starting
+    /// with `step_prefix` (e.g. `"step 1:"`) — the smallest tamper that
+    /// changes the field's value without touching its length or any other
+    /// field on the line.
+    fn flip_hex_field(text: &str, step_prefix: &str, field: &str) -> String {
+        let mut out = String::new();
+        for line in text.lines() {
+            if line.starts_with(step_prefix) {
+                if let Some(pos) = line.find(field) {
+                    let val_start = pos + field.len();
+                    let rest = &line[val_start..];
+                    let val_len = rest.find(' ').unwrap_or(rest.len());
+                    let mut chars: Vec<char> = rest[..val_len].chars().collect();
+                    chars[0] = if chars[0] == '0' { '1' } else { '0' };
+                    let newval: String = chars.into_iter().collect();
+                    out.push_str(&line[..val_start]);
+                    out.push_str(&newval);
+                    out.push_str(&rest[val_len..]);
+                    out.push('\n');
+                    continue;
+                }
+            }
+            out.push_str(line);
+            out.push('\n');
+        }
+        out
+    }
+
+    fn write_temp_receipt(name: &str, text: &str) -> std::path::PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("agent_trace_test_{}_{name}", std::process::id()));
+        std::fs::write(&path, text).expect("write temp receipt");
+        path
+    }
+
+    #[test]
+    fn format2_round_trip_gen_then_verify_pass_with_tool_call() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 2usize;
+        let n = 24usize;
+        // Trailing unclosed "CALC(" primes `prompt_scan_prefix` to carry it
+        // into the scan of the model's own continuation (see the module
+        // doc comment's scanner policy) — the most reliable way this
+        // module already has to provoke a tool call from any model.
+        let prompt = "1 + 1 = CALC(1 + 1). 2 + 2 = CALC(";
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+        );
+        assert!(
+            r.steps.iter().any(|s| s.tool_name != "no-tool"),
+            "expected at least one of {k} steps to produce a tool call from {prompt:?}, got {:?}",
+            r.steps.iter().map(|s| s.tool_name).collect::<Vec<_>>()
+        );
+
+        let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        let path = write_temp_receipt("roundtrip.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            pass,
+            "format-2 receipt with a tool call should round-trip PASS"
+        );
+    }
+
+    #[test]
+    fn format2_query_tamper_fails_verify() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 2usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+        );
+        let good_text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        let tampered = flip_hex_field(&good_text, "step 1:", "q=");
+        assert_ne!(
+            good_text, tampered,
+            "tamper helper must actually change the receipt"
+        );
+
+        let path = write_temp_receipt("query-tamper.txt", &tampered);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a flipped q= field must make verify FAIL (STEP 1 QUERY MISMATCH)"
+        );
+    }
+
+    #[test]
+    fn format1_receipt_still_verifies_pass_with_no_ctx_q_fields() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 8usize;
+        let prompt = "Once upon a time";
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+        );
+        let text = render_receipt(1, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        assert!(
+            !text.contains("ctx=") && !text.contains(" q="),
+            "a format-1 fixture must carry no ctx=/q= fields"
+        );
+
+        let path = write_temp_receipt("format1.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(pass, "a format-1 receipt must still verify PASS unchanged");
     }
 }
