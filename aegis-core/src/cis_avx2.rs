@@ -52,7 +52,10 @@
 //! `and` bit-pair extractions) while issuing the same four `pshufb`s.
 //!
 //! Widening is exact at every step: products are in `[-127, 127]`, pair sums
-//! in `[-254, 254]` (i16), quad sums in `[-508, 508]` (i32).
+//! in `[-254, 254]` (i16). `tmv_i8_avx2` (v3) accumulates up to `FLUSH_BLOCKS`
+//! pair sums per i16 lane before widening to i32 — `FLUSH_BLOCKS * 254 <
+//! i16::MAX` is asserted at compile time, so the i16 accumulator can never
+//! overflow.
 //!
 //! # The `-128` hazard, handled rather than documented away
 //!
@@ -70,7 +73,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::cis::{check_tmv_preconditions, ternary_matvec_i8};
-use crate::cis_infer::{F, dot_i8_bf16q};
+use crate::cis_infer::{dot_i8_bf16q, F};
 use alloc::vec;
 use core::arch::x86_64::*;
 
@@ -212,32 +215,66 @@ unsafe fn tmv_i8_avx2(
         ]
     }
 
+    // v3: widen once per row instead of once per block. `vpsignb` +
+    // `vpmaddubsw` (both port 0 on Broadwell) are the only per-k, per-block
+    // work now; the old third per-k, per-block port-0 op (`vpmaddwd` widening
+    // straight to i32) is replaced by an i16 `vpaddw` (port 1/5, not port 0)
+    // accumulating four independent pair-sum lanes (one per `k`, so the four
+    // add chains have no cross-iteration dependency). This is 8 port-0 uops
+    // per block instead of 12.
+    //
+    // i16 accumulation cannot run forever: each pair sum is in `[-254, 254]`
+    // (see `pair_sum`'s doc), so summing `FLUSH_BLOCKS` of them into one i16
+    // lane must stay inside `[i16::MIN, i16::MAX]`. `FLUSH_BLOCKS * 254 <
+    // i16::MAX` is checked at compile time below, so no i16 accumulator can
+    // ever overflow regardless of input.
+    const FLUSH_BLOCKS: usize = 64;
+    const _: () = assert!((FLUSH_BLOCKS * 254) < i16::MAX as usize);
+
     #[target_feature(enable = "avx2")]
-    unsafe fn widen(a: __m256i, w: __m256i, c: &Consts) -> __m256i {
+    unsafe fn pair_sum(a: __m256i, w: __m256i, c: &Consts) -> __m256i {
         // vpsignb IS ternary multiply: +1 -> a, -1 -> -a, 0 -> 0.
         let prod = _mm256_sign_epi8(a, w);
-        // i8 -> i16 -> i32, exact: |prod| <= 127, |pair| <= 254.
-        let pairs = _mm256_maddubs_epi16(c.ones_u8, prod);
-        _mm256_madd_epi16(pairs, c.ones_i16)
+        // i8 -> i16 adjacent-pair sum, exact: |prod| <= 127, |pair| <= 254.
+        _mm256_maddubs_epi16(c.ones_u8, prod)
     }
 
     for (row, out) in output.iter_mut().enumerate().take(dim_out) {
         let w_row = &weights_packed[row * n_bytes..(row + 1) * n_bytes];
         let mut acc = _mm256_setzero_si256();
+        let mut acc16 = [_mm256_setzero_si256(); 4];
+        let mut blocks_since_flush = 0usize;
+
+        // Widens all four i16 pair-sum accumulators into `acc` (i32) and
+        // resets them. Safe to call on an empty run (adds zero) so it can
+        // double as both the periodic flush and the final, possibly-partial
+        // one after the loop.
+        macro_rules! flush {
+            () => {
+                for k in 0..4 {
+                    acc = _mm256_add_epi32(acc, _mm256_madd_epi16(acc16[k], c.ones_i16));
+                    acc16[k] = _mm256_setzero_si256();
+                }
+                blocks_since_flush = 0;
+            };
+        }
 
         for blk in 0..full_blocks {
             let b0 = blk * BLOCK_BYTES;
             let v = _mm256_loadu_si256(w_row.as_ptr().add(b0) as *const __m256i);
             let w = decode(v, &c);
 
-            let mut q = [_mm256_setzero_si256(); 4];
             for k in 0..4 {
                 let a = _mm256_loadu_si256(lanes.as_ptr().add(k * n_bytes + b0) as *const __m256i);
-                q[k] = widen(a, w[k], &c);
+                let pair = pair_sum(a, w[k], &c);
+                acc16[k] = _mm256_add_epi16(acc16[k], pair);
             }
-            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q[0], q[1]));
-            acc = _mm256_add_epi32(acc, _mm256_add_epi32(q[2], q[3]));
+            blocks_since_flush += 1;
+            if blocks_since_flush == FLUSH_BLOCKS {
+                flush!();
+            }
         }
+        flush!();
 
         // Horizontal sum. Reassociation is exact for integers (see module doc).
         let lo = _mm256_castsi256_si128(acc);

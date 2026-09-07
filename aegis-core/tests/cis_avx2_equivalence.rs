@@ -154,6 +154,118 @@ fn saturating_extremes_are_bit_identical() {
 }
 
 #[test]
+fn v3_flush_boundary_shapes_are_bit_identical() {
+    // v3 accumulates FLUSH_BLOCKS=64 i16 pair-sums per lane before widening
+    // to i32. 8192 = 64*128 is exactly 64 blocks (one flush, no remainder);
+    // 8320 = 65*128 is 65 blocks (one flush plus a one-block remainder
+    // flush). Both must remain bit-identical to the scalar reference, and
+    // in particular must not silently saturate/wrap the i16 accumulator.
+    let dim_outs = [1usize, 7, 64, 2560];
+    let dim_ins = [128usize, 2560, 6912, 8192, 8320, 8192 + 4, 8192 + 40];
+
+    for &dim_out in &dim_outs {
+        for &dim_in in &dim_ins {
+            let mut rng = Rng(0x1234_5678_9ABC_DEF0 ^ (dim_out as u64) ^ ((dim_in as u64) << 20));
+            let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+                .map(|_| (rng.next() & 0xFF) as u8)
+                .collect();
+            let input: Vec<i8> = (0..dim_in)
+                .map(|_| ((rng.next() % 255) as i32 - 127) as i8)
+                .collect();
+            assert_identical(
+                &input,
+                &weights,
+                dim_out,
+                dim_in,
+                &format!("flush-boundary {dim_out}x{dim_in}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn v3_all_extremes_hit_the_i16_flush_bound_exactly() {
+    // All-+-127 activations against all-+-1 weights on dim_in = 64*128 =
+    // 8192 drives every i16 pair-sum accumulator to exactly 64 * 254 =
+    // 16256 in magnitude right at the flush boundary the module doc's
+    // compile-time assertion is sized against. This is the worst case the
+    // bound must cover, not just a representative one.
+    let dim_out = 3usize;
+    let dim_in = 64 * 128; // == 8192, exactly FLUSH_BLOCKS blocks.
+    let all_plus = vec![0b01_01_01_01u8; packed_len(dim_out, dim_in)];
+    let all_minus = vec![0b10_10_10_10u8; packed_len(dim_out, dim_in)];
+
+    for w in [&all_plus, &all_minus] {
+        for v in [127i8, -127] {
+            let input = vec![v; dim_in];
+            assert_identical(&input, w, dim_out, dim_in, "flush-bound extreme");
+        }
+    }
+
+    let input = vec![127i8; dim_in];
+    let mut got = vec![0i32; dim_out];
+    ternary_matvec_i8_avx2(&mut got, &input, &all_plus, dim_out, dim_in);
+    assert!(
+        got.iter().all(|&v| v == 127 * dim_in as i32),
+        "all +1 weights x 127 at the flush bound must equal 127*dim_in = {}, got {got:?}",
+        127 * dim_in as i32
+    );
+}
+
+#[test]
+fn v3_activation_minus_128_at_flush_boundary_widths_routes_to_scalar() {
+    // The -128 hazard fallback must still work at shapes that exercise the
+    // new flush logic (exactly at, and one block past, the flush boundary).
+    for &dim_in in &[8192usize, 8320] {
+        let dim_out = 2usize;
+        let mut rng = Rng(0xF00D_F00D ^ dim_in as u64);
+        let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+            .map(|_| (rng.next() & 0xFF) as u8)
+            .collect();
+        let mut input: Vec<i8> = (0..dim_in)
+            .map(|i| ((i % 200) as i32 - 100) as i8)
+            .collect();
+        input[0] = i8::MIN;
+        input[dim_in / 2] = i8::MIN;
+        input[dim_in - 1] = i8::MIN;
+        assert_identical(
+            &input,
+            &weights,
+            dim_out,
+            dim_in,
+            &format!("-128 at flush width {dim_in}"),
+        );
+    }
+}
+
+#[test]
+fn v3_two_hundred_random_cases_are_bit_identical() {
+    // >= 200 random (shape, weights, activations) triples across a wide
+    // range of dim_in (below/at/above the flush boundary) and dim_out.
+    let mut rng = Rng(0x5EED_5EED_5EED_5EEDu64);
+    let dim_in_choices = [4usize, 60, 128, 131, 512, 2560, 4096, 6912, 8192, 8320];
+    let dim_out_choices = [1usize, 2, 3, 7, 16, 64];
+
+    for i in 0..200u32 {
+        let dim_in = dim_in_choices[(rng.next() as usize) % dim_in_choices.len()];
+        let dim_out = dim_out_choices[(rng.next() as usize) % dim_out_choices.len()];
+        let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+            .map(|_| (rng.next() & 0xFF) as u8)
+            .collect();
+        let input: Vec<i8> = (0..dim_in)
+            .map(|_| ((rng.next() % 255) as i32 - 127) as i8)
+            .collect();
+        assert_identical(
+            &input,
+            &weights,
+            dim_out,
+            dim_in,
+            &format!("random#{i} {dim_out}x{dim_in}"),
+        );
+    }
+}
+
+#[test]
 fn row_independence_holds() {
     // Each output row must depend only on its own weight row. A blocked kernel
     // that mis-strides would leak neighbouring rows; comparing a multi-row call
