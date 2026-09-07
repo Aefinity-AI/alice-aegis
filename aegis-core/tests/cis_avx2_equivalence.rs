@@ -16,7 +16,7 @@
 //!   - all-zero weights, all-`+1`, all-`-1`
 
 use aegis_core::cis::ternary_matvec_i8;
-use aegis_core::cis_avx2::ternary_matvec_i8_avx2;
+use aegis_core::cis_avx2::{ternary_matmul_i8_avx2, ternary_matvec_i8_avx2};
 
 struct Rng(u64);
 impl Rng {
@@ -420,4 +420,273 @@ fn v3b_two_hundred_random_cases_are_bit_identical() {
             &format!("v3b random#{i} {dim_out}x{dim_in}"),
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Batched prefill: `ternary_matmul_i8_avx2` (8-token tiles).
+// ---------------------------------------------------------------------------
+
+/// For every token independently, the batched kernel's output row must
+/// equal `ternary_matvec_i8` (the scalar single-token reference) applied to
+/// that token alone — the batched kernel's whole correctness claim is that
+/// tiling tokens changes nothing about any individual output element.
+#[test]
+fn matmul_matches_matvec_per_token() {
+    let mut rng = Rng(0x5EED_5EED_5EED_5EEDu64);
+    // dim_in multiples of 128 (block-aligned) and odd tails; dim_out spans
+    // 1..70; n_tok spans across, below, and straddling the 8-token tile.
+    let dim_in_choices = [128usize, 256, 132, 260, 4, 6912, 8320];
+    let dim_out_choices = [1usize, 2, 3, 7, 17, 32, 69];
+    let n_tok_choices = [1usize, 2, 7, 8, 9, 16, 17, 33];
+
+    for i in 0..120u32 {
+        let dim_in = dim_in_choices[(rng.next() as usize) % dim_in_choices.len()];
+        let dim_out = dim_out_choices[(rng.next() as usize) % dim_out_choices.len()];
+        let n_tok = n_tok_choices[(rng.next() as usize) % n_tok_choices.len()];
+
+        let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+            .map(|_| (rng.next() & 0xFF) as u8)
+            .collect();
+        let inputs: Vec<i8> = (0..n_tok * dim_in)
+            .map(|_| ((rng.next() % 255) as i32 - 127) as i8)
+            .collect();
+
+        let mut got = vec![0i32; n_tok * dim_out];
+        ternary_matmul_i8_avx2(&mut got, &inputs, &weights, dim_out, dim_in, n_tok);
+
+        for t in 0..n_tok {
+            let mut want = vec![0i32; dim_out];
+            ternary_matvec_i8(
+                &mut want,
+                &inputs[t * dim_in..(t + 1) * dim_in],
+                &weights,
+                dim_out,
+                dim_in,
+            );
+            assert_eq!(
+                want,
+                got[t * dim_out..(t + 1) * dim_out],
+                "matmul#{i}: token {t} diverged from per-token matvec \
+                 (dim_out={dim_out}, dim_in={dim_in}, n_tok={n_tok})"
+            );
+        }
+    }
+}
+
+/// The matmul kernel's own i16 flush bound (`FLUSH_BLOCKS_MM * 2032 =
+/// 32512 < i16::MAX`), exercised at widths that land exactly on 16 blocks
+/// and one block short/long of that boundary, with all-+127 activations
+/// against all-+1 weights (`u = 2`) — the same worst-case magnitude
+/// argument `v3b_flush_bound_508_exact` makes for the single-token kernel,
+/// scaled to this kernel's larger per-block-per-token bound (it sums all
+/// four lane pair-sums into one accumulator per block, not four).
+#[test]
+fn matmul_flush_bound_2032_exact() {
+    let dim_out = 2usize;
+    const FLUSH_BOUNDARY: usize = 16 * 32 * 4; // FLUSH_BLOCKS_MM * BLOCK_BYTES * 4 == 2048
+    let n_tok = 9usize; // spans one full 8-token tile plus a 1-token tail tile
+    for &dim_in in &[FLUSH_BOUNDARY - 4, FLUSH_BOUNDARY, FLUSH_BOUNDARY + 4] {
+        let all_plus = vec![0b01_01_01_01u8; packed_len(dim_out, dim_in)];
+        for v in [127i8, -127] {
+            let inputs = vec![v; n_tok * dim_in];
+            let mut got = vec![0i32; n_tok * dim_out];
+            ternary_matmul_i8_avx2(&mut got, &inputs, &all_plus, dim_out, dim_in, n_tok);
+            let want_row: i32 = v as i32 * dim_in as i32;
+            for t in 0..n_tok {
+                for j in 0..dim_out {
+                    assert_eq!(
+                        got[t * dim_out + j],
+                        want_row,
+                        "matmul flush bound 2032, dim_in={dim_in} v={v} token={t} row={j}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Any token carrying `i8::MIN` must route the WHOLE call to the scalar
+/// reference (never a per-token mix), matching `ternary_matvec_i8_avx2`'s
+/// own whole-call fallback discipline.
+#[test]
+fn matmul_minus_128_routes_to_scalar() {
+    let dim_out = 3usize;
+    let dim_in = 260usize; // two blocks + tail, exercises both loop bodies
+    let n_tok = 9usize;
+    let weights: Vec<u8> = (0..packed_len(dim_out, dim_in))
+        .map(|i| (i as u8).wrapping_mul(37))
+        .collect();
+
+    for hazard_tok in [0usize, 4, 8] {
+        let mut inputs = vec![0i8; n_tok * dim_in];
+        let mut rng = Rng(0xA11A_A11A_A11A_A11Au64 ^ hazard_tok as u64);
+        for x in inputs.iter_mut() {
+            *x = ((rng.next() % 255) as i32 - 127) as i8;
+        }
+        inputs[hazard_tok * dim_in] = i8::MIN;
+
+        let mut got = vec![0i32; n_tok * dim_out];
+        ternary_matmul_i8_avx2(&mut got, &inputs, &weights, dim_out, dim_in, n_tok);
+
+        for t in 0..n_tok {
+            let mut want = vec![0i32; dim_out];
+            ternary_matvec_i8(
+                &mut want,
+                &inputs[t * dim_in..(t + 1) * dim_in],
+                &weights,
+                dim_out,
+                dim_in,
+            );
+            assert_eq!(
+                want,
+                got[t * dim_out..(t + 1) * dim_out],
+                "matmul -128 hazard (token {hazard_tok} carries it): token {t} diverged"
+            );
+        }
+    }
+}
+
+/// Saturating extremes (+-127, alternating, zero, the `11` code) across a
+/// multi-tile token batch.
+#[test]
+fn matmul_extremes() {
+    let dim_out = 4usize;
+    let dim_in = 512usize;
+    let n_tok = 17usize; // two full tiles + a 1-token tail tile
+    let weight_patterns: [u8; 4] = [
+        0b00_00_00_00, // all zero
+        0b01_01_01_01, // all +1
+        0b10_10_10_10, // all -1
+        0b11_11_11_11, // undefined code, defined-as-zero
+    ];
+    let weights: Vec<u8> = (0..dim_out * (dim_in / 4))
+        .map(|i| weight_patterns[i % weight_patterns.len()])
+        .collect();
+
+    let mut inputs = vec![0i8; n_tok * dim_in];
+    for (i, x) in inputs.iter_mut().enumerate() {
+        *x = match i % 4 {
+            0 => 127,
+            1 => -127,
+            2 => 0,
+            _ => {
+                if (i / 4) % 2 == 0 {
+                    63
+                } else {
+                    -63
+                }
+            }
+        };
+    }
+
+    let mut got = vec![0i32; n_tok * dim_out];
+    ternary_matmul_i8_avx2(&mut got, &inputs, &weights, dim_out, dim_in, n_tok);
+
+    for t in 0..n_tok {
+        let mut want = vec![0i32; dim_out];
+        ternary_matvec_i8(
+            &mut want,
+            &inputs[t * dim_in..(t + 1) * dim_in],
+            &weights,
+            dim_out,
+            dim_in,
+        );
+        assert_eq!(
+            want,
+            got[t * dim_out..(t + 1) * dim_out],
+            "matmul extremes: token {t} diverged"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------
+// Kernel microbench: tmm_8tok vs 8x tmv (ignored by default; run with
+// `cargo test --release ... -- --ignored --nocapture bench_tmm_vs_tmv`).
+// Shape is one real MLP up-projection (dim_out=6912, dim_in=2560,
+// BitNet-2B scale). Not a correctness test — the equality check inside
+// it is a sanity guard, not the point; the point is the printed
+// BENCH line, which is the raw log this PR's A/B claims are read from
+// (see the PR body's finding section).
+// ---------------------------------------------------------------------
+#[test]
+#[ignore]
+fn bench_tmm_vs_tmv() {
+    use std::time::Instant;
+
+    const DIM_OUT: usize = 6912;
+    const DIM_IN: usize = 2560;
+    const N_TOK: usize = 8;
+    const REPS: usize = 10;
+
+    let mut rng = Rng(0xB1E2_C3A4_D5F6_9788);
+    let n_bytes = packed_len(1, DIM_IN); // packed bytes per row (dim_out=1 trick)
+    let weights: Vec<u8> = (0..DIM_OUT * n_bytes)
+        .map(|_| (rng.next() & 0xFF) as u8)
+        .collect();
+    // Clamp to -127..=127: `has_min` routes the WHOLE call to the scalar
+    // reference on any `i8::MIN` activation, anywhere, so an unclamped
+    // uniform byte distribution (~1/256 chance per element, ~1 in this
+    // many elements) makes this bench measure the scalar fallback rate,
+    // not the AVX2 kernel it's named for. Asserted below, not just
+    // commented, so a future edit that reintroduces the bug fails loudly
+    // (Rule D: bit-exactness / preconditions over silent drift).
+    let inputs: Vec<i8> = (0..N_TOK * DIM_IN)
+        .map(|_| ((rng.next() & 0xFF) as i8).max(-127))
+        .collect();
+    assert!(
+        !inputs.iter().any(|&x| x == i8::MIN),
+        "bench_tmm_vs_tmv: input contains i8::MIN — would silently measure the scalar fallback"
+    );
+
+    // Correctness sanity: batched matmul must equal 8 independent matvecs.
+    let mut got_mm = vec![0i32; N_TOK * DIM_OUT];
+    ternary_matmul_i8_avx2(&mut got_mm, &inputs, &weights, DIM_OUT, DIM_IN, N_TOK);
+    let mut got_mv = vec![0i32; N_TOK * DIM_OUT];
+    for t in 0..N_TOK {
+        ternary_matvec_i8_avx2(
+            &mut got_mv[t * DIM_OUT..(t + 1) * DIM_OUT],
+            &inputs[t * DIM_IN..(t + 1) * DIM_IN],
+            &weights,
+            DIM_OUT,
+            DIM_IN,
+        );
+    }
+    assert_eq!(got_mm, got_mv, "bench_tmm_vs_tmv: outputs diverged");
+
+    // Time REPS reps of each, timing the SAME shape/data both ways.
+    let mut out_mm = vec![0i32; N_TOK * DIM_OUT];
+    let t0 = Instant::now();
+    for _ in 0..REPS {
+        ternary_matmul_i8_avx2(&mut out_mm, &inputs, &weights, DIM_OUT, DIM_IN, N_TOK);
+    }
+    let tmm_ms = t0.elapsed().as_secs_f64() * 1000.0;
+
+    let mut out_mv = vec![0i32; DIM_OUT];
+    let t1 = Instant::now();
+    for _ in 0..REPS {
+        for t in 0..N_TOK {
+            ternary_matvec_i8_avx2(
+                &mut out_mv,
+                &inputs[t * DIM_IN..(t + 1) * DIM_IN],
+                &weights,
+                DIM_OUT,
+                DIM_IN,
+            );
+        }
+    }
+    let tmv_ms = t1.elapsed().as_secs_f64() * 1000.0;
+
+    // Bytes of packed weight streamed: tmm decodes each block ONCE for
+    // the whole 8-token tile (n_bytes*DIM_OUT total, once); tmv decodes
+    // it fresh for every one of the 8 independent matvec calls
+    // (n_bytes*DIM_OUT*N_TOK total) — this is the traffic difference the
+    // kernel exists to remove.
+    let weight_bytes = (DIM_OUT * n_bytes) as f64;
+    let tmm_gbps = (weight_bytes * REPS as f64) / (tmm_ms / 1000.0) / 1e9;
+    let tmv_gbps = (weight_bytes * N_TOK as f64 * REPS as f64) / (tmv_ms / 1000.0) / 1e9;
+    let speedup = tmv_ms / tmm_ms;
+
+    println!(
+        "BENCH tmm_8tok_ms={tmm_ms:.3} tmv_8x_ms={tmv_ms:.3} speedup={speedup:.3} tmm_gbps={tmm_gbps:.2} tmv_gbps={tmv_gbps:.2}"
+    );
 }
