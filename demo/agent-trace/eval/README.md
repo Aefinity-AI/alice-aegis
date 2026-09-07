@@ -16,7 +16,9 @@ receipts, summaries, or rate numbers are checked in.
 - `gen_suite.py` — deterministic item generator (stdlib only, seed
   `20260906`). Writes `suite.tsv` (60 items) and `smoke.tsv` (10 items: 2
   each from the 5 largest buckets). Re-run any time; output is
-  byte-identical run to run.
+  byte-identical run to run. `--bucket chain --table <path> --out <path>`
+  writes only the 6-item "chain" bucket (see 'Chain items' below) to its own
+  file instead of touching `suite.tsv`/`smoke.tsv`.
 - `suite.tsv` / `smoke.tsv` — generated TSVs, header:
   `item_id bucket prompt_template_id prompt_text expected_tool expected_input expected_output notes`.
   `prompt_text` newlines are escaped as the two-byte sequence `\n` (backslash-n)
@@ -161,6 +163,52 @@ correct calls. It is a report, not a gate: exit status is always 0.
 Known gap: only step 0 is checked. K>1 receipts record the initial prompt
 only, so a step-1 argument copied from a shot (EVAL-60 T1 `mixed_02`) is not
 visible to this rule until the receipt carries per-step queries.
+
+## Chain items
+
+The "mixed" bucket's second step is never forced (see the deviation below)
+and, when it does fire, its content is fully determined by a few-shot
+example already sitting in the *initial* prompt — so a step-2 argument that
+matches is not distinguishable from the model having copied a shot. The
+"chain" bucket exists to give `agent_trace`'s per-step verbatim rule
+(`verbatim_ok_for` in `aegis-linux/examples/agent_trace.rs`) a genuine
+positive case: a step-2 argument that can *only* have come from external
+text appended after step 1 ran, never from the initial prompt.
+
+Each of the 6 `chain_01`..`chain_06` items' initial prompt few-shots two
+LOOKUPs on keys (`P-402`, `P-403`) that are never a chain target or a
+superseded key, then asks about one "superseded" row (`P-901`..`P-906`,
+added in `demo/agent-trace/tables/chain.tsv`) whose value text is exactly
+`Superseded, see part <real key>`. After `agent_trace` runs the step-1
+LOOKUP, it appends `\nTOOL[lookup]=Superseded, see part <real key>\n` to the
+running prompt and keeps decoding (see `tool_result_text`) — so the *only*
+place the real key appears, for the rest of the episode, is that appended
+tool-result text. If the model's step-2 LOOKUP names that key, its argument
+is verbatim-traceable to a prior tool result, not a prompt shot — the
+positive case the WARNING-only verbatim rule is meant to distinguish from a
+shot-copy or key-snap.
+
+`chain.tsv` is `demo.tsv`'s 10 rows unchanged, plus the 6 `P-90x` rows
+above — a **different file with a different sha256** from `demo.tsv`. Since
+`run_suite.sh --suite-sha256`/`--table` fold the table's own sha256 into
+every receipt's trace genesis, a receipt generated against `chain.tsv`
+cannot verify against `demo.tsv` (or vice versa) even for the same key —
+chain-run receipts and demo-run receipts are not interchangeable.
+
+Chain items are **not** part of the default 60-item `suite.tsv`/`smoke.tsv`
+(`gen_suite.py`'s default invocation is unchanged and still produces
+byte-identical output) — generate and run them separately:
+
+```
+python3 gen_suite.py --bucket chain --table ../tables/chain.tsv --out chain.tsv
+./run_suite.sh chain.tsv /tmp/eval-chain --table ../tables/chain.tsv --bin /path/to/agent_trace
+python3 score.py /tmp/eval-chain/summary.tsv
+```
+
+`score.py` scores "chain" exactly like "mixed": both are K=2 buckets whose
+`tool_expected`/`tool_observed`/`arg_match`/`output_match` are comma-joined
+step-1,step-2 values (see 'Caveat: comma-joined fields' below); `score.py`
+itself is bucket-name-agnostic, so it needs no chain-specific code.
 
 ## Deviations from the plan (logged, not silent)
 

@@ -4,7 +4,17 @@
 # append one row per item to <outdir>/summary.tsv.
 #
 # Usage:
-#   run_suite.sh <items.tsv> <outdir> [--template T1|T3] [--bin <agent_trace>] [--limit N] [--attest]
+#   run_suite.sh <items.tsv> <outdir> [--template T1|T3] [--bin <agent_trace>] [--limit N] [--attest] [--table <path>]
+#
+# --table <path>: table TSV to use for every LOOKUP-needing item (any bucket
+# whose expected_tool involves LOOKUP: lookup_hit/lookup_miss/lookup_near_miss,
+# mixed, and chain). Default: demo/agent-trace/tables/demo.tsv (unchanged
+# behaviour when the flag is omitted). The table's path and sha256 are
+# recorded in <outdir>/RUN.txt as table-file/table-sha256, same as before —
+# a run against a different --table produces a different table-sha256 there,
+# so chain.tsv runs are never mistaken for demo.tsv runs (see eval/README.md
+# 'Chain items': chain.tsv is a superset of demo.tsv with extra rows, hence
+# a different sha256, so receipts from the two are not interchangeable).
 #
 # --attest: after each item's receipt is generated and verified, also runs
 # demo/agent-trace/run.sh attest <receipt> <outdir>/attest/<item_id> (the
@@ -24,10 +34,11 @@
 #   N                 — tokens per decode step, default 24 (plan section 3)
 #
 # Table: any item whose expected_tool involves LOOKUP (LOOKUP alone, or a
-# comma-joined mixed pair containing LOOKUP) is run with
-# --table demo/agent-trace/tables/demo.tsv. CALC-only and distractor items
-# run with no table (matching run.sh's table-less default: LOOKUP( is not
-# even scanned for without --table).
+# comma-joined mixed/chain pair containing LOOKUP) is run with
+# --table <table file> (see --table above; default
+# demo/agent-trace/tables/demo.tsv). CALC-only and distractor items run with
+# no table (matching run.sh's table-less default: LOOKUP( is not even
+# scanned for without --table).
 #
 # --template T3 is an ablation: every item's prompt has its trailing "A:"
 # replaced with "A: CALC(" (unclosed), per the plan's T3 definition. This is
@@ -59,7 +70,7 @@ ROOT="$(cd "$HERE/../../.." && pwd)"
 TABLE_FILE="$HERE/../tables/demo.tsv"
 
 usage() {
-    echo "usage: run_suite.sh <items.tsv> <outdir> [--template T1|T3] [--bin <agent_trace>] [--limit N] [--attest]" >&2
+    echo "usage: run_suite.sh <items.tsv> <outdir> [--template T1|T3] [--bin <agent_trace>] [--limit N] [--attest] [--table <path>]" >&2
     exit 2
 }
 
@@ -71,6 +82,7 @@ TEMPLATE="T1"
 BIN_OVERRIDE=""
 LIMIT=0
 ATTEST=0
+TABLE_OVERRIDE=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -90,6 +102,10 @@ while [ $# -gt 0 ]; do
             ATTEST=1
             shift
             ;;
+        --table)
+            TABLE_OVERRIDE="${2:?--table needs an argument}"
+            shift 2
+            ;;
         *)
             echo "unknown argument: $1" >&2
             usage
@@ -101,6 +117,10 @@ case "$TEMPLATE" in
     T1|T3) ;;
     *) echo "invalid --template: $TEMPLATE (want T1 or T3)" >&2; exit 2 ;;
 esac
+
+if [ -n "$TABLE_OVERRIDE" ]; then
+    TABLE_FILE="$TABLE_OVERRIDE"
+fi
 
 if [ ! -f "$ITEMS" ]; then
     echo "no such items file: $ITEMS" >&2
