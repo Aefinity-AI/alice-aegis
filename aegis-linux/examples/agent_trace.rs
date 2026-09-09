@@ -2788,6 +2788,9 @@ mod tests {
             None,
         );
         let _ = std::fs::remove_file(&path);
-        assert!(!pass, "the AEGIS-TRACE header must be required to come first");
+        assert!(
+            !pass,
+            "the AEGIS-TRACE header must be required to come first"
+        );
     }
 }
