@@ -45,8 +45,23 @@
 //!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases]
 //!
 //! Rule A: prints no timing, ever. Rule B: the receipt carries a commit hash
-//! and hostname (informational only — NOT folded into the trace chain, so a
-//! receipt generated on one machine still verifies bit-for-bit on another).
+//! and hostname. Through format 2 these were informational only — pure
+//! decoration, editable in a receipt that still reported VERIFY PASS, as
+//! E23 showed. From format 3 (`AEGIS-TRACE v2`) on they are folded into the
+//! trace genesis (see `trace_genesis`), which closes that hole and has one
+//! consequence a reader must not mistake for a failure:
+//!
+//!   TWO MACHINES RUNNING THE SAME EPISODE PRODUCE DIFFERENT `trace-chain`
+//!   VALUES, because their `host` lines (and usually their `commit` lines)
+//!   differ. That is correct and intended.
+//!
+//! Cross-machine bit-identity is therefore asserted over the per-step
+//! `decode-chain`, `ctx` and `q` digests, which are provenance-free and
+//! MUST match exactly; the `trace-chain` binds a receipt to the box and
+//! build that issued it. `verify` re-derives genesis from the receipt's own
+//! `commit`/`host` lines, so a receipt from another machine still verifies
+//! bit-for-bit there — it is the receipt's own claimed provenance that is
+//! now unforgeable, not a value shared between machines.
 //!
 //! Multi-receipt verify: the three artifacts (MODEL.SAF, EMBED.BIN,
 //! VOCAB.BIN) are read and hashed ONCE, and the `SafeTensors` parse,
@@ -2484,6 +2499,52 @@ mod tests {
             "suite-less genesis must differ from suite-bound genesis"
         );
         assert_ne!(g_a, g_b, "genesis must be sensitive to suite sha256");
+    }
+
+    #[test]
+    fn trace_genesis_differs_between_two_hosts_running_the_same_episode() {
+        // Pins the consequence of folding provenance in, so nobody reads a
+        // cross-machine `trace-chain` mismatch as a reproducibility failure:
+        // the same episode on two boxes MUST give two different chains.
+        // Measured on real receipts (BitNet-2B, K=2 N=12, identical calc
+        // episode): every per-step decode-chain/ctx/q matched exactly across
+        // aefinity-box and aefinity-box2, while the trace-chains differed
+        // (44ff6db6.. vs 2dc19eba..) because the host lines differed.
+        // Cross-machine bit-identity is asserted over the per-step digests.
+        let (m, e, v) = ([1u8; 32], [2u8; 32], [3u8; 32]);
+        let g = |commit: &str, host: &str| {
+            trace_genesis(
+                &m,
+                &e,
+                &v,
+                3,
+                16,
+                b"hello",
+                None,
+                None,
+                Some((commit.as_bytes(), host.as_bytes())),
+            )
+        };
+        let box1 = g("aa0f99df", "aefinity-box");
+        let box2 = g("aa0f99df", "aefinity-box2");
+        assert_ne!(box1, box2, "a different host must give a different genesis");
+        assert_ne!(
+            box1,
+            g("unknown", "aefinity-box"),
+            "a different commit must give a different genesis"
+        );
+        assert_eq!(
+            box1,
+            g("aa0f99df", "aefinity-box"),
+            "genesis must be a pure function of its inputs"
+        );
+        // And the provenance fold is length-prefixed, not concatenated, so
+        // no (commit, host) split can be shifted to collide with another.
+        assert_ne!(
+            g("ab", "cd"),
+            g("a", "bcd"),
+            "provenance fields must be length-prefixed, not concatenated"
+        );
     }
 
     #[test]
