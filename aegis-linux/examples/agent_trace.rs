@@ -781,6 +781,13 @@ fn trace_genesis(
     prompt: &[u8],
     table: Option<(&[u8; 32], u64)>,
     suite: Option<&[u8; 32]>,
+    // `(commit, host)` for format 3 (`AEGIS-TRACE v2`) and later; `None`
+    // for the earlier formats, whose genesis bytes must stay exactly as
+    // they were so already-issued receipts keep verifying. Folding these
+    // in is what stops the `commit`/`host` lines from being editable in a
+    // receipt that still reports VERIFY PASS — E23 showed both were pure
+    // decoration before.
+    provenance: Option<(&[u8], &[u8])>,
 ) -> [u8; 32] {
     let mut s = Sha256::new();
     s.update(TRACE_DOMAIN);
@@ -798,6 +805,13 @@ fn trace_genesis(
     if let Some(suite_sha) = suite {
         s.update(b"SUITE");
         s.update(suite_sha);
+    }
+    if let Some((commit, host)) = provenance {
+        s.update(b"PROV");
+        for field in [commit, host] {
+            s.update(&(field.len() as u32).to_le_bytes());
+            s.update(field);
+        }
     }
     s.finalize()
 }
@@ -961,6 +975,7 @@ fn replay_episode(
     n: usize,
     table: Option<&LookupTable>,
     suite_sha: Option<&[u8; 32]>,
+    provenance: Option<(&str, &str)>,
 ) -> EpisodeReplay {
     let mut prompt = initial_prompt.to_string();
     let mut trace_chain = trace_genesis(
@@ -972,6 +987,7 @@ fn replay_episode(
         initial_prompt.as_bytes(),
         table.map(|t| (&t.sha256, t.len)),
         suite_sha,
+        provenance.map(|(c, h)| (c.as_bytes(), h.as_bytes())),
     );
     let mut steps = Vec::with_capacity(k);
     // The text newly appended to the running prompt since the previous
@@ -1234,6 +1250,11 @@ fn main() {
                 parse_table(&bytes).expect("parse --table file")
             });
 
+            // Bound into the trace genesis from format 3 on, so a
+            // receipt cannot be relabelled with a different commit or host
+            // and still verify.
+            let commit = commit_hash();
+            let host = host_name();
             let r = replay_episode(
                 &cis_model,
                 &tokenizer,
@@ -1245,9 +1266,10 @@ fn main() {
                 n,
                 table.as_ref(),
                 suite_sha256_arg.as_ref(),
+                Some((commit.as_str(), host.as_str())),
             );
 
-            println!("AEGIS-TRACE v1");
+            println!("AEGIS-TRACE v2");
             println!("model {}", hex(&model_sha));
             println!("embed {}", hex(&embed_sha));
             println!("vocab {}", hex(&vocab_sha));
@@ -1260,8 +1282,8 @@ fn main() {
                 println!("suite-sha256 {}", hex(s));
             }
             println!("prompt-hex {}", hex(prompt.as_bytes()));
-            println!("commit {}", commit_hash());
-            println!("host {}", host_name());
+            println!("commit {commit}");
+            println!("host {host}");
             for (i, s) in r.steps.iter().enumerate() {
                 let ids: Vec<String> = s.toks.iter().map(|t| t.to_string()).collect();
                 println!(
@@ -1397,6 +1419,10 @@ fn verify_one(
     let mut w_format_line: Option<usize> = None;
     let mut w_table_sha: Option<String> = None;
     let mut w_suite_sha: Option<String> = None;
+    let mut w_commit: Option<String> = None;
+    let mut w_host: Option<String> = None;
+    let mut w_warn_steps: Vec<usize> = Vec::new();
+    let mut seen_keys: Vec<&str> = Vec::new();
 
     for (line_no, line) in wtext.lines().enumerate() {
         if let Some(rest) = line.strip_prefix("step ") {
@@ -1408,39 +1434,109 @@ fn verify_one(
                 return false;
             }
             let rest = body.trim();
-            let mut toks = Vec::new();
-            let mut tool = String::new();
-            let mut input = String::new();
-            let mut output = String::new();
-            let mut dchain = String::new();
+            let mut toks: Option<Vec<u32>> = None;
+            let mut tool: Option<String> = None;
+            let mut input: Option<String> = None;
+            let mut output: Option<String> = None;
+            let mut dchain: Option<String> = None;
             let mut ctx: Option<String> = None;
             let mut query: Option<String> = None;
+            // Every whitespace token on a step line must be a recognised
+            // `key=value` field, and each key may appear at most once.
+            // This loop previously had no else-branch, so an unrecognised
+            // token was silently dropped: `step 0:X toks=...` verified
+            // unchanged, and so did any attacker-chosen text appended
+            // anywhere on the line. The receipt was therefore not
+            // canonical — many distinct byte strings shared one PASSing
+            // trace-chain, which is exactly what a receipt must not allow.
+            // Found by E23's tamper matrix on cm-box2; see the
+            // `step_line_*` tests.
             for field in rest.split_whitespace() {
-                if let Some(v) = field.strip_prefix("toks=") {
-                    toks = v
-                        .split(',')
-                        .filter(|s| !s.is_empty())
-                        .map(|s| s.parse().expect("token id"))
-                        .collect();
-                } else if let Some(v) = field.strip_prefix("tool=") {
-                    tool = v.to_string();
-                } else if let Some(v) = field.strip_prefix("in=") {
-                    input = v.to_string();
-                } else if let Some(v) = field.strip_prefix("out=") {
-                    output = v.to_string();
-                } else if let Some(v) = field.strip_prefix("decode-chain=") {
-                    dchain = v.to_string();
-                } else if let Some(v) = field.strip_prefix("ctx=") {
-                    ctx = Some(v.to_string());
-                } else if let Some(v) = field.strip_prefix("q=") {
-                    query = Some(v.to_string());
+                let (name, value) = match field.split_once('=') {
+                    Some(kv) => kv,
+                    None => {
+                        println!("FAIL structure: step {position}: stray token {field:?}");
+                        return false;
+                    }
+                };
+                let duplicate = match name {
+                    "toks" => {
+                        let mut ids = Vec::new();
+                        for t in value.split(',').filter(|t| !t.is_empty()) {
+                            match t.parse::<u32>() {
+                                Ok(id) => ids.push(id),
+                                Err(_) => {
+                                    println!("FAIL structure: step {position}: bad token id {t:?}");
+                                    return false;
+                                }
+                            }
+                        }
+                        toks.replace(ids).is_some()
+                    }
+                    "tool" => tool.replace(value.to_string()).is_some(),
+                    "in" => input.replace(value.to_string()).is_some(),
+                    "out" => output.replace(value.to_string()).is_some(),
+                    "decode-chain" => dchain.replace(value.to_string()).is_some(),
+                    "ctx" => ctx.replace(value.to_string()).is_some(),
+                    "q" => query.replace(value.to_string()).is_some(),
+                    other => {
+                        println!("FAIL structure: step {position}: unknown field {other:?}");
+                        return false;
+                    }
+                };
+                if duplicate {
+                    println!("FAIL structure: step {position}: duplicate field {name:?}");
+                    return false;
                 }
             }
+            let (toks, tool, input, output, dchain) = match (toks, tool, input, output, dchain) {
+                (Some(a), Some(b), Some(c), Some(d), Some(e)) => (a, b, c, d, e),
+                _ => {
+                    println!(
+                        "FAIL structure: step {position}: missing one of toks= tool= in= out= decode-chain="
+                    );
+                    return false;
+                }
+            };
             w_steps.push((toks, tool, input, output, dchain, ctx, query));
             continue;
         }
         let mut it = line.splitn(2, ' ');
         let (key, v) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
+        if key.is_empty() {
+            continue;
+        }
+        // Unknown keys used to fall through the `_ => {}` arm below, which
+        // made every lead field deletable simply by renaming it — `commit`
+        // to `commitX` still verified — and let arbitrary attacker-chosen
+        // lines ride inside a receipt that printed VERIFY PASS. E23 found
+        // both. The allowlist below is the receipt's complete lead-line
+        // vocabulary; anything else is a structural failure.
+        const LEAD_KEYS: [&str; 12] = [
+            "AEGIS-TRACE",
+            "model",
+            "embed",
+            "vocab",
+            "K",
+            "N",
+            "prompt-hex",
+            "trace-chain",
+            "table-sha256",
+            "suite-sha256",
+            "commit",
+            "host",
+        ];
+        if key != "WARNING" && !LEAD_KEYS.contains(&key) {
+            println!("FAIL structure: unknown line key {key:?} on line {line_no}");
+            return false;
+        }
+        if key != "WARNING" {
+            if seen_keys.contains(&key) {
+                println!("FAIL structure: duplicate {key} line");
+                return false;
+            }
+            seen_keys.push(key);
+        }
         match key {
             "AEGIS-TRACE" => {
                 if w_format_line.is_some() {
@@ -1451,6 +1547,7 @@ fn verify_one(
                 w_format = match v {
                     "v0" => 1,
                     "v1" => 2,
+                    "v2" => 3,
                     other => {
                         println!("FAIL structure: unknown AEGIS-TRACE format {other:?}");
                         return false;
@@ -1460,8 +1557,20 @@ fn verify_one(
             "model" => w_model = v.into(),
             "embed" => w_embed = v.into(),
             "vocab" => w_vocab = v.into(),
-            "K" => w_k = v.parse().expect("K"),
-            "N" => w_n = v.parse().expect("N"),
+            "K" => match v.parse() {
+                Ok(x) => w_k = x,
+                Err(_) => {
+                    println!("FAIL structure: malformed K {v:?}");
+                    return false;
+                }
+            },
+            "N" => match v.parse() {
+                Ok(x) => w_n = x,
+                Err(_) => {
+                    println!("FAIL structure: malformed N {v:?}");
+                    return false;
+                }
+            },
             "prompt-hex" => {
                 let bytes = match unhex(v) {
                     Ok(b) => b,
@@ -1493,6 +1602,30 @@ fn verify_one(
                 }
                 w_suite_sha = Some(v.into());
             }
+            "commit" => w_commit = Some(v.into()),
+            "host" => w_host = Some(v.into()),
+            // A WARNING line must be exactly what `verbatim_warning_msg`
+            // emits for some step; free text on a WARNING line was another
+            // way to smuggle attacker-chosen content into a PASSing
+            // receipt. The set of warned steps is compared against the
+            // replay's own below.
+            "WARNING" => {
+                let idx = line
+                    .strip_prefix("WARNING step ")
+                    .and_then(|r| r.split_once(':'))
+                    .and_then(|(n, tail)| {
+                        n.parse::<usize>()
+                            .ok()
+                            .filter(|_| tail == " tool argument not found verbatim in context")
+                    });
+                match idx {
+                    Some(i) => w_warn_steps.push(i),
+                    None => {
+                        println!("FAIL structure: malformed WARNING line on line {line_no}");
+                        return false;
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -1523,6 +1656,22 @@ fn verify_one(
             return false;
         }
     }
+
+    // Format 3 folds `commit`/`host` into the trace genesis, so both lines
+    // are mandatory there. A downgrade to `v1` does not help an attacker:
+    // verify would then rebuild genesis without the provenance bytes and
+    // the trace-chain would not match.
+    let provenance: Option<(String, String)> = if w_format >= 3 {
+        match (w_commit.clone(), w_host.clone()) {
+            (Some(c), Some(h)) => Some((c, h)),
+            _ => {
+                println!("FAIL structure: format-3 receipt is missing its commit or host line");
+                return false;
+            }
+        }
+    } else {
+        None
+    };
 
     let mut fail = false;
     for (name, local, claimed) in [
@@ -1650,6 +1799,7 @@ fn verify_one(
         w_n,
         table.as_ref(),
         suite_sha.as_ref(),
+        provenance.as_ref().map(|(c, h)| (c.as_str(), h.as_str())),
     );
 
     let local_trace_chain = hex(&r.trace_chain);
@@ -1691,7 +1841,7 @@ fn verify_one(
         // is otherwise verified exactly as above — see the module doc
         // comment's format-2 entry and the `FORMAT1_NOTE` line already
         // printed above.
-        if w_format == 2 {
+        if w_format >= 2 {
             let local_ctx = hex(&local.ctx_digest);
             match w_ctx {
                 Some(claimed) if *claimed == local_ctx => {}
@@ -1711,6 +1861,30 @@ fn verify_one(
             if !local.verbatim_ok {
                 println!("{}", verbatim_warning_msg(i));
             }
+        }
+    }
+
+    // The receipt's WARNING lines are part of what a reader is shown, so
+    // they must match what this replay independently derives — otherwise a
+    // warning could be deleted from, or invented in, a PASSing receipt.
+    // Gated to format 2 and later: pre-format-2 receipts predate this
+    // module's warning emission and their WARNING lines are not evidence.
+    if w_format >= 2 {
+        let mut claimed = w_warn_steps.clone();
+        claimed.sort_unstable();
+        claimed.dedup();
+        let local_warns: Vec<usize> = r
+            .steps
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| !s.verbatim_ok)
+            .map(|(i, _)| i)
+            .collect();
+        if claimed != local_warns {
+            println!(
+                "VERIFY FAIL — WARNING lines claim steps {claimed:?}, replay derives {local_warns:?}"
+            );
+            mismatch = true;
         }
     }
 
@@ -1928,7 +2102,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
         );
         trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2")
     }
@@ -1944,7 +2118,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 1, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
@@ -1957,7 +2131,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[8u8; 32], b"calc", b"CALC(1 + 1)", b"2");
@@ -1970,7 +2144,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"no-tool", b"CALC(1 + 1)", b"2");
@@ -1983,7 +2157,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 2)", b"2");
@@ -1996,7 +2170,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"3");
@@ -2009,16 +2183,16 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g0 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
         );
         let g1 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None, None, None,
         );
         let g2 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None, None, None,
         );
         let g3 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None, None, None,
         );
         assert_ne!(g0, g1);
         assert_ne!(g0, g2);
@@ -2226,7 +2400,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g_none = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
         );
         let table_sha_a = [7u8; 32];
         let table_sha_b = [8u8; 32];
@@ -2239,6 +2413,7 @@ mod tests {
             b"hello",
             Some((&table_sha_a, 42)),
             None,
+            None,
         );
         let g_b = trace_genesis(
             &model_sha,
@@ -2249,6 +2424,7 @@ mod tests {
             b"hello",
             Some((&table_sha_b, 42)),
             None,
+            None,
         );
         let g_len = trace_genesis(
             &model_sha,
@@ -2258,6 +2434,7 @@ mod tests {
             16,
             b"hello",
             Some((&table_sha_a, 43)),
+            None,
             None,
         );
         assert_ne!(
@@ -2276,7 +2453,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g_none = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
         );
         let suite_a = [7u8; 32];
         let suite_b = [8u8; 32];
@@ -2289,6 +2466,7 @@ mod tests {
             b"hello",
             None,
             Some(&suite_a),
+            None,
         );
         let g_b = trace_genesis(
             &model_sha,
@@ -2299,6 +2477,7 @@ mod tests {
             b"hello",
             None,
             Some(&suite_b),
+            None,
         );
         assert_ne!(
             g_none, g_a,
@@ -2328,6 +2507,7 @@ mod tests {
             16,
             b"hello",
             Some((&table_sha, 32)),
+            None,
             None,
         );
         let expected: [u8; 32] = [
@@ -2360,6 +2540,7 @@ mod tests {
             b"hello",
             Some((&same_bytes, 32)),
             None,
+            None,
         );
         let g_suite = trace_genesis(
             &model_sha,
@@ -2370,6 +2551,7 @@ mod tests {
             b"hello",
             None,
             Some(&same_bytes),
+            None,
         );
         assert_ne!(
             g_table, g_suite,
@@ -2509,10 +2691,10 @@ mod tests {
         r: &EpisodeReplay,
     ) -> String {
         let mut text = String::new();
-        text.push_str(if format == 1 {
-            "AEGIS-TRACE v0\n"
-        } else {
-            "AEGIS-TRACE v1\n"
+        text.push_str(match format {
+            1 => "AEGIS-TRACE v0\n",
+            2 => "AEGIS-TRACE v1\n",
+            _ => "AEGIS-TRACE v2\n",
         });
         text.push_str(&format!("model {}\n", hex(model_sha)));
         text.push_str(&format!("embed {}\n", hex(embed_sha)));
@@ -2600,6 +2782,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None,
         );
         assert_eq!(r.steps.len(), k);
         for s in &r.steps {
@@ -2645,6 +2828,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None,
         );
         let good_text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let tampered = flip_hex_field(&good_text, "step 1:", "q=");
@@ -2679,6 +2863,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None,
         );
         let text = render_receipt(1, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         assert!(
@@ -2712,6 +2897,7 @@ mod tests {
         let (k, n, prompt) = (2usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         // Tamper the last step's ctx= so format-2 rules would reject it.
@@ -2766,12 +2952,155 @@ mod tests {
         );
     }
 
+    // --- E23 (cm-box2, 2026-09-09): the tamper matrix ran 321 mutants of
+    // four episodes against the format-2 verifier and 28 of them still
+    // reported VERIFY PASS. They fell into three families, each closed by
+    // one of the tests below: trailing junk on a step line, a lead key
+    // renamed out of the parser's vocabulary, and an edit to the `commit`
+    // or `host` value. ---
+
+    /// Build a real format-3 receipt over the M7 fixture, apply `mangle` to
+    /// its text, and return whether `verify` accepted the result.
+    fn format3_receipt_survives(mangle: impl Fn(&str) -> String) -> bool {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let prompt = "Q: What is 2 + 2?\nA:";
+        let (k, n) = (2usize, 8usize);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+        );
+        let text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        // Unique per call: these tests run in parallel in one process and
+        // `write_temp_receipt` names the file after the pid.
+        static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = write_temp_receipt(&format!("format3-{seq}.txt"), &mangle(&text));
+        verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn format3_round_trip_verifies() {
+        assert!(
+            format3_receipt_survives(|t| t.to_string()),
+            "an untampered format-3 receipt must verify — without this positive \
+             control every test below could pass for the wrong reason"
+        );
+    }
+
+    #[test]
+    fn format3_commit_value_tamper_fails_verify() {
+        assert!(
+            !format3_receipt_survives(|t| t.replace("commit test", "commit tesX")),
+            "commit is folded into the trace genesis from format 3 on"
+        );
+    }
+
+    #[test]
+    fn format3_host_value_tamper_fails_verify() {
+        assert!(
+            !format3_receipt_survives(|t| t.replace("host test", "host tesX")),
+            "host is folded into the trace genesis from format 3 on"
+        );
+    }
+
+    #[test]
+    fn format3_downgrade_to_v1_header_fails_verify() {
+        // Relabelling a format-3 receipt as format 2 does not unbind the
+        // provenance: verify then rebuilds genesis without those bytes and
+        // the trace-chain no longer matches.
+        assert!(!format3_receipt_survives(
+            |t| t.replace("AEGIS-TRACE v2", "AEGIS-TRACE v1")
+        ));
+    }
+
+    #[test]
+    fn step_line_rejects_trailing_junk_after_the_index() {
+        // E23 F.l9.t1: `step 0:X ...` verified unchanged on every episode.
+        assert!(!format3_receipt_survives(
+            |t| t.replace("step 0:", "step 0:X")
+        ));
+    }
+
+    #[test]
+    fn step_line_rejects_unknown_field() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace(" tool=", " smuggled=anything tool=")
+        ));
+    }
+
+    #[test]
+    fn step_line_rejects_duplicate_field() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace(" tool=", " tool=x tool=")
+        ));
+    }
+
+    #[test]
+    fn lead_line_rejects_unknown_key() {
+        // E23 F.l7.t0/F.l8.t0: renaming a lead key deleted the field.
+        assert!(!format3_receipt_survives(
+            |t| t.replace("commit test", "commitX test")
+        ));
+        assert!(!format3_receipt_survives(
+            |t| t.replace("host test", "hostX test")
+        ));
+    }
+
+    #[test]
+    fn lead_line_rejects_duplicate_key() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace("commit test", "commit test\nK 99")
+        ));
+    }
+
+    #[test]
+    fn invented_warning_line_fails_verify() {
+        assert!(!format3_receipt_survives(|t| t.replace(
+            "commit test",
+            "WARNING step 0: tool argument not found verbatim in context\ncommit test"
+        )));
+    }
+
+    #[test]
+    fn malformed_warning_line_is_rejected() {
+        assert!(!format3_receipt_survives(|t| t.replace(
+            "commit test",
+            "WARNING step 0: the agent did nothing wrong\ncommit test"
+        )));
+    }
+
+    #[test]
+    fn malformed_k_is_rejected_without_panic() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace("\nK 2\n", "\nK two\n")
+        ));
+    }
+
     #[test]
     fn header_must_be_the_first_line() {
         let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
         let (k, n, prompt) = (1usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let moved = format!("model {}\nAEGIS-TRACE v1\n{}", hex(&model_sha), text);
