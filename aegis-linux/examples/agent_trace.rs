@@ -1386,10 +1386,19 @@ fn verify_one(
     )> = Vec::new();
     let mut w_trace_chain = String::new();
     let mut w_format: u8 = 1;
+    // Whether an `AEGIS-TRACE <ver>` magic line was actually seen, and on
+    // which line. Without this, an unrecognised or absent header fell
+    // through the `_ => {}` arm below and left w_format at its default of
+    // 1, silently downgrading a format-2 receipt to format-1 rules — which
+    // skip the per-step ctx=/q= binding checks entirely. An attacker who
+    // could edit a step line could also edit line 1, so that downgrade was
+    // a complete bypass of the format-2 binding. See the
+    // `header_downgrade_*` tests.
+    let mut w_format_line: Option<usize> = None;
     let mut w_table_sha: Option<String> = None;
     let mut w_suite_sha: Option<String> = None;
 
-    for line in wtext.lines() {
+    for (line_no, line) in wtext.lines().enumerate() {
         if let Some(rest) = line.strip_prefix("step ") {
             // "IDX: toks=.. tool=.. in=.. out=.. decode-chain=.."
             let (label, body) = rest.split_once(':').unwrap_or((rest, ""));
@@ -1434,6 +1443,11 @@ fn verify_one(
         let (key, v) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
         match key {
             "AEGIS-TRACE" => {
+                if w_format_line.is_some() {
+                    println!("FAIL structure: duplicate AEGIS-TRACE header line");
+                    return false;
+                }
+                w_format_line = Some(line_no);
                 w_format = match v {
                     "v0" => 1,
                     "v1" => 2,
@@ -1480,6 +1494,33 @@ fn verify_one(
                 w_suite_sha = Some(v.into());
             }
             _ => {}
+        }
+    }
+
+    // The magic line is mandatory and must come first: anything else is a
+    // format downgrade, not a legacy receipt.
+    match w_format_line {
+        None => {
+            println!("FAIL structure: missing AEGIS-TRACE header line");
+            return false;
+        }
+        Some(n) if n != 0 => {
+            println!("FAIL structure: AEGIS-TRACE header line at position {n}, must be first");
+            return false;
+        }
+        Some(_) => {}
+    }
+    // Belt and braces: a receipt that declares format 1 must not carry the
+    // format-2 per-step binding fields. If it does, the header was altered.
+    if w_format == 1 {
+        if let Some(i) = w_steps
+            .iter()
+            .position(|(_, _, _, _, _, ctx, q)| ctx.is_some() || q.is_some())
+        {
+            println!(
+                "FAIL structure: receipt declares format 1 but step {i} carries ctx=/q= (format-2 downgrade)"
+            );
+            return false;
         }
     }
 
@@ -2658,5 +2699,95 @@ mod tests {
         );
         let _ = std::fs::remove_file(&path);
         assert!(pass, "a format-1 receipt must still verify PASS unchanged");
+    }
+
+    /// Build a format-2 receipt whose ctx= binding has been tampered with,
+    /// then apply `mangle` to its header line. Returns whether verify passed.
+    ///
+    /// Before the header was made mandatory, every one of these mangles
+    /// downgraded the receipt to format-1 rules, which do not check ctx=/q=
+    /// at all, so a forged context verified PASS.
+    fn header_downgrade_attempt(mangle: impl Fn(&str) -> String) -> bool {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let (k, n, prompt) = (2usize, 8usize, "Once upon a time");
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+        );
+        let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        // Tamper the last step's ctx= so format-2 rules would reject it.
+        let mut lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+        let step = lines
+            .iter()
+            .rposition(|l| l.starts_with("step "))
+            .expect("a step line");
+        let i = lines[step].find("ctx=").expect("a ctx= field") + 4;
+        let c = lines[step].as_bytes()[i];
+        let flipped = if c == b'0' { '1' } else { '0' };
+        lines[step].replace_range(i..i + 1, &flipped.to_string());
+        lines[0] = mangle(&lines[0]);
+        let text = lines.join("\n") + "\n";
+
+        let path = write_temp_receipt("header-downgrade.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        pass
+    }
+
+    #[test]
+    fn header_downgrade_corrupted_magic_is_rejected() {
+        assert!(
+            !header_downgrade_attempt(|_| "AEGIS-TRACEX v1".to_string()),
+            "a corrupted magic word must not downgrade a format-2 receipt to format-1"
+        );
+    }
+
+    #[test]
+    fn header_downgrade_missing_header_is_rejected() {
+        assert!(
+            !header_downgrade_attempt(|_| "# no header here".to_string()),
+            "a missing AEGIS-TRACE header must be rejected, not defaulted to format 1"
+        );
+    }
+
+    #[test]
+    fn header_downgrade_lowercase_magic_is_rejected() {
+        assert!(
+            !header_downgrade_attempt(|_| "aegis-trace v1".to_string()),
+            "the magic word is case-sensitive and must not fall through to format 1"
+        );
+    }
+
+    #[test]
+    fn header_must_be_the_first_line() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let (k, n, prompt) = (1usize, 8usize, "Once upon a time");
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+        );
+        let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        let moved = format!("model {}\nAEGIS-TRACE v1\n{}", hex(&model_sha), text);
+
+        let path = write_temp_receipt("header-not-first.txt", &moved);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(!pass, "the AEGIS-TRACE header must be required to come first");
     }
 }
