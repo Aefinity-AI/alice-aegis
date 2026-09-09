@@ -741,6 +741,18 @@ fn last_q_line(text: &str) -> &str {
 /// at step 1 — a rule that scans the running prompt's last `Q:` line accepts
 /// that self-authored question, which is exactly the case the rule exists to
 /// flag. `true` for `no-tool` or a call with no parseable argument text.
+///
+/// The test is a **substring** test, so the rule is sound but not complete:
+/// a `false` (which raises the step's WARNING) proves the argument does not
+/// occur anywhere in externally supplied text and therefore came from the
+/// model, but a `true` only proves the argument is *some contiguous fragment*
+/// of that text. Given `Q: What is part 401?`, `LOOKUP(40)` draws no WARNING.
+/// The looseness is the safe direction: tightening to a token match would
+/// flag a model that correctly extracts `206` from an external `P-206`, so
+/// the rule trades false negatives away from false positives on purpose.
+/// `verbatim_rule_is_sound_but_not_complete` pins both directions; changing
+/// the rule changes the WARNING set of every receipt already generated, so it
+/// is a format change, not a bug fix.
 fn verbatim_ok_for(external_text: &str, tool_input: &[u8]) -> bool {
     match extract_call_arg(tool_input) {
         Some(arg) if !arg.is_empty() => external_text.contains(arg),
@@ -1997,6 +2009,27 @@ mod tests {
         assert!(verbatim_ok_for(external, b"LOOKUP(P-4023)"));
         assert!(verbatim_ok_for(external, b"no-tool"));
         assert!(verbatim_ok_for(external, b"CALC()"));
+    }
+
+    #[test]
+    fn verbatim_rule_is_sound_but_not_complete() {
+        // Sound: an argument absent from external text always warns. There is
+        // no external text a WARNING can be raised against falsely, because
+        // `contains` is exact.
+        let external = "What is part 401?";
+        assert!(!verbatim_ok_for(external, b"LOOKUP(403)"));
+        assert!(!verbatim_ok_for(external, b"LOOKUP(4010)"));
+
+        // Not complete: a fragment of external text passes. `40` never
+        // appeared as a part number, but it is a substring of `401`, so this
+        // step is not flagged. E34's WARNING counts are therefore a lower
+        // bound on ungrounded tool calls, never an upper one.
+        assert!(verbatim_ok_for(external, b"LOOKUP(40)"));
+        assert!(verbatim_ok_for(external, b"LOOKUP(4)"));
+
+        // And a step that calls no tool is never flagged at all, so the
+        // WARNING census says nothing about the groundedness of model prose.
+        assert!(verbatim_ok_for("", b"no-tool"));
     }
 
     #[test]
