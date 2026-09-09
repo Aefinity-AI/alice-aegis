@@ -1731,3 +1731,44 @@ pub fn ternary_matmul(
         ternary_matvec_scalar(out_slice, in_slice, weights_packed, dim_out, dim_in, scale);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// UNPACK_LUT (built by `build_unpack_lut`) must decode every 2-bit code
+    /// per the packing convention documented on `UNPACK_LUT`:
+    /// 00 = 0, 01 = +1, 10 = -1, 11 = 0 (undefined code, degrades to zero).
+    /// Each packed byte holds 4 such 2-bit fields (LSB-first), each mapped to
+    /// 4 contiguous f32 slots in the LUT.
+    #[test]
+    fn build_unpack_lut_decodes_every_byte_and_field() {
+        fn expected(code: usize) -> f32 {
+            match code {
+                0 => 0.0,
+                1 => 1.0,
+                2 => -1.0,
+                3 => 0.0, // undefined code degrades to 0.0
+                _ => unreachable!(),
+            }
+        }
+
+        assert_eq!(UNPACK_LUT.len(), 1024);
+
+        for b in 0..256usize {
+            let codes = [b & 3, (b >> 2) & 3, (b >> 4) & 3, (b >> 6) & 3];
+            for (field, &code) in codes.iter().enumerate() {
+                let got = UNPACK_LUT[b * 4 + field];
+                let want = expected(code);
+                assert_eq!(
+                    got, want,
+                    "byte {b:#04x} field {field} (code {code:#04b}): got {got}, want {want}"
+                );
+                assert!(
+                    got == -1.0 || got == 0.0 || got == 1.0,
+                    "byte {b:#04x} field {field}: value {got} not in {{-1,0,1}}"
+                );
+            }
+        }
+    }
+}
