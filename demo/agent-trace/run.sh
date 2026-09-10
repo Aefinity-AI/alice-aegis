@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # demo/agent-trace/run.sh — one-command "verified agent episode" demo.
 #
-# Produces an AEGIS-TRACE v1 receipt (format 2: per-step ctx=/q= context and
-# query binding, verified with STEP n CTX/QUERY MISMATCH on tamper; a v0/
-# format-1 receipt still verifies, with a NOTE line) for a small,
+# Produces an AEGIS-TRACE v2 receipt (format 3: per-step ctx=/q= context and
+# query binding, verified with STEP n CTX/QUERY MISMATCH on tamper, plus
+# commit/host folded into the trace genesis; v1/format-2 and v0/format-1
+# receipts still verify, the latter with a NOTE line) for a small,
 # deterministic K-step agent
 # episode (greedy CIS-1 FullInt decode + a scan for one `calc` tool call,
 # repeated K times over the M7 tinybit model), then replays and verifies

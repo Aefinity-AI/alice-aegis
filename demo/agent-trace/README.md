@@ -6,9 +6,9 @@ M7 tinybit model: K rounds (default 3) of {greedy, integer-only CIS-1
 one tool call — `CALC(<int> <op> <int>)`, or (only when a table is given)
 `LOOKUP(<key>)` — run the tool, append the decoded text and the tool's
 result to the running prompt for the next round}. The whole episode is
-hash-chained into one **AEGIS-TRACE v1** (format 2) receipt: artifact
+hash-chained into one **AEGIS-TRACE v2** (format 3) receipt: artifact
 SHA-256s, K, N, the initial prompt (and a `table-sha256` line when a table
-was used), and one line per step (the step's token ids, which tool ran, its
+was used), the generating `commit` and `host`, and one line per step (the step's token ids, which tool ran, its
 input/output, that step's own decode-chain digest, and two more fields —
 `ctx=`, the sha256 of the exact prompt text fed to the model that step, and
 `q=`, the sha256 of that step's own newly-appended "query text" — the
@@ -21,14 +21,23 @@ final trace chain to what the receipt claims — bit-for-bit, including the
 `ctx=`/`q=` fields (`STEP n CTX MISMATCH` / `STEP n QUERY MISMATCH` on a
 tampered one). Any altered token id, tool input, tool output, context,
 query, or dropped step changes the trace chain and/or these per-step
-digests and `verify` exits 1. A pre-format-2 (`AEGIS-TRACE v0`) receipt
+digests and `verify` exits 1. From format 3 (`AEGIS-TRACE v2`) on the
+`commit` and `host` lines are folded into the trace genesis too, so a
+receipt cannot be relabelled with a different commit or machine and still
+verify; in format 1 and 2 those two lines were printed but unauthenticated.
+`verify` is also strict about the receipt's shape: every lead line must use
+a known key, no key may repeat, and every whitespace token on a `step` line
+must be a recognised `key=value` field appearing once — so a receipt that
+verifies is a canonical file, not one of many byte strings sharing a
+digest. A pre-format-2 (`AEGIS-TRACE v0`) receipt
 still verifies exactly as before — no `ctx=`/`q=` fields expected — and
 prints one extra `NOTE: format-1 receipt, per-step query binding not
 present` line. `verify` also prints a non-fatal `WARNING step n: ...` line
 when a step's tool-call argument does not appear verbatim in the externally
 supplied text that step had seen — the initial prompt's last `Q:` line plus
-every prior tool result, never the model's own generated text (format-2
-only) — the per-step generalization of
+every prior tool result, never the model's own generated text (format 2 and
+later) — and the set of `WARNING` lines a receipt carries must match the set
+the replay independently derives — the per-step generalization of
 `demo/agent-trace/eval/check_verbatim.py`'s step-0-only, receipt-only rule.
 The model's own text is excluded on purpose: a model that writes its own
 `Q: 2 + 2` line and then calls `CALC(2 + 2)` must not satisfy the rule.
@@ -317,3 +326,23 @@ Point `AEGIS_ARTIFACTS` (or the three `AEGIS_MODEL`/`AEGIS_EMBED`/
 `cis_witness`. Each step guards its own prompt length against
 `max_position_embeddings` and panics (not a silent truncation) if a step's
 prompt plus N would exceed it.
+
+## Tamper-evidence evidence
+
+The claims above are not asserted, they are measured. `E23` (cm-box2,
+2026-09-09) generated four episodes and mutated each receipt exhaustively —
+per-field value edits, structural edits (drop, duplicate, reorder, truncate,
+append a step) and cross-step field swaps — then ran the real `verify` on
+every mutant, with an unmutated positive control per episode.
+
+The first run, against the format-2 verifier, put 321 mutants through
+`verify` and **28 of them still reported VERIFY PASS**, in three families:
+
+| family | example | why it passed |
+| --- | --- | --- |
+| trailing junk on a step line | `step 0:X toks=…` | the field loop silently dropped unrecognised tokens |
+| lead key renamed | `commit` → `commitX` | unknown lead keys fell through a `_ => {}` arm, i.e. the field was deletable |
+| `commit` / `host` value edited | last nibble flipped | neither was folded into any digest |
+
+All three are closed by format 3 and the strict parser, and each has a
+named regression test (`step_line_*`, `lead_line_*`, `format3_*`).
