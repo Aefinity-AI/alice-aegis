@@ -45,11 +45,21 @@
 //!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases]
 //!
 //! Rule A: prints no timing, ever. Rule B: the receipt carries a commit hash
-//! and hostname. Through format 2 these were informational only — pure
-//! decoration, editable in a receipt that still reported VERIFY PASS, as
-//! E23 showed. From format 3 (`AEGIS-TRACE v2`) on they are folded into the
-//! trace genesis (see `trace_genesis`), which closes that hole and has one
-//! consequence a reader must not mistake for a failure:
+//! and hostname. The commit is captured at BUILD time (`aegis-linux/build.rs`
+//! bakes `env!("AEGIS_GIT_COMMIT")` in from the repo the binary was built
+//! from) rather than shelled out by `gen` at run time — a runtime `git
+//! rev-parse HEAD` depends on the generating process's current working
+//! directory and used to silently report either "unknown" (run from
+//! outside any checkout) or a different repo's HEAD (run from inside one).
+//! `commit_hash()` is now a pure, cwd-independent lookup; `unknown` means
+//! the binary itself was built without a resolvable git commit (`gen`
+//! refuses to run unless `AEGIS_ALLOW_UNKNOWN_COMMIT=1`, and `verify`
+//! prints a WARNING, never a failure, for such a receipt). Through format 2
+//! commit/host were informational only — pure decoration, editable in a
+//! receipt that still reported VERIFY PASS, as E23 showed. From format 3
+//! (`AEGIS-TRACE v2`) on they are folded into the trace genesis (see
+//! `trace_genesis`), which closes that hole and has one consequence a
+//! reader must not mistake for a failure:
 //!
 //!   TWO MACHINES RUNNING THE SAME EPISODE PRODUCE DIFFERENT `trace-chain`
 //!   VALUES, because their `host` lines (and usually their `commit` lines)
@@ -415,6 +425,14 @@ fn verbatim_warning_msg(step: usize) -> String {
 /// the pre-format-2 gap (no per-step query binding to check) is visible in
 /// the output rather than silently absent.
 const FORMAT1_NOTE: &str = "NOTE: format-1 receipt, per-step query binding not present";
+
+/// Printed once by `verify` for a format-3+ receipt whose `commit` line
+/// reads `unknown` — informational, never a failure (see `verify_one`'s
+/// provenance block and `commit_hash`'s doc comment). Pulled out as a
+/// const, same rationale as `ctx_mismatch_msg` above, so the exact wording
+/// is unit-testable without capturing stdout.
+const UNKNOWN_COMMIT_WARNING: &str =
+    "WARNING: receipt commit is unknown (provenance not pinned to code)";
 
 fn unhex(s: &str) -> Result<Vec<u8>, ()> {
     if !s.len().is_multiple_of(2) {
@@ -1122,16 +1140,15 @@ fn validate_receipt_header(
 // Receipt I/O.
 // ---------------------------------------------------------------------
 
+/// The commit this binary was BUILT from, baked in at compile time by
+/// `aegis-linux/build.rs` (see its doc comment) — deliberately NOT a
+/// runtime `git rev-parse HEAD` in the generating process's current
+/// working directory, which used to silently report either "unknown" (run
+/// from outside any checkout) or a different repo's HEAD (run from inside
+/// one), and then got folded into the trace genesis and TPM-attested as if
+/// it were trustworthy.
 fn commit_hash() -> String {
-    std::process::Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "unknown".to_string())
+    env!("AEGIS_GIT_COMMIT").to_string()
 }
 
 /// Validate a receipt "step N:" label against the step's actual position in
@@ -1281,6 +1298,14 @@ fn main() {
             // receipt cannot be relabelled with a different commit or host
             // and still verify.
             let commit = commit_hash();
+            if commit == "unknown"
+                && std::env::var("AEGIS_ALLOW_UNKNOWN_COMMIT").as_deref() != Ok("1")
+            {
+                eprintln!(
+                    "ERROR: this binary was built without a git commit (AEGIS_GIT_COMMIT); set AEGIS_ALLOW_UNKNOWN_COMMIT=1 to generate an unpinned receipt"
+                );
+                std::process::exit(2);
+            }
             let host = host_name();
             let r = replay_episode(
                 &cis_model,
@@ -1690,7 +1715,19 @@ fn verify_one(
     // the trace-chain would not match.
     let provenance: Option<(String, String)> = if w_format >= 3 {
         match (w_commit.clone(), w_host.clone()) {
-            (Some(c), Some(h)) => Some((c, h)),
+            (Some(c), Some(h)) => {
+                // Informational only — does not change PASS/FAIL below.
+                // `unknown` means the generating binary was built without
+                // a resolvable git commit (AEGIS_ALLOW_UNKNOWN_COMMIT=1 at
+                // gen time), so this receipt's code provenance is not
+                // pinned even though it is still cryptographically bound
+                // into the trace genesis (tamper-evident, not
+                // tamper-informative).
+                if c == "unknown" {
+                    println!("{UNKNOWN_COMMIT_WARNING}");
+                }
+                Some((c, h))
+            }
             _ => {
                 println!("FAIL structure: format-3 receipt is missing its commit or host line");
                 return false;
@@ -3088,6 +3125,90 @@ mod tests {
             None,
             None,
         )
+    }
+
+    /// Same as `format3_receipt_survives`, but the receipt's `commit` line
+    /// (and the genesis it is folded into) is built from `commit` instead
+    /// of the fixed `"test"` — used to exercise the `unknown`-commit
+    /// WARNING path, which must still verify unchanged (see
+    /// `unknown_commit_receipt_still_verifies_pass`).
+    fn format3_receipt_survives_with_commit(commit: &str, mangle: impl Fn(&str) -> String) -> bool {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let prompt = "Q: What is 2 + 2?\nA:";
+        let (k, n) = (2usize, 8usize);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some((commit, "test")),
+        );
+        let mut text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        text = text.replace("commit test\n", &format!("commit {commit}\n"));
+        static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = write_temp_receipt(&format!("format3-commit-{seq}.txt"), &mangle(&text));
+        verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn unknown_commit_receipt_still_verifies_pass() {
+        // An "unknown"-commit format-3 receipt is unpinned provenance, not
+        // a tamper: `verify` must PASS it exactly as it would a receipt
+        // with a real commit, and print `UNKNOWN_COMMIT_WARNING` alongside
+        // (see `verify_one`'s provenance block) rather than change
+        // PASS/FAIL semantics.
+        assert!(
+            format3_receipt_survives_with_commit("unknown", |t| t.to_string()),
+            "a format-3 receipt with commit=unknown must still verify PASS \
+             structurally exactly as any other commit value would"
+        );
+    }
+
+    #[test]
+    fn unknown_commit_warning_text_is_exact() {
+        assert_eq!(
+            UNKNOWN_COMMIT_WARNING,
+            "WARNING: receipt commit is unknown (provenance not pinned to code)"
+        );
+    }
+
+    #[test]
+    fn commit_hash_is_forty_hex_or_unknown() {
+        let c = commit_hash();
+        let is_forty_hex =
+            c.len() == 40 && c.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+        assert!(
+            is_forty_hex || c == "unknown",
+            "commit_hash() must be 40 lowercase hex or the literal \"unknown\", got {c:?}"
+        );
+        // This crate's own manifest dir is inside a git checkout (the repo
+        // this test itself was built from), so build.rs must have resolved
+        // a real commit here, never "unknown".
+        if std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.git")).exists() {
+            assert_ne!(
+                c,
+                "unknown",
+                "built inside a git checkout ({}/../.git exists); commit_hash() must not be \
+                 \"unknown\" — check build.rs's git invocation",
+                env!("CARGO_MANIFEST_DIR")
+            );
+        }
     }
 
     #[test]
