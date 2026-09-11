@@ -5,6 +5,7 @@ edition = "2024"
 license = "Apache-2.0"
 authors = ["Justin B. Thompson (Aefinity AI)"]
 repository = "https://github.com/Aefinity-AI/alice-aegis"
+build = "build.rs"
 
 [dependencies]
 aegis-core = { path = "../aegis-core" }

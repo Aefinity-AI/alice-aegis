@@ -142,7 +142,7 @@ for p in "hello alice" "how are you today?" "continue"; do
     while [ $i -le $MECHN ]; do
         aegis-linux $M $E $V 256 "$p" > "$MTMP" 2>&1
         echo "MECHV2L \"$p\" run $i/$MECHN" | tee -a "$LOG"
-        grep -E 'Prefill|Decode|Cycles' "$MTMP" >> "$LOG"
+        grep -E 'Prefill|Decode|Ticks|Cycles' "$MTMP" >> "$LOG"
         if [ $i -eq 1 ]; then
             echo "MECHV2L RESPONSE \"$p\":$(grep 'Final Full Response:' "$MTMP" | cut -d: -f2-)" >> "$LOG"
         fi

@@ -116,10 +116,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         generated as f64 / elapsed
     );
     println!(
-        "Prefill {} tokens in {} cycles ({} cycles/token)",
+        // Raw TSC ticks (fenced rdtsc/rdtscp pair), not core clock cycles.
+        "Prefill {} tokens in {} ticks ({} ticks/token)",
         engine.last_prefill_tokens,
-        engine.last_prefill_cycles,
-        engine.last_prefill_cycles / engine.last_prefill_tokens.max(1) as u64
+        engine.last_prefill_ticks,
+        engine.last_prefill_ticks / engine.last_prefill_tokens.max(1) as u64
     );
     // Decode timed from the first emitted token, so prefill cost is excluded.
     if generated > 1 && decode_secs > 0.0 {
