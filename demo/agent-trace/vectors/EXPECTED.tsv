@@ -7,7 +7,7 @@ tamper-commit	-	MISMATCH	-
 tamper-host	-	MISMATCH	-
 malformed-stray-token	-	REJECTED	FAIL structure: step 0: stray token "X"
 malformed-dup-model-line	-	REJECTED	FAIL structure: duplicate model line
-malformed-k-whitespace	-	REJECTED	FAIL structure: malformed K "1 "
+malformed-k-whitespace	-	REJECTED	FAIL structure: K is not canonical decimal: "1 "
 malformed-extra-equals	-	MISMATCH	-
 malformed-truncated-chain	-	REJECTED	FAIL structure: malformed trace-chain (want 64 lowercase hex)
 malformed-step-hex	tables/parts-numeric-chain.tsv	REJECTED	FAIL structure: step 0: malformed hex in in

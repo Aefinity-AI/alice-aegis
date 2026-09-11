@@ -36,8 +36,25 @@ UTF-8 text, one logical record per line (`\n`; `str::lines()` splitting), no
 trailing-content requirements beyond what's below. A file that is not valid
 UTF-8 is rejected before any line is parsed (`FAIL structure: receipt is not
 valid UTF-8`; an unreadable path is `FAIL structure: cannot read receipt
-...`) — the verifier never panics on receipt bytes. There is no required
-overall line order except: **the `AEGIS-TRACE <ver>` line must be line 0**
+...`) — the verifier never panics on receipt bytes.
+
+**Canonical form.** A receipt has exactly one byte representation for a
+given claimed value: no blank (empty or whitespace-only) line anywhere —
+not before the header, between steps, or trailing at end of file (a file
+ending in a single `"...\n"` is canonical; a second trailing newline is
+not, and neither is a missing one: `FAIL structure: missing trailing
+newline`) — no `\r` bytes (LF line endings only), every integer field (`K`, `N`,
+the `step <i>` label, each element of `toks=`, and the index in a
+`WARNING step <i>` line) is canonical decimal (ASCII digits only, no sign,
+no leading zero unless the value is exactly `0`), and `commit`/`host`
+values are non-empty. A receipt that is not canonical is rejected with
+`FAIL structure: ...` before any replay is attempted, so two byte-different
+receipts can never both verify for the same claimed content — which matters
+because an attestation digest is computed over the raw receipt bytes and
+cannot itself distinguish a canonical receipt from a tolerated variant.
+
+There is no required overall line order except: **the `AEGIS-TRACE <ver>`
+line must be line 0**
 (`FAIL structure: missing AEGIS-TRACE header line` if absent anywhere;
 `FAIL structure: AEGIS-TRACE header line at position {n}, must be first` if
 present but not first). Beyond that, `verify`'s parser is a line-by-line
@@ -78,10 +95,12 @@ resolved `(step)` set is checked against replay — see §3).
 
 **Step-line grammar:** a line matching `^step `; parsed as
 `"step " <label> ":" <fields>`, `label`/`fields` split on the *first* `:`.
-- `label` (trimmed) must parse as a `usize` equal to the step's 0-based
-  ordinal position among step lines encountered so far in the file (NOT
-  necessarily its numeric value if the label lies — `verify` compares the
-  label's parsed number to that ordinal). Mismatch (numeric or unparsable):
+- `label` (trimmed) must be canonical decimal (see "Canonical form" above)
+  equal to the step's 0-based ordinal position among step lines encountered
+  so far in the file (NOT necessarily its numeric value if the label lies —
+  `verify` compares the label's parsed number to that ordinal); a
+  non-canonical label (e.g. `007`) is rejected even when its numeric value
+  matches the position. Mismatch or non-canonical:
   `FAIL structure: step label {n_or_text} at position {position}`.
 - `fields` (trimmed) is split on ASCII whitespace into tokens; each token
   must be `key=value` (`split_once('=')`); a token with no `=` is
@@ -92,9 +111,10 @@ resolved `(step)` set is checked against replay — see §3).
   unknown field {other:?}`. Any key repeated on the same step line:
   `FAIL structure: step {position}: duplicate field {name:?}`.
 - `toks=<v>`: `v` split on `,`, empty sub-tokens skipped, each remaining
-  piece parsed as `u32` (same rule as `K`/`N` above but `u32::from_str`,
-  range 0..=4294967295); a bad or out-of-range piece is `FAIL structure:
-  step {position}: bad token id {t:?}`.
+  piece must be canonical decimal in range 0..=4294967295 (see "Canonical
+  form" above); a non-canonical, malformed, or out-of-range piece is
+  `FAIL structure: step {position}: token id is not canonical decimal:
+  {t:?}`.
 - Missing any of `toks=`/`tool=`/`in=`/`out=`/`decode-chain=` on a step
   line: `FAIL structure: step {position}: missing one of toks= tool= in=
   out= decode-chain=`.
@@ -109,11 +129,11 @@ resolved `(step)` set is checked against replay — see §3).
   `FAIL structure: duplicate AEGIS-TRACE header line`.
 - `K <v>` / `N <v>`: `v` is **not trimmed** — it is everything after the
   first space (`splitn(2, ' ')` on the whole line, so a trailing space
-  stays part of `v`) and must satisfy Rust `u64::from_str` exactly:
-  optional leading `+`, then one or more ASCII digits, no other whitespace,
-  no other sign, value ≤ 2^64−1. `K 1 ` (trailing space) is therefore
-  `FAIL structure: malformed K "1 "` (confirmed on box1) — else `FAIL
-  structure: malformed K {v:?}` / `FAIL structure: malformed N {v:?}`.
+  stays part of `v`) and must be canonical decimal (see "Canonical form"
+  above): ASCII digits only, no leading `+`, no leading zero unless `v` is
+  exactly `"0"`, value ≤ 2^32−1. `K 1 ` (trailing space), `K +1`, and
+  `K 01` are all `FAIL structure: K is not canonical decimal: {v:?}` (same
+  shape for `N`).
 - `prompt-hex <v>`: `v` must be valid even-length hex whose decoded bytes
   are valid UTF-8, else `FAIL structure: malformed hex in prompt-hex`
   (same message for both the hex-decode failure and the UTF-8 failure).
@@ -134,8 +154,11 @@ resolved `(step)` set is checked against replay — see §3).
   line`.
 - `WARNING <rest>`: the whole line must equal
   `WARNING step <i>: tool argument not found verbatim in context` for some
-  parseable `usize` `<i>`; anything else: `FAIL structure: malformed
+  canonical-decimal `<i>` (see "Canonical form" above); anything else,
+  including a non-canonical `<i>` such as `01`: `FAIL structure: malformed
   WARNING line on line {line_no}`.
+- `commit <v>` / `host <v>`: `v` must be non-empty, else `FAIL structure:
+  commit has no value` / `FAIL structure: host has no value`.
 
 **Cross-structural checks (after the full line scan):**
 - Format 1 receipt (`w_format == 1`) with any step carrying `ctx=`/`q=`:

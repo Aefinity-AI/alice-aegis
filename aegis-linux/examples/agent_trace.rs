@@ -458,6 +458,25 @@ fn unhex(s: &str) -> Result<Vec<u8>, ()> {
         .collect()
 }
 
+/// Parse `s` as *canonical* unsigned decimal: ASCII digits only, no sign,
+/// and no leading zero unless `s` is exactly `"0"`. `str::parse::<u32>`
+/// alone accepts `"+12"` and `"012"` as `12`, which lets a receipt vary in
+/// bytes (a mutation an attestation over raw bytes cannot ignore) while
+/// still verifying. Every decimal field in a receipt — `K`, `N`, the `step
+/// <i>` index, each element of `toks=`, and the index in a `WARNING step
+/// <i>` line — must go through this helper so the same byte string is the
+/// only one that verifies for a given claimed value. See FORMAT.md §2
+/// "Canonical form".
+fn parse_canonical_u32(s: &str) -> Result<u32, ()> {
+    if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(());
+    }
+    if s.len() > 1 && s.as_bytes()[0] == b'0' {
+        return Err(());
+    }
+    s.parse::<u32>().map_err(|_| ())
+}
+
 // ---------------------------------------------------------------------
 // calc tool: grammar CALC(<int> <op> <int>), checked i64 arithmetic.
 // ---------------------------------------------------------------------
@@ -1204,8 +1223,11 @@ fn commit_hash() -> String {
 
 /// Validate a receipt "step N:" label against the step's actual position in
 /// the file (0-based). `label` is the text before the colon, untrimmed.
+/// The index must be canonical decimal (see `parse_canonical_u32`); a
+/// non-canonical index (e.g. "007") is rejected even if it names the right
+/// position, because it is a byte string `gen` never emits.
 fn check_step_label(label: &str, position: usize) -> Result<(), String> {
-    match label.trim().parse::<usize>() {
+    match parse_canonical_u32(label.trim()).map(|n| n as usize) {
         Ok(n) if n == position => Ok(()),
         Ok(n) => Err(format!("step label {n} at position {position}")),
         Err(_) => Err(format!(
@@ -1593,6 +1615,22 @@ fn verify_one(
             return false;
         }
     };
+    // `str::lines()` treats a lone `\r` before `\n` as part of the line
+    // terminator and silently drops it, so a CRLF receipt read identically
+    // to its LF original below — a byte difference `gen` never produces
+    // and an attestation over raw bytes cannot ignore. Reject any `\r`
+    // before line-splitting so it cannot hide inside `.lines()`.
+    if let Some(pos) = wtext.find('\r') {
+        let line_no = wtext[..pos].matches('\n').count() + 1;
+        println!("FAIL structure: CR line ending at line {line_no}");
+        return false;
+    }
+    // Canonical form: the file ends in exactly one LF (a second one is a
+    // blank line, caught below; none at all is not the producer's bytes).
+    if !wtext.ends_with('\n') {
+        println!("FAIL structure: missing trailing newline");
+        return false;
+    }
     let mut w_model = String::new();
     let mut w_embed = String::new();
     let mut w_vocab = String::new();
@@ -1657,10 +1695,12 @@ fn verify_one(
                     "toks" => {
                         let mut ids = Vec::new();
                         for t in value.split(',').filter(|t| !t.is_empty()) {
-                            match t.parse::<u32>() {
+                            match parse_canonical_u32(t) {
                                 Ok(id) => ids.push(id),
-                                Err(_) => {
-                                    println!("FAIL structure: step {position}: bad token id {t:?}");
+                                Err(()) => {
+                                    println!(
+                                        "FAIL structure: step {position}: token id is not canonical decimal: {t:?}"
+                                    );
                                     return false;
                                 }
                             }
@@ -1695,11 +1735,20 @@ fn verify_one(
             w_steps.push((toks, tool, input, output, dchain, ctx, query));
             continue;
         }
+        // A blank (empty or whitespace-only) line anywhere — before the
+        // header, between steps, or trailing at EOF — used to be silently
+        // skipped by the `key.is_empty()` check below. `gen` never emits
+        // one (a receipt ending in a single trailing "\n" has no such
+        // line; `.lines()` only yields an extra empty entry for a second,
+        // non-canonical trailing newline), so tolerating it let an
+        // attacker insert bytes an attestation over the raw receipt could
+        // never match. `line_no` is 0-based here; report 1-based.
+        if line.trim().is_empty() {
+            println!("FAIL structure: blank line {}", line_no + 1);
+            return false;
+        }
         let mut it = line.splitn(2, ' ');
         let (key, v) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
-        if key.is_empty() {
-            continue;
-        }
         // Unknown keys used to fall through the `_ => {}` arm below, which
         // made every lead field deletable simply by renaming it — `commit`
         // to `commitX` still verified — and let arbitrary attacker-chosen
@@ -1751,17 +1800,17 @@ fn verify_one(
             "model" => w_model = v.into(),
             "embed" => w_embed = v.into(),
             "vocab" => w_vocab = v.into(),
-            "K" => match v.parse() {
-                Ok(x) => w_k = x,
-                Err(_) => {
-                    println!("FAIL structure: malformed K {v:?}");
+            "K" => match parse_canonical_u32(v) {
+                Ok(x) => w_k = x as usize,
+                Err(()) => {
+                    println!("FAIL structure: K is not canonical decimal: {v:?}");
                     return false;
                 }
             },
-            "N" => match v.parse() {
-                Ok(x) => w_n = x,
-                Err(_) => {
-                    println!("FAIL structure: malformed N {v:?}");
+            "N" => match parse_canonical_u32(v) {
+                Ok(x) => w_n = x as usize,
+                Err(()) => {
+                    println!("FAIL structure: N is not canonical decimal: {v:?}");
                     return false;
                 }
             },
@@ -1796,8 +1845,20 @@ fn verify_one(
                 }
                 w_suite_sha = Some(v.into());
             }
-            "commit" => w_commit = Some(v.into()),
-            "host" => w_host = Some(v.into()),
+            "commit" => {
+                if v.is_empty() {
+                    println!("FAIL structure: commit has no value");
+                    return false;
+                }
+                w_commit = Some(v.into());
+            }
+            "host" => {
+                if v.is_empty() {
+                    println!("FAIL structure: host has no value");
+                    return false;
+                }
+                w_host = Some(v.into());
+            }
             // A WARNING line must be exactly what `verbatim_warning_msg`
             // emits for some step; free text on a WARNING line was another
             // way to smuggle attacker-chosen content into a PASSing
@@ -1808,8 +1869,9 @@ fn verify_one(
                     .strip_prefix("WARNING step ")
                     .and_then(|r| r.split_once(':'))
                     .and_then(|(n, tail)| {
-                        n.parse::<usize>()
+                        parse_canonical_u32(n)
                             .ok()
+                            .map(|x| x as usize)
                             .filter(|_| tail == " tool argument not found verbatim in context")
                     });
                 match idx {
@@ -3682,6 +3744,93 @@ mod tests {
     fn malformed_k_is_rejected_without_panic() {
         assert!(!format3_receipt_survives(
             |t| t.replace("\nK 2\n", "\nK two\n")
+        ));
+    }
+
+    // --- canonical form (E23 R8): blank lines, CRLF, and non-canonical
+    // decimal all verified PASS although they are byte-different from
+    // anything `gen` emits, so they can never match an attestation digest
+    // computed over the raw receipt bytes. See FORMAT.md §2 "Canonical
+    // form" and `parse_canonical_u32`.
+
+    #[test]
+    fn parse_canonical_u32_accepts_only_canonical_decimal() {
+        assert_eq!(parse_canonical_u32("0"), Ok(0));
+        assert_eq!(parse_canonical_u32("7"), Ok(7));
+        assert_eq!(parse_canonical_u32("4294967295"), Ok(4294967295));
+        assert!(parse_canonical_u32("").is_err());
+        assert!(parse_canonical_u32("-1").is_err());
+        assert!(parse_canonical_u32("4294967296").is_err());
+    }
+
+    #[test]
+    fn blank_line_at_lead_is_rejected() {
+        assert!(!format3_receipt_survives(|t| format!("\n{t}")));
+    }
+
+    #[test]
+    fn blank_line_between_steps_is_rejected() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace("step 1:", "\nstep 1:")
+        ));
+    }
+
+    #[test]
+    fn blank_line_at_eof_is_rejected() {
+        assert!(!format3_receipt_survives(|t| format!("{t}\n")));
+    }
+
+    #[test]
+    fn missing_trailing_newline_is_rejected() {
+        assert!(!format3_receipt_survives(|t| t.trim_end().to_string()));
+    }
+
+    #[test]
+    fn cr_line_ending_is_rejected() {
+        assert!(!format3_receipt_survives(|t| t.replace("K 2\n", "K 2\r\n")));
+    }
+
+    #[test]
+    fn k_with_leading_plus_is_rejected() {
+        assert!(!format3_receipt_survives(|t| t.replace("K 2\n", "K +2\n")));
+    }
+
+    #[test]
+    fn k_with_leading_zero_is_rejected() {
+        assert!(!format3_receipt_survives(|t| t.replace("K 2\n", "K 02\n")));
+    }
+
+    #[test]
+    fn n_with_leading_zero_is_rejected() {
+        assert!(!format3_receipt_survives(|t| t.replace("N 8\n", "N 08\n")));
+    }
+
+    #[test]
+    fn toks_element_with_leading_zero_is_rejected() {
+        assert!(!format3_receipt_survives(
+            |t| t.replacen("toks=", "toks=0", 1)
+        ));
+    }
+
+    #[test]
+    fn warning_step_index_with_leading_zero_is_rejected() {
+        assert!(!format3_receipt_survives(|t| t.replace(
+            "commit test",
+            "WARNING step 01: tool argument not found verbatim in context\ncommit test"
+        )));
+    }
+
+    #[test]
+    fn commit_with_empty_value_is_rejected() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace("commit test\n", "commit \n")
+        ));
+    }
+
+    #[test]
+    fn host_with_empty_value_is_rejected() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace("host test\n", "host \n")
         ));
     }
 
