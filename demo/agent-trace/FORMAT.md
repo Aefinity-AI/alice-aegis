@@ -50,6 +50,10 @@ ordering `verify` accepts).
 rejects it with `FAIL structure: ...` before any artifact/replay check runs:
 - No blank lines anywhere — leading, between records, or trailing before
   EOF (`FAIL structure: receipt contains a blank line`).
+- The file ends with exactly one LF: `gen` always terminates the last line,
+  so a receipt whose final byte is not `\n` is not the bytes that were
+  attested (`FAIL structure: receipt does not end with a newline`); a second
+  trailing LF is the blank-line case above.
 - No CR bytes (CRLF line endings are not canonical, even though `\r` would
   otherwise silently ride along as trailing content on whatever `str::lines()`
   treats as the preceding line): `FAIL structure: receipt contains a CR

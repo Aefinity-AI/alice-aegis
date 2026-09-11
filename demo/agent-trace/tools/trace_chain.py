@@ -59,10 +59,14 @@ def unhex(s):
 
 
 def strict_uint(s, max_val, field_desc):
-    """Rust <uN>::from_str: optional leading '+', then ASCII digits only,
-    no other whitespace/sign, value <= max_val. No trimming."""
-    body = s[1:] if s.startswith("+") else s
+    """Canonical decimal (FORMAT.md §2 "Canonical form", mirrors the
+    reference verifier's parse_canonical_uint): ASCII digits only, no sign,
+    no leading zero unless the value is exactly "0", value <= max_val. No
+    trimming."""
+    body = s
     if body == "" or not all(c in "0123456789" for c in body):
+        raise ValueError(field_desc)
+    if len(body) > 1 and body[0] == "0":
         raise ValueError(field_desc)
     v = int(body)
     if v > max_val:
@@ -77,9 +81,15 @@ def parse_receipt(text):
     `FAIL structure: missing <key> line` convention for lines the reference
     verifier only detects via artifact/replay checks that need the model
     (see FORMAT.md §2 note after the rejection list, and §7)."""
-    lines = text.split("\n")
-    if lines and lines[-1] == "":
-        lines = lines[:-1]
+    # Canonical form (FORMAT.md §2), checked on the raw text before any
+    # parsing, with the reference verifier's messages.
+    if "\r" in text:
+        fail("receipt contains a CR byte (CRLF line endings are not canonical)")
+    if not text.endswith("\n"):
+        fail("receipt does not end with a newline")
+    lines = text.split("\n")[:-1]
+    if any(ln == "" for ln in lines):
+        fail("receipt contains a blank line")
 
     header_pos = None
     for idx, line in enumerate(lines):
@@ -105,11 +115,12 @@ def parse_receipt(text):
             if ":" not in rest:
                 fail(f"step {step_ordinal}: stray token {rust_debug(rest)}")
             label, fields = rest.split(":", 1)
+            label_raw = label
             label = label.strip()
             fields = fields.strip()
             position = step_ordinal
             try:
-                label_ok = int(label) == position
+                label_ok = strict_uint(label_raw, 2**32 - 1, "label") == position
             except ValueError:
                 label_ok = False
             if not label_ok:
@@ -153,7 +164,7 @@ def parse_receipt(text):
                     num, tail = after.split(":", 1)
                     if tail == " tool argument not found verbatim in context":
                         try:
-                            int(num)
+                            strict_uint(num, 2**32 - 1, "WARNING")
                             ok = True
                         except ValueError:
                             ok = False
@@ -185,6 +196,9 @@ def parse_receipt(text):
                 strict_uint(value if value is not None else "", 2**64 - 1, key)
             except ValueError:
                 fail(f"malformed {key} {rust_debug(value)}")
+        elif key in ("commit", "host"):
+            if not value:
+                fail(f"{key} line has an empty value")
         elif key == "prompt-hex":
             v = value if value is not None else ""
             try:
