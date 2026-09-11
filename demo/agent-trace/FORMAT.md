@@ -24,6 +24,12 @@ endianness on purpose (see §4, §5).
 each optional in every format, independent of the format number (table/suite
 support predates format 2 and is not itself a format bump).
 
+`gen` refuses to emit `commit unknown` (a format-3 receipt whose commit
+could not be resolved) unless `AEGIS_ALLOW_UNKNOWN_COMMIT=1` is set in its
+environment (PR #72, main `dbfb051`) — so an `unknown` commit line in the
+wild means that escape hatch was used deliberately, not a build-detection
+bug.
+
 ## 2. Text grammar
 
 UTF-8 text, one logical record per line (`\n`; `str::lines()` splitting), no
@@ -83,8 +89,9 @@ resolved `(step)` set is checked against replay — see §3).
   unknown field {other:?}`. Any key repeated on the same step line:
   `FAIL structure: step {position}: duplicate field {name:?}`.
 - `toks=<v>`: `v` split on `,`, empty sub-tokens skipped, each remaining
-  piece parsed as `u32`; a bad piece is `FAIL structure: step {position}:
-  bad token id {t:?}`.
+  piece parsed as `u32` (same rule as `K`/`N` above but `u32::from_str`,
+  range 0..=4294967295); a bad or out-of-range piece is `FAIL structure:
+  step {position}: bad token id {t:?}`.
 - Missing any of `toks=`/`tool=`/`in=`/`out=`/`decode-chain=` on a step
   line: `FAIL structure: step {position}: missing one of toks= tool= in=
   out= decode-chain=`.
@@ -97,8 +104,13 @@ resolved `(step)` set is checked against replay — see §3).
 - `AEGIS-TRACE <v>`: `v0`→1, `v1`→2, `v2`→3, else `FAIL structure: unknown
   AEGIS-TRACE format {other:?}`. A second occurrence anywhere:
   `FAIL structure: duplicate AEGIS-TRACE header line`.
-- `K <v>` / `N <v>`: must parse as the field's integer type; else
-  `FAIL structure: malformed K {v:?}` / `FAIL structure: malformed N {v:?}`.
+- `K <v>` / `N <v>`: `v` is **not trimmed** — it is everything after the
+  first space (`splitn(2, ' ')` on the whole line, so a trailing space
+  stays part of `v`) and must satisfy Rust `u64::from_str` exactly:
+  optional leading `+`, then one or more ASCII digits, no other whitespace,
+  no other sign, value ≤ 2^64−1. `K 1 ` (trailing space) is therefore
+  `FAIL structure: malformed K "1 "` (confirmed on box1) — else `FAIL
+  structure: malformed K {v:?}` / `FAIL structure: malformed N {v:?}`.
 - `prompt-hex <v>`: `v` must be valid even-length hex whose decoded bytes
   are valid UTF-8, else `FAIL structure: malformed hex in prompt-hex`
   (same message for both the hex-decode failure and the UTF-8 failure).
@@ -106,6 +118,13 @@ resolved `(step)` set is checked against replay — see §3).
   hex chars (`[0-9a-f]`), else `FAIL structure: malformed table-sha256
   (want 64 lowercase hex)` / `FAIL structure: malformed suite-sha256 (want
   64 lowercase hex)`.
+- `trace-chain <v>`: the reference `verify` has **no structural check** on
+  this line — a malformed or truncated value simply fails to equal the
+  recomputed chain at the final comparison (`VERIFY FAIL`), same as any
+  other mismatch. A chain-only tool SHOULD nonetheless reject anything but
+  64 lowercase hex chars up front, with `FAIL structure: malformed
+  trace-chain (want 64 lowercase hex)`, since it can never *usefully*
+  recompute against a value that isn't a hash.
 - Any lead key not in `LEAD_KEYS` and not `WARNING`: `FAIL structure:
   unknown line key {key:?} on line {line_no}`.
 - A `LEAD_KEYS` key seen a second time: `FAIL structure: duplicate {key}
@@ -136,6 +155,23 @@ model (`FAIL artifact: MODEL/EMBED/VOCAB/TABLE hash mismatch ...`,
 per-step/`trace-chain` `VERIFY FAIL` divergences) — out of scope for a
 chain-only recompute except as noted in §7.
 
+**Missing required lead lines are *not* structural rejections.** The
+structural parser above never checks a required key's mere *presence* by
+itself (only duplication, and cross-checks like the K/step-count match);
+absence instead surfaces later, once `verify` tries to use the field
+against the model:
+| Missing line | Where it surfaces | Message |
+|---|---|---|
+| `model` / `embed` / `vocab` | artifact check | `FAIL artifact: MODEL\|EMBED\|VOCAB hash mismatch (receipt  vs local …)` (empty receipt-side hash) |
+| `K` / `N` | header-bounds check | `FAIL structure: K must be >= 1` / `FAIL structure: N must be > 0`, or (if some step lines exist anyway) `FAIL structure: receipt claims K=0 but has {n} step lines` |
+| `prompt-hex` | header-bounds check | `FAIL structure: prompt tokenizes to zero tokens` |
+| `trace-chain` | final chain comparison | `VERIFY FAIL` (empty string does not equal the recomputed hex) |
+
+A chain-only tool cannot run the model-dependent artifact/header-bounds
+checks above, so it SHOULD instead reject a missing required line up
+front, with `FAIL structure: missing <key> line` (one message per key:
+`model`, `embed`, `vocab`, `K`, `N`, `prompt-hex`, `trace-chain`).
+
 ## 3. Field semantics
 
 | Field | Meaning | Bytes folded (where applicable) |
@@ -155,6 +191,24 @@ chain-only recompute except as noted in §7.
 | `ctx` (format 2/3) | sha256 of the exact prompt text fed to the model for that step (the full accumulated running prompt) | **not folded into trace-chain**; `verify` recomputes and string-compares it independently |
 | `q` (format 2/3) | sha256 of that step's "query text": the initial prompt at step 0, else the immediately preceding step's tool-result text (`"\nTOOL[{name}]={output}\n"`) | **not folded into trace-chain**; same as `ctx` |
 | `trace-chain` | final folded chain over genesis + every step | see §4/§5 |
+
+**Hex-value comparison rule.** `in=`/`out=`/`decode-chain=`/`ctx=`/`q=`
+values are opaque strings to the structural parser (§2) — `verify` never
+hex-decode-and-compares them at parse time. Instead, at replay time
+`verify` recomputes each field itself and compares it **as a string**
+against `hex(recomputed_bytes)`, where `hex()` always emits lowercase.
+Consequences:
+- Uppercase hex, or hex that is otherwise valid but not what `verify`'s
+  own `hex(...)` would print, is **not** a structural error — it produces
+  a `VERIFY FAIL` divergence at replay, same as any other wrong value.
+- A chain-only tool (no replay available) MUST hex-decode these fields
+  itself using the same rule as `unhex` (line 437 of `agent_trace.rs`:
+  even length, `[0-9a-fA-F]` pairs) in order to fold them into the
+  genesis/step hashes at all, and SHOULD additionally require lowercase,
+  to match what a real `verify` run would accept without a `VERIFY FAIL`.
+- An empty value (`in=` / `out=`) is legal — it is the `no-tool` case
+  (zero-length field, contributes only its `len_le(0)` prefix to the step
+  fold, §5).
 
 Tool-kind byte rules for `in`/`out` (all are ASCII/UTF-8 bytes of the shown
 text, hex-decoded from the receipt's `in=`/`out=` fields):
@@ -196,6 +250,17 @@ genesis fold.
 
 `genesis = sha256(concat(applicable blocks 1..11 in order))`.
 
+**Table-bound receipts without `--table`.** A receipt declaring
+`table-sha256` but verified without `--table` cannot have block #9
+recomputed (`table_len` is not printed anywhere) — `verify` prints
+`VERIFY FAIL — receipt declares table-sha256 <first 16 hex> but no
+--table was given` and exits non-zero; a chain-only tool MUST print the
+same line (with the receipt's own first-16-hex prefix) and exit non-zero
+rather than attempt genesis without the table. With `--table FILE`
+supplied, the tool MUST check `sha256(FILE) == table-sha256` — a mismatch
+is `FAIL artifact: TABLE hash mismatch (receipt <16hex> vs local
+<16hex>)` — and use `FILE`'s exact byte length as `table_len`.
+
 ## 5. Step fold (exact byte layout)
 
 For step `i` (0-based), given the running chain value `chain` (genesis for
@@ -219,7 +284,9 @@ replay, not part of the chain math (see §3).
 
 ## 6. Worked example
 
-Receipt: `scratch/A.txt` (copied from `cm-box1:/home/cm/verify-pr70/src/demo/agent-trace/out/trace-aefinity-box-20260910T212140Z.txt`), format 3 (`AEGIS-TRACE v2`), K=3, N=16, no table, no suite.
+Receipt: `vectors/fmt3-k3-763658a.txt` (copied from
+`cm-box1:/home/cm/verify-pr70/src/demo/agent-trace/out/trace-aefinity-box-20260910T212140Z.txt`),
+format 3 (`AEGIS-TRACE v2`), K=3, N=16, no table, no suite.
 
 Header fields (hex, 32 bytes each unless noted):
 ```
@@ -250,7 +317,7 @@ Genesis digest (recomputed per §4, sha256 of the 218-byte preimage above):
 the three step records (§5) over that genesis in order reproduces the
 receipt's own final line, `trace-chain
 2278dc97974f34bab86cbe0a4172ad7a50ed4ecdaa545e0d4171abbb1e8f7029` — verified
-by `scratch/format_check.py` (see §8).
+by `tools/trace_chain.py` (see §8).
 
 ## 7. What a chain-only recompute proves / does not prove
 
@@ -285,13 +352,27 @@ A `PASS` from `agent_trace verify` proves strictly more: it re-derives
 MODEL.SAF/EMBED.BIN/VOCAB.BIN) and requires bit-for-bit agreement with
 every receipt field, not just chain self-consistency.
 
+**`commit unknown` warning.** A format-3 receipt whose `commit` line
+reads exactly `unknown` still folds normally into genesis (block #11, §4)
+and can still `MATCH`/`PASS` — `unknown` is a legal (if unpinned) provenance
+value, not a structural or verify error. `verify` prints, without changing
+the verdict: `WARNING: receipt commit is unknown (provenance not pinned to
+code)`. A chain-only tool SHOULD print the same warning on the same
+condition. (`gen` itself refuses to emit `unknown` unless
+`AEGIS_ALLOW_UNKNOWN_COMMIT=1` — see §1 — so seeing this warning in
+practice means that escape hatch was used.)
+
 ## 8. Test vectors
 
-From `scratch/A.txt` (see §6), reproduced by `scratch/format_check.py`:
+From `vectors/fmt3-k3-763658a.txt` (see §6), reproduced by
+`tools/trace_chain.py`:
 ```
-format = 3
-genesis (recomputed)     = a7146ce1cf587fd6535681d980e7f0e8ee18d8e8af11f0172a77131000e8a414
-trace-chain (recomputed) = 2278dc97974f34bab86cbe0a4172ad7a50ed4ecdaa545e0d4171abbb1e8f7029
-trace-chain (receipt)    = 2278dc97974f34bab86cbe0a4172ad7a50ed4ecdaa545e0d4171abbb1e8f7029
-MATCH
+$ python3 tools/trace_chain.py vectors/fmt3-k3-763658a.txt
+MATCH 2278dc97974f34bab86cbe0a4172ad7a50ed4ecdaa545e0d4171abbb1e8f7029
 ```
+
+The full vector set — real receipts across format 2/3, a table-bound
+receipt, two hand-tampered (MISMATCH) receipts, and five structurally
+malformed (REJECTED) receipts — lives in `vectors/`, indexed by
+`vectors/EXPECTED.tsv` and described in `vectors/README.md`. Run the whole
+set with `python3 tools/trace_chain.py --selftest`.

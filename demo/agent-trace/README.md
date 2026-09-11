@@ -2,6 +2,11 @@
 
 Normative wire format (exact grammar, byte-level genesis/step folds, what a
 chain-only recompute can and cannot prove): see [`FORMAT.md`](FORMAT.md).
+An independent, inference-free implementation of that spec is
+[`tools/trace_chain.py`](tools/trace_chain.py) — run
+`python3 tools/trace_chain.py --selftest` to check it against the vectors
+in [`vectors/`](vectors/), or `python3 tools/trace_chain.py <receipt>
+[--table FILE]` on any receipt.
 
 `run.sh` runs a small, deterministic **agent episode** over the checked-in
 M7 tinybit model: K rounds (default 3) of {greedy, integer-only CIS-1
