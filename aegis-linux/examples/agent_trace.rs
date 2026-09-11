@@ -1202,10 +1202,51 @@ fn commit_hash() -> String {
     env!("AEGIS_GIT_COMMIT").to_string()
 }
 
+/// Parse an unsigned integer field in canonical decimal form: ASCII digits
+/// only, no leading `+`/`-`, no leading zero (except the single digit `0`
+/// itself), and no surrounding whitespace. Plain `str::parse` is not
+/// sufficient here — Rust's integer `FromStr` accepts a leading `+` and
+/// arbitrarily many leading zeros (`"007"`, `"+3"` both parse to `3`), which
+/// let non-canonical byte strings share a PASSing receipt with their
+/// canonical form. Every integer field in the wire format (K, N, step
+/// index, toks token ids, WARNING step indices) must go through this
+/// helper, not `.parse()` directly. See FORMAT.md §2 "Canonical form".
+fn parse_canonical_uint<T: std::str::FromStr>(s: &str) -> Result<T, ()> {
+    if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(());
+    }
+    if s.len() > 1 && s.as_bytes()[0] == b'0' {
+        return Err(());
+    }
+    s.parse::<T>().map_err(|_| ())
+}
+
+/// Whole-text canonical-form checks that do not depend on any per-line key
+/// (FORMAT.md §2 "Canonical form"): no CR bytes (rejects CRLF line
+/// endings, which `str::lines()` would otherwise silently fold into the
+/// preceding line's content, letting a receipt with a trailing `\r` on
+/// every line hash differently from its canonical LF-only form while still
+/// parsing) and no blank lines anywhere — leading, between records, or
+/// trailing before EOF. Kept as its own function so it is unit-testable
+/// directly against raw receipt text, including the repo's pinned demo
+/// vectors, without needing a loaded model.
+fn check_receipt_text_canonical(wtext: &str) -> Result<(), String> {
+    if wtext.contains('\r') {
+        return Err("receipt contains a CR byte (CRLF line endings are not canonical)".to_string());
+    }
+    if wtext.lines().any(|l| l.is_empty()) {
+        return Err("receipt contains a blank line".to_string());
+    }
+    Ok(())
+}
+
 /// Validate a receipt "step N:" label against the step's actual position in
 /// the file (0-based). `label` is the text before the colon, untrimmed.
+/// The label itself must be canonical decimal — no surrounding whitespace,
+/// no leading zero/`+` — per FORMAT.md §2; a label like `" 0 "` used to be
+/// accepted via `.trim()` before parsing, which made it non-canonical.
 fn check_step_label(label: &str, position: usize) -> Result<(), String> {
-    match label.trim().parse::<usize>() {
+    match parse_canonical_uint::<usize>(label) {
         Ok(n) if n == position => Ok(()),
         Ok(n) => Err(format!("step label {n} at position {position}")),
         Err(_) => Err(format!(
@@ -1593,6 +1634,11 @@ fn verify_one(
             return false;
         }
     };
+    // Canonical form (FORMAT.md §2).
+    if let Err(reason) = check_receipt_text_canonical(&wtext) {
+        println!("FAIL structure: {reason}");
+        return false;
+    }
     let mut w_model = String::new();
     let mut w_embed = String::new();
     let mut w_vocab = String::new();
@@ -1657,7 +1703,7 @@ fn verify_one(
                     "toks" => {
                         let mut ids = Vec::new();
                         for t in value.split(',').filter(|t| !t.is_empty()) {
-                            match t.parse::<u32>() {
+                            match parse_canonical_uint::<u32>(t) {
                                 Ok(id) => ids.push(id),
                                 Err(_) => {
                                     println!("FAIL structure: step {position}: bad token id {t:?}");
@@ -1751,14 +1797,14 @@ fn verify_one(
             "model" => w_model = v.into(),
             "embed" => w_embed = v.into(),
             "vocab" => w_vocab = v.into(),
-            "K" => match v.parse() {
+            "K" => match parse_canonical_uint(v) {
                 Ok(x) => w_k = x,
                 Err(_) => {
                     println!("FAIL structure: malformed K {v:?}");
                     return false;
                 }
             },
-            "N" => match v.parse() {
+            "N" => match parse_canonical_uint(v) {
                 Ok(x) => w_n = x,
                 Err(_) => {
                     println!("FAIL structure: malformed N {v:?}");
@@ -1796,8 +1842,20 @@ fn verify_one(
                 }
                 w_suite_sha = Some(v.into());
             }
-            "commit" => w_commit = Some(v.into()),
-            "host" => w_host = Some(v.into()),
+            "commit" => {
+                if v.is_empty() {
+                    println!("FAIL structure: commit line has an empty value");
+                    return false;
+                }
+                w_commit = Some(v.into())
+            }
+            "host" => {
+                if v.is_empty() {
+                    println!("FAIL structure: host line has an empty value");
+                    return false;
+                }
+                w_host = Some(v.into())
+            }
             // A WARNING line must be exactly what `verbatim_warning_msg`
             // emits for some step; free text on a WARNING line was another
             // way to smuggle attacker-chosen content into a PASSing
@@ -1808,7 +1866,7 @@ fn verify_one(
                     .strip_prefix("WARNING step ")
                     .and_then(|r| r.split_once(':'))
                     .and_then(|(n, tail)| {
-                        n.parse::<usize>()
+                        parse_canonical_uint::<usize>(n)
                             .ok()
                             .filter(|_| tail == " tool argument not found verbatim in context")
                     });
@@ -2441,7 +2499,65 @@ mod tests {
     #[test]
     fn check_step_label_accepts_matching_position() {
         assert!(check_step_label("2", 2).is_ok());
-        assert!(check_step_label(" 0 ", 0).is_ok());
+    }
+
+    #[test]
+    fn check_step_label_rejects_surrounding_whitespace() {
+        // Canonical form (FORMAT.md §2): a label like " 0 " used to be
+        // accepted via `.trim()` before parsing; it is now non-canonical.
+        assert!(check_step_label(" 0 ", 0).is_err());
+    }
+
+    #[test]
+    fn parse_canonical_uint_rejects_leading_zero() {
+        assert!(parse_canonical_uint::<u64>("007").is_err());
+        assert!(parse_canonical_uint::<u64>("0").is_ok());
+    }
+
+    #[test]
+    fn parse_canonical_uint_rejects_leading_plus() {
+        assert!(parse_canonical_uint::<u64>("+3").is_err());
+    }
+
+    #[test]
+    fn parse_canonical_uint_rejects_leading_minus() {
+        assert!(parse_canonical_uint::<u64>("-3").is_err());
+    }
+
+    #[test]
+    fn parse_canonical_uint_rejects_surrounding_whitespace() {
+        assert!(parse_canonical_uint::<u64>(" 3").is_err());
+        assert!(parse_canonical_uint::<u64>("3 ").is_err());
+    }
+
+    #[test]
+    fn parse_canonical_uint_accepts_plain_digits() {
+        assert_eq!(parse_canonical_uint::<u64>("42"), Ok(42u64));
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_rejects_cr() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\r\nK 1\r\n").is_err());
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_rejects_leading_blank_line() {
+        assert!(check_receipt_text_canonical("\nAEGIS-TRACE v2\nK 1\n").is_err());
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_rejects_mid_blank_line() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\n\nK 1\n").is_err());
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_rejects_trailing_blank_line() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\nK 1\n\n").is_err());
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_accepts_clean_text() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\nK 1\n").is_ok());
     }
 
     #[test]
@@ -3668,6 +3784,110 @@ mod tests {
             "commit test",
             "WARNING step 0: tool argument not found verbatim in context\ncommit test"
         )));
+    }
+
+    // --- E23 R8 judgment (2026-09-11): canonical-form strictness ---
+
+    #[test]
+    fn canonical_form_rejects_crlf() {
+        assert!(!format3_receipt_survives(|t| t.replace('\n', "\r\n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_leading_blank_line() {
+        assert!(!format3_receipt_survives(|t| format!("\n{t}")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_mid_blank_line() {
+        assert!(!format3_receipt_survives(|t| t.replacen('\n', "\n\n", 1)));
+    }
+
+    #[test]
+    fn canonical_form_rejects_trailing_blank_line() {
+        assert!(!format3_receipt_survives(|t| format!("{t}\n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_k_leading_zero() {
+        assert!(!format3_receipt_survives(|t| t.replace("K 2\n", "K 02\n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_k_leading_plus() {
+        assert!(!format3_receipt_survives(|t| t.replace("K 2\n", "K +2\n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_n_trailing_space() {
+        assert!(!format3_receipt_survives(|t| t.replace("N 8\n", "N 8 \n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_empty_commit() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace("commit test\n", "commit \n")
+        ));
+    }
+
+    #[test]
+    fn canonical_form_rejects_empty_host() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace("host test\n", "host \n")
+        ));
+    }
+
+    #[test]
+    fn canonical_form_round_trip_still_verifies_pass() {
+        // Positive control: an untampered, canonically-generated receipt
+        // must still verify PASS after the canonical-form checks above are
+        // added — this is the in-process equivalent of the repo's pinned
+        // demo receipt vectors (see below for the vectors themselves).
+        assert!(
+            format3_receipt_survives(|t| t.to_string()),
+            "a canonical, untampered receipt must still verify PASS"
+        );
+    }
+
+    #[test]
+    fn pinned_demo_vectors_are_canonical() {
+        // The repo's pinned "real receipt" demo vectors (demo/agent-trace/
+        // vectors/, see its README) predate this canonical-form strictness
+        // pass. This confirms they remain canonical text under the new
+        // whole-text rules (CR / blank lines) without needing to load the
+        // model those receipts were generated against. Full model-backed
+        // VERIFY PASS on these files is exercised by
+        // `demo/agent-trace/tools/trace_chain.py --selftest`, not this
+        // Rust test binary.
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../demo/agent-trace/vectors");
+        for name in [
+            "fmt3-k3-763658a.txt",
+            "fmt2-k1-suite.txt",
+            "fmt3-k3-table-chain.txt",
+            "fmt3-k3-dbfb051.txt",
+            "fmt3-k12-table-chain-113afa7.txt",
+        ] {
+            let path = dir.join(name);
+            let text =
+                std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path:?}: {e}"));
+            assert!(
+                check_receipt_text_canonical(&text).is_ok(),
+                "{name} must be canonical text (no CR, no blank lines)"
+            );
+            assert!(
+                text.contains("\ncommit ") || text.starts_with("commit "),
+                "{name}: commit line missing"
+            );
+            assert!(
+                !text.contains("\ncommit \n") && !text.contains("\ncommit\n"),
+                "{name}: commit value must be non-empty"
+            );
+            assert!(
+                !text.contains("\nhost \n") && !text.contains("\nhost\n"),
+                "{name}: host value must be non-empty"
+            );
+        }
     }
 
     #[test]

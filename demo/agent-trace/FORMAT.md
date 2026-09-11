@@ -46,6 +46,26 @@ step lines, or WARNING lines (canonical `gen` output order, for interop, is
 given below; a strict-but-order-insensitive parser must still accept any
 ordering `verify` accepts).
 
+**Canonical form.** A receipt must be byte-for-byte canonical or `verify`
+rejects it with `FAIL structure: ...` before any artifact/replay check runs:
+- No blank lines anywhere — leading, between records, or trailing before
+  EOF (`FAIL structure: receipt contains a blank line`).
+- No CR bytes (CRLF line endings are not canonical, even though `\r` would
+  otherwise silently ride along as trailing content on whatever `str::lines()`
+  treats as the preceding line): `FAIL structure: receipt contains a CR
+  byte (CRLF line endings are not canonical)`.
+- Every integer field (`K`, `N`, the `step <label>:` label, each `toks=`
+  token id, and each `WARNING step <i>:` index) must be canonical decimal:
+  ASCII digits only, no leading `+`/`-`, no leading zero except the single
+  digit `0` itself, and no surrounding whitespace. `"007"`, `"+3"`, `"3 "`,
+  and `" 0 "` are all rejected even though Rust's integer `FromStr` would
+  accept some of them — the reference verifier parses every one of these
+  fields through a dedicated `parse_canonical_uint` helper, never bare
+  `.parse()`, for exactly this reason.
+- `commit` and `host` line values must be non-empty (`FAIL structure:
+  commit line has an empty value` / `FAIL structure: host line has an
+  empty value`).
+
 **Canonical `gen` line order:**
 ```
 AEGIS-TRACE v2
@@ -78,10 +98,13 @@ resolved `(step)` set is checked against replay — see §3).
 
 **Step-line grammar:** a line matching `^step `; parsed as
 `"step " <label> ":" <fields>`, `label`/`fields` split on the *first* `:`.
-- `label` (trimmed) must parse as a `usize` equal to the step's 0-based
-  ordinal position among step lines encountered so far in the file (NOT
-  necessarily its numeric value if the label lies — `verify` compares the
-  label's parsed number to that ordinal). Mismatch (numeric or unparsable):
+- `label` must be canonical decimal (see "Canonical form" above — no
+  surrounding whitespace, no leading zero/`+`) parsing as a `usize` equal
+  to the step's 0-based ordinal position among step lines encountered so
+  far in the file (NOT necessarily its numeric value if the label lies —
+  `verify` compares the label's parsed number to that ordinal). A label
+  like `" 0 "` used to be accepted via `.trim()` before parsing; it is now
+  non-canonical and rejected. Mismatch (numeric or unparsable):
   `FAIL structure: step label {n_or_text} at position {position}`.
 - `fields` (trimmed) is split on ASCII whitespace into tokens; each token
   must be `key=value` (`split_once('=')`); a token with no `=` is
@@ -109,11 +132,13 @@ resolved `(step)` set is checked against replay — see §3).
   `FAIL structure: duplicate AEGIS-TRACE header line`.
 - `K <v>` / `N <v>`: `v` is **not trimmed** — it is everything after the
   first space (`splitn(2, ' ')` on the whole line, so a trailing space
-  stays part of `v`) and must satisfy Rust `u64::from_str` exactly:
-  optional leading `+`, then one or more ASCII digits, no other whitespace,
-  no other sign, value ≤ 2^64−1. `K 1 ` (trailing space) is therefore
-  `FAIL structure: malformed K "1 "` (confirmed on box1) — else `FAIL
-  structure: malformed K {v:?}` / `FAIL structure: malformed N {v:?}`.
+  stays part of `v`) and must be canonical decimal per the "Canonical
+  form" rules above, parsed via `parse_canonical_uint`: ASCII digits only,
+  no leading `+`/`-`, no leading zero except `0` itself, no surrounding
+  whitespace. `K 1 ` (trailing space), `K 007`, and `K +3` are therefore
+  all `FAIL structure: malformed K "1 "` / `"007"` / `"+3"` (confirmed on
+  box1 for the trailing-space case) — else `FAIL structure: malformed K
+  {v:?}` / `FAIL structure: malformed N {v:?}`.
 - `prompt-hex <v>`: `v` must be valid even-length hex whose decoded bytes
   are valid UTF-8, else `FAIL structure: malformed hex in prompt-hex`
   (same message for both the hex-decode failure and the UTF-8 failure).
