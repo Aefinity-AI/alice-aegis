@@ -253,7 +253,10 @@ fn fold_step(chain: &[u8; 32], step: &Step) -> [u8; 32] {
         s.update(&(bytes.len() as u32).to_le_bytes());
         s.update(bytes);
     };
-    field(step.ref_idx.is_some(), &step.ref_idx.unwrap_or(0).to_be_bytes());
+    field(
+        step.ref_idx.is_some(),
+        &step.ref_idx.unwrap_or(0).to_be_bytes(),
+    );
     field(
         step.answer.is_some(),
         step.answer.as_deref().unwrap_or("").as_bytes(),
@@ -492,7 +495,10 @@ pub fn parse(text: &str) -> Result<ReasoningTrace, String> {
         if s.kind == Kind::Verify {
             let r = s.ref_idx.unwrap();
             if steps[r].kind != Kind::Draft {
-                return Err(format!("step {}: verify ref={r} is not a draft step", s.idx));
+                return Err(format!(
+                    "step {}: verify ref={r} is not a draft step",
+                    s.idx
+                ));
             }
         }
     }
@@ -680,7 +686,15 @@ mod tests {
             out.push('\n');
             out.push_str(&format!("prompt-sha256={}\n", hex(&prompt_sha256)));
 
-            let push_step = |idx: usize, kind: Kind, answer: Option<&str>, ref_idx: Option<usize>, recheck: Option<&str>, verdict: Option<&str>, text: &str, out: &mut String, chain: &mut [u8; 32]| {
+            let push_step = |idx: usize,
+                             kind: Kind,
+                             answer: Option<&str>,
+                             ref_idx: Option<usize>,
+                             recheck: Option<&str>,
+                             verdict: Option<&str>,
+                             text: &str,
+                             out: &mut String,
+                             chain: &mut [u8; 32]| {
                 let text_sha256 = sha256(text.as_bytes());
                 let step = Step {
                     idx,
@@ -715,9 +729,39 @@ mod tests {
                 *chain = new_chain;
             };
 
-            push_step(0, Kind::Draft, Some(self.draft_answer), None, None, None, "draft rationale", &mut out, &mut chain);
-            push_step(1, Kind::Verify, None, Some(0), Some(self.recheck), Some(self.claimed_verdict), "verify rationale", &mut out, &mut chain);
-            push_step(2, Kind::Final, Some(self.final_answer), Some(1), None, None, "final rationale", &mut out, &mut chain);
+            push_step(
+                0,
+                Kind::Draft,
+                Some(self.draft_answer),
+                None,
+                None,
+                None,
+                "draft rationale",
+                &mut out,
+                &mut chain,
+            );
+            push_step(
+                1,
+                Kind::Verify,
+                None,
+                Some(0),
+                Some(self.recheck),
+                Some(self.claimed_verdict),
+                "verify rationale",
+                &mut out,
+                &mut chain,
+            );
+            push_step(
+                2,
+                Kind::Final,
+                Some(self.final_answer),
+                Some(1),
+                None,
+                None,
+                "final rationale",
+                &mut out,
+                &mut chain,
+            );
 
             out.push_str(&format!("trace-chain={}\n", hex(&chain)));
             out
@@ -751,7 +795,9 @@ mod tests {
         let findings = verify(&trace);
         assert!(ok(&findings), "findings: {findings:?}");
         assert!(
-            !findings.iter().any(|f| matches!(f, Finding::Contradiction(_))),
+            !findings
+                .iter()
+                .any(|f| matches!(f, Finding::Contradiction(_))),
             "clean pass-through must not flag a contradiction: {findings:?}"
         );
     }
@@ -761,9 +807,14 @@ mod tests {
         let text = caught_and_resolved_contradiction().render();
         let trace = parse(&text).expect("parses");
         let findings = verify(&trace);
-        assert!(ok(&findings), "resolved contradiction must still verify: {findings:?}");
         assert!(
-            findings.iter().any(|f| matches!(f, Finding::Contradiction(_))),
+            ok(&findings),
+            "resolved contradiction must still verify: {findings:?}"
+        );
+        assert!(
+            findings
+                .iter()
+                .any(|f| matches!(f, Finding::Contradiction(_))),
             "a verify-step that contradicts its draft must be caught/flagged: {findings:?}"
         );
     }
@@ -776,7 +827,11 @@ mod tests {
         let trace = parse(&text).expect("parses");
         let findings = verify(&trace);
         assert!(!ok(&findings));
-        assert!(findings.iter().any(|f| f.message().starts_with("VERDICT LIE")));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.message().starts_with("VERDICT LIE"))
+        );
     }
 
     #[test]
@@ -787,7 +842,11 @@ mod tests {
         let trace = parse(&text).expect("parses");
         let findings = verify(&trace);
         assert!(!ok(&findings));
-        assert!(findings.iter().any(|f| f.message().starts_with("VERDICT LIE")));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.message().starts_with("VERDICT LIE"))
+        );
     }
 
     #[test]
@@ -813,7 +872,11 @@ mod tests {
         let trace = parse(&text).expect("parses");
         let findings = verify(&trace);
         assert!(!ok(&findings));
-        assert!(findings.iter().any(|f| f.message().starts_with("FINAL DRIFT")));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.message().starts_with("FINAL DRIFT"))
+        );
     }
 
     #[test]
@@ -829,7 +892,11 @@ mod tests {
         let trace = parse(&tampered).expect("still structurally well-formed");
         let findings = verify(&trace);
         assert!(!ok(&findings));
-        assert!(findings.iter().any(|f| f.message().contains("CHAIN MISMATCH")));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.message().contains("CHAIN MISMATCH"))
+        );
     }
 
     #[test]
