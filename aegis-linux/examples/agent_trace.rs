@@ -1297,6 +1297,12 @@ fn check_receipt_text_canonical(wtext: &str) -> Result<(), String> {
     if wtext.lines().any(|l| l.is_empty()) {
         return Err("receipt contains a blank line".to_string());
     }
+    // Exactly one final LF: `gen` always ends the file with "\n", and a
+    // receipt missing it is not the attested bytes (a second one is the
+    // blank-line case above).
+    if !wtext.ends_with('\n') {
+        return Err("receipt does not end with a newline".to_string());
+    }
     Ok(())
 }
 
@@ -2670,6 +2676,11 @@ mod tests {
     }
 
     #[test]
+    fn check_receipt_text_canonical_rejects_missing_final_newline() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\nK 1").is_err());
+    }
+
+    #[test]
     fn check_step_label_rejects_mismatched_position() {
         let err = check_step_label("5", 2).unwrap_err();
         assert_eq!(err, "step label 5 at position 2");
@@ -4032,6 +4043,11 @@ mod tests {
     #[test]
     fn canonical_form_rejects_trailing_blank_line() {
         assert!(!format3_receipt_survives(|t| format!("{t}\n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_missing_final_newline() {
+        assert!(!format3_receipt_survives(|t| t.trim_end().to_string()));
     }
 
     #[test]
