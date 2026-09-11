@@ -1,0 +1,35 @@
+[package]
+name = "cis-verify-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.cis-verify]
+path = ".."
+
+[[bin]]
+name = "receipt_parser"
+path = "fuzz_targets/receipt_parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "witness_chain"
+path = "fuzz_targets/witness_chain.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "artifact_hash"
+path = "fuzz_targets/artifact_hash.rs"
+test = false
+doc = false
+bench = false
