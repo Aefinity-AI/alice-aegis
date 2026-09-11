@@ -1,5 +1,8 @@
 # Verifiable agent trace — one-command demo
 
+Normative wire format (exact grammar, byte-level genesis/step folds, what a
+chain-only recompute can and cannot prove): see [`FORMAT.md`](FORMAT.md).
+
 `run.sh` runs a small, deterministic **agent episode** over the checked-in
 M7 tinybit model: K rounds (default 3) of {greedy, integer-only CIS-1
 `FullInt` decode of up to N tokens (default 16), scan the decoded text for
