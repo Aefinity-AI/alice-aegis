@@ -209,6 +209,17 @@ Consequences:
 - An empty value (`in=` / `out=`) is legal — it is the `no-tool` case
   (zero-length field, contributes only its `len_le(0)` prefix to the step
   fold, §5).
+- **Undecodable step hex.** If `in=`, `out=` or `decode-chain=` fails the
+  `unhex` rule (odd length, or a non-`[0-9a-fA-F]` character), the
+  reference `verify` reports nothing structural — the value is simply
+  unequal to its own recomputed hex, so the run ends in `VERIFY FAIL` at
+  replay. A chain-only tool has no replay value to compare against and
+  cannot fold bytes it cannot decode, so it MUST reject up front, with
+  `FAIL structure: step {position}: malformed hex in {field}` where
+  `{field}` is one of `in`, `out`, `decode-chain` (wording mirrors the
+  `prompt-hex` rejection in §2), exit 2. (`ctx=`/`q=` are not folded, so a
+  chain-only tool never decodes them and MUST NOT reject on them.)
+  Vector: `vectors/malformed-step-hex.txt`.
 
 Tool-kind byte rules for `in`/`out` (all are ASCII/UTF-8 bytes of the shown
 text, hex-decoded from the receipt's `in=`/`out=` fields):
@@ -372,7 +383,7 @@ MATCH 2278dc97974f34bab86cbe0a4172ad7a50ed4ecdaa545e0d4171abbb1e8f7029
 ```
 
 The full vector set — real receipts across format 2/3, a table-bound
-receipt, two hand-tampered (MISMATCH) receipts, and five structurally
+receipt, two hand-tampered (MISMATCH) receipts, and six structurally
 malformed (REJECTED) receipts — lives in `vectors/`, indexed by
 `vectors/EXPECTED.tsv` and described in `vectors/README.md`. Run the whole
 set with `python3 tools/trace_chain.py --selftest`.

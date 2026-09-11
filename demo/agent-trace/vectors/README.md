@@ -21,6 +21,7 @@ throughout (embed `e32b99a2…`, vocab `5bde1b03…`).
 | `malformed-k-whitespace.txt` | 2 (`v1`) | — | `K 1 ` (trailing space in the value) → `FAIL structure: malformed K "1 "`; `K`/`N` values are not trimmed (rule confirmed on box1). |
 | `malformed-extra-equals.txt` | 2 (`v1`) | — | `tool==calc` splits on the *first* `=` into key `tool`, value `=calc` — a legal (if wrong) token, so this is a chain MISMATCH, not a structural rejection. |
 | `malformed-truncated-chain.txt` | 2 (`v1`) | — | `trace-chain` value cut short (not 64 hex chars) → `FAIL structure: malformed trace-chain (want 64 lowercase hex)`. |
+| `malformed-step-hex.txt` | 3 (`v2`) | `tables/parts-numeric-chain.tsv` | copy of `fmt3-k3-table-chain.txt` with step 0's `in=` made undecodable (`in=zz…`, odd length + non-hex) → `FAIL structure: step 0: malformed hex in in` (FORMAT.md §3 “Undecodable step hex”; the reference `verify` would instead end in `VERIFY FAIL` at replay). |
 
 `fmt2-k1-suite.txt`'s `trace-chain` was independently reproduced by
 `trace_chain.py` (self-consistency only — see FORMAT.md §7), not

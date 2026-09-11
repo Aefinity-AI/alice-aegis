@@ -300,17 +300,23 @@ def fold_steps(genesis, steps):
         step_buf += chain
         step_buf += b"TSTEP"
         step_buf += i.to_bytes(8, "big")
+        # FORMAT.md §3 "Undecodable step hex": the reference verifier only
+        # sees these as a VERIFY FAIL divergence at replay; a chain-only
+        # tool cannot fold what it cannot decode, so it rejects up front.
         try:
             dc = unhex(s["decode-chain"])
         except ValueError:
-            fail(f"step {i}: malformed decode-chain= (want even-length hex)")
+            fail(f"step {i}: malformed hex in decode-chain")
         step_buf += dc
         name = s["tool"].encode("utf-8")
         try:
             inp = unhex(s["in"]) if s["in"] else b""
+        except ValueError:
+            fail(f"step {i}: malformed hex in in")
+        try:
             out = unhex(s["out"]) if s["out"] else b""
         except ValueError:
-            fail(f"step {i}: malformed in=/out= (want even-length hex)")
+            fail(f"step {i}: malformed hex in out")
         for field in (name, inp, out):
             step_buf += len(field).to_bytes(4, "little")
             step_buf += field
