@@ -35,3 +35,9 @@ required-features = ["active_set_digest"]
 [[example]]
 name = "agent_trace"
 test = true
+
+# reasoning_trace carries its own #[cfg(test)] suite (synthetic-transcript
+# parser/verifier tests). Same test = true rationale as agent_trace above.
+[[example]]
+name = "reasoning_trace"
+test = true
