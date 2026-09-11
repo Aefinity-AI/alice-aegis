@@ -1551,6 +1551,17 @@ fn step_diff(
     mismatch
 }
 
+/// Read a receipt as text. FORMAT.md §2 says a receipt is UTF-8 text, so an
+/// unreadable path or invalid UTF-8 is a *structural* failure the caller
+/// reports as `FAIL structure: ...` — not a panic. The 2026-09-11 E23 fuzz
+/// coverage audit found the reference verifier aborted (`expect`) on a receipt
+/// holding one non-UTF-8 byte instead of printing the documented verdict line.
+fn read_receipt_text(receipt_path: &str) -> Result<String, String> {
+    let bytes = std::fs::read(receipt_path)
+        .map_err(|e| format!("cannot read receipt {receipt_path:?}: {e}"))?;
+    String::from_utf8(bytes).map_err(|_| "receipt is not valid UTF-8".to_string())
+}
+
 /// Verify one receipt against the already-hashed artifacts and the
 /// process-wide `CisModel`/tokenizer `main` built once (see the module doc
 /// comment's multi-receipt verify entry). Prints exactly the lines
@@ -1575,7 +1586,13 @@ fn verify_one(
     suite_sha256_arg: Option<[u8; 32]>,
     fail_fast: bool,
 ) -> bool {
-    let wtext = std::fs::read_to_string(receipt_path).expect("read receipt");
+    let wtext = match read_receipt_text(receipt_path) {
+        Ok(t) => t,
+        Err(reason) => {
+            println!("FAIL structure: {reason}");
+            return false;
+        }
+    };
     let mut w_model = String::new();
     let mut w_embed = String::new();
     let mut w_vocab = String::new();
@@ -2550,6 +2567,36 @@ mod tests {
     fn parse_table_rejects_non_utf8() {
         let bytes = vec![0x50, 0xFF, 0xFE, b'\t', b'v'];
         assert!(parse_table(&bytes).is_err());
+    }
+
+    #[test]
+    fn read_receipt_text_rejects_non_utf8_without_panic() {
+        let path = std::env::temp_dir().join(format!(
+            "agent_trace_test_{}_non_utf8_receipt",
+            std::process::id()
+        ));
+        std::fs::write(&path, b"AEGIS-TRACE v2\nmodel \xFF\n").unwrap();
+        let r = read_receipt_text(path.to_str().unwrap());
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(r.unwrap_err(), "receipt is not valid UTF-8");
+    }
+
+    #[test]
+    fn read_receipt_text_reports_missing_file() {
+        let r = read_receipt_text("/nonexistent/agent_trace_no_such_receipt.txt");
+        assert!(r.unwrap_err().starts_with("cannot read receipt"));
+    }
+
+    #[test]
+    fn read_receipt_text_accepts_utf8() {
+        let path = std::env::temp_dir().join(format!(
+            "agent_trace_test_{}_utf8_receipt",
+            std::process::id()
+        ));
+        std::fs::write(&path, "AEGIS-TRACE v2\nK 1\n").unwrap();
+        let r = read_receipt_text(path.to_str().unwrap());
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(r.unwrap(), "AEGIS-TRACE v2\nK 1\n");
     }
 
     // --- lookup tool: hit/miss ---

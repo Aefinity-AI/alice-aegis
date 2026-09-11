@@ -33,7 +33,10 @@ bug.
 ## 2. Text grammar
 
 UTF-8 text, one logical record per line (`\n`; `str::lines()` splitting), no
-trailing-content requirements beyond what's below. There is no required
+trailing-content requirements beyond what's below. A file that is not valid
+UTF-8 is rejected before any line is parsed (`FAIL structure: receipt is not
+valid UTF-8`; an unreadable path is `FAIL structure: cannot read receipt
+...`) — the verifier never panics on receipt bytes. There is no required
 overall line order except: **the `AEGIS-TRACE <ver>` line must be line 0**
 (`FAIL structure: missing AEGIS-TRACE header line` if absent anywhere;
 `FAIL structure: AEGIS-TRACE header line at position {n}, must be first` if
