@@ -228,7 +228,7 @@ embed   e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
 vocab   5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
 K       3            -> BE u64 0000000000000003
 N       16           -> BE u64 0000000000000010
-prompt  "The quick brown fox" (20 bytes) -> len BE u64 0000000000000014
+prompt  "The quick brown fox" (19 bytes) -> len BE u64 0000000000000013
 commit  763658a2b8c440f094d1f9d47464d822178f761c  (40 ASCII bytes)
 host    aefinity-box                                (12 ASCII bytes)
 ```
@@ -238,14 +238,14 @@ absent. Format is 3, so block #11 IS present:
 b"PROV" ‖ u32le(40) ‖ "763658a2b8c440f094d1f9d47464d822178f761c" ‖ u32le(12) ‖ "aefinity-box"
 ```
 Genesis preimage = block1(15B) ‖ model(32B) ‖ embed(32B) ‖ vocab(32B) ‖
-k(8B) ‖ n(8B) ‖ promptlen(8B) ‖ prompt(20B) ‖ PROV-block(4+4+40+4+12=64B)
-= 15+32+32+32+8+8+8+20+64 = 219 bytes total, hashed once with sha256.
+k(8B) ‖ n(8B) ‖ promptlen(8B) ‖ prompt(19B) ‖ PROV-block(4+4+40+4+12=64B)
+= 15+32+32+32+8+8+8+19+64 = 218 bytes total, hashed once with sha256.
 
 Three step folds follow (§5) using each step's `tool=no-tool` (so
 `in`/`out` are both empty, contributing only their zero-length prefixes)
 and `decode-chain` value from the receipt.
 
-Genesis digest (recomputed per §4, sha256 of the 219-byte preimage above):
+Genesis digest (recomputed per §4, sha256 of the 218-byte preimage above):
 `a7146ce1cf587fd6535681d980e7f0e8ee18d8e8af11f0172a77131000e8a414`. Folding
 the three step records (§5) over that genesis in order reproduces the
 receipt's own final line, `trace-chain
