@@ -42,7 +42,7 @@
 //! (K=3, N=16 by default).
 //!
 //!   agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> ["prompt"] [--table <path>] [--suite-sha256 <64hex>] > receipt
-//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases]
+//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases] [--fail-fast]
 //!
 //! Rule A: prints no timing, ever. Rule B: the receipt carries a commit hash
 //! and hostname. The commit is captured at BUILD time (`aegis-linux/build.rs`
@@ -91,6 +91,21 @@
 //! accumulated across every receipt's replay prints once, after
 //! `SUMMARY`, regardless of the individual PASS/FAIL outcomes (it is a
 //! performance report, not a verify verdict).
+//!
+//! `--fail-fast` (verify only, rejected for gen the same way `--phases`
+//! is): diffs each step against the receipt's claimed step as soon as
+//! that step is replayed, instead of after the full K-step replay
+//! finishes. On the first divergent step it prints the same `step {i}
+//! divergence: ...` line (and any ctx/q mismatch lines) full-mode verify
+//! would print for that step, then `VERIFY FAIL — replay diverged from
+//! the receipt (fail-fast after step {i})` and stops — the remaining
+//! `K - i - 1` steps are never replayed, which is the whole point for a
+//! receipt tampered early (see the `step {i} divergence` test). All
+//! structural/artifact/table/suite checks that run before the replay are
+//! unchanged. On a receipt that verifies clean, `--fail-fast` produces
+//! output byte-identical to full mode (nothing diverges, so the
+//! early-print path never fires). Without `--fail-fast`, behaviour is
+//! byte-identical to before this flag existed.
 //!
 //! Table binding: when `--table` is given, the table file's sha256 and byte
 //! length are folded into the trace genesis (see `trace_genesis`'s doc
@@ -977,10 +992,8 @@ fn decode_step(
     // `CisEngine::forward_prefill_int`'s doc for why. `AEGIS_PREFILL_BATCH=0`
     // forces the old sequential loop for A/B.
     engine.forward_prefill_int(&prompt_ids, 0);
-    let mut pos = prompt_ids.len();
-
     let mut generated = Vec::with_capacity(n);
-    for _ in 0..n {
+    for pos in (prompt_ids.len()..).take(n) {
         let tok = {
             let logits = engine.decode_logits();
             let t = argmax_i64(logits);
@@ -989,7 +1002,6 @@ fn decode_step(
         };
         generated.push(tok);
         engine.forward_step_int(tok, pos);
-        pos += 1;
     }
     // Fold this step's engine-owned phase counters into the process-wide
     // `--phases` accumulator before `engine` (and its `phase_cycles`) is
@@ -1003,6 +1015,28 @@ fn decode_step(
     phases_report::accumulate(&engine.phase_cycles, (prompt_ids.len() + n) as u64);
     (generated, chain.digest())
 }
+
+/// The `--fail-fast` per-step hook's type, named so the signature below
+/// reads as one word instead of the raw `dyn FnMut` spelled out inline —
+/// see the `on_step` parameter's own doc comment for what it does.
+type StepHook<'a> = dyn FnMut(usize, &StepRecord) -> bool + 'a;
+
+/// One receipt-claimed step's parsed fields, in the order they were read
+/// off a `step N:` line: `(toks, tool, in, out, decode-chain, ctx, q)`.
+/// `ctx`/`q` are `None` for a format-1 receipt (no per-step binding) and
+/// `Some` for format >= 2 — see `step_diff`'s and `verify_one`'s
+/// `w_format`-gated handling of this pair. Named so `verify_one`'s parsed
+/// step list and `step_diff`'s parameter share one spelling instead of
+/// each repeating the 7-tuple inline.
+type ClaimedStep = (
+    Vec<u32>,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+);
 
 /// Replay the whole K-step episode from the header inputs. Shared by gen
 /// and verify — a verifier that calls this and gets the same
@@ -1021,6 +1055,15 @@ fn replay_episode(
     table: Option<&LookupTable>,
     suite_sha: Option<&[u8; 32]>,
     provenance: Option<(&str, &str)>,
+    // `--fail-fast` hook: called with (step_idx, this step's freshly
+    // decoded `StepRecord`) right after the step is produced, before the
+    // next step's decode starts. Returning `true` stops the replay after
+    // this step (fewer than `k` steps land in the returned
+    // `EpisodeReplay`); `gen` and every non-fail-fast `verify` call pass
+    // `None`, in which case this is a no-op and the loop runs exactly as
+    // it always has — see `verify_one`'s fail-fast branch for the only
+    // caller that passes `Some`.
+    mut on_step: Option<&mut StepHook<'_>>,
 ) -> EpisodeReplay {
     let mut prompt = initial_prompt.to_string();
     let mut trace_chain = trace_genesis(
@@ -1076,7 +1119,7 @@ fn replay_episode(
         external_text.push_str(&tool_result);
         prev_tool_result = Some(tool_result);
 
-        steps.push(StepRecord {
+        let record = StepRecord {
             toks,
             tool_name: outcome.name,
             tool_input: outcome.input,
@@ -1085,7 +1128,15 @@ fn replay_episode(
             ctx_digest,
             query_digest,
             verbatim_ok,
-        });
+        };
+        let stop = on_step
+            .as_mut()
+            .map(|cb| cb(step_idx, &record))
+            .unwrap_or(false);
+        steps.push(record);
+        if stop {
+            break;
+        }
     }
 
     EpisodeReplay { steps, trace_chain }
@@ -1208,17 +1259,22 @@ fn main() {
     let table_path = extract_flag(&mut args, "--table");
     let suite_sha256_arg = extract_flag(&mut args, "--suite-sha256");
     let phases_flag = extract_bool_flag(&mut args, "--phases");
+    let fail_fast_flag = extract_bool_flag(&mut args, "--fail-fast");
     if args.len() < 6 {
         eprintln!(
             "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>]"
         );
         eprintln!(
-            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases]"
+            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases] [--fail-fast]"
         );
         std::process::exit(2);
     }
     if phases_flag && args[1] != "verify" {
         eprintln!("--phases is only supported by `agent_trace verify`");
+        std::process::exit(2);
+    }
+    if fail_fast_flag && args[1] != "verify" {
+        eprintln!("--fail-fast is only supported by `agent_trace verify`");
         std::process::exit(2);
     }
     #[cfg(not(feature = "phase-timers"))]
@@ -1319,6 +1375,7 @@ fn main() {
                 table.as_ref(),
                 suite_sha256_arg.as_ref(),
                 Some((commit.as_str(), host.as_str())),
+                None,
             );
 
             println!("AEGIS-TRACE v2");
@@ -1366,6 +1423,7 @@ fn main() {
                     &vocab_sha,
                     table_path.as_ref(),
                     suite_sha256_arg,
+                    fail_fast_flag,
                 );
                 if !pass {
                     std::process::exit(1);
@@ -1392,6 +1450,7 @@ fn main() {
                         &vocab_sha,
                         table_path.as_ref(),
                         suite_sha256_arg,
+                        fail_fast_flag,
                     );
                     if pass {
                         n_pass += 1;
@@ -1421,6 +1480,77 @@ fn main() {
     }
 }
 
+/// Diff one replayed step against the receipt's claimed step, printing
+/// exactly the lines `verify_one`'s per-step loop has always printed for a
+/// mismatching step (the `toks-match=.../decode-chain-match=...` line and,
+/// for format >= 2, the ctx/query mismatch lines and the verbatim-argument
+/// WARNING). Returns whether this step is a mismatch (the WARNING line is
+/// not one — it prints regardless). Factored out so full-mode's
+/// after-the-fact loop and `--fail-fast`'s per-step callback (see
+/// `verify_one`) call the identical logic and therefore print
+/// byte-identical lines for the same divergent step, whichever mode finds
+/// it.
+fn step_diff(
+    i: usize,
+    local: &StepRecord,
+    w_step: &ClaimedStep,
+    w_format: u8,
+    emit_warning: bool,
+) -> bool {
+    let (w_toks, w_tool, w_in, w_out, w_dchain, w_ctx, w_query) = w_step;
+    let mut mismatch = false;
+
+    let local_toks_match = &local.toks == w_toks;
+    let local_tool_match = local.tool_name == *w_tool;
+    let local_in_match = hex(&local.tool_input) == *w_in;
+    let local_out_match = hex(&local.tool_output) == *w_out;
+    let local_dchain_match = hex(&local.decode_chain) == *w_dchain;
+    if !(local_toks_match
+        && local_tool_match
+        && local_in_match
+        && local_out_match
+        && local_dchain_match)
+    {
+        println!(
+            "step {i} divergence: toks-match={local_toks_match} tool-match={local_tool_match} in-match={local_in_match} out-match={local_out_match} decode-chain-match={local_dchain_match}"
+        );
+        mismatch = true;
+    }
+
+    // Format-2 only: per-step context/query binding. A format-1 receipt
+    // carries no ctx=/q= fields (w_ctx/w_query are `None`) and is
+    // otherwise verified exactly as above — see the module doc comment's
+    // format-2 entry and the `FORMAT1_NOTE` line already printed above.
+    if w_format >= 2 {
+        let local_ctx = hex(&local.ctx_digest);
+        match w_ctx {
+            Some(claimed) if *claimed == local_ctx => {}
+            _ => {
+                println!("{}", ctx_mismatch_msg(i));
+                mismatch = true;
+            }
+        }
+        let local_query = hex(&local.query_digest);
+        match w_query {
+            Some(claimed) if *claimed == local_query => {}
+            _ => {
+                println!("{}", query_mismatch_msg(i));
+                mismatch = true;
+            }
+        }
+        // `emit_warning`: the after-the-fact loop prints the WARNING here
+        // so it lands after the trace-chain lines exactly as before; the
+        // `--fail-fast` hook passes `false` because that loop still runs
+        // (and prints it) after a clean fail-fast replay, keeping PASS
+        // output byte-identical in both modes.
+        if emit_warning && !local.verbatim_ok {
+            println!("{}", verbatim_warning_msg(i));
+        }
+    }
+
+    mismatch
+}
+
 /// Verify one receipt against the already-hashed artifacts and the
 /// process-wide `CisModel`/tokenizer `main` built once (see the module doc
 /// comment's multi-receipt verify entry). Prints exactly the lines
@@ -1431,6 +1561,8 @@ fn main() {
 /// `--phases` printing is the caller's responsibility (see `main`), not
 /// this function's — the single- and multi-receipt CLI shapes print the
 /// table at different points, but neither ever prints it from inside here.
+/// `fail_fast`: see the module doc comment's `--fail-fast` entry. `false`
+/// reproduces this function's pre-`--fail-fast` behaviour exactly.
 #[allow(clippy::too_many_arguments)]
 fn verify_one(
     receipt_path: &str,
@@ -1441,6 +1573,7 @@ fn verify_one(
     vocab_sha: &[u8; 32],
     table_path: Option<&String>,
     suite_sha256_arg: Option<[u8; 32]>,
+    fail_fast: bool,
 ) -> bool {
     let wtext = std::fs::read_to_string(receipt_path).expect("read receipt");
     let mut w_model = String::new();
@@ -1449,15 +1582,7 @@ fn verify_one(
     let mut w_k = 0usize;
     let mut w_n = 0usize;
     let mut w_prompt = String::new();
-    let mut w_steps: Vec<(
-        Vec<u32>,
-        String,
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-    )> = Vec::new();
+    let mut w_steps: Vec<ClaimedStep> = Vec::new();
     let mut w_trace_chain = String::new();
     let mut w_format: u8 = 1;
     // Whether an `AEGIS-TRACE <ver>` magic line was actually seen, and on
@@ -1697,16 +1822,15 @@ fn verify_one(
     }
     // Belt and braces: a receipt that declares format 1 must not carry the
     // format-2 per-step binding fields. If it does, the header was altered.
-    if w_format == 1 {
-        if let Some(i) = w_steps
+    if w_format == 1
+        && let Some(i) = w_steps
             .iter()
             .position(|(_, _, _, _, _, ctx, q)| ctx.is_some() || q.is_some())
-        {
-            println!(
-                "FAIL structure: receipt declares format 1 but step {i} carries ctx=/q= (format-2 downgrade)"
-            );
-            return false;
-        }
+    {
+        println!(
+            "FAIL structure: receipt declares format 1 but step {i} carries ctx=/q= (format-2 downgrade)"
+        );
+        return false;
     }
 
     // Format 3 folds `commit`/`host` into the trace genesis, so both lines
@@ -1852,19 +1976,66 @@ fn verify_one(
         None => None,
     };
 
-    let r = replay_episode(
-        cis_model,
-        tokenizer,
-        model_sha,
-        embed_sha,
-        vocab_sha,
-        &w_prompt,
-        w_k,
-        w_n,
-        table.as_ref(),
-        suite_sha.as_ref(),
-        provenance.as_ref().map(|(c, h)| (c.as_str(), h.as_str())),
-    );
+    // `--fail-fast`: diff each step against the receipt's claimed step as
+    // soon as `replay_episode` produces it, via `step_diff` (the same
+    // function full mode's loop below calls), instead of waiting for the
+    // whole K-step replay to finish. `fail_fast_step` records the first
+    // divergent step's index; the callback returning `true` stops
+    // `replay_episode` right after that step. See the module doc
+    // comment's `--fail-fast` entry.
+    let mut fail_fast_step: Option<usize> = None;
+    let r = if fail_fast {
+        let mut on_step = |i: usize, local: &StepRecord| -> bool {
+            if i >= w_steps.len() {
+                // Malformed receipt (fewer claimed steps than K): let the
+                // replay run to completion so the length check below
+                // fires exactly as it would in full mode, instead of a
+                // fail-fast message that full mode would never print for
+                // this case.
+                return false;
+            }
+            if step_diff(i, local, &w_steps[i], w_format, false) {
+                fail_fast_step = Some(i);
+                true
+            } else {
+                false
+            }
+        };
+        replay_episode(
+            cis_model,
+            tokenizer,
+            model_sha,
+            embed_sha,
+            vocab_sha,
+            &w_prompt,
+            w_k,
+            w_n,
+            table.as_ref(),
+            suite_sha.as_ref(),
+            provenance.as_ref().map(|(c, h)| (c.as_str(), h.as_str())),
+            Some(&mut on_step),
+        )
+    } else {
+        replay_episode(
+            cis_model,
+            tokenizer,
+            model_sha,
+            embed_sha,
+            vocab_sha,
+            &w_prompt,
+            w_k,
+            w_n,
+            table.as_ref(),
+            suite_sha.as_ref(),
+            provenance.as_ref().map(|(c, h)| (c.as_str(), h.as_str())),
+            None,
+        )
+    };
+
+    if let Some(i) = fail_fast_step {
+        println!("VERIFY FAIL — replay diverged from the receipt (fail-fast after step {i})");
+        return false;
+    }
 
     let local_trace_chain = hex(&r.trace_chain);
     println!("receipt trace-chain {}", short16(&w_trace_chain));
@@ -1879,52 +2050,16 @@ fn verify_one(
         return false;
     }
 
+    // This after-the-fact loop runs in BOTH modes. Under `--fail-fast`
+    // every step already diffed clean as `replay_episode` produced it
+    // (a divergence returned above), so the diff below finds nothing and
+    // its only visible effect is printing the per-step WARNING lines here,
+    // after the trace-chain lines — the same place full mode prints them,
+    // which keeps PASS output byte-identical whichever mode produced it.
     let mut mismatch = false;
-    for (i, (local, (w_toks, w_tool, w_in, w_out, w_dchain, w_ctx, w_query))) in
-        r.steps.iter().zip(w_steps.iter()).enumerate()
-    {
-        let local_toks_match = &local.toks == w_toks;
-        let local_tool_match = local.tool_name == w_tool;
-        let local_in_match = hex(&local.tool_input) == *w_in;
-        let local_out_match = hex(&local.tool_output) == *w_out;
-        let local_dchain_match = hex(&local.decode_chain) == *w_dchain;
-        if !(local_toks_match
-            && local_tool_match
-            && local_in_match
-            && local_out_match
-            && local_dchain_match)
-        {
-            println!(
-                "step {i} divergence: toks-match={local_toks_match} tool-match={local_tool_match} in-match={local_in_match} out-match={local_out_match} decode-chain-match={local_dchain_match}"
-            );
+    for (i, (local, w_step)) in r.steps.iter().zip(w_steps.iter()).enumerate() {
+        if step_diff(i, local, w_step, w_format, true) {
             mismatch = true;
-        }
-
-        // Format-2 only: per-step context/query binding. A format-1
-        // receipt carries no ctx=/q= fields (w_ctx/w_query are `None`) and
-        // is otherwise verified exactly as above — see the module doc
-        // comment's format-2 entry and the `FORMAT1_NOTE` line already
-        // printed above.
-        if w_format >= 2 {
-            let local_ctx = hex(&local.ctx_digest);
-            match w_ctx {
-                Some(claimed) if *claimed == local_ctx => {}
-                _ => {
-                    println!("{}", ctx_mismatch_msg(i));
-                    mismatch = true;
-                }
-            }
-            let local_query = hex(&local.query_digest);
-            match w_query {
-                Some(claimed) if *claimed == local_query => {}
-                _ => {
-                    println!("{}", query_mismatch_msg(i));
-                    mismatch = true;
-                }
-            }
-            if !local.verbatim_ok {
-                println!("{}", verbatim_warning_msg(i));
-            }
         }
     }
 
@@ -2913,7 +3048,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None,
         );
         assert_eq!(r.steps.len(), k);
         for s in &r.steps {
@@ -2943,6 +3078,7 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -2959,7 +3095,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None,
         );
         let good_text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let tampered = flip_hex_field(&good_text, "step 1:", "q=");
@@ -2978,11 +3114,198 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
             !pass,
             "a flipped q= field must make verify FAIL (STEP 1 QUERY MISMATCH)"
+        );
+    }
+
+    // --- --fail-fast ---
+
+    /// `replay_episode`'s per-step hook is the whole mechanism `--fail-fast`
+    /// relies on to avoid replaying steps after the first divergence: this
+    /// tests the hook directly (returning `true` from `on_step` on the
+    /// very first step) and asserts the replay produces exactly one step,
+    /// not `k`. `verify_one`'s `fail_fast` tests below cover the
+    /// end-to-end behaviour built on top of this hook.
+    #[test]
+    fn replay_episode_on_step_hook_stops_the_replay() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 3usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let mut calls = 0usize;
+        let mut cb = |_i: usize, _rec: &StepRecord| -> bool {
+            calls += 1;
+            true
+        };
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            None,
+            Some(&mut cb),
+        );
+        assert_eq!(
+            calls, 1,
+            "on_step must not be called again once it has returned true"
+        );
+        assert_eq!(
+            r.steps.len(),
+            1,
+            "a true return from on_step must stop the replay after that step, \
+             not run the remaining k-1 steps"
+        );
+    }
+
+    /// Build a clean (untampered) format-2 receipt, then flip a step-0 hex
+    /// field so the receipt disagrees with replay starting at step 0 —
+    /// the tamper both `fail_fast_verify_fails_at_step_0_tamper` and
+    /// `full_mode_still_fails_on_step_0_tamper` share, so both tests are
+    /// exercising the identical divergence.
+    fn step0_tampered_receipt(
+        cis_model: &CisModel,
+        tokenizer: &AegisTokenizer,
+        model_sha: &[u8; 32],
+        embed_sha: &[u8; 32],
+        vocab_sha: &[u8; 32],
+        prompt: &str,
+        k: usize,
+        n: usize,
+    ) -> String {
+        let r = replay_episode(
+            cis_model, tokenizer, model_sha, embed_sha, vocab_sha, prompt, k, n, None, None, None,
+            None,
+        );
+        let good_text = render_receipt(2, model_sha, embed_sha, vocab_sha, prompt, k, n, &r);
+        let tampered = flip_hex_field(&good_text, "step 0:", "decode-chain=");
+        assert_ne!(
+            good_text, tampered,
+            "tamper helper must actually change the receipt"
+        );
+        tampered
+    }
+
+    /// Requirement (a): `--fail-fast` on a receipt tampered at step 0
+    /// reports the divergence at step 0 and fails verify (the fail-fast
+    /// message itself — `VERIFY FAIL — replay diverged from the receipt
+    /// (fail-fast after step {i})` — is only observable on stdout, which
+    /// this test-module style does not capture; see the module doc
+    /// comment's `--fail-fast` entry and `verify_one`'s fail-fast branch
+    /// for where `i` is pinned to the first divergent step index).
+    #[test]
+    fn fail_fast_verify_fails_at_step_0_tamper() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 3usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let tampered = step0_tampered_receipt(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n,
+        );
+        let path = write_temp_receipt("fail-fast-step0.txt", &tampered);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            true, // --fail-fast
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a step-0 decode-chain tamper must fail --fail-fast verify"
+        );
+    }
+
+    /// Requirement (c): full-mode verify (`fail_fast=false`) on the exact
+    /// same step-0 tamper `fail_fast_verify_fails_at_step_0_tamper` uses
+    /// must also FAIL — both modes reach the same verdict for the same
+    /// divergence, only fail-fast stops the replay early. Full mode's
+    /// per-step FAIL wording for a non-step-0 tamper is already covered by
+    /// `format2_query_tamper_fails_verify` above.
+    #[test]
+    fn full_mode_still_fails_on_step_0_tamper() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 3usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let tampered = step0_tampered_receipt(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n,
+        );
+        let path = write_temp_receipt("full-mode-step0.txt", &tampered);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a step-0 decode-chain tamper must fail full-mode verify too"
+        );
+    }
+
+    /// Requirement (b): on an untampered receipt, `--fail-fast` still
+    /// PASSes, agreeing with full mode on the same receipt.
+    #[test]
+    fn fail_fast_pass_matches_full_mode_on_clean_receipt() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 2usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None, None,
+        );
+        let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        let path = write_temp_receipt("fail-fast-clean.txt", &text);
+        let pass_full = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+        );
+        let pass_fail_fast = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            true,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(pass_full, "clean receipt must PASS full-mode verify");
+        assert!(
+            pass_fail_fast,
+            "clean receipt must PASS --fail-fast verify too, identically to full mode"
         );
     }
 
@@ -2994,7 +3317,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None,
         );
         let text = render_receipt(1, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         assert!(
@@ -3012,6 +3335,7 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
         );
         let _ = std::fs::remove_file(&path);
         assert!(pass, "a format-1 receipt must still verify PASS unchanged");
@@ -3028,7 +3352,7 @@ mod tests {
         let (k, n, prompt) = (2usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         // Tamper the last step's ctx= so format-2 rules would reject it.
@@ -3054,6 +3378,7 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
         );
         let _ = std::fs::remove_file(&path);
         pass
@@ -3108,6 +3433,7 @@ mod tests {
             None,
             None,
             Some(("test", "test")),
+            None,
         );
         let text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         // Unique per call: these tests run in parallel in one process and
@@ -3124,6 +3450,7 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
         )
     }
 
@@ -3148,6 +3475,7 @@ mod tests {
             None,
             None,
             Some((commit, "test")),
+            None,
         );
         let mut text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         text = text.replace("commit test\n", &format!("commit {commit}\n"));
@@ -3163,6 +3491,7 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
         )
     }
 
@@ -3315,7 +3644,7 @@ mod tests {
         let (k, n, prompt) = (1usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let moved = format!("model {}\nAEGIS-TRACE v1\n{}", hex(&model_sha), text);
@@ -3330,6 +3659,7 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
         );
         let _ = std::fs::remove_file(&path);
         assert!(

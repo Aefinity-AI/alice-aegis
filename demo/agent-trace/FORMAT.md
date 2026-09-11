@@ -232,6 +232,24 @@ text, hex-decoded from the receipt's `in=`/`out=` fields):
 - `lookup`: `in` = the exact matched substring `LOOKUP(<key>)`, `out` =
   the table's value string for `key`, or the literal `NONE` on a miss.
 
+**`--fail-fast` (verify only).** The reference `verify` accepts an
+optional `--fail-fast` switch that diffs each step against the receipt as
+soon as it is replayed and stops at the first divergent step instead of
+replaying all `K` steps first. On divergence it prints the same
+`step {i} divergence: ...`/ctx/q-mismatch lines this section already
+specifies, followed by `VERIFY FAIL — replay diverged from the receipt
+(fail-fast after step {i})`. This early-stop message is an **optional**
+verifier behaviour — a purely local performance optimization for
+receipts tampered early, not part of the wire format. On a receipt that
+verifies, `--fail-fast` output is byte-identical to full-mode output; on a
+divergent receipt the early stop means the `receipt trace-chain`/`local
+trace-chain` lines and any `WARNING` lines for earlier steps are not
+printed. The normative
+verify output remains the full-report form this section describes
+(every step diffed, ending in the plain `VERIFY FAIL — replay diverged
+from the receipt` or `VERIFY PASS` line); a conformant chain-only tool
+is never required to implement `--fail-fast` or match its wording.
+
 ## 4. Genesis fold (exact byte layout)
 
 `TRACE_DOMAIN` is the fixed constant `b"AEGIS-TRACE v0\n"` (15 bytes,
