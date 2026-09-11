@@ -55,6 +55,8 @@ hf-venv/
 # CC BY-SA 4.0 attribution for the ARC-Easy data we redistribute — the licence
 # notice must ship with the data, so it must not be swallowed by *.txt above
 !model-lab/data/evals/arc_easy/NOTE.txt
+# AEGIS-TRACE FORMAT.md conformance vectors — checked-in fixtures, not scratch
+!demo/agent-trace/vectors/*.txt
 
 # Old backups (full copies preserved on the 1TB drive)
 *_ALICE_1_0_BACKUP/

@@ -67,6 +67,16 @@ jobs:
           grep -q 'VERIFY PASS' demo.log || { echo '::error::static verifier did not print VERIFY PASS'; exit 1; }
           grep -q 'TAMPER SELFTEST: PASS' demo.log || { echo '::error::tamper self-test did not pass with the static verifier'; exit 1; }
 
+      - name: FORMAT.md conformance — clean-room trace_chain.py agrees with the Rust verifier
+        run: |
+          # 1. the checked-in vector set (demo/agent-trace/vectors, pinned to verifier messages)
+          python3 demo/agent-trace/tools/trace_chain.py --selftest
+          # 2. the receipt this very run just generated and the static verifier PASSed:
+          #    the spec-derived, inference-free tool must recompute the same trace-chain.
+          R=$(ls -t demo/agent-trace/out/trace-*.txt | head -1)
+          python3 demo/agent-trace/tools/trace_chain.py "$R" | tee chain.log
+          grep -q '^MATCH ' chain.log || { echo "::error::trace_chain.py did not MATCH the fresh receipt $R"; exit 1; }
+
       - name: Upload the binary
         uses: actions/upload-artifact@v4
         with:
