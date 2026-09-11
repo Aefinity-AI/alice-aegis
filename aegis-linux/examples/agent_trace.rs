@@ -1714,9 +1714,42 @@ fn verify_one(
                         toks.replace(ids).is_some()
                     }
                     "tool" => tool.replace(value.to_string()).is_some(),
-                    "in" => input.replace(value.to_string()).is_some(),
-                    "out" => output.replace(value.to_string()).is_some(),
-                    "decode-chain" => dchain.replace(value.to_string()).is_some(),
+                    // `in`/`out`/`decode-chain` are hex-encoded bytes folded
+                    // into the trace chain (FORMAT.md §4). Before this
+                    // check, malformed hex here was accepted at parse time
+                    // and only surfaced later as a `VERIFY FAIL — replay
+                    // diverged from the receipt`, because the value could
+                    // not be `unhex`'d for the trace-chain fold and so never
+                    // matched what replay independently computed. That is a
+                    // *structural* defect in the receipt, not a divergence
+                    // between replay and an otherwise well-formed claim —
+                    // `trace_chain.py` (FORMAT.md's clean-room reference)
+                    // has always rejected it up front for exactly that
+                    // reason (see its "Undecodable step hex" comment). See
+                    // `verify_rejects_malformed_step_hex_as_structure`.
+                    "in" => {
+                        if unhex(value).is_err() {
+                            println!("FAIL structure: step {position}: malformed hex in in");
+                            return false;
+                        }
+                        input.replace(value.to_string()).is_some()
+                    }
+                    "out" => {
+                        if unhex(value).is_err() {
+                            println!("FAIL structure: step {position}: malformed hex in out");
+                            return false;
+                        }
+                        output.replace(value.to_string()).is_some()
+                    }
+                    "decode-chain" => {
+                        if unhex(value).is_err() {
+                            println!(
+                                "FAIL structure: step {position}: malformed hex in decode-chain"
+                            );
+                            return false;
+                        }
+                        dchain.replace(value.to_string()).is_some()
+                    }
                     "ctx" => ctx.replace(value.to_string()).is_some(),
                     "q" => query.replace(value.to_string()).is_some(),
                     other => {
@@ -1827,7 +1860,23 @@ fn verify_one(
                     }
                 };
             }
-            "trace-chain" => w_trace_chain = v.into(),
+            // A malformed or truncated `trace-chain` value (e.g. a chain
+            // cut short mid-hex-digit) previously fell through unvalidated
+            // and only ever failed later, at the final bit-for-bit compare
+            // against the locally-replayed chain — reported as `VERIFY FAIL
+            // — replay diverged from the receipt`. That message is reserved
+            // for a well-formed receipt whose claims replay does not
+            // reproduce; a chain that is not even 64 lowercase hex digits
+            // is a structural defect, exactly as `trace_chain.py` (the
+            // FORMAT.md clean-room reference) has always treated it. See
+            // `verify_rejects_truncated_trace_chain_as_structure`.
+            "trace-chain" => {
+                if v.len() != 64 || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+                    println!("FAIL structure: malformed trace-chain (want 64 lowercase hex)");
+                    return false;
+                }
+                w_trace_chain = v.into();
+            }
             "table-sha256" => {
                 if v.len() != 64 || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
                     println!("FAIL structure: malformed table-sha256 (want 64 lowercase hex)");
@@ -3568,6 +3617,123 @@ mod tests {
         assert!(
             !header_downgrade_attempt(|_| "aegis-trace v1".to_string()),
             "the magic word is case-sensitive and must not fall through to format 1"
+        );
+    }
+
+    // --- verifier-structure-first (2026-09-11): malformed step hex and a
+    // truncated trace-chain used to be indistinguishable from a genuine
+    // replay divergence — both printed `VERIFY FAIL — replay diverged from
+    // the receipt`, because neither the step's `in=`/`out=`/`decode-chain=`
+    // values nor the lead `trace-chain` value were hex-validated at parse
+    // time; an unparseable value just failed to equal whatever replay
+    // independently computed. `trace_chain.py` (FORMAT.md's clean-room
+    // reference; see its "Undecodable step hex" comment and its
+    // `is_hex64_lower` check) has always rejected both up front as
+    // structural defects, matching the `malformed-step-hex` and
+    // `malformed-truncated-chain` vectors in
+    // `demo/agent-trace/vectors/EXPECTED.tsv`. The two tests below hold the
+    // reference verifier to the same rule. ---
+
+    #[test]
+    fn verify_rejects_malformed_step_hex_as_structure() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let (k, n, prompt) = (2usize, 8usize, "Once upon a time");
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None, None,
+        );
+        let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+
+        // Corrupt step 0's `decode-chain=` value with a non-hex character.
+        // `decode-chain` (unlike `in=`, which is empty on steps that never
+        // call a tool) is always populated, so its value is guaranteed
+        // non-empty here. A pure bit flip within [0-9a-f] would still be
+        // valid hex (and so would still just be a replay divergence) —
+        // this must land outside the hex alphabet to exercise the
+        // structural check.
+        let mut lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+        let step0 = lines
+            .iter()
+            .position(|l| l.starts_with("step 0:"))
+            .expect("a step 0 line");
+        let field = "decode-chain=";
+        let val_start = lines[step0].find(field).expect("a decode-chain= field") + field.len();
+        let rest = &lines[step0][val_start..];
+        let val_len = rest.find(' ').unwrap_or(rest.len());
+        assert!(
+            val_len > 0,
+            "sanity: decode-chain= must have a non-empty value to corrupt"
+        );
+        let i = val_start;
+        let before = lines[step0].as_bytes()[i];
+        assert!(
+            before.is_ascii_hexdigit(),
+            "sanity: the untouched character must be valid hex before corruption"
+        );
+        lines[step0].replace_range(i..i + 1, "z");
+        assert!(
+            !lines[step0].as_bytes()[i].is_ascii_hexdigit(),
+            "sanity: the corrupted field must actually be invalid hex"
+        );
+        let text = lines.join("\n") + "\n";
+
+        let path = write_temp_receipt("malformed-step-hex.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a step with unparseable hex in `decode-chain=` must fail verify (FAIL structure, before replay)"
+        );
+    }
+
+    #[test]
+    fn verify_rejects_truncated_trace_chain_as_structure() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let (k, n, prompt) = (1usize, 8usize, "Once upon a time");
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None, None,
+        );
+        let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+
+        // Cut the trace-chain line's hex value short — a truncated chain,
+        // not merely a different (but still 64-hex) chain.
+        let mut lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+        let tc = lines
+            .iter()
+            .position(|l| l.starts_with("trace-chain "))
+            .expect("a trace-chain line");
+        let full = lines[tc].strip_prefix("trace-chain ").unwrap().to_string();
+        assert_eq!(full.len(), 64, "trace-chain must render as 64 hex digits");
+        lines[tc] = format!("trace-chain {}", &full[..16]);
+        let text = lines.join("\n") + "\n";
+
+        let path = write_temp_receipt("malformed-truncated-chain.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a truncated trace-chain must fail verify (FAIL structure, before replay)"
         );
     }
 
