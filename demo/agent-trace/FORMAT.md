@@ -240,7 +240,11 @@ replaying all `K` steps first. On divergence it prints the same
 specifies, followed by `VERIFY FAIL — replay diverged from the receipt
 (fail-fast after step {i})`. This early-stop message is an **optional**
 verifier behaviour — a purely local performance optimization for
-receipts tampered early, not part of the wire format. The normative
+receipts tampered early, not part of the wire format. On a receipt that
+verifies, `--fail-fast` output is byte-identical to full-mode output; on a
+divergent receipt the early stop means the `receipt trace-chain`/`local
+trace-chain` lines and any `WARNING` lines for earlier steps are not
+printed. The normative
 verify output remains the full-report form this section describes
 (every step diffed, ending in the plain `VERIFY FAIL — replay diverged
 from the receipt` or `VERIFY PASS` line); a conformant chain-only tool

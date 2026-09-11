@@ -1490,7 +1490,13 @@ fn main() {
 /// `verify_one`) call the identical logic and therefore print
 /// byte-identical lines for the same divergent step, whichever mode finds
 /// it.
-fn step_diff(i: usize, local: &StepRecord, w_step: &ClaimedStep, w_format: u8) -> bool {
+fn step_diff(
+    i: usize,
+    local: &StepRecord,
+    w_step: &ClaimedStep,
+    w_format: u8,
+    emit_warning: bool,
+) -> bool {
     let (w_toks, w_tool, w_in, w_out, w_dchain, w_ctx, w_query) = w_step;
     let mut mismatch = false;
 
@@ -1532,7 +1538,12 @@ fn step_diff(i: usize, local: &StepRecord, w_step: &ClaimedStep, w_format: u8) -
                 mismatch = true;
             }
         }
-        if !local.verbatim_ok {
+        // `emit_warning`: the after-the-fact loop prints the WARNING here
+        // so it lands after the trace-chain lines exactly as before; the
+        // `--fail-fast` hook passes `false` because that loop still runs
+        // (and prints it) after a clean fail-fast replay, keeping PASS
+        // output byte-identical in both modes.
+        if emit_warning && !local.verbatim_ok {
             println!("{}", verbatim_warning_msg(i));
         }
     }
@@ -1983,7 +1994,7 @@ fn verify_one(
                 // this case.
                 return false;
             }
-            if step_diff(i, local, &w_steps[i], w_format) {
+            if step_diff(i, local, &w_steps[i], w_format, false) {
                 fail_fast_step = Some(i);
                 true
             } else {
@@ -2039,20 +2050,16 @@ fn verify_one(
         return false;
     }
 
-    // `--fail-fast` already diffed every step (via the same `step_diff`
-    // this loop calls) as `replay_episode` produced it, above — and
-    // returned early on the first divergence, so reaching here in
-    // fail-fast mode means every step already diffed clean. Re-running
-    // the diff would only reprint identical (empty, since nothing
-    // diverged) output a second time, so it is skipped; `mismatch` stays
-    // `false` exactly as the loop below would have left it. Without
-    // `--fail-fast`, this is the original after-the-fact loop, unchanged.
+    // This after-the-fact loop runs in BOTH modes. Under `--fail-fast`
+    // every step already diffed clean as `replay_episode` produced it
+    // (a divergence returned above), so the diff below finds nothing and
+    // its only visible effect is printing the per-step WARNING lines here,
+    // after the trace-chain lines — the same place full mode prints them,
+    // which keeps PASS output byte-identical whichever mode produced it.
     let mut mismatch = false;
-    if !fail_fast {
-        for (i, (local, w_step)) in r.steps.iter().zip(w_steps.iter()).enumerate() {
-            if step_diff(i, local, w_step, w_format) {
-                mismatch = true;
-            }
+    for (i, (local, w_step)) in r.steps.iter().zip(w_steps.iter()).enumerate() {
+        if step_diff(i, local, w_step, w_format, true) {
+            mismatch = true;
         }
     }
 
