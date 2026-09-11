@@ -992,10 +992,8 @@ fn decode_step(
     // `CisEngine::forward_prefill_int`'s doc for why. `AEGIS_PREFILL_BATCH=0`
     // forces the old sequential loop for A/B.
     engine.forward_prefill_int(&prompt_ids, 0);
-    let mut pos = prompt_ids.len();
-
     let mut generated = Vec::with_capacity(n);
-    for _ in 0..n {
+    for pos in (prompt_ids.len()..).take(n) {
         let tok = {
             let logits = engine.decode_logits();
             let t = argmax_i64(logits);
@@ -1004,7 +1002,6 @@ fn decode_step(
         };
         generated.push(tok);
         engine.forward_step_int(tok, pos);
-        pos += 1;
     }
     // Fold this step's engine-owned phase counters into the process-wide
     // `--phases` accumulator before `engine` (and its `phase_cycles`) is
@@ -1018,6 +1015,28 @@ fn decode_step(
     phases_report::accumulate(&engine.phase_cycles, (prompt_ids.len() + n) as u64);
     (generated, chain.digest())
 }
+
+/// The `--fail-fast` per-step hook's type, named so the signature below
+/// reads as one word instead of the raw `dyn FnMut` spelled out inline —
+/// see the `on_step` parameter's own doc comment for what it does.
+type StepHook<'a> = dyn FnMut(usize, &StepRecord) -> bool + 'a;
+
+/// One receipt-claimed step's parsed fields, in the order they were read
+/// off a `step N:` line: `(toks, tool, in, out, decode-chain, ctx, q)`.
+/// `ctx`/`q` are `None` for a format-1 receipt (no per-step binding) and
+/// `Some` for format >= 2 — see `step_diff`'s and `verify_one`'s
+/// `w_format`-gated handling of this pair. Named so `verify_one`'s parsed
+/// step list and `step_diff`'s parameter share one spelling instead of
+/// each repeating the 7-tuple inline.
+type ClaimedStep = (
+    Vec<u32>,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+);
 
 /// Replay the whole K-step episode from the header inputs. Shared by gen
 /// and verify — a verifier that calls this and gets the same
@@ -1044,7 +1063,7 @@ fn replay_episode(
     // `None`, in which case this is a no-op and the loop runs exactly as
     // it always has — see `verify_one`'s fail-fast branch for the only
     // caller that passes `Some`.
-    mut on_step: Option<&mut dyn FnMut(usize, &StepRecord) -> bool>,
+    mut on_step: Option<&mut StepHook<'_>>,
 ) -> EpisodeReplay {
     let mut prompt = initial_prompt.to_string();
     let mut trace_chain = trace_genesis(
@@ -1471,21 +1490,7 @@ fn main() {
 /// `verify_one`) call the identical logic and therefore print
 /// byte-identical lines for the same divergent step, whichever mode finds
 /// it.
-#[allow(clippy::type_complexity)]
-fn step_diff(
-    i: usize,
-    local: &StepRecord,
-    w_step: &(
-        Vec<u32>,
-        String,
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-    ),
-    w_format: u8,
-) -> bool {
+fn step_diff(i: usize, local: &StepRecord, w_step: &ClaimedStep, w_format: u8) -> bool {
     let (w_toks, w_tool, w_in, w_out, w_dchain, w_ctx, w_query) = w_step;
     let mut mismatch = false;
 
@@ -1566,15 +1571,7 @@ fn verify_one(
     let mut w_k = 0usize;
     let mut w_n = 0usize;
     let mut w_prompt = String::new();
-    let mut w_steps: Vec<(
-        Vec<u32>,
-        String,
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-    )> = Vec::new();
+    let mut w_steps: Vec<ClaimedStep> = Vec::new();
     let mut w_trace_chain = String::new();
     let mut w_format: u8 = 1;
     // Whether an `AEGIS-TRACE <ver>` magic line was actually seen, and on
@@ -1814,16 +1811,15 @@ fn verify_one(
     }
     // Belt and braces: a receipt that declares format 1 must not carry the
     // format-2 per-step binding fields. If it does, the header was altered.
-    if w_format == 1 {
-        if let Some(i) = w_steps
+    if w_format == 1
+        && let Some(i) = w_steps
             .iter()
             .position(|(_, _, _, _, _, ctx, q)| ctx.is_some() || q.is_some())
-        {
-            println!(
-                "FAIL structure: receipt declares format 1 but step {i} carries ctx=/q= (format-2 downgrade)"
-            );
-            return false;
-        }
+    {
+        println!(
+            "FAIL structure: receipt declares format 1 but step {i} carries ctx=/q= (format-2 downgrade)"
+        );
+        return false;
     }
 
     // Format 3 folds `commit`/`host` into the trace genesis, so both lines
