@@ -212,9 +212,9 @@ front, with `FAIL structure: missing <key> line` (one message per key:
 | `suite-sha256` | caller-supplied 32-byte digest, e.g. of an eval-suite TSV (present iff `--suite-sha256` was given) | genesis, tag `b"SUITE"` then raw 32 bytes |
 | `commit`/`host` | build git commit (40 hex or `unknown`) / `hostname` output, format 3 only | genesis, tag `b"PROV"` then each as (LE u32 len, bytes), commit first then host |
 | `step i: toks=` | comma-separated greedy-decoded token ids (u32) for that step | **not folded into trace-chain**; only the *step's* `decode-chain` (a `WitnessChain` digest over tokens+logits) is folded — see §5. Cannot be recomputed without inference. |
-| `tool` | one of `no-tool`, `calc`, `calc-error`, `lookup` — see below | step fold, as UTF-8 bytes of the name |
+| `tool` | one of `no-tool`, `calc`, `calc-error`, `lookup`, `file-read` — see below | step fold, as UTF-8 bytes of the name |
 | `in` | the tool call's *matched call text* (e.g. `CALC(3 + 4)`), or empty for `no-tool` | step fold, raw bytes (hex-decoded from `in=`) |
-| `out` | the tool's result bytes: decimal result (`calc`), fixed error string (`calc-error`: `overflow`\|`div-by-zero`\|`bad-op`), table value or `NONE` (`lookup`), or empty (`no-tool`) | step fold, raw bytes (hex-decoded from `out=`) |
+| `out` | the tool's result bytes: decimal result (`calc`), fixed error string (`calc-error`: `overflow`\|`div-by-zero`\|`bad-op`), table value or `NONE` (`lookup`), table value or `NOT-FOUND` (`file-read`), or empty (`no-tool`) | step fold, raw bytes (hex-decoded from `out=`) |
 | `decode-chain` | that step's `WitnessChain` digest (folds each generated token id + its full i64 logit vector) | step fold, raw 32 bytes. **Cannot be recomputed without replaying inference** (needs the model's actual logits). |
 | `ctx` (format 2/3) | sha256 of the exact prompt text fed to the model for that step (the full accumulated running prompt) | **not folded into trace-chain**; `verify` recomputes and string-compares it independently |
 | `q` (format 2/3) | sha256 of that step's "query text": the initial prompt at step 0, else the immediately preceding step's tool-result text (`"\nTOOL[{name}]={output}\n"`) | **not folded into trace-chain**; same as `ctx` |
@@ -259,6 +259,14 @@ text, hex-decoded from the receipt's `in=`/`out=` fields):
   one of the fixed ASCII strings `overflow`, `div-by-zero`, `bad-op`.
 - `lookup`: `in` = the exact matched substring `LOOKUP(<key>)`, `out` =
   the table's value string for `key`, or the literal `NONE` on a miss.
+- `file-read`: `in` = the exact matched substring `FILE-READ(<key>)`,
+  `out` = the same `--table`'s value string for `key`, or the literal
+  `NOT-FOUND` on a miss. `file-read` shares `lookup`'s table binding (no
+  separate flag or hash line) but is a distinct tool identity with its own
+  miss literal, so `tool`/`out` alone (without `in`) still disambiguate the
+  two. A multi-tool episode may carry `calc`/`calc-error`, `lookup`, and
+  `file-read` steps in any combination — the step fold (§5) is per-step and
+  tool-name-agnostic, so nothing else about the format changes.
 
 **`--fail-fast` (verify only).** The reference `verify` accepts an
 optional `--fail-fast` switch that diffs each step against the receipt as
