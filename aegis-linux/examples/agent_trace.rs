@@ -3181,8 +3181,8 @@ mod tests {
         n: usize,
     ) -> String {
         let r = replay_episode(
-            cis_model, tokenizer, model_sha, embed_sha, vocab_sha, prompt, k, n, None, None,
-            None, None,
+            cis_model, tokenizer, model_sha, embed_sha, vocab_sha, prompt, k, n, None, None, None,
+            None,
         );
         let good_text = render_receipt(2, model_sha, embed_sha, vocab_sha, prompt, k, n, &r);
         let tampered = flip_hex_field(&good_text, "step 0:", "decode-chain=");
