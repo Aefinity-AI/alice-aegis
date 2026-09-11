@@ -2277,6 +2277,30 @@ fn verify_one(
         }
     }
 
+    // The receipt's WARNING lines are part of what a reader is shown, so
+    // they must match what this replay independently derives — otherwise a
+    // warning could be deleted from, or invented in, a PASSing receipt.
+    // Gated to format 2 and later: pre-format-2 receipts predate this
+    // module's warning emission and their WARNING lines are not evidence.
+    if w_format >= 2 {
+        let mut claimed = w_warn_steps.clone();
+        claimed.sort_unstable();
+        claimed.dedup();
+        let local_warns: Vec<usize> = r
+            .steps
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| !s.verbatim_ok)
+            .map(|(i, _)| i)
+            .collect();
+        if claimed != local_warns {
+            println!(
+                "VERIFY FAIL — WARNING lines claim steps {claimed:?}, replay derives {local_warns:?}"
+            );
+            mismatch = true;
+        }
+    }
+
     if !mismatch && local_trace_chain == w_trace_chain {
         println!(
             "VERIFY PASS — replay reproduced {} steps and the full trace chain bit-for-bit",
