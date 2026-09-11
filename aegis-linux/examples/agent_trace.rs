@@ -12,29 +12,41 @@
 //! name/input/output.
 //!
 //! Tools: `calc`, grammar `CALC(<int> <op> <int>)` with op in {+ - * / %},
-//! i64 checked arithmetic; and `lookup`, grammar `LOOKUP(<key>)` with
+//! i64 checked arithmetic; `lookup`, grammar `LOOKUP(<key>)` with
 //! key matching `[A-Za-z0-9_.-]{1,64}`, resolved against a fixed table file
 //! supplied with `--table` (a hit returns the table's value string, a miss
-//! returns the literal `NONE`). `lookup` only exists when a table is given —
-//! with no `--table`, `LOOKUP(...)` text is not scanned for at all and the
-//! episode behaves exactly as it did before this tool existed. A step whose
-//! decoded text contains no matching call of either kind is `tool=no-tool`.
-//! A step whose `CALC` call parses but whose arithmetic overflows or
-//! divides/mods by zero is `tool=calc-error` with a fixed error string as
-//! output — itself a recorded, deterministic step outcome, not a crash.
+//! returns the literal `NONE`); and `file-read`, grammar `FILE-READ(<key>)`
+//! with the same key grammar, resolved against **the same** `--table`
+//! binding as `lookup` (a hit returns the table's value string, a miss
+//! returns the literal `NOT-FOUND` — deliberately a different literal than
+//! `lookup`'s `NONE`, so a receipt's `tool`/`out` pair alone tells the two
+//! apart even without the `in=` text). `file-read` is a distinct *tool
+//! identity* over the same declared data, standing in for "read this
+//! resource" as opposed to `lookup`'s "look this key up" — both only exist
+//! when a table is given; with no `--table`, neither `LOOKUP(...)` nor
+//! `FILE-READ(...)` text is scanned for at all and the episode behaves
+//! exactly as it did before either tool existed. A step whose decoded text
+//! contains no matching call of any kind is `tool=no-tool`. A step whose
+//! `CALC` call parses but whose arithmetic overflows or divides/mods by
+//! zero is `tool=calc-error` with a fixed error string as output — itself a
+//! recorded, deterministic step outcome, not a crash.
 //!
-//! Scanner policy (same for one tool or two): find the earliest starting
-//! occurrence of `CALC(` or `LOOKUP(` in the step's newly decoded text and
-//! attempt to parse *only* that occurrence per its own grammar. Exception:
-//! if the step's running prompt (trailing whitespace trimmed) itself ends
-//! with an unclosed `CALC(` or `LOOKUP(` opener — e.g. a suite that primes
-//! the prompt with `"A: CALC("` so the model transcribes only the
-//! arguments — that opener is carried as a scan prefix and the newly
-//! decoded text is scanned as `prefix + decoded_text`, so a continuation
-//! like `"3 + 4)"` closes the call. A prompt with no trailing opener scans
-//! exactly as before (prefix is empty). If it fails to parse, the step is
-//! `no-tool` — the scanner never falls back to a later occurrence or the
-//! other tool. Both tools may appear across one episode (different steps).
+//! Scanner policy (same for two tools or three): find the earliest starting
+//! occurrence of `CALC(`, `LOOKUP(`, or `FILE-READ(` in the step's newly
+//! decoded text and attempt to parse *only* that occurrence per its own
+//! grammar. Exception: if the step's running prompt (trailing whitespace
+//! trimmed) itself ends with an unclosed `CALC(`, `LOOKUP(`, or
+//! `FILE-READ(` opener — e.g. a suite that primes the prompt with
+//! `"A: CALC("` so the model transcribes only the arguments — that opener
+//! is carried as a scan prefix and the newly decoded text is scanned as
+//! `prefix + decoded_text`, so a continuation like `"3 + 4)"` closes the
+//! call. A prompt with no trailing opener scans exactly as before (prefix
+//! is empty). If it fails to parse, the step is `no-tool` — the scanner
+//! never falls back to a later occurrence or another tool. All three tools
+//! may appear across one episode (different steps), in any combination —
+//! the trace-chain fold (`trace_fold_step`) is per-step and tool-agnostic,
+//! so a single K-step episode carrying CALC then LOOKUP then FILE-READ
+//! chains exactly like any other three steps (see `tests::multitool_*`).
 //!
 //! Each step re-encodes its own growing prompt and decodes from position 0
 //! with a fresh engine (no carried KV state across steps) — the simplest
@@ -641,18 +653,35 @@ fn find_lookup(text: &str) -> Option<(&str, &str)> {
     Some((full, key))
 }
 
+/// Find the first `FILE-READ(...)` call in `text` and validate its key.
+/// Same grammar and scan-not-search policy as `find_lookup`, over the
+/// literal `FILE-READ(` instead of `LOOKUP(`.
+fn find_file_read(text: &str) -> Option<(&str, &str)> {
+    let start = text.find("FILE-READ(")?;
+    let rest = &text[start + "FILE-READ(".len()..];
+    let close = rest.find(')')?;
+    let key = &rest[..close];
+    if !is_valid_key(key) {
+        return None;
+    }
+    let full = &text[start..start + "FILE-READ(".len() + close + 1];
+    Some((full, key))
+}
+
 /// One recognized tool call site in a step's decoded text, before it has
 /// been run.
 enum ToolCall<'a> {
     Calc(&'a str, i64, u8, i64),
     Lookup(&'a str, &'a str),
+    FileRead(&'a str, &'a str),
 }
 
-/// Scan `text` for the earliest-starting `CALC(` or `LOOKUP(` occurrence and
-/// attempt to parse only that one. `LOOKUP(` is not scanned for at all when
-/// `table_present` is false, so a table-less episode's scan is identical to
-/// the pre-LOOKUP `find_calc`-only behavior. See the module doc comment for
-/// the full scanner policy (earliest occurrence wins; no fallback).
+/// Scan `text` for the earliest-starting `CALC(`, `LOOKUP(`, or
+/// `FILE-READ(` occurrence and attempt to parse only that one. `LOOKUP(`
+/// and `FILE-READ(` are not scanned for at all when `table_present` is
+/// false, so a table-less episode's scan is identical to the pre-LOOKUP
+/// `find_calc`-only behavior. See the module doc comment for the full
+/// scanner policy (earliest occurrence wins; no fallback).
 fn find_tool_call(text: &str, table_present: bool) -> Option<ToolCall<'_>> {
     let calc_pos = text.find("CALC(");
     let lookup_pos = if table_present {
@@ -660,29 +689,43 @@ fn find_tool_call(text: &str, table_present: bool) -> Option<ToolCall<'_>> {
     } else {
         None
     };
-    let calc_first = match (calc_pos, lookup_pos) {
-        (Some(c), Some(l)) => c <= l,
-        (Some(_), None) => true,
-        (None, Some(_)) => false,
-        (None, None) => return None,
-    };
-    if calc_first {
-        find_calc(text).map(|(m, a, op, b)| ToolCall::Calc(m, a, op, b))
+    let file_read_pos = if table_present {
+        text.find("FILE-READ(")
     } else {
-        find_lookup(text).map(|(m, k)| ToolCall::Lookup(m, k))
+        None
+    };
+    // Earliest-starting occurrence among the (up to three) candidates wins;
+    // ties broken CALC < LOOKUP < FILE-READ (matches source order, never
+    // actually reachable since two literals can't start at the same byte).
+    let candidates = [
+        calc_pos.map(|p| (p, 0u8)),
+        lookup_pos.map(|p| (p, 1u8)),
+        file_read_pos.map(|p| (p, 2u8)),
+    ];
+    let winner = candidates
+        .into_iter()
+        .flatten()
+        .min_by_key(|&(p, k)| (p, k))?;
+    match winner.1 {
+        0 => find_calc(text).map(|(m, a, op, b)| ToolCall::Calc(m, a, op, b)),
+        1 => find_lookup(text).map(|(m, k)| ToolCall::Lookup(m, k)),
+        _ => find_file_read(text).map(|(m, k)| ToolCall::FileRead(m, k)),
     }
 }
 
-/// If `prompt` (trailing whitespace trimmed) ends with an unclosed `CALC(`
-/// or `LOOKUP(` opener, return that literal opener so the caller can carry
-/// it as a scan prefix for the step's decoded text. Otherwise `""`, which
-/// makes the caller's scan identical to scanning `decoded_text` alone.
+/// If `prompt` (trailing whitespace trimmed) ends with an unclosed `CALC(`,
+/// `LOOKUP(`, or `FILE-READ(` opener, return that literal opener so the
+/// caller can carry it as a scan prefix for the step's decoded text.
+/// Otherwise `""`, which makes the caller's scan identical to scanning
+/// `decoded_text` alone.
 fn prompt_scan_prefix(prompt: &str) -> &'static str {
     let trimmed = prompt.trim_end();
     if trimmed.ends_with("CALC(") {
         "CALC("
     } else if trimmed.ends_with("LOOKUP(") {
         "LOOKUP("
+    } else if trimmed.ends_with("FILE-READ(") {
+        "FILE-READ("
     } else {
         ""
     }
@@ -729,6 +772,23 @@ fn run_tool(prefix: &str, decoded_text: &str, table: Option<&LookupTable>) -> To
                 output: value.as_bytes().to_vec(),
             }
         }
+        Some(ToolCall::FileRead(matched, key)) => {
+            // `table_present` gated the scan above, so this is always Some.
+            // Shares LOOKUP's table binding but is a distinct tool identity
+            // with its own miss literal (`NOT-FOUND`, not `NONE`) — see the
+            // module doc comment.
+            let table = table.expect("FILE-READ scanned only when a table is present");
+            let value = table
+                .map
+                .get(key)
+                .map(String::as_str)
+                .unwrap_or("NOT-FOUND");
+            ToolOutcome {
+                name: "file-read",
+                input: matched.as_bytes().to_vec(),
+                output: value.as_bytes().to_vec(),
+            }
+        }
     }
 }
 
@@ -743,7 +803,7 @@ fn run_tool(prefix: &str, decoded_text: &str, table: Option<&LookupTable>) -> To
 /// only reachable defensively).
 fn extract_call_arg(input: &[u8]) -> Option<&str> {
     let s = core::str::from_utf8(input).ok()?;
-    for prefix in ["CALC(", "LOOKUP("] {
+    for prefix in ["CALC(", "LOOKUP(", "FILE-READ("] {
         if let Some(rest) = s.strip_prefix(prefix) {
             return rest.strip_suffix(')');
         }
@@ -3932,6 +3992,147 @@ mod tests {
         assert!(
             !pass,
             "the AEGIS-TRACE header must be required to come first"
+        );
+    }
+
+    // --- file-read tool: grammar, table binding, scanner ---
+
+    #[test]
+    fn find_file_read_matches_valid_key() {
+        let (m, k) = find_file_read("see FILE-READ(README.md) for details").unwrap();
+        assert_eq!(m, "FILE-READ(README.md)");
+        assert_eq!(k, "README.md");
+    }
+
+    #[test]
+    fn find_file_read_rejects_bad_key() {
+        assert!(find_file_read("FILE-READ(../etc/passwd)").is_none());
+        assert!(find_file_read("FILE-READ()").is_none());
+    }
+
+    #[test]
+    fn run_tool_file_read_hit_and_miss() {
+        let t = parse_table(&demo_table_bytes()).unwrap();
+        let hit = run_tool("", "FILE-READ(P-100)", Some(&t));
+        assert_eq!(hit.name, "file-read");
+        assert_eq!(hit.input, b"FILE-READ(P-100)");
+        assert_eq!(hit.output, b"Gasket, O-ring, fuel line");
+
+        let miss = run_tool("", "FILE-READ(P-999)", Some(&t));
+        assert_eq!(miss.name, "file-read");
+        assert_eq!(miss.output, b"NOT-FOUND");
+        // Distinct miss literal from `lookup`'s `NONE` (module doc comment).
+        assert_ne!(miss.output, b"NONE");
+    }
+
+    #[test]
+    fn file_read_is_not_scanned_without_a_table() {
+        let o = run_tool("", "FILE-READ(P-100)", None);
+        assert_eq!(o.name, "no-tool");
+    }
+
+    #[test]
+    fn scanner_picks_earliest_of_three_tools() {
+        let t = parse_table(&demo_table_bytes()).unwrap();
+        let o = run_tool(
+            "",
+            "first FILE-READ(P-100) then LOOKUP(P-205) then CALC(1 + 1)",
+            Some(&t),
+        );
+        assert_eq!(o.name, "file-read");
+    }
+
+    // --- multi-tool episode: one K=3 trace carries CALC + LOOKUP +
+    // FILE-READ, each a distinct tool, chained in order. Hand-written (no
+    // model): the decode-chain digests are fixed dummy bytes, only the
+    // tool triples vary, exactly the shape a synthetic test-vector needs.
+    // ---
+
+    /// The three (name, input, output) triples used by every multitool_*
+    /// test below, in canonical step order 0,1,2.
+    fn multitool_steps() -> [(&'static [u8], &'static [u8], &'static [u8]); 3] {
+        [
+            (b"calc", b"CALC(2 + 2)", b"4"),
+            (b"lookup", b"LOOKUP(P-100)", b"Gasket, O-ring, fuel line"),
+            (b"file-read", b"FILE-READ(P-205)", b"Bolt, 3/8-16 hex head"),
+        ]
+    }
+
+    /// Fold a full episode's steps (in the given order, decode-chain digest
+    /// fixed per step index to keep only the tool triples varying) starting
+    /// from a fixed genesis, returning the final trace-chain.
+    fn fold_episode(genesis: [u8; 32], steps: &[(&[u8], &[u8], &[u8])]) -> [u8; 32] {
+        let mut chain = genesis;
+        for (i, (name, input, output)) in steps.iter().enumerate() {
+            let dd = [(i as u8).wrapping_add(0x10); 32]; // distinct fixed digest per position
+            chain = trace_fold_step(chain, i as u64, &dd, name, input, output);
+        }
+        chain
+    }
+
+    #[test]
+    fn multitool_episode_folds_deterministically() {
+        let genesis = [9u8; 32];
+        let steps = multitool_steps();
+        let a = fold_episode(genesis, &steps);
+        let b = fold_episode(genesis, &steps);
+        assert_eq!(a, b, "identical multi-tool episodes must fold identically");
+    }
+
+    #[test]
+    fn multitool_tamper_swapped_tool_result_fails() {
+        let genesis = [9u8; 32];
+        let good = multitool_steps();
+        let honest = fold_episode(genesis, &good);
+
+        // Swap step 1's and step 2's `out` values (LOOKUP's result now
+        // claimed for FILE-READ's step and vice versa) while leaving every
+        // other field — including `in`/`tool` names and positions — alone.
+        let mut tampered = good;
+        let (out1, out2) = (tampered[1].2, tampered[2].2);
+        tampered[1].2 = out2;
+        tampered[2].2 = out1;
+        let swapped = fold_episode(genesis, &tampered);
+
+        assert_ne!(
+            honest, swapped,
+            "swapping two steps' tool results must change the trace-chain"
+        );
+    }
+
+    #[test]
+    fn multitool_tamper_reordered_calls_fails() {
+        let genesis = [9u8; 32];
+        let good = multitool_steps();
+        let honest = fold_episode(genesis, &good);
+
+        // Same three tool calls, same total K, but replayed calc/lookup/
+        // file-read in a different order — each step's index (folded as
+        // BE u64, see trace_fold_step) now binds a different triple.
+        let reordered = [good[2], good[0], good[1]];
+        let out_of_order = fold_episode(genesis, &reordered);
+
+        assert_ne!(
+            honest, out_of_order,
+            "reordering tool calls across steps must change the trace-chain"
+        );
+    }
+
+    #[test]
+    fn multitool_tamper_dropped_call_fails() {
+        let genesis = [9u8; 32];
+        let good = multitool_steps();
+        let honest = fold_episode(genesis, &good);
+
+        // Drop the middle (LOOKUP) call entirely: K effectively goes from 3
+        // to 2, and the surviving FILE-READ step now folds at position 1
+        // instead of 2.
+        let dropped = [good[0], good[2]];
+        let short = fold_episode(genesis, &dropped);
+
+        assert_ne!(
+            honest, short,
+            "dropping a tool call must change the trace-chain"
         );
     }
 }
