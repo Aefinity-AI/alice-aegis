@@ -1,0 +1,381 @@
+moat-3b stratified experiment -- BitNet-2B, prompt fixed, max_new=64, host aefinity-box, 2026-09-13
+byte->trit LUT verified from aegis-core/src/ops.rs build_unpack_lut(): 2 bits/weight LSB-first per byte, 00=0.0 01=+1.0 10=-1.0 11=undefined(decodes 0.0)
+identity/correctness experiment ONLY -- no timing reported (Rule A)
+
+=== CONTROL (n=5 no-change) ===
+moat3b: class=CONTROL ranges=- bit_lo=0 bit_hi=0 n_trials=5 sweep=false
+baseline: chain=d392891e239a0d42ebffe63117ce382c3079633ac7c37bba44485834f15388e3 generated=[3861, 1938, 11, 1418, 24919, 279, 13952, 11, 1364, 3782, 4028, 264, 15234, 323, 14154, 31348, 5021, 13, 578, 5021, 574, 9960, 304, 15234, 18210, 323, 12912, 430, 9508, 311, 387, 49592, 449, 264, 8579, 11, 8537, 44353, 3177, 382, 43, 8733, 574, 15107, 311, 279, 5021, 323, 6773, 311, 5603, 433, 13, 1666, 1364, 2751, 12401, 11, 1364, 14000, 430, 279, 18210, 389]
+== trials ==
+trial#,class,tensor,byte_off,bit,old,new,A_pass,B_pass,C_pass
+1,CONTROL,-,0,0,0000,0000,PASS,PASS,PASS
+2,CONTROL,-,0,0,0000,0000,PASS,PASS,PASS
+3,CONTROL,-,0,0,0000,0000,PASS,PASS,PASS
+4,CONTROL,-,0,0,0000,0000,PASS,PASS,PASS
+5,CONTROL,-,0,0,0000,0000,PASS,PASS,PASS
+== summary ==
+class=CONTROL n=5 A_pass_AND_C_fail=0 B_pass_AND_C_fail=0
+model_bytes_unchanged_after_run=true embed_bytes_unchanged_after_run=true
+
+=== 1. EMBED-bf16 (n=50, bits 0-2) ===
+moat3b: class=EMBED ranges=- bit_lo=0 bit_hi=2 n_trials=50 sweep=false
+baseline: chain=d392891e239a0d42ebffe63117ce382c3079633ac7c37bba44485834f15388e3 generated=[3861, 1938, 11, 1418, 24919, 279, 13952, 11, 1364, 3782, 4028, 264, 15234, 323, 14154, 31348, 5021, 13, 578, 5021, 574, 9960, 304, 15234, 18210, 323, 12912, 430, 9508, 311, 387, 49592, 449, 264, 8579, 11, 8537, 44353, 3177, 382, 43, 8733, 574, 15107, 311, 279, 5021, 323, 6773, 311, 5603, 433, 13, 1666, 1364, 2751, 12401, 11, 1364, 14000, 430, 279, 18210, 389]
+== trials ==
+trial#,class,tensor,byte_off,bit,old,new,A_pass,B_pass,C_pass
+1,EMBED,embed.bin,98297868,2,bf95,bf91,PASS,PASS,FAIL
+2,EMBED,embed.bin,1498192,2,3e5c,3e58,PASS,PASS,FAIL
+3,EMBED,embed.bin,167971148,1,3fd2,3fd0,PASS,PASS,FAIL
+4,EMBED,embed.bin,141754796,1,3ea2,3ea0,PASS,PASS,FAIL
+5,EMBED,embed.bin,22362686,0,be39,be38,PASS,PASS,FAIL
+6,EMBED,embed.bin,45510054,0,3cbe,3cbf,PASS,PASS,FAIL
+7,EMBED,embed.bin,168063548,1,bbc8,bbca,PASS,PASS,FAIL
+8,EMBED,embed.bin,227599000,1,bfd5,bfd7,PASS,PASS,FAIL
+9,EMBED,embed.bin,41372386,0,bedc,bedd,PASS,PASS,FAIL
+10,EMBED,embed.bin,143992138,1,3ea8,3eaa,PASS,PASS,FAIL
+11,EMBED,embed.bin,103050578,2,bf31,bf35,PASS,PASS,FAIL
+12,EMBED,embed.bin,59068736,2,3f97,3f93,PASS,PASS,FAIL
+13,EMBED,embed.bin,123175348,2,3f1b,3f1f,PASS,PASS,FAIL
+14,EMBED,embed.bin,28294568,1,bf47,bf45,PASS,PASS,FAIL
+15,EMBED,embed.bin,39706940,0,3efd,3efc,PASS,PASS,FAIL
+16,EMBED,embed.bin,246276574,2,bd8c,bd88,PASS,PASS,FAIL
+17,EMBED,embed.bin,81502942,2,3f1c,3f18,PASS,PASS,FAIL
+18,EMBED,embed.bin,52814810,0,be8d,be8c,PASS,PASS,FAIL
+19,EMBED,embed.bin,157682190,1,3d99,3d9b,PASS,PASS,FAIL
+20,EMBED,embed.bin,33046960,1,bc5e,bc5c,PASS,PASS,FAIL
+21,EMBED,embed.bin,108076246,1,3fcf,3fcd,PASS,PASS,FAIL
+22,EMBED,embed.bin,41345002,0,beea,beeb,PASS,PASS,FAIL
+23,EMBED,embed.bin,97269800,1,be03,be01,PASS,PASS,FAIL
+24,EMBED,embed.bin,48252714,2,3ee7,3ee3,PASS,PASS,FAIL
+25,EMBED,embed.bin,3357514,1,3f42,3f40,PASS,PASS,FAIL
+26,EMBED,embed.bin,23772950,0,3f0b,3f0a,PASS,PASS,FAIL
+27,EMBED,embed.bin,102713442,2,3ee3,3ee7,PASS,PASS,FAIL
+28,EMBED,embed.bin,135668952,2,bef9,befd,PASS,PASS,FAIL
+29,EMBED,embed.bin,92751050,1,bed8,beda,PASS,PASS,FAIL
+30,EMBED,embed.bin,60388342,0,3f89,3f88,PASS,PASS,FAIL
+31,EMBED,embed.bin,18589408,2,bf15,bf11,PASS,PASS,FAIL
+32,EMBED,embed.bin,243576306,1,bf19,bf1b,PASS,PASS,FAIL
+33,EMBED,embed.bin,118468994,2,bfa7,bfa3,PASS,PASS,FAIL
+34,EMBED,embed.bin,165943052,1,3e59,3e5b,PASS,PASS,FAIL
+35,EMBED,embed.bin,66197352,2,3f2e,3f2a,PASS,PASS,FAIL
+36,EMBED,embed.bin,147419500,0,be88,be89,PASS,PASS,FAIL
+37,EMBED,embed.bin,233697546,0,bf8d,bf8c,PASS,PASS,FAIL
+38,EMBED,embed.bin,71971604,1,bf49,bf4b,PASS,PASS,FAIL
+39,EMBED,embed.bin,138888410,1,3f4a,3f48,PASS,PASS,FAIL
+40,EMBED,embed.bin,182589734,2,bf8d,bf89,PASS,PASS,FAIL
+41,EMBED,embed.bin,49822560,2,3f56,3f52,PASS,PASS,FAIL
+42,EMBED,embed.bin,128873688,1,bec4,bec6,PASS,PASS,FAIL
+43,EMBED,embed.bin,241144172,1,3f1e,3f1c,PASS,PASS,FAIL
+44,EMBED,embed.bin,43120298,1,3f48,3f4a,PASS,PASS,FAIL
+45,EMBED,embed.bin,37352252,0,bc9c,bc9d,PASS,PASS,FAIL
+46,EMBED,embed.bin,92782570,0,3f82,3f83,PASS,PASS,FAIL
+47,EMBED,embed.bin,153322278,2,3c9a,3c9e,PASS,PASS,FAIL
+48,EMBED,embed.bin,104064116,0,3f27,3f26,PASS,PASS,FAIL
+49,EMBED,embed.bin,39905232,0,3f25,3f24,PASS,PASS,FAIL
+50,EMBED,embed.bin,26456966,2,bfd5,bfd1,PASS,PASS,FAIL
+== summary ==
+class=EMBED n=50 A_pass_AND_C_fail=50 B_pass_AND_C_fail=50
+model_bytes_unchanged_after_run=true embed_bytes_unchanged_after_run=true
+
+=== 2. SCALE-attn (n=40, bits 0-2) ===
+moat3b: class=SCALE_ATTN ranges=../tools/moat3b/scale_attn.csv bit_lo=0 bit_hi=2 n_trials=40 sweep=false
+baseline: chain=d392891e239a0d42ebffe63117ce382c3079633ac7c37bba44485834f15388e3 generated=[3861, 1938, 11, 1418, 24919, 279, 13952, 11, 1364, 3782, 4028, 264, 15234, 323, 14154, 31348, 5021, 13, 578, 5021, 574, 9960, 304, 15234, 18210, 323, 12912, 430, 9508, 311, 387, 49592, 449, 264, 8579, 11, 8537, 44353, 3177, 382, 43, 8733, 574, 15107, 311, 279, 5021, 323, 6773, 311, 5603, 433, 13, 1666, 1364, 2751, 12401, 11, 1364, 14000, 430, 279, 18210, 389]
+== trials ==
+trial#,class,tensor,byte_off,bit,old,new,A_pass,B_pass,C_pass
+1,SCALE_ATTN,model.layers.27.self_attn.q_proj.weight_scale,0,0,0000,0001,FAIL,FAIL,FAIL
+2,SCALE_ATTN,model.layers.28.self_attn.v_proj.weight_scale,0,2,0000,0004,FAIL,FAIL,FAIL
+3,SCALE_ATTN,model.layers.10.self_attn.q_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+4,SCALE_ATTN,model.layers.6.self_attn.v_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+5,SCALE_ATTN,model.layers.11.self_attn.q_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+6,SCALE_ATTN,model.layers.12.self_attn.k_proj.weight_scale,0,1,0000,0002,FAIL,FAIL,FAIL
+7,SCALE_ATTN,model.layers.4.self_attn.v_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+8,SCALE_ATTN,model.layers.27.self_attn.q_proj.weight_scale,0,0,0000,0001,FAIL,FAIL,FAIL
+9,SCALE_ATTN,model.layers.7.self_attn.k_proj.weight_scale,0,1,0000,0002,FAIL,FAIL,FAIL
+10,SCALE_ATTN,model.layers.26.self_attn.q_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+11,SCALE_ATTN,model.layers.16.self_attn.k_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+12,SCALE_ATTN,model.layers.21.self_attn.k_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+13,SCALE_ATTN,model.layers.0.self_attn.q_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+14,SCALE_ATTN,model.layers.14.self_attn.o_proj.weight_scale,0,0,0000,0001,FAIL,FAIL,FAIL
+15,SCALE_ATTN,model.layers.13.self_attn.v_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+16,SCALE_ATTN,model.layers.14.self_attn.o_proj.weight_scale,0,1,0000,0002,FAIL,FAIL,FAIL
+17,SCALE_ATTN,model.layers.16.self_attn.k_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+18,SCALE_ATTN,model.layers.25.self_attn.k_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+19,SCALE_ATTN,model.layers.0.self_attn.q_proj.weight_scale,0,2,0000,0004,FAIL,FAIL,FAIL
+20,SCALE_ATTN,model.layers.4.self_attn.o_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+21,SCALE_ATTN,model.layers.20.self_attn.v_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+22,SCALE_ATTN,model.layers.11.self_attn.v_proj.weight_scale,0,1,0000,0002,FAIL,FAIL,FAIL
+23,SCALE_ATTN,model.layers.8.self_attn.o_proj.weight_scale,0,1,0000,0002,FAIL,FAIL,FAIL
+24,SCALE_ATTN,model.layers.22.self_attn.q_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+25,SCALE_ATTN,model.layers.14.self_attn.v_proj.weight_scale,0,1,0000,0002,FAIL,FAIL,FAIL
+26,SCALE_ATTN,model.layers.3.self_attn.q_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+27,SCALE_ATTN,model.layers.7.self_attn.k_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+28,SCALE_ATTN,model.layers.0.self_attn.q_proj.weight_scale,0,2,0000,0004,FAIL,FAIL,FAIL
+29,SCALE_ATTN,model.layers.22.self_attn.q_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+30,SCALE_ATTN,model.layers.0.self_attn.v_proj.weight_scale,0,0,0000,0001,FAIL,FAIL,FAIL
+31,SCALE_ATTN,model.layers.22.self_attn.q_proj.weight_scale,0,0,0000,0001,FAIL,FAIL,FAIL
+32,SCALE_ATTN,model.layers.19.self_attn.k_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+33,SCALE_ATTN,model.layers.17.self_attn.o_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+34,SCALE_ATTN,model.layers.8.self_attn.k_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+35,SCALE_ATTN,model.layers.7.self_attn.k_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+36,SCALE_ATTN,model.layers.10.self_attn.q_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+37,SCALE_ATTN,model.layers.9.self_attn.q_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+38,SCALE_ATTN,model.layers.24.self_attn.k_proj.weight_scale,0,1,0000,0002,FAIL,FAIL,FAIL
+39,SCALE_ATTN,model.layers.9.self_attn.o_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+40,SCALE_ATTN,model.layers.3.self_attn.o_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+== summary ==
+class=SCALE_ATTN n=40 A_pass_AND_C_fail=25 B_pass_AND_C_fail=0
+model_bytes_unchanged_after_run=true embed_bytes_unchanged_after_run=true
+
+=== 3. SCALE-ffn (n=40, bits 0-2) ===
+moat3b: class=SCALE_FFN ranges=../tools/moat3b/scale_ffn.csv bit_lo=0 bit_hi=2 n_trials=40 sweep=false
+baseline: chain=d392891e239a0d42ebffe63117ce382c3079633ac7c37bba44485834f15388e3 generated=[3861, 1938, 11, 1418, 24919, 279, 13952, 11, 1364, 3782, 4028, 264, 15234, 323, 14154, 31348, 5021, 13, 578, 5021, 574, 9960, 304, 15234, 18210, 323, 12912, 430, 9508, 311, 387, 49592, 449, 264, 8579, 11, 8537, 44353, 3177, 382, 43, 8733, 574, 15107, 311, 279, 5021, 323, 6773, 311, 5603, 433, 13, 1666, 1364, 2751, 12401, 11, 1364, 14000, 430, 279, 18210, 389]
+== trials ==
+trial#,class,tensor,byte_off,bit,old,new,A_pass,B_pass,C_pass
+1,SCALE_FFN,model.layers.0.mlp.gate_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+2,SCALE_FFN,model.layers.5.mlp.gate_proj.weight_scale,0,0,0000,0001,PASS,PASS,PASS
+3,SCALE_FFN,model.layers.26.mlp.gate_proj.weight_scale,0,0,0000,0001,PASS,PASS,PASS
+4,SCALE_FFN,model.layers.0.mlp.gate_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+5,SCALE_FFN,model.layers.4.mlp.up_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+6,SCALE_FFN,model.layers.4.mlp.gate_proj.weight_scale,0,2,0000,0004,FAIL,FAIL,FAIL
+7,SCALE_FFN,model.layers.1.mlp.down_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+8,SCALE_FFN,model.layers.6.mlp.up_proj.weight_scale,0,2,0000,0004,FAIL,FAIL,FAIL
+9,SCALE_FFN,model.layers.4.mlp.up_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+10,SCALE_FFN,model.layers.12.mlp.down_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+11,SCALE_FFN,model.layers.25.mlp.gate_proj.weight_scale,0,0,0000,0001,PASS,PASS,PASS
+12,SCALE_FFN,model.layers.26.mlp.gate_proj.weight_scale,0,0,0000,0001,PASS,PASS,PASS
+13,SCALE_FFN,model.layers.12.mlp.down_proj.weight_scale,0,2,0000,0004,FAIL,FAIL,FAIL
+14,SCALE_FFN,model.layers.8.mlp.up_proj.weight_scale,0,1,0000,0002,FAIL,FAIL,FAIL
+15,SCALE_FFN,model.layers.24.mlp.gate_proj.weight_scale,0,1,0000,0002,PASS,PASS,PASS
+16,SCALE_FFN,model.layers.11.mlp.gate_proj.weight_scale,0,1,0000,0002,PASS,PASS,PASS
+17,SCALE_FFN,model.layers.29.mlp.up_proj.weight_scale,0,1,0000,0002,PASS,PASS,PASS
+18,SCALE_FFN,model.layers.2.mlp.down_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+19,SCALE_FFN,model.layers.28.mlp.up_proj.weight_scale,0,1,0000,0002,PASS,PASS,PASS
+20,SCALE_FFN,model.layers.22.mlp.down_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+21,SCALE_FFN,model.layers.2.mlp.gate_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+22,SCALE_FFN,model.layers.3.mlp.down_proj.weight_scale,0,0,0000,0001,FAIL,FAIL,FAIL
+23,SCALE_FFN,model.layers.20.mlp.down_proj.weight_scale,0,2,0000,0004,FAIL,FAIL,FAIL
+24,SCALE_FFN,model.layers.24.mlp.down_proj.weight_scale,0,1,0000,0002,PASS,FAIL,FAIL
+25,SCALE_FFN,model.layers.0.mlp.gate_proj.weight_scale,0,2,0000,0004,FAIL,FAIL,FAIL
+26,SCALE_FFN,model.layers.15.mlp.gate_proj.weight_scale,0,0,0000,0001,PASS,PASS,PASS
+27,SCALE_FFN,model.layers.17.mlp.up_proj.weight_scale,0,1,0000,0002,PASS,PASS,PASS
+28,SCALE_FFN,model.layers.11.mlp.up_proj.weight_scale,0,0,0000,0001,PASS,PASS,PASS
+29,SCALE_FFN,model.layers.15.mlp.down_proj.weight_scale,0,2,0000,0004,PASS,FAIL,FAIL
+30,SCALE_FFN,model.layers.15.mlp.down_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+31,SCALE_FFN,model.layers.11.mlp.down_proj.weight_scale,0,2,0000,0004,FAIL,FAIL,FAIL
+32,SCALE_FFN,model.layers.4.mlp.down_proj.weight_scale,0,0,0000,0001,PASS,FAIL,FAIL
+33,SCALE_FFN,model.layers.15.mlp.up_proj.weight_scale,0,0,0000,0001,PASS,PASS,PASS
+34,SCALE_FFN,model.layers.6.mlp.up_proj.weight_scale,0,1,0000,0002,FAIL,FAIL,FAIL
+35,SCALE_FFN,model.layers.12.mlp.up_proj.weight_scale,0,2,0000,0004,PASS,PASS,PASS
+36,SCALE_FFN,model.layers.18.mlp.up_proj.weight_scale,0,1,0000,0002,PASS,PASS,PASS
+37,SCALE_FFN,model.layers.16.mlp.up_proj.weight_scale,0,2,0000,0004,PASS,PASS,PASS
+38,SCALE_FFN,model.layers.28.mlp.down_proj.weight_scale,0,2,0000,0004,PASS,PASS,PASS
+39,SCALE_FFN,model.layers.9.mlp.up_proj.weight_scale,0,0,0000,0001,FAIL,FAIL,FAIL
+40,SCALE_FFN,model.layers.23.mlp.up_proj.weight_scale,0,2,0000,0004,PASS,PASS,PASS
+== summary ==
+class=SCALE_FFN n=40 A_pass_AND_C_fail=13 B_pass_AND_C_fail=0
+model_bytes_unchanged_after_run=true embed_bytes_unchanged_after_run=true
+
+=== 4. TRIT-attn (n=35, neighbour-code remap) ===
+moat3b: class=TRIT_ATTN ranges=../tools/moat3b/trit_attn.csv bit_lo=0 bit_hi=0 n_trials=35 sweep=false
+baseline: chain=d392891e239a0d42ebffe63117ce382c3079633ac7c37bba44485834f15388e3 generated=[3861, 1938, 11, 1418, 24919, 279, 13952, 11, 1364, 3782, 4028, 264, 15234, 323, 14154, 31348, 5021, 13, 578, 5021, 574, 9960, 304, 15234, 18210, 323, 12912, 430, 9508, 311, 387, 49592, 449, 264, 8579, 11, 8537, 44353, 3177, 382, 43, 8733, 574, 15107, 311, 279, 5021, 323, 6773, 311, 5603, 433, 13, 1666, 1364, 2751, 12401, 11, 1364, 14000, 430, 279, 18210, 389]
+== trials ==
+trial#,class,tensor,byte_off,bit,old,new,A_pass,B_pass,C_pass
+1,TRIT_ATTN,model.layers.2.self_attn.k_proj.weight,310384,3,005a,001a,PASS,FAIL,FAIL
+2,TRIT_ATTN,model.layers.12.self_attn.q_proj.weight,536568,1,0044,0040,FAIL,FAIL,FAIL
+3,TRIT_ATTN,model.layers.1.self_attn.k_proj.weight,156193,3,0066,0026,FAIL,FAIL,FAIL
+4,TRIT_ATTN,model.layers.13.self_attn.o_proj.weight,1495943,3,0048,0008,PASS,FAIL,FAIL
+5,TRIT_ATTN,model.layers.15.self_attn.o_proj.weight,1189551,0,0018,0019,FAIL,FAIL,FAIL
+6,TRIT_ATTN,model.layers.27.self_attn.o_proj.weight,407511,3,008a,000a,FAIL,FAIL,FAIL
+7,TRIT_ATTN,model.layers.3.self_attn.q_proj.weight,1474379,1,0064,0060,FAIL,FAIL,FAIL
+8,TRIT_ATTN,model.layers.29.self_attn.v_proj.weight,394467,1,0049,0041,PASS,FAIL,FAIL
+9,TRIT_ATTN,model.layers.6.self_attn.q_proj.weight,615707,3,0000,0040,FAIL,FAIL,FAIL
+10,TRIT_ATTN,model.layers.16.self_attn.o_proj.weight,1293728,0,0009,0008,FAIL,FAIL,FAIL
+11,TRIT_ATTN,model.layers.5.self_attn.o_proj.weight,479571,3,00a5,0025,FAIL,FAIL,FAIL
+12,TRIT_ATTN,model.layers.9.self_attn.o_proj.weight,304045,3,0092,0012,FAIL,FAIL,FAIL
+13,TRIT_ATTN,model.layers.8.self_attn.o_proj.weight,608241,2,0040,0050,FAIL,FAIL,FAIL
+14,TRIT_ATTN,model.layers.26.self_attn.o_proj.weight,664751,2,001a,000a,PASS,FAIL,FAIL
+15,TRIT_ATTN,model.layers.28.self_attn.o_proj.weight,552843,0,0098,0099,PASS,PASS,FAIL
+16,TRIT_ATTN,model.layers.22.self_attn.o_proj.weight,1031542,2,001a,000a,FAIL,FAIL,FAIL
+17,TRIT_ATTN,model.layers.9.self_attn.o_proj.weight,1574936,3,0081,0001,PASS,FAIL,FAIL
+18,TRIT_ATTN,model.layers.6.self_attn.o_proj.weight,770216,3,0088,0008,PASS,FAIL,FAIL
+19,TRIT_ATTN,model.layers.23.self_attn.k_proj.weight,64988,3,0011,0051,FAIL,FAIL,FAIL
+20,TRIT_ATTN,model.layers.7.self_attn.k_proj.weight,201879,0,0022,0020,PASS,FAIL,FAIL
+21,TRIT_ATTN,model.layers.12.self_attn.q_proj.weight,1151060,0,0000,0001,PASS,FAIL,FAIL
+22,TRIT_ATTN,model.layers.24.self_attn.o_proj.weight,574168,3,0016,0056,PASS,FAIL,FAIL
+23,TRIT_ATTN,model.layers.22.self_attn.q_proj.weight,360686,1,0062,0066,PASS,FAIL,FAIL
+24,TRIT_ATTN,model.layers.9.self_attn.q_proj.weight,975368,0,0099,0098,PASS,FAIL,FAIL
+25,TRIT_ATTN,model.layers.7.self_attn.v_proj.weight,343846,2,0056,0046,FAIL,FAIL,FAIL
+26,TRIT_ATTN,model.layers.16.self_attn.o_proj.weight,508191,3,0021,0061,PASS,FAIL,FAIL
+27,TRIT_ATTN,model.layers.27.self_attn.o_proj.weight,238820,3,0022,0062,PASS,FAIL,FAIL
+28,TRIT_ATTN,model.layers.0.self_attn.q_proj.weight,951099,1,0000,0004,PASS,FAIL,FAIL
+29,TRIT_ATTN,model.layers.29.self_attn.q_proj.weight,151447,3,0006,0046,PASS,FAIL,FAIL
+30,TRIT_ATTN,model.layers.16.self_attn.v_proj.weight,130306,0,0092,0090,FAIL,FAIL,FAIL
+31,TRIT_ATTN,model.layers.26.self_attn.q_proj.weight,518475,0,00a8,00a9,PASS,FAIL,FAIL
+32,TRIT_ATTN,model.layers.24.self_attn.o_proj.weight,1086443,3,0022,0062,FAIL,FAIL,FAIL
+33,TRIT_ATTN,model.layers.23.self_attn.o_proj.weight,297852,1,0021,0025,FAIL,FAIL,FAIL
+34,TRIT_ATTN,model.layers.20.self_attn.o_proj.weight,553650,1,00a5,00a1,PASS,FAIL,FAIL
+35,TRIT_ATTN,model.layers.15.self_attn.q_proj.weight,705754,2,00a4,0084,FAIL,FAIL,FAIL
+== summary ==
+class=TRIT_ATTN n=35 A_pass_AND_C_fail=18 B_pass_AND_C_fail=1
+model_bytes_unchanged_after_run=true embed_bytes_unchanged_after_run=true
+
+=== 5. TRIT-ffn (n=35, neighbour-code remap) ===
+moat3b: class=TRIT_FFN ranges=../tools/moat3b/trit_ffn.csv bit_lo=0 bit_hi=0 n_trials=35 sweep=false
+baseline: chain=d392891e239a0d42ebffe63117ce382c3079633ac7c37bba44485834f15388e3 generated=[3861, 1938, 11, 1418, 24919, 279, 13952, 11, 1364, 3782, 4028, 264, 15234, 323, 14154, 31348, 5021, 13, 578, 5021, 574, 9960, 304, 15234, 18210, 323, 12912, 430, 9508, 311, 387, 49592, 449, 264, 8579, 11, 8537, 44353, 3177, 382, 43, 8733, 574, 15107, 311, 279, 5021, 323, 6773, 311, 5603, 433, 13, 1666, 1364, 2751, 12401, 11, 1364, 14000, 430, 279, 18210, 389]
+== trials ==
+trial#,class,tensor,byte_off,bit,old,new,A_pass,B_pass,C_pass
+1,TRIT_FFN,model.layers.8.mlp.up_proj.weight,3250573,2,0012,0002,FAIL,FAIL,FAIL
+2,TRIT_FFN,model.layers.2.mlp.down_proj.weight,2854735,0,0041,0040,PASS,FAIL,FAIL
+3,TRIT_FFN,model.layers.4.mlp.up_proj.weight,2568225,2,0010,0000,FAIL,FAIL,FAIL
+4,TRIT_FFN,model.layers.13.mlp.gate_proj.weight,1596142,2,009a,008a,PASS,FAIL,FAIL
+5,TRIT_FFN,model.layers.14.mlp.gate_proj.weight,681847,1,0024,0020,PASS,FAIL,FAIL
+6,TRIT_FFN,model.layers.28.mlp.down_proj.weight,2576193,3,0066,0026,PASS,PASS,PASS
+7,TRIT_FFN,model.layers.3.mlp.down_proj.weight,3802971,2,0064,0044,PASS,FAIL,FAIL
+8,TRIT_FFN,model.layers.17.mlp.down_proj.weight,1991298,0,0099,0098,PASS,FAIL,FAIL
+9,TRIT_FFN,model.layers.7.mlp.up_proj.weight,4126985,1,0026,0022,PASS,PASS,PASS
+10,TRIT_FFN,model.layers.15.mlp.down_proj.weight,2497352,1,00a1,00a5,PASS,FAIL,FAIL
+11,TRIT_FFN,model.layers.5.mlp.gate_proj.weight,841276,2,0040,0050,FAIL,FAIL,FAIL
+12,TRIT_FFN,model.layers.5.mlp.up_proj.weight,3511239,3,0018,0058,PASS,FAIL,FAIL
+13,TRIT_FFN,model.layers.16.mlp.down_proj.weight,3775755,2,0056,0046,PASS,FAIL,FAIL
+14,TRIT_FFN,model.layers.27.mlp.down_proj.weight,3336265,1,0029,0021,PASS,FAIL,FAIL
+15,TRIT_FFN,model.layers.2.mlp.up_proj.weight,1565501,2,0020,0000,FAIL,FAIL,FAIL
+16,TRIT_FFN,model.layers.9.mlp.down_proj.weight,2936450,0,001a,0018,PASS,FAIL,FAIL
+17,TRIT_FFN,model.layers.21.mlp.down_proj.weight,896539,0,0008,0009,PASS,FAIL,FAIL
+18,TRIT_FFN,model.layers.2.mlp.gate_proj.weight,4338986,2,0000,0010,PASS,PASS,PASS
+19,TRIT_FFN,model.layers.19.mlp.down_proj.weight,2660035,2,00a4,0084,FAIL,FAIL,FAIL
+20,TRIT_FFN,model.layers.23.mlp.gate_proj.weight,2445927,3,0005,0045,FAIL,FAIL,FAIL
+21,TRIT_FFN,model.layers.21.mlp.down_proj.weight,2452327,1,0020,0024,PASS,FAIL,FAIL
+22,TRIT_FFN,model.layers.13.mlp.down_proj.weight,3305168,0,0046,0044,PASS,FAIL,FAIL
+23,TRIT_FFN,model.layers.11.mlp.gate_proj.weight,4291463,0,0025,0024,PASS,FAIL,FAIL
+24,TRIT_FFN,model.layers.28.mlp.up_proj.weight,3863061,2,0022,0002,PASS,PASS,PASS
+25,TRIT_FFN,model.layers.5.mlp.down_proj.weight,2153238,0,006a,0068,PASS,FAIL,FAIL
+26,TRIT_FFN,model.layers.23.mlp.down_proj.weight,3267469,2,0000,0010,PASS,FAIL,FAIL
+27,TRIT_FFN,model.layers.22.mlp.down_proj.weight,1160449,0,0085,0084,PASS,PASS,PASS
+28,TRIT_FFN,model.layers.20.mlp.gate_proj.weight,1177164,3,0051,0011,PASS,FAIL,FAIL
+29,TRIT_FFN,model.layers.5.mlp.up_proj.weight,2086288,0,0052,0050,FAIL,FAIL,FAIL
+30,TRIT_FFN,model.layers.15.mlp.gate_proj.weight,2326496,0,009a,0098,FAIL,FAIL,FAIL
+31,TRIT_FFN,model.layers.28.mlp.down_proj.weight,3577164,1,00a5,00a1,PASS,PASS,PASS
+32,TRIT_FFN,model.layers.0.mlp.gate_proj.weight,1513145,3,0092,0012,PASS,FAIL,FAIL
+33,TRIT_FFN,model.layers.7.mlp.gate_proj.weight,279982,1,0084,0080,PASS,FAIL,FAIL
+34,TRIT_FFN,model.layers.3.mlp.up_proj.weight,3277713,2,0054,0044,FAIL,FAIL,FAIL
+35,TRIT_FFN,model.layers.5.mlp.up_proj.weight,2442634,2,0004,0014,FAIL,FAIL,FAIL
+== summary ==
+class=TRIT_FFN n=35 A_pass_AND_C_fail=19 B_pass_AND_C_fail=0
+model_bytes_unchanged_after_run=true embed_bytes_unchanged_after_run=true
+
+=== bit-position sweep, bits 3-5, 10 trials/bit, class 1 (EMBED) ===
+moat3b: class=EMBED ranges=- bit_lo=3 bit_hi=5 n_trials=10 sweep=true
+baseline: chain=d392891e239a0d42ebffe63117ce382c3079633ac7c37bba44485834f15388e3 generated=[3861, 1938, 11, 1418, 24919, 279, 13952, 11, 1364, 3782, 4028, 264, 15234, 323, 14154, 31348, 5021, 13, 578, 5021, 574, 9960, 304, 15234, 18210, 323, 12912, 430, 9508, 311, 387, 49592, 449, 264, 8579, 11, 8537, 44353, 3177, 382, 43, 8733, 574, 15107, 311, 279, 5021, 323, 6773, 311, 5603, 433, 13, 1666, 1364, 2751, 12401, 11, 1364, 14000, 430, 279, 18210, 389]
+== trials ==
+trial#,class,tensor,byte_off,bit,old,new,A_pass,B_pass,C_pass
+1,EMBED,embed.bin,179773930,3,bed0,bed8,PASS,PASS,FAIL
+2,EMBED,embed.bin,58406696,3,bf43,bf4b,PASS,PASS,FAIL
+3,EMBED,embed.bin,165671250,3,bf41,bf49,PASS,PASS,FAIL
+4,EMBED,embed.bin,127866216,3,3e9a,3e92,PASS,PASS,FAIL
+5,EMBED,embed.bin,153973974,3,bf0f,bf07,PASS,PASS,FAIL
+6,EMBED,embed.bin,218787428,3,3f72,3f7a,PASS,PASS,FAIL
+7,EMBED,embed.bin,29423534,3,bf61,bf69,PASS,PASS,FAIL
+8,EMBED,embed.bin,19508706,3,3f68,3f60,PASS,PASS,FAIL
+9,EMBED,embed.bin,100199872,3,3f39,3f31,PASS,PASS,FAIL
+10,EMBED,embed.bin,144212588,3,3e67,3e6f,PASS,PASS,FAIL
+11,EMBED,embed.bin,243100254,4,3eb4,3ea4,PASS,PASS,FAIL
+12,EMBED,embed.bin,181101802,4,3f82,3f92,PASS,PASS,FAIL
+13,EMBED,embed.bin,255193524,4,bb1d,bb0d,PASS,PASS,FAIL
+14,EMBED,embed.bin,151386392,4,3dd8,3dc8,PASS,PASS,FAIL
+15,EMBED,embed.bin,12201090,4,becc,bedc,PASS,PASS,FAIL
+16,EMBED,embed.bin,237575138,4,be5f,be4f,PASS,PASS,FAIL
+17,EMBED,embed.bin,150684538,4,bf94,bf84,PASS,PASS,FAIL
+18,EMBED,embed.bin,139096004,4,bf1d,bf0d,PASS,PASS,FAIL
+19,EMBED,embed.bin,126677746,4,be85,be95,PASS,PASS,FAIL
+20,EMBED,embed.bin,39290852,4,3ee3,3ef3,PASS,PASS,FAIL
+21,EMBED,embed.bin,49639304,5,be52,be72,PASS,PASS,FAIL
+22,EMBED,embed.bin,43624576,5,3e29,3e09,PASS,PASS,FAIL
+23,EMBED,embed.bin,111381214,5,3e18,3e38,PASS,PASS,FAIL
+24,EMBED,embed.bin,122922644,5,3e67,3e47,PASS,PASS,FAIL
+25,EMBED,embed.bin,51052358,5,3ea1,3e81,PASS,PASS,FAIL
+26,EMBED,embed.bin,182226294,5,bc9c,bcbc,PASS,PASS,FAIL
+27,EMBED,embed.bin,253905134,5,3f21,3f01,PASS,PASS,FAIL
+28,EMBED,embed.bin,118481474,5,be91,beb1,PASS,PASS,FAIL
+29,EMBED,embed.bin,123749804,5,bf37,bf17,PASS,PASS,FAIL
+30,EMBED,embed.bin,22921044,5,bf21,bf01,PASS,PASS,FAIL
+== summary ==
+class=EMBED n=30 A_pass_AND_C_fail=30 B_pass_AND_C_fail=30
+model_bytes_unchanged_after_run=true embed_bytes_unchanged_after_run=true
+
+=== bit-position sweep, bits 3-5, 10 trials/bit, class 2 (SCALE-attn) ===
+moat3b: class=SCALE_ATTN ranges=../tools/moat3b/scale_attn.csv bit_lo=3 bit_hi=5 n_trials=10 sweep=true
+baseline: chain=d392891e239a0d42ebffe63117ce382c3079633ac7c37bba44485834f15388e3 generated=[3861, 1938, 11, 1418, 24919, 279, 13952, 11, 1364, 3782, 4028, 264, 15234, 323, 14154, 31348, 5021, 13, 578, 5021, 574, 9960, 304, 15234, 18210, 323, 12912, 430, 9508, 311, 387, 49592, 449, 264, 8579, 11, 8537, 44353, 3177, 382, 43, 8733, 574, 15107, 311, 279, 5021, 323, 6773, 311, 5603, 433, 13, 1666, 1364, 2751, 12401, 11, 1364, 14000, 430, 279, 18210, 389]
+== trials ==
+trial#,class,tensor,byte_off,bit,old,new,A_pass,B_pass,C_pass
+1,SCALE_ATTN,model.layers.7.self_attn.k_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+2,SCALE_ATTN,model.layers.21.self_attn.q_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+3,SCALE_ATTN,model.layers.28.self_attn.o_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+4,SCALE_ATTN,model.layers.0.self_attn.v_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+5,SCALE_ATTN,model.layers.3.self_attn.o_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+6,SCALE_ATTN,model.layers.24.self_attn.o_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+7,SCALE_ATTN,model.layers.2.self_attn.v_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+8,SCALE_ATTN,model.layers.15.self_attn.k_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+9,SCALE_ATTN,model.layers.8.self_attn.o_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+10,SCALE_ATTN,model.layers.1.self_attn.o_proj.weight_scale,0,3,0000,0008,FAIL,FAIL,FAIL
+11,SCALE_ATTN,model.layers.2.self_attn.o_proj.weight_scale,0,4,0000,0010,FAIL,FAIL,FAIL
+12,SCALE_ATTN,model.layers.16.self_attn.q_proj.weight_scale,0,4,0000,0010,FAIL,FAIL,FAIL
+13,SCALE_ATTN,model.layers.0.self_attn.q_proj.weight_scale,0,4,0000,0010,FAIL,FAIL,FAIL
+14,SCALE_ATTN,model.layers.1.self_attn.o_proj.weight_scale,0,4,0000,0010,PASS,FAIL,FAIL
+15,SCALE_ATTN,model.layers.28.self_attn.o_proj.weight_scale,0,4,0000,0010,PASS,FAIL,FAIL
+16,SCALE_ATTN,model.layers.2.self_attn.k_proj.weight_scale,0,4,0000,0010,PASS,FAIL,FAIL
+17,SCALE_ATTN,model.layers.2.self_attn.o_proj.weight_scale,0,4,0000,0010,FAIL,FAIL,FAIL
+18,SCALE_ATTN,model.layers.4.self_attn.q_proj.weight_scale,0,4,0000,0010,PASS,FAIL,FAIL
+19,SCALE_ATTN,model.layers.12.self_attn.v_proj.weight_scale,0,4,0000,0010,FAIL,FAIL,FAIL
+20,SCALE_ATTN,model.layers.23.self_attn.q_proj.weight_scale,0,4,0000,0010,PASS,FAIL,FAIL
+21,SCALE_ATTN,model.layers.19.self_attn.o_proj.weight_scale,0,5,0000,0020,FAIL,FAIL,FAIL
+22,SCALE_ATTN,model.layers.25.self_attn.v_proj.weight_scale,0,5,0000,0020,PASS,FAIL,FAIL
+23,SCALE_ATTN,model.layers.3.self_attn.o_proj.weight_scale,0,5,0000,0020,PASS,FAIL,FAIL
+24,SCALE_ATTN,model.layers.3.self_attn.v_proj.weight_scale,0,5,0000,0020,PASS,FAIL,FAIL
+25,SCALE_ATTN,model.layers.15.self_attn.k_proj.weight_scale,0,5,0000,0020,PASS,FAIL,FAIL
+26,SCALE_ATTN,model.layers.28.self_attn.q_proj.weight_scale,0,5,0000,0020,PASS,FAIL,FAIL
+27,SCALE_ATTN,model.layers.0.self_attn.o_proj.weight_scale,0,5,0000,0020,FAIL,FAIL,FAIL
+28,SCALE_ATTN,model.layers.9.self_attn.k_proj.weight_scale,0,5,0000,0020,PASS,FAIL,FAIL
+29,SCALE_ATTN,model.layers.29.self_attn.o_proj.weight_scale,0,5,0000,0020,PASS,PASS,FAIL
+30,SCALE_ATTN,model.layers.0.self_attn.k_proj.weight_scale,0,5,0000,0020,PASS,FAIL,FAIL
+== summary ==
+class=SCALE_ATTN n=30 A_pass_AND_C_fail=22 B_pass_AND_C_fail=1
+model_bytes_unchanged_after_run=true embed_bytes_unchanged_after_run=true
+
+=== bit-position sweep, bits 3-5, 10 trials/bit, class 3 (SCALE-ffn) ===
+moat3b: class=SCALE_FFN ranges=../tools/moat3b/scale_ffn.csv bit_lo=3 bit_hi=5 n_trials=10 sweep=true
+baseline: chain=d392891e239a0d42ebffe63117ce382c3079633ac7c37bba44485834f15388e3 generated=[3861, 1938, 11, 1418, 24919, 279, 13952, 11, 1364, 3782, 4028, 264, 15234, 323, 14154, 31348, 5021, 13, 578, 5021, 574, 9960, 304, 15234, 18210, 323, 12912, 430, 9508, 311, 387, 49592, 449, 264, 8579, 11, 8537, 44353, 3177, 382, 43, 8733, 574, 15107, 311, 279, 5021, 323, 6773, 311, 5603, 433, 13, 1666, 1364, 2751, 12401, 11, 1364, 14000, 430, 279, 18210, 389]
+== trials ==
+trial#,class,tensor,byte_off,bit,old,new,A_pass,B_pass,C_pass
+1,SCALE_FFN,model.layers.1.mlp.up_proj.weight_scale,0,3,0000,0008,FAIL,FAIL,FAIL
+2,SCALE_FFN,model.layers.7.mlp.down_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+3,SCALE_FFN,model.layers.27.mlp.up_proj.weight_scale,0,3,0000,0008,PASS,PASS,PASS
+4,SCALE_FFN,model.layers.11.mlp.gate_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+5,SCALE_FFN,model.layers.11.mlp.down_proj.weight_scale,0,3,0000,0008,FAIL,FAIL,FAIL
+6,SCALE_FFN,model.layers.8.mlp.gate_proj.weight_scale,0,3,0000,0008,PASS,PASS,PASS
+7,SCALE_FFN,model.layers.13.mlp.down_proj.weight_scale,0,3,0000,0008,PASS,FAIL,FAIL
+8,SCALE_FFN,model.layers.22.mlp.up_proj.weight_scale,0,3,0000,0008,PASS,PASS,PASS
+9,SCALE_FFN,model.layers.16.mlp.gate_proj.weight_scale,0,3,0000,0008,PASS,PASS,PASS
+10,SCALE_FFN,model.layers.6.mlp.down_proj.weight_scale,0,3,0000,0008,FAIL,FAIL,FAIL
+11,SCALE_FFN,model.layers.29.mlp.down_proj.weight_scale,0,4,0000,0010,PASS,PASS,PASS
+12,SCALE_FFN,model.layers.23.mlp.gate_proj.weight_scale,0,4,0000,0010,PASS,PASS,PASS
+13,SCALE_FFN,model.layers.11.mlp.gate_proj.weight_scale,0,4,0000,0010,PASS,PASS,PASS
+14,SCALE_FFN,model.layers.25.mlp.up_proj.weight_scale,0,4,0000,0010,PASS,PASS,PASS
+15,SCALE_FFN,model.layers.15.mlp.down_proj.weight_scale,0,4,0000,0010,PASS,FAIL,FAIL
+16,SCALE_FFN,model.layers.8.mlp.down_proj.weight_scale,0,4,0000,0010,FAIL,FAIL,FAIL
+17,SCALE_FFN,model.layers.15.mlp.up_proj.weight_scale,0,4,0000,0010,PASS,PASS,PASS
+18,SCALE_FFN,model.layers.28.mlp.gate_proj.weight_scale,0,4,0000,0010,PASS,PASS,PASS
+19,SCALE_FFN,model.layers.10.mlp.gate_proj.weight_scale,0,4,0000,0010,PASS,PASS,PASS
+20,SCALE_FFN,model.layers.19.mlp.gate_proj.weight_scale,0,4,0000,0010,PASS,PASS,PASS
+21,SCALE_FFN,model.layers.3.mlp.gate_proj.weight_scale,0,5,0000,0020,FAIL,FAIL,FAIL
+22,SCALE_FFN,model.layers.5.mlp.up_proj.weight_scale,0,5,0000,0020,PASS,PASS,PASS
+23,SCALE_FFN,model.layers.28.mlp.up_proj.weight_scale,0,5,0000,0020,PASS,PASS,PASS
+24,SCALE_FFN,model.layers.28.mlp.up_proj.weight_scale,0,5,0000,0020,PASS,PASS,PASS
+25,SCALE_FFN,model.layers.27.mlp.up_proj.weight_scale,0,5,0000,0020,PASS,PASS,PASS
+26,SCALE_FFN,model.layers.24.mlp.gate_proj.weight_scale,0,5,0000,0020,PASS,PASS,PASS
+27,SCALE_FFN,model.layers.29.mlp.up_proj.weight_scale,0,5,0000,0020,PASS,PASS,PASS
+28,SCALE_FFN,model.layers.15.mlp.up_proj.weight_scale,0,5,0000,0020,PASS,PASS,PASS
+29,SCALE_FFN,model.layers.22.mlp.gate_proj.weight_scale,0,5,0000,0020,PASS,FAIL,FAIL
+30,SCALE_FFN,model.layers.22.mlp.up_proj.weight_scale,0,5,0000,0020,PASS,PASS,PASS
+== summary ==
+class=SCALE_FFN n=30 A_pass_AND_C_fail=5 B_pass_AND_C_fail=0
+model_bytes_unchanged_after_run=true embed_bytes_unchanged_after_run=true
+
+ALL DONE
