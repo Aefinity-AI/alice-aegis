@@ -124,5 +124,51 @@ class MultiStepTest(unittest.TestCase):
         self.assertEqual(check_receipt_text(r)[:2], ("lookup", "P-901"))
 
 
+class StrictGroundingTest(unittest.TestCase):
+    """Unit tests for strict grounding mode."""
+
+    def test_ungrounded_argument_flags_in_lenient_mode(self):
+        """An argument not in context should FLAG (warn) in lenient mode."""
+        # P-777 never appears in any prompt query or prior tool result
+        r = episode(LSHOTS + "Q: part P-901\nA:",
+                    [("lookup", "LOOKUP(P-901)", "see P-902"),
+                     ("lookup", "LOOKUP(P-777)", "")])
+        steps = check_receipt_steps(r, strict_grounding=False)
+        self.assertEqual(steps[1][4], "FLAG")
+
+    def test_ungrounded_argument_fails_in_strict_mode(self):
+        """An argument not in context should FAIL in strict mode."""
+        # P-777 never appears in any prompt query or prior tool result
+        r = episode(LSHOTS + "Q: part P-901\nA:",
+                    [("lookup", "LOOKUP(P-901)", "see P-902"),
+                     ("lookup", "LOOKUP(P-777)", "")])
+        steps = check_receipt_steps(r, strict_grounding=True)
+        self.assertEqual(steps[1][4], "FAIL")
+
+    def test_grounded_argument_passes_both_modes(self):
+        """An argument from a tool result should be 'ok-tool' in both modes."""
+        r = episode(LSHOTS + "Q: part P-901\nA:",
+                    [("lookup", "LOOKUP(P-901)", "see P-902"),
+                     ("lookup", "LOOKUP(P-902)", "widget")])
+        # Test lenient mode
+        steps_lenient = check_receipt_steps(r, strict_grounding=False)
+        self.assertEqual(steps_lenient[1][4], "ok-tool")
+        # Test strict mode
+        steps_strict = check_receipt_steps(r, strict_grounding=True)
+        self.assertEqual(steps_strict[1][4], "ok-tool")
+
+    def test_shot_copy_ungrounded_in_step0_flags_lenient(self):
+        """A shot-copied argument at step 0 should FLAG in lenient mode."""
+        r = receipt(SHOTS + "Q: two + two\nA:", "calc", "CALC(2 + 2)")
+        verdict = check_receipt_text(r, strict_grounding=False)[3]
+        self.assertEqual(verdict, "FLAG")
+
+    def test_shot_copy_ungrounded_in_step0_fails_strict(self):
+        """A shot-copied argument at step 0 should FAIL in strict mode."""
+        r = receipt(SHOTS + "Q: two + two\nA:", "calc", "CALC(2 + 2)")
+        verdict = check_receipt_text(r, strict_grounding=True)[3]
+        self.assertEqual(verdict, "FAIL")
+
+
 if __name__ == "__main__":
     unittest.main()
