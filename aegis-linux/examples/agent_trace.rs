@@ -908,6 +908,20 @@ fn trace_genesis(
     // receipt that still reports VERIFY PASS — E23 showed both were pure
     // decoration before.
     provenance: Option<(&[u8], &[u8])>,
+    // Item/session binding context (safe-2c, format >= 4 / `AEGIS-TRACE
+    // v3`): `sha256(item_id || prompt_bytes || session_nonce)`, folded into
+    // genesis under its own `b"ITEMCTX"` domain tag, after the PROV block.
+    // `None` for every earlier format — genesis bytes for a receipt with no
+    // item-ctx binding are byte-identical to before this field existed,
+    // exactly the same backward-compatibility discipline as the table/suite/
+    // PROV additions above. This is what makes a replayed-under-wrong-id
+    // receipt (safe-2b tamper 4: a whole valid receipt filed under a
+    // different item id, content otherwise untouched) fail: its item-ctx
+    // value is bound into trace-chain, so editing it (or expecting a
+    // different one via `--expect-ctx`/`--expect-item`) does not merely
+    // trip an independent field comparison the way `ctx=`/`q=` do — it
+    // changes genesis and therefore every downstream trace-chain byte.
+    item_ctx: Option<&[u8; 32]>,
 ) -> [u8; 32] {
     let mut s = Sha256::new();
     s.update(TRACE_DOMAIN);
@@ -933,6 +947,28 @@ fn trace_genesis(
             s.update(field);
         }
     }
+    if let Some(ctx) = item_ctx {
+        s.update(b"ITEMCTX");
+        s.update(ctx);
+    }
+    s.finalize()
+}
+
+/// `sha256(item_id_bytes || prompt_bytes || nonce_bytes)` — the item/session
+/// binding context (safe-2c). Plain concatenation, no length prefixes or
+/// domain tag on the *inputs themselves* (the domain separation lives in
+/// `trace_genesis`'s `b"ITEMCTX"` tag on the *output*, which is what
+/// actually matters for collision-resistance against the rest of the
+/// genesis fold); this matches the exact formula specified for safe-2c
+/// (`ctx = sha256(item_id || prompt_bytes || session_nonce)`). Shared by
+/// `gen` (which sets it) and `verify` (which recomputes an *expected* value
+/// from `--expect-item`/`--expect-prompt-file`/`--nonce` to cross-check
+/// against the receipt's own `item-ctx` line — see `verify_one`).
+fn compute_item_ctx(item_id: &[u8], prompt: &[u8], nonce: &[u8]) -> [u8; 32] {
+    let mut s = Sha256::new();
+    s.update(item_id);
+    s.update(prompt);
+    s.update(nonce);
     s.finalize()
 }
 
@@ -1123,6 +1159,10 @@ fn replay_episode(
     // `None`, in which case this is a no-op and the loop runs exactly as
     // it always has — see `verify_one`'s fail-fast branch for the only
     // caller that passes `Some`.
+    // Item/session binding context (safe-2c): sha256(item_id || prompt_bytes ||
+    // session_nonce), folded into trace genesis when `Some` (format >= 4). `None`
+    // reproduces every pre-existing format's genesis fold byte-for-byte.
+    item_ctx: Option<&[u8; 32]>,
     mut on_step: Option<&mut StepHook<'_>>,
 ) -> EpisodeReplay {
     let mut prompt = initial_prompt.to_string();
@@ -1136,6 +1176,7 @@ fn replay_episode(
         table.map(|t| (&t.sha256, t.len)),
         suite_sha,
         provenance.map(|(c, h)| (c.as_bytes(), h.as_bytes())),
+        item_ctx,
     );
     let mut steps = Vec::with_capacity(k);
     // The text newly appended to the running prompt since the previous
@@ -1367,13 +1408,45 @@ fn main() {
     let suite_sha256_arg = extract_flag(&mut args, "--suite-sha256");
     let phases_flag = extract_bool_flag(&mut args, "--phases");
     let fail_fast_flag = extract_bool_flag(&mut args, "--fail-fast");
+    // safe-2c item/session ctx binding. `gen`: `--item-id <ID>` +
+    // `--nonce <N>` together set the receipt's `item-ctx` line (format
+    // bumps to `AEGIS-TRACE v3`); omitting both reproduces every prior
+    // format's output byte-for-byte. `verify`: `--expect-ctx <64hex>`
+    // directly, OR `--expect-item <ID>` + `--expect-prompt-file <F>` +
+    // `--nonce <N>` to recompute the expected value the same way `gen`
+    // did (see `compute_item_ctx`).
+    let item_id_arg = extract_flag(&mut args, "--item-id");
+    let expect_ctx_arg = extract_flag(&mut args, "--expect-ctx");
+    let expect_item_arg = extract_flag(&mut args, "--expect-item");
+    let expect_prompt_file_arg = extract_flag(&mut args, "--expect-prompt-file");
+    let nonce_arg = extract_flag(&mut args, "--nonce");
     if args.len() < 6 {
         eprintln!(
-            "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>]"
+            "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>] [--item-id <ID> --nonce <N>]"
         );
         eprintln!(
-            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases] [--fail-fast]"
+            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases] [--fail-fast] [--expect-ctx <64hex> | --expect-item <ID> --expect-prompt-file <F> --nonce <N>]"
         );
+        std::process::exit(2);
+    }
+    if expect_ctx_arg.is_some() && (expect_item_arg.is_some() || expect_prompt_file_arg.is_some()) {
+        eprintln!("--expect-ctx cannot be combined with --expect-item/--expect-prompt-file");
+        std::process::exit(2);
+    }
+    if expect_item_arg.is_some() != expect_prompt_file_arg.is_some() {
+        eprintln!("--expect-item and --expect-prompt-file must be given together");
+        std::process::exit(2);
+    }
+    if expect_item_arg.is_some() && nonce_arg.is_none() {
+        eprintln!("--expect-item/--expect-prompt-file requires --nonce");
+        std::process::exit(2);
+    }
+    if expect_ctx_arg.is_some() && nonce_arg.is_some() {
+        eprintln!("--expect-ctx does not take --nonce (the ctx value is already final)");
+        std::process::exit(2);
+    }
+    if item_id_arg.is_some() != nonce_arg.is_some() && expect_item_arg.is_none() {
+        eprintln!("--item-id and --nonce must be given together (gen)");
         std::process::exit(2);
     }
     if phases_flag && args[1] != "verify" {
@@ -1408,6 +1481,39 @@ fn main() {
             }
         },
         None => None,
+    };
+    // Resolve the verify-side expectation into a single `Option<[u8; 32]>`
+    // up front, regardless of which of the two forms the caller used.
+    let expect_ctx: Option<[u8; 32]> = if let Some(hexstr) = &expect_ctx_arg {
+        if hexstr.len() != 64
+            || !hexstr
+                .bytes()
+                .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        {
+            eprintln!("--expect-ctx: malformed (want 64 lowercase hex)");
+            std::process::exit(2);
+        }
+        let bytes = unhex(hexstr).unwrap_or_else(|()| {
+            eprintln!("--expect-ctx: malformed hex");
+            std::process::exit(2);
+        });
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&bytes);
+        Some(out)
+    } else if let (Some(item), Some(prompt_file), Some(nonce)) =
+        (&expect_item_arg, &expect_prompt_file_arg, &nonce_arg)
+    {
+        let prompt_bytes = std::fs::read(prompt_file).unwrap_or_else(|e| {
+            eprintln!("--expect-prompt-file {prompt_file}: {e}");
+            std::process::exit(2);
+        });
+        Some(compute_item_ctx(
+            item.as_bytes(),
+            &prompt_bytes,
+            nonce.as_bytes(),
+        ))
+    } else {
+        None
     };
     let mode = args[1].as_str();
     let model_bytes = std::fs::read(&args[2]).expect("read MODEL.SAF");
@@ -1470,6 +1576,20 @@ fn main() {
                 std::process::exit(2);
             }
             let host = host_name();
+            // safe-2c: `--item-id`/`--nonce` together bind this receipt to
+            // a specific item/session (`item_ctx = sha256(item_id ||
+            // prompt_bytes || nonce)`), folded into trace genesis (see
+            // `trace_genesis`'s `item_ctx` parameter) and bumping the
+            // header to `AEGIS-TRACE v3` (format 4). Neither given: output
+            // is byte-identical to before this feature existed.
+            let item_ctx: Option<[u8; 32]> = match (&item_id_arg, &nonce_arg) {
+                (Some(item_id), Some(nonce)) => Some(compute_item_ctx(
+                    item_id.as_bytes(),
+                    prompt.as_bytes(),
+                    nonce.as_bytes(),
+                )),
+                _ => None,
+            };
             let r = replay_episode(
                 &cis_model,
                 &tokenizer,
@@ -1482,10 +1602,18 @@ fn main() {
                 table.as_ref(),
                 suite_sha256_arg.as_ref(),
                 Some((commit.as_str(), host.as_str())),
+                item_ctx.as_ref(),
                 None,
             );
 
-            println!("AEGIS-TRACE v2");
+            println!(
+                "{}",
+                if item_ctx.is_some() {
+                    "AEGIS-TRACE v3"
+                } else {
+                    "AEGIS-TRACE v2"
+                }
+            );
             println!("model {}", hex(&model_sha));
             println!("embed {}", hex(&embed_sha));
             println!("vocab {}", hex(&vocab_sha));
@@ -1500,6 +1628,9 @@ fn main() {
             println!("prompt-hex {}", hex(prompt.as_bytes()));
             println!("commit {commit}");
             println!("host {host}");
+            if let Some(ctx) = &item_ctx {
+                println!("item-ctx {}", hex(ctx));
+            }
             for (i, s) in r.steps.iter().enumerate() {
                 let ids: Vec<String> = s.toks.iter().map(|t| t.to_string()).collect();
                 println!(
@@ -1531,6 +1662,7 @@ fn main() {
                     table_path.as_ref(),
                     suite_sha256_arg,
                     fail_fast_flag,
+                    expect_ctx,
                 );
                 if !pass {
                     std::process::exit(1);
@@ -1558,6 +1690,7 @@ fn main() {
                         table_path.as_ref(),
                         suite_sha256_arg,
                         fail_fast_flag,
+                        expect_ctx,
                     );
                     if pass {
                         n_pass += 1;
@@ -1692,6 +1825,10 @@ fn verify_one(
     table_path: Option<&String>,
     suite_sha256_arg: Option<[u8; 32]>,
     fail_fast: bool,
+    // safe-2c ctx-binding expectation: `Some` when the caller passed
+    // `--expect-ctx` or the `--expect-item`/`--expect-prompt-file`/`--nonce`
+    // triple; see the ctx-mismatch block below.
+    expect_ctx: Option<[u8; 32]>,
 ) -> bool {
     let wtext = match read_receipt_text(receipt_path) {
         Ok(t) => t,
@@ -1727,6 +1864,9 @@ fn verify_one(
     let mut w_suite_sha: Option<String> = None;
     let mut w_commit: Option<String> = None;
     let mut w_host: Option<String> = None;
+    // Item/session binding context (safe-2c, format >= 4 / `AEGIS-TRACE v3`).
+    // See `compute_item_ctx`'s doc comment for the exact preimage.
+    let mut w_item_ctx_hex: Option<String> = None;
     let mut w_warn_steps: Vec<usize> = Vec::new();
     let mut seen_keys: Vec<&str> = Vec::new();
 
@@ -1851,7 +1991,7 @@ fn verify_one(
         // lines ride inside a receipt that printed VERIFY PASS. E23 found
         // both. The allowlist below is the receipt's complete lead-line
         // vocabulary; anything else is a structural failure.
-        const LEAD_KEYS: [&str; 12] = [
+        const LEAD_KEYS: [&str; 13] = [
             "AEGIS-TRACE",
             "model",
             "embed",
@@ -1864,6 +2004,7 @@ fn verify_one(
             "suite-sha256",
             "commit",
             "host",
+            "item-ctx",
         ];
         if key != "WARNING" && !LEAD_KEYS.contains(&key) {
             println!("FAIL structure: unknown line key {key:?} on line {line_no}");
@@ -1887,6 +2028,7 @@ fn verify_one(
                     "v0" => 1,
                     "v1" => 2,
                     "v2" => 3,
+                    "v3" => 4,
                     other => {
                         println!("FAIL structure: unknown AEGIS-TRACE format {other:?}");
                         return false;
@@ -1956,6 +2098,13 @@ fn verify_one(
                     return false;
                 }
                 w_suite_sha = Some(v.into());
+            }
+            "item-ctx" => {
+                if v.len() != 64 || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+                    println!("FAIL structure: malformed item-ctx (want 64 lowercase hex)");
+                    return false;
+                }
+                w_item_ctx_hex = Some(v.into());
             }
             "commit" => {
                 if v.is_empty() {
@@ -2050,6 +2199,65 @@ fn verify_one(
     } else {
         None
     };
+
+    // Format 4 (`AEGIS-TRACE v3`, safe-2c) folds `item-ctx` into the trace
+    // genesis, so the line is mandatory there — same discipline as format
+    // 3's commit/host requirement above. `w_item_ctx` is the decoded 32
+    // raw bytes, threaded into `replay_episode`/`trace_genesis` below; a
+    // downgrade to an earlier format does not help an attacker for the
+    // same reason commit/host downgrades don't: genesis would then be
+    // rebuilt without the item-ctx bytes and trace-chain would not match.
+    let w_item_ctx: Option<[u8; 32]> = if w_format >= 4 {
+        match &w_item_ctx_hex {
+            Some(hex_str) => {
+                let bytes = unhex(hex_str).expect("already validated as 64 lowercase hex");
+                let mut out = [0u8; 32];
+                out.copy_from_slice(&bytes);
+                Some(out)
+            }
+            None => {
+                println!("FAIL structure: format-4 receipt is missing its item-ctx line");
+                return false;
+            }
+        }
+    } else {
+        None
+    };
+
+    // safe-2c ctx-binding expectation check: an expected item-ctx value,
+    // supplied by the caller either directly (`--expect-ctx`) or derived
+    // the same way `gen`/`compute_item_ctx` would (`--expect-item` +
+    // `--expect-prompt-file` + `--nonce`). This is what catches a
+    // replayed-under-wrong-item-id receipt (safe-2b tamper 4): the
+    // receipt's own math can be entirely self-consistent (it verified
+    // PASS under its ORIGINAL item id) while still carrying the wrong
+    // item-ctx for the id/prompt it has been filed/replayed under. The
+    // trace-chain fold (see `trace_genesis`) independently guarantees the
+    // item-ctx line cannot be silently edited in an otherwise-untouched
+    // receipt; this check is the other half — it says which item-ctx was
+    // actually expected, which no amount of internal self-consistency can
+    // supply on its own.
+    if let Some(expected) = expect_ctx {
+        let expected_hex = hex(&expected);
+        match &w_item_ctx_hex {
+            Some(claimed) if *claimed == expected_hex => {}
+            Some(claimed) => {
+                println!(
+                    "VERIFY FAIL — ctx mismatch (receipt item-ctx {} vs expected {})",
+                    short16(claimed),
+                    short16(&expected_hex)
+                );
+                return false;
+            }
+            None => {
+                println!(
+                    "VERIFY FAIL — ctx mismatch (receipt has no item-ctx line, expected {})",
+                    short16(&expected_hex)
+                );
+                return false;
+            }
+        }
+    }
 
     let mut fail = false;
     for (name, local, claimed) in [
@@ -2203,6 +2411,7 @@ fn verify_one(
             table.as_ref(),
             suite_sha.as_ref(),
             provenance.as_ref().map(|(c, h)| (c.as_str(), h.as_str())),
+            w_item_ctx.as_ref(),
             Some(&mut on_step),
         )
     } else {
@@ -2218,6 +2427,7 @@ fn verify_one(
             table.as_ref(),
             suite_sha.as_ref(),
             provenance.as_ref().map(|(c, h)| (c.as_str(), h.as_str())),
+            w_item_ctx.as_ref(),
             None,
         )
     };
@@ -2536,7 +2746,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2")
     }
@@ -2552,7 +2762,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 1, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
@@ -2565,7 +2775,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[8u8; 32], b"calc", b"CALC(1 + 1)", b"2");
@@ -2578,7 +2788,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"no-tool", b"CALC(1 + 1)", b"2");
@@ -2591,7 +2801,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 2)", b"2");
@@ -2604,7 +2814,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"3");
@@ -2617,16 +2827,16 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g0 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let g1 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None, None, None, None,
         );
         let g2 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None, None, None, None,
         );
         let g3 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None, None, None, None,
         );
         assert_ne!(g0, g1);
         assert_ne!(g0, g2);
@@ -2927,7 +3137,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g_none = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let table_sha_a = [7u8; 32];
         let table_sha_b = [8u8; 32];
@@ -2941,6 +3151,7 @@ mod tests {
             Some((&table_sha_a, 42)),
             None,
             None,
+            None,
         );
         let g_b = trace_genesis(
             &model_sha,
@@ -2952,6 +3163,7 @@ mod tests {
             Some((&table_sha_b, 42)),
             None,
             None,
+            None,
         );
         let g_len = trace_genesis(
             &model_sha,
@@ -2961,6 +3173,7 @@ mod tests {
             16,
             b"hello",
             Some((&table_sha_a, 43)),
+            None,
             None,
             None,
         );
@@ -2980,7 +3193,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g_none = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let suite_a = [7u8; 32];
         let suite_b = [8u8; 32];
@@ -2994,6 +3207,7 @@ mod tests {
             None,
             Some(&suite_a),
             None,
+            None,
         );
         let g_b = trace_genesis(
             &model_sha,
@@ -3004,6 +3218,7 @@ mod tests {
             b"hello",
             None,
             Some(&suite_b),
+            None,
             None,
         );
         assert_ne!(
@@ -3035,6 +3250,7 @@ mod tests {
                 None,
                 None,
                 Some((commit.as_bytes(), host.as_bytes())),
+                None,
             )
         };
         let box1 = g("aa0f99df", "aefinity-box");
@@ -3082,6 +3298,7 @@ mod tests {
             Some((&table_sha, 32)),
             None,
             None,
+            None,
         );
         let expected: [u8; 32] = [
             0x65, 0x0f, 0x2b, 0x11, 0x05, 0x73, 0x60, 0x3f, 0x20, 0x9a, 0x27, 0x43, 0x34, 0xea,
@@ -3114,6 +3331,7 @@ mod tests {
             Some((&same_bytes, 32)),
             None,
             None,
+            None,
         );
         let g_suite = trace_genesis(
             &model_sha,
@@ -3124,6 +3342,7 @@ mod tests {
             b"hello",
             None,
             Some(&same_bytes),
+            None,
             None,
         );
         assert_ne!(
@@ -3340,6 +3559,68 @@ mod tests {
         path
     }
 
+    /// Render an `EpisodeReplay` produced WITH an `item_ctx` (safe-2c) as
+    /// format-4 (`AEGIS-TRACE v3`) receipt text, `item-ctx` line included.
+    /// `r.trace_chain` must already have been computed with the same
+    /// `item_ctx` (i.e. `replay_episode`'s `item_ctx` argument was
+    /// `Some(item_ctx)`) — this function does not recompute anything, it
+    /// only serializes.
+    fn render_receipt_v3(
+        model_sha: &[u8; 32],
+        embed_sha: &[u8; 32],
+        vocab_sha: &[u8; 32],
+        prompt: &str,
+        k: usize,
+        n: usize,
+        item_ctx: &[u8; 32],
+        r: &EpisodeReplay,
+    ) -> String {
+        let mut text = String::new();
+        text.push_str("AEGIS-TRACE v3\n");
+        text.push_str(&format!("model {}\n", hex(model_sha)));
+        text.push_str(&format!("embed {}\n", hex(embed_sha)));
+        text.push_str(&format!("vocab {}\n", hex(vocab_sha)));
+        text.push_str(&format!("K {k}\n"));
+        text.push_str(&format!("N {n}\n"));
+        text.push_str(&format!("prompt-hex {}\n", hex(prompt.as_bytes())));
+        text.push_str("commit test\n");
+        text.push_str("host test\n");
+        text.push_str(&format!("item-ctx {}\n", hex(item_ctx)));
+        for (i, s) in r.steps.iter().enumerate() {
+            let ids: Vec<String> = s.toks.iter().map(|t| t.to_string()).collect();
+            text.push_str(&format!(
+                "step {i}: toks={} tool={} in={} out={} decode-chain={} ctx={} q={}\n",
+                ids.join(","),
+                s.tool_name,
+                hex(&s.tool_input),
+                hex(&s.tool_output),
+                hex(&s.decode_chain),
+                hex(&s.ctx_digest),
+                hex(&s.query_digest)
+            ));
+        }
+        text.push_str(&format!("trace-chain {}\n", hex(&r.trace_chain)));
+        text
+    }
+
+    /// Replace the `item-ctx <hex>` line's value with a different (but
+    /// still well-formed, 64 lowercase hex) value, leaving `trace-chain`
+    /// (and everything else) untouched — the smallest possible "someone
+    /// edited the ctx line directly" tamper.
+    fn overwrite_item_ctx_line(text: &str, new_hex: &str) -> String {
+        let mut out = String::new();
+        for line in text.lines() {
+            if line.starts_with("item-ctx ") {
+                out.push_str("item-ctx ");
+                out.push_str(new_hex);
+            } else {
+                out.push_str(line);
+            }
+            out.push('\n');
+        }
+        out
+    }
+
     #[test]
     fn format2_round_trip_gen_then_verify_pass_with_ctx_q_fields() {
         // Tool-call binding (a tampered `q=`/tool-call argument breaking
@@ -3355,7 +3636,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None, None,
+            None, None, None,
         );
         assert_eq!(r.steps.len(), k);
         for s in &r.steps {
@@ -3386,6 +3667,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -3402,7 +3684,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None, None,
+            None, None, None,
         );
         let good_text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let tampered = flip_hex_field(&good_text, "step 1:", "q=");
@@ -3422,11 +3704,240 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
             !pass,
             "a flipped q= field must make verify FAIL (STEP 1 QUERY MISMATCH)"
+        );
+    }
+
+    // --- safe-2c: item/session ctx binding (fixes the safe-2b tamper-4
+    // "replay under wrong item id" gap: a receipt's own math could be
+    // entirely self-consistent while filed under the wrong item). ---
+
+    #[test]
+    fn compute_item_ctx_is_sensitive_to_every_input() {
+        let a = compute_item_ctx(b"item-A", b"prompt text", b"nonce-1");
+        let b = compute_item_ctx(b"item-B", b"prompt text", b"nonce-1");
+        let c = compute_item_ctx(b"item-A", b"different prompt", b"nonce-1");
+        let d = compute_item_ctx(b"item-A", b"prompt text", b"nonce-2");
+        assert_ne!(a, b, "different item_id must produce a different ctx");
+        assert_ne!(a, c, "different prompt must produce a different ctx");
+        assert_ne!(a, d, "different nonce must produce a different ctx");
+    }
+
+    #[test]
+    fn safe2c_matching_ctx_passes_verify() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let item_id = b"item-42";
+        let nonce = b"nonce-A";
+        let ctx = compute_item_ctx(item_id, prompt.as_bytes(), nonce);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let text = render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        let path = write_temp_receipt("safe2c-match.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            Some(ctx),
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            pass,
+            "a receipt whose item-ctx matches --expect-ctx must verify PASS"
+        );
+    }
+
+    #[test]
+    fn safe2c_wrong_expected_item_id_fails_verify() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let item_id = b"item-42";
+        let nonce = b"nonce-A";
+        let ctx = compute_item_ctx(item_id, prompt.as_bytes(), nonce);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let text = render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        let path = write_temp_receipt("safe2c-wrong-item.txt", &text);
+        // Expect the ctx for a DIFFERENT item id, same prompt/nonce — this
+        // is exactly the safe-2b tamper-4 shape: a receipt generated for
+        // one item, checked against the item id it was filed/replayed
+        // under.
+        let wrong_expected = compute_item_ctx(b"item-99", prompt.as_bytes(), nonce);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            Some(wrong_expected),
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a receipt's item-ctx must not verify against a DIFFERENT item's expected ctx \
+             (replay-under-wrong-id, safe-2b tamper 4)"
+        );
+    }
+
+    #[test]
+    fn safe2c_wrong_expected_prompt_fails_verify() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let item_id = b"item-42";
+        let nonce = b"nonce-A";
+        let ctx = compute_item_ctx(item_id, prompt.as_bytes(), nonce);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let text = render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        let path = write_temp_receipt("safe2c-wrong-prompt.txt", &text);
+        // Same item id and nonce, but the expectation was derived from a
+        // DIFFERENT prompt than what this receipt actually attests to.
+        let wrong_expected = compute_item_ctx(item_id, b"a completely different prompt", nonce);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            Some(wrong_expected),
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a receipt's item-ctx must not verify against an expectation derived from a \
+             different prompt"
+        );
+    }
+
+    #[test]
+    fn safe2c_editing_item_ctx_line_directly_breaks_the_hash_chain() {
+        // The item-ctx line is folded into trace genesis (see
+        // `trace_genesis`'s `item_ctx` parameter), so directly editing it
+        // in a receipt file — without also recomputing every downstream
+        // hash — must fail via the ORDINARY chain-divergence path (`VERIFY
+        // FAIL — replay diverged from the receipt`), not merely trip an
+        // independent `--expect-ctx` field comparison. This is what makes
+        // the binding tamper-evident even when the caller supplies no
+        // `--expect-ctx` at all.
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let item_id = b"item-42";
+        let nonce = b"nonce-A";
+        let ctx = compute_item_ctx(item_id, prompt.as_bytes(), nonce);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let good_text =
+            render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        // A different, still well-formed (64 lowercase hex) item-ctx value,
+        // with trace-chain left exactly as the ORIGINAL replay produced it
+        // (the attacker does not have the model to recompute anything).
+        let other_ctx = compute_item_ctx(b"some-other-item", prompt.as_bytes(), nonce);
+        let tampered = overwrite_item_ctx_line(&good_text, &hex(&other_ctx));
+        assert_ne!(
+            good_text, tampered,
+            "tamper helper must actually change the receipt"
+        );
+
+        let path = write_temp_receipt("safe2c-edit-ctx-line.txt", &tampered);
+        // No --expect-ctx given at all: this must still fail, purely from
+        // the hash chain no longer matching what the (unedited)
+        // trace-chain line claims.
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "editing item-ctx directly must break the trace-chain fold, not just an \
+             independent ctx comparison"
         );
     }
 
@@ -3461,6 +3972,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             Some(&mut cb),
         );
         assert_eq!(
@@ -3492,7 +4004,7 @@ mod tests {
     ) -> String {
         let r = replay_episode(
             cis_model, tokenizer, model_sha, embed_sha, vocab_sha, prompt, k, n, None, None, None,
-            None,
+            None, None,
         );
         let good_text = render_receipt(2, model_sha, embed_sha, vocab_sha, prompt, k, n, &r);
         let tampered = flip_hex_field(&good_text, "step 0:", "decode-chain=");
@@ -3529,7 +4041,8 @@ mod tests {
             &vocab_sha,
             None,
             None,
-            true, // --fail-fast
+            true,
+            None, // --fail-fast
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -3564,6 +4077,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -3582,7 +4096,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None, None,
+            None, None, None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let path = write_temp_receipt("fail-fast-clean.txt", &text);
@@ -3596,6 +4110,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let pass_fail_fast = verify_one(
             path.to_str().unwrap(),
@@ -3607,6 +4122,7 @@ mod tests {
             None,
             None,
             true,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(pass_full, "clean receipt must PASS full-mode verify");
@@ -3624,7 +4140,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None, None,
+            None, None, None,
         );
         let text = render_receipt(1, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         assert!(
@@ -3643,6 +4159,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(pass, "a format-1 receipt must still verify PASS unchanged");
@@ -3659,7 +4176,7 @@ mod tests {
         let (k, n, prompt) = (2usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None, None,
+            None, None, None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         // Tamper the last step's ctx= so format-2 rules would reject it.
@@ -3686,6 +4203,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         pass
@@ -3735,7 +4253,7 @@ mod tests {
         let (k, n, prompt) = (2usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None, None,
+            None, None, None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
 
@@ -3783,6 +4301,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -3797,7 +4316,7 @@ mod tests {
         let (k, n, prompt) = (1usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None, None,
+            None, None, None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
 
@@ -3824,6 +4343,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -3858,6 +4378,7 @@ mod tests {
             None,
             Some(("test", "test")),
             None,
+            None,
         );
         let text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         // Unique per call: these tests run in parallel in one process and
@@ -3875,6 +4396,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         )
     }
 
@@ -3900,6 +4422,7 @@ mod tests {
             None,
             Some((commit, "test")),
             None,
+            None,
         );
         let mut text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         text = text.replace("commit test\n", &format!("commit {commit}\n"));
@@ -3916,6 +4439,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         )
     }
 
@@ -4177,7 +4701,7 @@ mod tests {
         let (k, n, prompt) = (1usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None, None,
+            None, None, None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let moved = format!("model {}\nAEGIS-TRACE v1\n{}", hex(&model_sha), text);
@@ -4193,6 +4717,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(

@@ -50,6 +50,39 @@ the replay independently derives — the per-step generalization of
 The model's own text is excluded on purpose: a model that writes its own
 `Q: 2 + 2` line and then calls `CALC(2 + 2)` must not satisfy the rule.
 
+**Format 4 (`AEGIS-TRACE v3`, safe-2c) — item/session ctx binding.** safe-2b's
+tamper demo (`eval/receipts/apply_tampers.py`, tamper 4) found that a valid,
+internally self-consistent receipt replayed under a DIFFERENT item id still
+verified PASS: nothing in the wire format bound a receipt to which item or
+session it was generated for. `gen --item-id <ID> --nonce <N>` (both
+required together) now sets a new `item-ctx <64 hex>` header line, `sha256(
+item_id || prompt_bytes || session_nonce)`, and folds it into the trace
+genesis (see FORMAT.md sec4) — so it cannot be edited without breaking the
+hash chain, exactly like `commit`/`host` from format 3 on. Deliberately
+named `item-ctx`, not `ctx`, in the wire format: the per-step `ctx=`/`q=`
+fields already mean something different (that step's accumulated-prompt/
+query hash, sec3) and are not folded into the chain at all — `item-ctx` is a
+new, distinct, chain-bound header field, not a reuse of that name. Neither
+flag given: `gen`'s output is byte-identical to format 3, no format bump.
+`verify` gains a matching expectation check: `--expect-ctx <64 hex>`
+directly, or `--expect-item <ID> --expect-prompt-file <F> --nonce <N>` to
+recompute the expected value the same way `gen` did. A receipt whose
+item-ctx does not match prints `VERIFY FAIL — ctx mismatch (receipt
+item-ctx <16hex> vs expected <16hex>)` (or `... receipt has no item-ctx
+line, expected <16hex>` if the receipt predates format 4) — this is what
+catches the tamper-4 replay-under-wrong-id case: a receipt's own trace-chain
+math can be entirely self-consistent (it was a genuine PASS under its
+original item id) while its item-ctx still names a different item/prompt
+than the one the caller expected. Because item-ctx is folded into genesis
+rather than merely compared like `ctx=`/`q=`, directly editing the
+`item-ctx` line in a receipt file (without also having the model to
+recompute everything downstream) breaks the ordinary hash chain — `VERIFY
+FAIL — replay diverged from the receipt` — even with no `--expect-ctx` given
+at all. See `eval/receipts/inject_item_ctx.py` for how the safe-2b EVAL-60
+T1 tamper set was retrofitted with item-ctx (a pure hash recompute over the
+receipts' own already-recorded fields — no re-run of inference) and
+re-verified with `--expect-item`/`--expect-prompt-file`/`--nonce`.
+
 No files are downloaded. Everything comes from
 `model-lab/tinybit/m7_final_gate_work/artifacts/` already in this repo
 (same default as `demo/edge-receipt`).
