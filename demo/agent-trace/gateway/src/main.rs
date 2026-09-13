@@ -932,21 +932,31 @@ mod tests {
     fn agent_trace_bin() -> PathBuf {
         // Prefer a release build (real-2B-model receipts in the live20
         // integration test are far too slow to verify against an
-        // unoptimized debug build); fall back to debug for the small
-        // tinybit-model unit tests if release isn't available.
-        let release = repo_root().join("aegis-linux/target/release/examples/agent_trace");
-        if release.exists() {
-            return release;
-        }
-        let bin = repo_root().join("aegis-linux/target/debug/examples/agent_trace");
-        if !bin.exists() {
-            let status = Command::new("cargo")
-                .args(["build", "--offline", "--example", "agent_trace"])
-                .current_dir(repo_root().join("aegis-linux"))
-                .status()
-                .expect("cargo build agent_trace");
-            assert!(status.success(), "failed to build agent_trace example");
-        }
+        // unoptimized debug build).
+        //
+        // IMPORTANT: always run `cargo build --release` here rather than
+        // just checking whether a binary already exists on disk and
+        // reusing it. A previous bug let this fn silently verify against
+        // a stale, out-of-date `agent_trace` binary left over from an
+        // earlier build, producing bogus VERIFY FAIL/ALLOW results that
+        // did not reflect the current source tree. `cargo build` is a
+        // fast no-op if nothing changed, so this costs nothing when the
+        // binary is already current.
+        let status = Command::new("cargo")
+            .args(["build", "--release", "--offline", "--example", "agent_trace"])
+            .current_dir(repo_root().join("aegis-linux"))
+            .status()
+            .expect("cargo build --release agent_trace");
+        assert!(status.success(), "failed to build agent_trace example (release)");
+
+        let bin = repo_root().join("aegis-linux/target/release/examples/agent_trace");
+        assert!(bin.exists(), "agent_trace release binary missing after build: {}", bin.display());
+
+        // Log the binary's sha256 so a stale-verifier situation is
+        // detectable from test output going forward.
+        let digest = hex(&sha256(&fs::read(&bin).unwrap()));
+        eprintln!("agent_trace_bin: using {} sha256={}", bin.display(), digest);
+
         bin
     }
 
