@@ -1131,6 +1131,42 @@ mod tests {
     }
 
     // -------------------------------------------------------------
+    // 3b. Threat 2, precise form: the allowlist's MODEL.SAF entry is a
+    //     single bit-flip of the real artifact's sha256 digest (not just
+    //     an unrelated bogus triple) -- the receipt still references the
+    //     genuine artifacts and verifies cleanly, but its declared MODEL.SAF
+    //     hash cannot match a flipped-bit allowlist entry, so this must
+    //     DENY on artifact-allowlist grounds alone. Mirrors the real-2B
+    //     "one-bit-flipped MODEL.SAF" case exercised end-to-end in
+    //     run_e2e_safe1c's DENY (iii), as a fast, self-contained unit test.
+    // -------------------------------------------------------------
+    #[test]
+    fn deny_weights_digest_bitflip_not_on_allowlist() {
+        let dir = workdir();
+        let receipt = gen_receipt(&dir, "Q: 6 + 7\nA: CALC(6 + 7).\n", 1, 16);
+        let (m, _e, _v) = artifacts();
+        let (mh, eh, vh) = artifact_hexes();
+
+        // Sanity: flipping a bit in a COPY of the artifact bytes must not
+        // reproduce the real digest (otherwise this test proves nothing).
+        let mut flipped_bytes = fs::read(&m).unwrap();
+        flipped_bytes[0] ^= 0x01;
+        let mh_flipped = hex(&sha256(&flipped_bytes));
+        assert_ne!(mh, mh_flipped, "bit flip must change the digest");
+
+        // Allowlist holds only the bit-flipped MODEL.SAF digest, alongside
+        // the real EMBED.BIN/VOCAB.BIN digests, so this exercises exactly
+        // the weights-digest field and not the whole triple.
+        let (mut gw, _key) = make_gateway(&dir, &[(mh_flipped, eh, vh)]);
+        let action = unhex(&last_step_in_hex(&receipt)).unwrap();
+        let (d, _head) = gw.decide(&receipt, &action, "sess-3b", 1);
+        match d {
+            Decision::Deny(reason) => assert!(reason.contains("allowlist")),
+            Decision::Allow => panic!("bit-flipped weights digest must DENY"),
+        }
+    }
+
+    // -------------------------------------------------------------
     // 4. Threat 4: a WARNING-set-mismatch tamper (drop the step whose tool
     //    output supplied the next round's grounding text). Uses a K=2
     //    receipt so there is a "next round" to break grounding for.
