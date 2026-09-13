@@ -1,5 +1,13 @@
 # Verifiable agent trace — one-command demo
 
+Normative wire format (exact grammar, byte-level genesis/step folds, what a
+chain-only recompute can and cannot prove): see [`FORMAT.md`](FORMAT.md).
+An independent, inference-free implementation of that spec is
+[`tools/trace_chain.py`](tools/trace_chain.py) — run
+`python3 tools/trace_chain.py --selftest` to check it against the vectors
+in [`vectors/`](vectors/), or `python3 tools/trace_chain.py <receipt>
+[--table FILE]` on any receipt.
+
 `run.sh` runs a small, deterministic **agent episode** over the checked-in
 M7 tinybit model: K rounds (default 3) of {greedy, integer-only CIS-1
 `FullInt` decode of up to N tokens (default 16), scan the decoded text for
@@ -95,10 +103,16 @@ demo/agent-trace/run.sh verify-bundle demo/agent-trace/out/trace-A-*.bundle.tar
 ```
 
 Both machines must have the identical `MODEL.SAF` / `EMBED.BIN` /
-`VOCAB.BIN` triple. The commit hash and hostname printed in the receipt are
-informational (Rule B provenance) and are NOT folded into the trace chain,
-so a receipt generated on one machine still verifies bit-for-bit on a
-different machine, commit, or host.
+`VOCAB.BIN` triple. The commit hash printed in the receipt is captured at
+**build time** from the repo the `agent_trace` binary was built from (see
+`aegis-linux/build.rs`), not shelled out at generation time — so it no
+longer depends on the generating process's current working directory.
+`unknown` means the binary was built without a resolvable git commit
+(`verify` prints a WARNING, not a failure, for such a receipt). From format
+3 on, commit and hostname ARE folded into the trace genesis (Rule B
+provenance, see above), so a receipt generated on one machine still
+verifies bit-for-bit on a different machine, but the trace-chain value
+itself differs by machine/build — that is expected, not a failure.
 
 `verify-bundle` DOES check: every bundle member's sha256 against
 `MANIFEST.txt` (tamper-evidence for the bundle itself), that the verifying

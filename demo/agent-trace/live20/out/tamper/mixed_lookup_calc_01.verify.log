@@ -1,0 +1,5 @@
+receipt trace-chain 24353b2bf750f613
+local   trace-chain 24353b2bf750f613
+step 1 divergence: toks-match=true tool-match=true in-match=true out-match=false decode-chain-match=true
+WARNING step 1: tool argument not found verbatim in context
+VERIFY FAIL — replay diverged from the receipt

@@ -5,6 +5,7 @@ edition = "2024"
 license = "Apache-2.0"
 authors = ["Justin B. Thompson (Aefinity AI)"]
 repository = "https://github.com/Aefinity-AI/alice-aegis"
+build = "build.rs"
 
 [dependencies]
 aegis-core = { path = "../aegis-core" }
@@ -34,4 +35,10 @@ required-features = ["active_set_digest"]
 # without this line `cargo test` (what CI runs) silently skips all of them.
 [[example]]
 name = "agent_trace"
+test = true
+
+# reasoning_trace carries its own #[cfg(test)] suite (synthetic-transcript
+# parser/verifier tests). Same test = true rationale as agent_trace above.
+[[example]]
+name = "reasoning_trace"
 test = true
