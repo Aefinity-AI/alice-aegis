@@ -932,21 +932,31 @@ mod tests {
     fn agent_trace_bin() -> PathBuf {
         // Prefer a release build (real-2B-model receipts in the live20
         // integration test are far too slow to verify against an
-        // unoptimized debug build); fall back to debug for the small
-        // tinybit-model unit tests if release isn't available.
-        let release = repo_root().join("aegis-linux/target/release/examples/agent_trace");
-        if release.exists() {
-            return release;
-        }
-        let bin = repo_root().join("aegis-linux/target/debug/examples/agent_trace");
-        if !bin.exists() {
-            let status = Command::new("cargo")
-                .args(["build", "--offline", "--example", "agent_trace"])
-                .current_dir(repo_root().join("aegis-linux"))
-                .status()
-                .expect("cargo build agent_trace");
-            assert!(status.success(), "failed to build agent_trace example");
-        }
+        // unoptimized debug build).
+        //
+        // IMPORTANT: always run `cargo build --release` here rather than
+        // just checking whether a binary already exists on disk and
+        // reusing it. A previous bug let this fn silently verify against
+        // a stale, out-of-date `agent_trace` binary left over from an
+        // earlier build, producing bogus VERIFY FAIL/ALLOW results that
+        // did not reflect the current source tree. `cargo build` is a
+        // fast no-op if nothing changed, so this costs nothing when the
+        // binary is already current.
+        let status = Command::new("cargo")
+            .args(["build", "--release", "--offline", "--example", "agent_trace"])
+            .current_dir(repo_root().join("aegis-linux"))
+            .status()
+            .expect("cargo build --release agent_trace");
+        assert!(status.success(), "failed to build agent_trace example (release)");
+
+        let bin = repo_root().join("aegis-linux/target/release/examples/agent_trace");
+        assert!(bin.exists(), "agent_trace release binary missing after build: {}", bin.display());
+
+        // Log the binary's sha256 so a stale-verifier situation is
+        // detectable from test output going forward.
+        let digest = hex(&sha256(&fs::read(&bin).unwrap()));
+        eprintln!("agent_trace_bin: using {} sha256={}", bin.display(), digest);
+
         bin
     }
 
@@ -1127,6 +1137,42 @@ mod tests {
         match d {
             Decision::Deny(reason) => assert!(reason.contains("allowlist")),
             Decision::Allow => panic!("off-allowlist triple must DENY"),
+        }
+    }
+
+    // -------------------------------------------------------------
+    // 3b. Threat 2, precise form: the allowlist's MODEL.SAF entry is a
+    //     single bit-flip of the real artifact's sha256 digest (not just
+    //     an unrelated bogus triple) -- the receipt still references the
+    //     genuine artifacts and verifies cleanly, but its declared MODEL.SAF
+    //     hash cannot match a flipped-bit allowlist entry, so this must
+    //     DENY on artifact-allowlist grounds alone. Mirrors the real-2B
+    //     "one-bit-flipped MODEL.SAF" case exercised end-to-end in
+    //     run_e2e_safe1c's DENY (iii), as a fast, self-contained unit test.
+    // -------------------------------------------------------------
+    #[test]
+    fn deny_weights_digest_bitflip_not_on_allowlist() {
+        let dir = workdir();
+        let receipt = gen_receipt(&dir, "Q: 6 + 7\nA: CALC(6 + 7).\n", 1, 16);
+        let (m, _e, _v) = artifacts();
+        let (mh, eh, vh) = artifact_hexes();
+
+        // Sanity: flipping a bit in a COPY of the artifact bytes must not
+        // reproduce the real digest (otherwise this test proves nothing).
+        let mut flipped_bytes = fs::read(&m).unwrap();
+        flipped_bytes[0] ^= 0x01;
+        let mh_flipped = hex(&sha256(&flipped_bytes));
+        assert_ne!(mh, mh_flipped, "bit flip must change the digest");
+
+        // Allowlist holds only the bit-flipped MODEL.SAF digest, alongside
+        // the real EMBED.BIN/VOCAB.BIN digests, so this exercises exactly
+        // the weights-digest field and not the whole triple.
+        let (mut gw, _key) = make_gateway(&dir, &[(mh_flipped, eh, vh)]);
+        let action = unhex(&last_step_in_hex(&receipt)).unwrap();
+        let (d, _head) = gw.decide(&receipt, &action, "sess-3b", 1);
+        match d {
+            Decision::Deny(reason) => assert!(reason.contains("allowlist")),
+            Decision::Allow => panic!("bit-flipped weights digest must DENY"),
         }
     }
 
