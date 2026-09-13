@@ -1,0 +1,13 @@
+format AEGIS-ATTEST v0
+receipt-digest 6de1b57acd114d1fba0ac3668543d90e56ba11cd0f3cb7d60800b4ad724c251f
+receipt-kind trace
+pcr-list sha256:0,2,4,7
+hierarchy null
+ak-sha256 3da5a3b3fe455461c221ff4a4d5b319692cd5bf152d4ce21319872a3c005cf7c
+quote-sha256 2f959b44da652ae9edbed2722cf401a4886982fc65f57e293ac855eb05957ea8
+sig-sha256 631aafe38bb5ededeaddb32ffd43659781528f2eef7371c85a5c459991b94fda
+pcrs-sha256 62c2d04aef13d98a76c11c55234140377c36c56f7fee6c12f0c56178a1bbe34c
+eventlog-sha256 7a9b98e457d0da2313eff33fd663c5f457fd6ea7f0406d4bef96ae8fb0931b91
+tpm-manufacturer 0x494E5443
+host aefinity-box2
+time-utc 2026-09-12T20:08:20Z

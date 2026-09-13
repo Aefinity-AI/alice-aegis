@@ -182,6 +182,17 @@ use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
 use aegis_core::tokenizer::AegisTokenizer;
 use aegis_core::witness::{Sha256, WitnessChain, WitnessHeader, hex_lower, sha256};
 
+/// tools-1c: process-wide switch for `--strict-grounding` (default `false`,
+/// i.e. the existing lenient behaviour — a verbatim-argument mismatch prints
+/// a WARNING but does not fail verification). Read by `verify_one`, set once
+/// in `main` from the CLI flag. A process-global rather than a `verify_one`
+/// parameter deliberately: `verify_one` already has 9 parameters and 15 call
+/// sites (7 of them test call sites fixed before this flag existed); a
+/// global keeps every existing call site's behaviour byte-identical without
+/// touching them. See `demo/agent-trace/README.md`'s "strict grounding mode"
+/// section for the flag name, default, and rationale.
+static STRICT_GROUNDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// `--phases`: an Amdahl decomposition of `verify`'s FullInt CIS replay,
 /// printed AFTER the normal VERIFY PASS/FAIL line and never changing it —
 /// see the module doc comment's `--phases` entry. `phase-timers` feature
@@ -1420,12 +1431,13 @@ fn main() {
     let expect_item_arg = extract_flag(&mut args, "--expect-item");
     let expect_prompt_file_arg = extract_flag(&mut args, "--expect-prompt-file");
     let nonce_arg = extract_flag(&mut args, "--nonce");
+    let strict_grounding_flag = extract_bool_flag(&mut args, "--strict-grounding");
     if args.len() < 6 {
         eprintln!(
             "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>] [--item-id <ID> --nonce <N>]"
         );
         eprintln!(
-            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases] [--fail-fast] [--expect-ctx <64hex> | --expect-item <ID> --expect-prompt-file <F> --nonce <N>]"
+            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases] [--fail-fast] [--strict-grounding] [--expect-ctx <64hex> | --expect-item <ID> --expect-prompt-file <F> --nonce <N>]"
         );
         std::process::exit(2);
     }
@@ -1457,6 +1469,11 @@ fn main() {
         eprintln!("--fail-fast is only supported by `agent_trace verify`");
         std::process::exit(2);
     }
+    if strict_grounding_flag && args[1] != "verify" {
+        eprintln!("--strict-grounding is only supported by `agent_trace verify`");
+        std::process::exit(2);
+    }
+    STRICT_GROUNDING.store(strict_grounding_flag, std::sync::atomic::Ordering::Relaxed);
     #[cfg(not(feature = "phase-timers"))]
     if phases_flag {
         eprintln!(
@@ -2511,6 +2528,29 @@ fn verify_one(
         }
     }
 
+    // tools-1c strict grounding mode (`--strict-grounding`, default off —
+    // see `STRICT_GROUNDING`'s doc comment and demo/agent-trace/README.md):
+    // an argument this replay could not find verbatim in prior externally
+    // supplied text (`!verbatim_ok`) is a fabricated tool argument, not a
+    // benign warning, under this mode. Gated to format 2+ for the same
+    // reason as the WARNING-line check above (older receipts predate this
+    // module's warning emission and carry no `verbatim_ok` evidence).
+    if STRICT_GROUNDING.load(std::sync::atomic::Ordering::Relaxed) && w_format >= 2 {
+        let local_warns: Vec<usize> = r
+            .steps
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| !s.verbatim_ok)
+            .map(|(i, _)| i)
+            .collect();
+        if !local_warns.is_empty() {
+            println!(
+                "VERIFY FAIL — strict grounding: step(s) {local_warns:?} argument not grounded in prior prompt/tool-result text (--strict-grounding)"
+            );
+            mismatch = true;
+        }
+    }
+
     if !mismatch && local_trace_chain == w_trace_chain {
         println!(
             "VERIFY PASS — replay reproduced {} steps and the full trace chain bit-for-bit",
@@ -2633,6 +2673,29 @@ mod tests {
         // last_q_line drops the shots, so a shot-copied argument is flagged.
         let prompt = "Q: 2 + 2\nA: CALC(2 + 2).\nQ: two + two\nA:";
         assert!(!verbatim_ok_for(last_q_line(prompt), b"CALC(2 + 2)"));
+    }
+
+    #[test]
+    fn tools1c_calc_argument_not_derivable_from_context_is_ungrounded() {
+        // tools-1c: a CALC argument invented by the model (no fragment of
+        // the prompt or of any prior tool result matches it) is exactly the
+        // case `verbatim_ok_for` exists to catch -- this is what drives the
+        // (lenient, default) WARNING and, under `--strict-grounding`, the
+        // VERIFY FAIL in `verify_one`. No prior tool result and the argument
+        // does not occur in the question either, so it must currently warn.
+        let external = "Q: What is 2 + 2?\n";
+        assert!(!verbatim_ok_for(external, b"CALC(97)"));
+    }
+
+    #[test]
+    fn tools1c_calc_argument_grounded_via_prior_lookup_result_passes() {
+        // Legitimate tool chaining, not the attack the rule targets: step
+        // 0's LOOKUP result is appended to the running context as a
+        // `TOOL[...]=...` line (see `tool_result_text`), so a later step's
+        // CALC argument copied from that result is grounded in a prior tool
+        // result, not fabricated, and must NOT warn in either mode.
+        let external = "Q: What is 2 + 2?\nTOOL[lookup]=weight is 42\n";
+        assert!(verbatim_ok_for(external, b"CALC(42)"));
     }
 
     #[test]
