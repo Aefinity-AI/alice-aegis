@@ -42,3 +42,9 @@ test = true
 [[example]]
 name = "reasoning_trace"
 test = true
+
+# reasoning_live carries its own #[cfg(test)] suite. Same test = true
+# rationale as agent_trace/reasoning_trace above.
+[[example]]
+name = "reasoning_live"
+test = true
