@@ -1,0 +1,6 @@
+AEGIS-REASON v1
+prompt-sha256=08c76b2f0395446dcd711dc45dd26203105f088467dabb92f32e601145d3652d
+step 0: kind=draft answer=1 text-sha256=a00a692e99df4f913b041b9e0fe6fbfcffd0c4ef401fe6e3cff43f82ead61d3d chain=d17450543e6d84e6f9ddd8abac611526c329e3954e3fdca5c0b3d678a724f2ad
+step 1: kind=verify ref=0 recheck=1 verdict=pass tool=calc tool-in=CALC(870/820) tool-out=1 text-sha256=701d9c78bd9b433591680913e4a433e346b1437ef059f7ae2e239bcd0cba92ae chain=a18d42d790468e4a38fddce35f6e5f6cc0aa877f97ec070d25820c0c56f36474
+step 2: kind=final ref=1 answer=1 text-sha256=e7c549e3bcfcfd8995d01eae99bc21cb9d640a1c2b8a72c0af264126d7f12727 chain=2535bd9ab6b651d5ab087c213d6822b71f29330ab8a018999550fc32fb5ec03d
+trace-chain=2535bd9ab6b651d5ab087c213d6822b71f29330ab8a018999550fc32fb5ec03d

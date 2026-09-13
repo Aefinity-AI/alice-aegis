@@ -165,6 +165,49 @@
 //!   parsing/canonicalisation) — "42" and "042" are different tokens here.
 //!   Fine for hand-written synthetic transcripts; a live numeric-answer
 //!   scaffold may want to canonicalise before folding.
+//!
+//! ## `reasoning-2`: CALC-augmented verify-step (additive)
+//!
+//! A `kind=verify` step may OPTIONALLY carry a tool call, recording that
+//! the recheck was produced by invoking the same `CALC` tool
+//! `agent_trace.rs` defines (`CALC(<int> <op> <int>)`, checked i64
+//! arithmetic, same five ops `+ - * / %`), instead of purely re-deriving
+//! the answer from the model's own tokens:
+//!
+//! ```text
+//! step 1: kind=verify ref=0 recheck=<token> verdict=pass|contradict tool=calc tool-in=CALC(<a><op><b>) tool-out=<token> text-sha256=<hex> chain=<hex>
+//! ```
+//!
+//! `tool=`/`tool-in=`/`tool-out=` are either ALL present or ALL absent on a
+//! `verify` step — a partial tool record is a parse error. This is
+//! deliberately additive: a `verify` step with none of these three fields
+//! parses and verifies EXACTLY as before (`reasoning-1`'s no-tool
+//! verify-step is untouched). `draft`/`final` steps never carry tool
+//! fields (same "non-draft field"/"verify-only field" rejection as every
+//! other kind-specific field).
+//!
+//! `tool-in=` is a COMPACT form of `agent_trace`'s `CALC(...)` grammar —
+//! no internal whitespace, since every `step` line field is a single
+//! whitespace-delimited token (`CALC(3+4)`, not `CALC(3 + 4)`) — otherwise
+//! the same `<int> <op> <int>` grammar, re-parsed here (`calc::parse`)
+//! rather than importing `agent_trace`'s private `find_calc`/`eval_calc`,
+//! per this module's existing "reimplement, don't import across examples"
+//! convention. `tool-out=` is a bare token: the decimal `i64` result, or
+//! one of the three fixed error strings `agent_trace::eval_calc` already
+//! uses (`overflow`, `div-by-zero`, `bad-op`).
+//!
+//! `verify` recomputes `tool-out=` from `tool-in=` independently
+//! (`calc::eval`) and treats any mismatch as `TOOL RESULT MISMATCH step N`
+//! — a `Fail` finding, catching a tampered/hallucinated tool result even
+//! if every other field and chain link is internally consistent. It also
+//! checks that `recheck=` actually equals the (claimed) `tool-out=` value:
+//! a verify-step that carries a genuine, correctly-recomputed tool result
+//! but then writes a DIFFERENT `recheck=` token gets the tool's cryptographic
+//! backing for nothing, so that mismatch is its own `Fail`,
+//! `RECHECK IGNORES TOOL OUTPUT step N`. Everything downstream of
+//! `recheck=` (verdict-lie / contradiction / final-drift checks) is
+//! UNCHANGED — a tool-backed `recheck=` is just a `recheck=` value with
+//! stronger provenance, not a different code path.
 
 use aegis_core::witness::{Sha256, hex_lower, sha256};
 
@@ -196,6 +239,87 @@ fn is_token(s: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'+' | b'-'))
 }
 
+/// `reasoning-2`: a compact, whitespace-free reimplementation of
+/// `agent_trace.rs`'s `CALC(<int> <op> <int>)` grammar and checked i64
+/// arithmetic (same five ops, same three fixed error strings), scoped to
+/// this module rather than imported across examples (see module doc
+/// comment).
+mod calc {
+    /// Parse a compact `CALC(<int><op><int>)` call (no internal
+    /// whitespace — every `step` line field is one whitespace-delimited
+    /// token). Returns `None` if `s` is not exactly this shape.
+    pub fn parse(s: &str) -> Option<(i64, u8, i64)> {
+        let inner = s.strip_prefix("CALC(")?.strip_suffix(')')?;
+        if inner.is_empty() {
+            return None;
+        }
+        let b = inner.as_bytes();
+        let mut i = 0usize;
+        if b[i] == b'-' {
+            i += 1;
+        }
+        let digits_start = i;
+        while i < b.len() && b[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i == digits_start {
+            return None; // no digits for `a`
+        }
+        let op_pos = i;
+        if op_pos >= b.len() {
+            return None;
+        }
+        let op = b[op_pos];
+        if !matches!(op, b'+' | b'-' | b'*' | b'/' | b'%') {
+            return None;
+        }
+        let a: i64 = inner[..op_pos].parse().ok()?;
+        let b_str = &inner[op_pos + 1..];
+        if b_str.is_empty() {
+            return None;
+        }
+        let b_val: i64 = b_str.parse().ok()?;
+        Some((a, op, b_val))
+    }
+
+    /// Checked i64 arithmetic, identical semantics to
+    /// `agent_trace::eval_calc`: `Err` carries a fixed, deterministic
+    /// error string, never a crash.
+    pub fn eval(a: i64, op: u8, b: i64) -> Result<i64, &'static str> {
+        match op {
+            b'+' => a.checked_add(b).ok_or("overflow"),
+            b'-' => a.checked_sub(b).ok_or("overflow"),
+            b'*' => a.checked_mul(b).ok_or("overflow"),
+            b'/' => {
+                if b == 0 {
+                    Err("div-by-zero")
+                } else {
+                    a.checked_div(b).ok_or("overflow")
+                }
+            }
+            b'%' => {
+                if b == 0 {
+                    Err("div-by-zero")
+                } else {
+                    a.checked_rem(b).ok_or("overflow")
+                }
+            }
+            _ => Err("bad-op"),
+        }
+    }
+
+    /// `parse` then `eval`, rendered as the bare token that goes in
+    /// `tool-out=` (a decimal `i64`, or one of `eval`'s fixed error
+    /// strings). `None` iff `s` is not a well-formed `CALC(...)` call.
+    pub fn run(s: &str) -> Option<String> {
+        let (a, op, b) = parse(s)?;
+        Some(match eval(a, op, b) {
+            Ok(v) => v.to_string(),
+            Err(e) => e.to_string(),
+        })
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Kind {
     Draft,
@@ -221,6 +345,9 @@ struct Step {
     ref_idx: Option<usize>,
     recheck: Option<String>,
     verdict: Option<String>,
+    tool: Option<String>,
+    tool_in: Option<String>,
+    tool_out: Option<String>,
     text_sha256: [u8; 32],
     chain: [u8; 32],
 }
@@ -268,6 +395,18 @@ fn fold_step(chain: &[u8; 32], step: &Step) -> [u8; 32] {
     field(
         step.verdict.is_some(),
         step.verdict.as_deref().unwrap_or("").as_bytes(),
+    );
+    field(
+        step.tool.is_some(),
+        step.tool.as_deref().unwrap_or("").as_bytes(),
+    );
+    field(
+        step.tool_in.is_some(),
+        step.tool_in.as_deref().unwrap_or("").as_bytes(),
+    );
+    field(
+        step.tool_out.is_some(),
+        step.tool_out.as_deref().unwrap_or("").as_bytes(),
     );
     s.update(&step.text_sha256);
     s.finalize()
@@ -352,6 +491,9 @@ pub fn parse(text: &str) -> Result<ReasoningTrace, String> {
         let mut ref_idx: Option<usize> = None;
         let mut recheck: Option<String> = None;
         let mut verdict: Option<String> = None;
+        let mut tool: Option<String> = None;
+        let mut tool_in: Option<String> = None;
+        let mut tool_out: Option<String> = None;
         let mut text_sha256: Option<[u8; 32]> = None;
         let mut chain: Option<[u8; 32]> = None;
         for (k, v) in fields {
@@ -400,6 +542,27 @@ pub fn parse(text: &str) -> Result<ReasoningTrace, String> {
                     }
                     verdict = Some(v.to_string());
                 }
+                "tool" => {
+                    dup(tool.is_some())?;
+                    if v != "calc" {
+                        return Err(format!("step {n}: unknown tool {v:?}"));
+                    }
+                    tool = Some(v.to_string());
+                }
+                "tool-in" => {
+                    dup(tool_in.is_some())?;
+                    if calc::parse(v).is_none() {
+                        return Err(format!("step {n}: malformed tool-in {v:?}"));
+                    }
+                    tool_in = Some(v.to_string());
+                }
+                "tool-out" => {
+                    dup(tool_out.is_some())?;
+                    if !is_token(v) {
+                        return Err(format!("step {n}: malformed tool-out token {v:?}"));
+                    }
+                    tool_out = Some(v.to_string());
+                }
                 "text-sha256" => {
                     dup(text_sha256.is_some())?;
                     text_sha256 =
@@ -423,6 +586,9 @@ pub fn parse(text: &str) -> Result<ReasoningTrace, String> {
                 if ref_idx.is_some() || recheck.is_some() || verdict.is_some() {
                     return Err(format!("step {n}: draft has non-draft field"));
                 }
+                if tool.is_some() || tool_in.is_some() || tool_out.is_some() {
+                    return Err(format!("step {n}: draft has verify-only tool field"));
+                }
             }
             Kind::Verify => {
                 if ref_idx.is_none() || recheck.is_none() || verdict.is_none() {
@@ -431,6 +597,14 @@ pub fn parse(text: &str) -> Result<ReasoningTrace, String> {
                 if answer.is_some() {
                     return Err(format!("step {n}: verify has answer field"));
                 }
+                // tool/tool-in/tool-out: additive, all-or-nothing (reasoning-2).
+                let tool_field_count =
+                    tool.is_some() as u8 + tool_in.is_some() as u8 + tool_out.is_some() as u8;
+                if tool_field_count != 0 && tool_field_count != 3 {
+                    return Err(format!(
+                        "step {n}: partial tool record (need all of tool/tool-in/tool-out or none)"
+                    ));
+                }
             }
             Kind::Final => {
                 if ref_idx.is_none() || answer.is_none() {
@@ -438,6 +612,9 @@ pub fn parse(text: &str) -> Result<ReasoningTrace, String> {
                 }
                 if recheck.is_some() || verdict.is_some() {
                     return Err(format!("step {n}: final has verify-only field"));
+                }
+                if tool.is_some() || tool_in.is_some() || tool_out.is_some() {
+                    return Err(format!("step {n}: final has verify-only tool field"));
                 }
             }
         }
@@ -453,6 +630,9 @@ pub fn parse(text: &str) -> Result<ReasoningTrace, String> {
             ref_idx,
             recheck,
             verdict,
+            tool,
+            tool_in,
+            tool_out,
             text_sha256,
             chain,
         });
@@ -563,6 +743,40 @@ pub fn verify(trace: &ReasoningTrace) -> Vec<Finding> {
             let draft = &trace.steps[step.ref_idx.unwrap()];
             let recheck = step.recheck.as_deref().unwrap();
             let draft_answer = draft.answer.as_deref().unwrap();
+
+            // reasoning-2: if this verify-step carries a CALC tool call,
+            // independently recompute its result and never trust the
+            // claimed `tool-out=` field, same "verify recomputes, never
+            // trusts a claim" discipline as `verdict=` below.
+            if let Some(tool_in) = step.tool_in.as_deref() {
+                let claimed_out = step.tool_out.as_deref().unwrap();
+                match calc::run(tool_in) {
+                    Some(recomputed) if recomputed == claimed_out => {}
+                    Some(recomputed) => {
+                        findings.push(Finding::Fail(format!(
+                            "TOOL RESULT MISMATCH step {}: tool-in={tool_in:?} claims out={claimed_out:?} recomputed={recomputed:?}",
+                            step.idx
+                        )));
+                    }
+                    None => {
+                        // Parser already validated tool-in against the
+                        // same calc::parse grammar, so this is
+                        // unreachable in practice; treat defensively as
+                        // a mismatch rather than panicking.
+                        findings.push(Finding::Fail(format!(
+                            "TOOL RESULT MISMATCH step {}: tool-in={tool_in:?} does not parse",
+                            step.idx
+                        )));
+                    }
+                }
+                if recheck != claimed_out {
+                    findings.push(Finding::Fail(format!(
+                        "RECHECK IGNORES TOOL OUTPUT step {}: tool-out={claimed_out:?} recheck={recheck:?}",
+                        step.idx
+                    )));
+                }
+            }
+
             let computed_pass = recheck == draft_answer;
             computed_verdicts[step.idx] = Some(computed_pass);
             let claimed_pass = step.verdict.as_deref() == Some("pass");
@@ -675,6 +889,10 @@ mod tests {
         recheck: &'static str,
         claimed_verdict: &'static str,
         final_answer: &'static str,
+        /// reasoning-2: `Some((tool_in, tool_out))` puts a CALC tool
+        /// record on the verify step; `None` renders the plain
+        /// reasoning-1 verify step (no tool fields at all).
+        tool_call: Option<(&'static str, &'static str)>,
     }
 
     impl Builder {
@@ -686,16 +904,26 @@ mod tests {
             out.push('\n');
             out.push_str(&format!("prompt-sha256={}\n", hex(&prompt_sha256)));
 
+            #[allow(clippy::too_many_arguments)]
             let push_step = |idx: usize,
                              kind: Kind,
                              answer: Option<&str>,
                              ref_idx: Option<usize>,
                              recheck: Option<&str>,
                              verdict: Option<&str>,
+                             tool_call: Option<(&str, &str)>,
                              text: &str,
                              out: &mut String,
                              chain: &mut [u8; 32]| {
                 let text_sha256 = sha256(text.as_bytes());
+                let (tool, tool_in, tool_out) = match tool_call {
+                    Some((tin, tout)) => (
+                        Some("calc".to_string()),
+                        Some(tin.to_string()),
+                        Some(tout.to_string()),
+                    ),
+                    None => (None, None, None),
+                };
                 let step = Step {
                     idx,
                     kind,
@@ -703,6 +931,9 @@ mod tests {
                     ref_idx,
                     recheck: recheck.map(|s| s.to_string()),
                     verdict: verdict.map(|s| s.to_string()),
+                    tool,
+                    tool_in,
+                    tool_out,
                     text_sha256,
                     chain: [0u8; 32], // placeholder, computed below
                 };
@@ -720,6 +951,9 @@ mod tests {
                 if let Some(v) = verdict {
                     line.push_str(&format!(" verdict={v}"));
                 }
+                if let Some((tin, tout)) = tool_call {
+                    line.push_str(&format!(" tool=calc tool-in={tin} tool-out={tout}"));
+                }
                 line.push_str(&format!(
                     " text-sha256={} chain={}\n",
                     hex(&text_sha256),
@@ -736,6 +970,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
                 "draft rationale",
                 &mut out,
                 &mut chain,
@@ -747,6 +982,7 @@ mod tests {
                 Some(0),
                 Some(self.recheck),
                 Some(self.claimed_verdict),
+                self.tool_call,
                 "verify rationale",
                 &mut out,
                 &mut chain,
@@ -756,6 +992,7 @@ mod tests {
                 Kind::Final,
                 Some(self.final_answer),
                 Some(1),
+                None,
                 None,
                 None,
                 "final rationale",
@@ -775,6 +1012,7 @@ mod tests {
             recheck: "4",
             claimed_verdict: "pass",
             final_answer: "4",
+            tool_call: None,
         }
     }
 
@@ -785,6 +1023,7 @@ mod tests {
             recheck: "51",      // correct
             claimed_verdict: "contradict",
             final_answer: "51", // final trusts the recheck
+            tool_call: None,
         }
     }
 
@@ -921,6 +1160,9 @@ mod tests {
             ref_idx: None,
             recheck: None,
             verdict: None,
+            tool: None,
+            tool_in: None,
+            tool_out: None,
             text_sha256: sha256(b"draft"),
             chain: [0u8; 32],
         };
@@ -988,5 +1230,143 @@ mod tests {
         let tampered = format!("AEGIS-REASON v1\n{text}");
         let err = parse(&tampered).unwrap_err();
         assert!(err.contains("duplicate AEGIS-REASON header line") || err.contains("expected"));
+    }
+
+    // -----------------------------------------------------------------
+    // reasoning-2: CALC-augmented verify-step.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn calc_module_matches_agent_trace_semantics() {
+        assert_eq!(calc::run("CALC(3+4)"), Some("7".to_string()));
+        assert_eq!(calc::run("CALC(-5*2)"), Some("-10".to_string()));
+        assert_eq!(calc::run("CALC(9/0)"), Some("div-by-zero".to_string()));
+        assert_eq!(
+            calc::run("CALC(9223372036854775807+1)"),
+            Some("overflow".to_string())
+        );
+        assert_eq!(calc::run("CALC(3 + 4)"), None); // no internal whitespace allowed
+        assert_eq!(calc::run("CALC(3&4)"), None); // bad op
+    }
+
+    #[test]
+    fn calc_verify_step_catches_wrong_draft_answer() {
+        // Draft claims 41 (wrong); verify-step calls CALC(17*3)=51, which
+        // becomes the recheck; 51 != 41 so this is a genuine
+        // contradiction, correctly caught, and final must trust the tool.
+        let mut b = caught_and_resolved_contradiction();
+        b.tool_call = Some(("CALC(17*3)", "51"));
+        let text = b.render();
+        let trace = parse(&text).expect("parses");
+        let findings = verify(&trace);
+        assert!(ok(&findings), "findings: {findings:?}");
+        assert!(
+            findings
+                .iter()
+                .any(|f| matches!(f, Finding::Contradiction(_))),
+            "CALC disagreeing with the draft must be flagged as a contradiction: {findings:?}"
+        );
+        assert!(
+            !findings.iter().any(|f| f.message().starts_with("TOOL")),
+            "no tool-integrity finding expected on a correctly-recomputed tool call: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn calc_verify_step_confirms_correct_draft() {
+        // Draft already says 4; verify-step calls CALC(2+2)=4, confirming
+        // it — a clean pass-through, no contradiction.
+        let mut b = clean_pass();
+        b.tool_call = Some(("CALC(2+2)", "4"));
+        let text = b.render();
+        let trace = parse(&text).expect("parses");
+        let findings = verify(&trace);
+        assert!(ok(&findings), "findings: {findings:?}");
+        assert!(
+            !findings
+                .iter()
+                .any(|f| matches!(f, Finding::Contradiction(_))),
+            "CALC confirming the draft must not be flagged as a contradiction: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn tampered_calc_result_is_caught() {
+        // The tool actually computes CALC(2+2)=4 (matches recheck=4,
+        // draft=4, so the receipt would otherwise look like a clean
+        // pass), but the receipt CLAIMS tool-out=9 — a tampered/
+        // hallucinated tool result that disagrees with what CALC(2+2)
+        // actually evaluates to. `verify` must recompute independently
+        // and catch this even though every chain link is otherwise
+        // internally consistent (the tamper is baked into the signed
+        // receipt via the Builder, not a post-hoc edit).
+        let mut b = clean_pass();
+        b.tool_call = Some(("CALC(2+2)", "9"));
+        let text = b.render();
+        let trace = parse(&text).expect("parses");
+        let findings = verify(&trace);
+        assert!(!ok(&findings));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.message().starts_with("TOOL RESULT MISMATCH")),
+            "findings: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn recheck_ignoring_tool_output_is_caught() {
+        // tool-out is correct (CALC(2+2)=4) but recheck=5 doesn't match
+        // it: the tool's cryptographic backing is being claimed for a
+        // recheck value the tool never actually produced.
+        let mut b = clean_pass();
+        b.recheck = "5";
+        b.claimed_verdict = "contradict";
+        b.final_answer = "5";
+        b.tool_call = Some(("CALC(2+2)", "4"));
+        let text = b.render();
+        let trace = parse(&text).expect("parses");
+        let findings = verify(&trace);
+        assert!(!ok(&findings));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.message().starts_with("RECHECK IGNORES TOOL OUTPUT")),
+            "findings: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn tool_partial_record_is_a_parse_error() {
+        let text = clean_pass().render();
+        // Splice in a lone tool-out= with no tool=/tool-in= alongside it.
+        let tampered = text.replace(
+            "step 1: kind=verify ref=0 recheck=4",
+            "step 1: kind=verify ref=0 recheck=4 tool-out=4",
+        );
+        let err = parse(&tampered).unwrap_err();
+        assert!(err.contains("partial tool record"), "err: {err}");
+    }
+
+    #[test]
+    fn tool_field_on_draft_step_is_rejected() {
+        let text = clean_pass().render();
+        let tampered = text.replace(
+            "step 0: kind=draft answer=4",
+            "step 0: kind=draft answer=4 tool=calc tool-in=CALC(2+2) tool-out=4",
+        );
+        let err = parse(&tampered).unwrap_err();
+        assert!(err.contains("verify-only tool field"), "err: {err}");
+    }
+
+    #[test]
+    fn malformed_tool_in_is_rejected() {
+        let text = clean_pass().render();
+        let tampered = text.replace(
+            "step 1: kind=verify ref=0 recheck=4 verdict=pass",
+            "step 1: kind=verify ref=0 recheck=4 verdict=pass tool=calc tool-in=CALC(2&2) tool-out=4",
+        );
+        let err = parse(&tampered).unwrap_err();
+        assert!(err.contains("malformed tool-in"), "err: {err}");
     }
 }

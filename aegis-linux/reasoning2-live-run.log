@@ -1,0 +1,41 @@
+CALC items in suite: 38; running 38
+calc_easy_01: expected=2 draft=2 tool_out=2 verdict=pass final=2 correct=true extract_ok=true
+calc_easy_02: expected=21 draft=21 tool_out=21 verdict=pass final=21 correct=true extract_ok=true
+calc_easy_03: expected=2 draft=2 tool_out=2 verdict=pass final=2 correct=true extract_ok=true
+calc_easy_04: expected=37 draft=37 tool_out=37 verdict=pass final=37 correct=true extract_ok=true
+calc_easy_05: expected=-5 draft=-5 tool_out=-5 verdict=pass final=The correct=false extract_ok=true
+calc_easy_06: expected=13 draft=13 tool_out=13 verdict=pass final=13 correct=true extract_ok=true
+calc_easy_07: expected=4 draft=4 tool_out=4 verdict=pass final=4 correct=true extract_ok=true
+calc_easy_08: expected=-6 draft=-6 tool_out=-6 verdict=pass final=ANswer correct=false extract_ok=true
+calc_easy_09: expected=3 draft=3 tool_out=3 verdict=pass final=3 correct=true extract_ok=true
+calc_easy_10: expected=12 draft=12 tool_out=12 verdict=pass final=12 correct=true extract_ok=true
+calc_easy_11: expected=28 draft=28 tool_out=28 verdict=pass final=28 correct=true extract_ok=true
+calc_easy_12: expected=1 draft=1 tool_out=1 verdict=pass final=1 correct=true extract_ok=true
+calc_easy_13: expected=16 draft=16 tool_out=16 verdict=pass final=16 correct=true extract_ok=true
+calc_easy_14: expected=22 draft=22 tool_out=22 verdict=pass final=22 correct=true extract_ok=true
+calc_easy_15: expected=1 draft=1 tool_out=1 verdict=pass final=1 correct=true extract_ok=true
+calc_hard_01: expected=1685 draft=1685 tool_out=1685 verdict=pass final=1685 correct=true extract_ok=true
+calc_hard_02: expected=585 draft=0 tool_out=585 verdict=contradict final=ANswer correct=false extract_ok=true
+calc_hard_03: expected=1 draft=1 tool_out=1 verdict=pass final=1 correct=true extract_ok=true
+calc_hard_04: expected=1040 draft=1030 tool_out=1040 verdict=contradict final=ANswer correct=false extract_ok=true
+calc_hard_05: expected=226008 draft=227 tool_out=226008 verdict=contradict final=ANswer correct=false extract_ok=true
+calc_hard_06: expected=416 draft=416 tool_out=416 verdict=pass final=416 correct=true extract_ok=true
+calc_hard_07: expected=0 draft=0 tool_out=0 verdict=pass final=0 correct=true extract_ok=true
+calc_hard_08: expected=330 draft=30 tool_out=330 verdict=contradict final=ANswer correct=false extract_ok=true
+calc_hard_09: expected=0 draft=0 tool_out=0 verdict=pass final=0 correct=true extract_ok=true
+calc_hard_10: expected=65 draft=65 tool_out=65 verdict=pass final=65 correct=true extract_ok=true
+calc_hard_11: expected=1830 draft=1830 tool_out=1830 verdict=pass final=1830 correct=true extract_ok=true
+calc_hard_12: expected=585 draft=585 tool_out=585 verdict=pass final=585 correct=true extract_ok=true
+calc_hard_13: expected=486 draft=3 tool_out=486 verdict=contradict final=ANswer correct=false extract_ok=true
+calc_hard_14: expected=128 draft=0 tool_out=128 verdict=contradict final=ANswer correct=false extract_ok=true
+calc_hard_15: expected=826 draft=826 tool_out=826 verdict=pass final=826 correct=true extract_ok=true
+calc_overflow_01: expected=1000014129 draft=998906609 tool_out=1000014129 verdict=contradict final=ANWER correct=false extract_ok=true
+calc_overflow_02: expected=999961560 draft=1000000000 tool_out=999961560 verdict=contradict final=ANWER correct=false extract_ok=true
+calc_overflow_03: expected=1999999998 draft=1999999998 tool_out=1999999998 verdict=pass final=19 correct=false extract_ok=true
+calc_overflow_04: expected=2 draft=1 tool_out=2 verdict=contradict final=ANswer correct=false extract_ok=true
+calc_overflow_05: expected=overflow draft=922337203685 tool_out=overflow verdict=contradict final=922337203685 correct=false extract_ok=true
+calc_overflow_06: expected=overflow draft=-9223372036 tool_out=overflow verdict=contradict final=0x0000000000000000 correct=false extract_ok=true
+calc_overflow_07: expected=overflow draft=9223372036 tool_out=overflow verdict=contradict final=9223372036 correct=false extract_ok=true
+calc_overflow_08: expected=overflow draft=9223372036 tool_out=overflow verdict=contradict final=9223372036 correct=false extract_ok=true
+
+DONE: 38 CALC items run; final-answer correct 22/38; draft-extraction failures 0/38; tool-parse failures 0/38

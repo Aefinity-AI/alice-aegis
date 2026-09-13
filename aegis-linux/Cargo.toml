@@ -48,3 +48,9 @@ test = true
 [[example]]
 name = "reasoning_live"
 test = true
+
+# reasoning_live_calc (reasoning-2): same driver as reasoning_live, verify
+# round backed by a CALC tool call. Same test = true rationale.
+[[example]]
+name = "reasoning_live_calc"
+test = true
