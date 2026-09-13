@@ -13,18 +13,22 @@ and one distractor by copying a shot (`two + two` -> `CALC(2 + 2)`). All four
 gave a plausible-looking, wrong result. This rule flagged exactly those four
 and none of the 47 correct calls.
 
-K>1: every step is checked, but the rule necessarily weakens after step 0.
-At step 0 the current query is known exactly (the last `Q:` line of the
-prompt), so the argument must appear there. At step k>0 the receipt records
-only the initial prompt -- the text the model generated in between is not
-recoverable from the receipt without the vocabulary -- so the current query is
-unknown. The rule therefore accepts an argument that appears verbatim in ANY
-`Q:` line of the prompt (verdict `ok`) or in the decoded `out=` of an earlier
-step (verdict `ok-tool`, the legitimate tool-chaining case), and flags one that
-appears in neither, since such an argument was invented by the model rather
-than copied from anything the receipt records. This is deliberately permissive:
-a later step that snaps a key to a value present in an earlier shot will not be
-caught. It is strictly more coverage than step 0 alone, not a complete rule.
+K>1: every step is checked against the SAME external-context rule the
+Rust `agent_trace` gateway uses (see demo/agent-trace/README.md): the last
+`Q:` line of the initial prompt -- never any few-shot `Q:` line above it,
+and never the model's own generated text -- plus every prior step's
+decoded tool result (`out=`). The rule therefore accepts an argument that
+appears verbatim in the LAST `Q:` line of the prompt (verdict `ok`) or in
+the decoded `out=` of an earlier step (verdict `ok-tool`, the legitimate
+tool-chaining case), and flags one that appears in neither, since such an
+argument was invented by the model -- or copied from a few-shot example
+above the real question -- rather than copied from anything the current
+step actually saw. Checking against every `Q:` line (not just the last)
+would let a model that snaps an argument to a value from an earlier shot
+slip through ungrounded-argument detection undetected; the receipt-level
+regression test `mixed_lookup_calc_01` (a real live20 episode whose model
+output copies a `CALC(10 + 10)` shot from three questions earlier) is
+exactly the case this restriction exists to catch.
 
 Limits: a FLAG is a review signal, not a verdict of incorrectness, and this
 script is a report rather than a gate (it always exits 0).
@@ -42,7 +46,13 @@ import sys
 
 STEP_RE = re.compile(r"^step (\d+): .*?tool=(\S+) in=([0-9a-f]*) out=([0-9a-f]*)", re.M)
 PROMPT_RE = re.compile(r"^prompt-hex ([0-9a-f]+)", re.M)
-ARG_RE = re.compile(r"^(CALC|LOOKUP)\((.*)\)$")
+# Must match every tool grammar `run_tool`/`extract_call_arg` in
+# aegis-linux/examples/agent_trace.rs recognize (CALC, LOOKUP, FILE-READ) --
+# omitting FILE-READ here left its `in=` field un-stripped (the whole
+# "FILE-READ(...)" wrapper, not just the key), so it could never match
+# verbatim against a query/tool-result substring and every FILE-READ call
+# spuriously FLAGged. See state/reports/2026-09-13-safe1d-grounding-reconcile.md.
+ARG_RE = re.compile(r"^(CALC|LOOKUP|FILE-READ)\((.*)\)$")
 
 
 def last_query(prompt: str) -> str:
@@ -93,8 +103,15 @@ def check_receipt_steps(text: str, strict_grounding: bool = False):
         if idx == 0:
             # The current query is known exactly, so the strict rule applies.
             verdict, source = ("ok", last_q) if arg in last_q else ("FLAG", last_q)
-        elif any(arg in q for q in qs):
-            verdict, source = "ok", next(q for q in qs if arg in q)
+        elif last_q and arg in last_q:
+            # Same last-`Q:`-line-only rule as step 0 (matches the Rust
+            # `agent_trace` gateway's `external_text`, which never contains
+            # any Q: line but the last one of the initial prompt). Checking
+            # against every `Q:` line here (the prior behavior) let a
+            # shot-copied argument that matches an EARLIER few-shot example
+            # count as grounded even though the model never actually saw
+            # that example as its current question.
+            verdict, source = "ok", last_q
         elif any(arg in o for o in outs if o):
             verdict, source = "ok-tool", next(o for o in outs if o and arg in o)
         else:
