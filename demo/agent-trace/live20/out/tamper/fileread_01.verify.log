@@ -1,0 +1,4 @@
+receipt trace-chain 6de1b57acd114d1f
+local   trace-chain 6de1b57acd114d1f
+step 0 divergence: toks-match=true tool-match=true in-match=true out-match=false decode-chain-match=true
+VERIFY FAIL — replay diverged from the receipt
