@@ -802,8 +802,31 @@ fn run_e2e_safe1c(args: &[String]) {
     eprintln!("e2e-safe1c: {n} decisions logged");
 }
 
+/// Collect CLI args as `String`, failing closed (usage-error exit, not a
+/// panic) on any argument that is not valid UTF-8. `std::env::args()`
+/// itself panics on the first non-UTF-8 argument (see
+/// `std::env::args_os` docs); a malformed-nonce/session/path fuzz case can
+/// easily produce one (e.g. a session id or counter argument containing
+/// raw non-UTF-8 bytes), and a receipt-gateway CLI panicking on bad input
+/// is exactly the failure mode this program treats as a finding (safe-1e).
+fn collect_args_or_exit() -> Vec<String> {
+    let mut out = Vec::new();
+    for (i, a) in std::env::args_os().enumerate() {
+        match a.into_string() {
+            Ok(s) => out.push(s),
+            Err(bad) => {
+                eprintln!(
+                    "gateway: argument {i} is not valid UTF-8 ({bad:?}); refusing to run"
+                );
+                std::process::exit(2);
+            }
+        }
+    }
+    out
+}
+
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = collect_args_or_exit();
     if args.len() > 1 && args[1] == "e2e-safe1c" {
         run_e2e_safe1c(&args);
         return;
@@ -1491,5 +1514,54 @@ mod tests {
         // just ALLOWs.
         let (_d2, head2) = gw.decide(&r1, &a1, "sess-10", 1);
         assert_ne!(head1, head2, "log head must change on every decision, including DENY");
+    }
+
+    // -------------------------------------------------------------
+    // safe-1e fuzz finding: a non-UTF-8 CLI argument (e.g. a malformed
+    // session id or counter produced by a mutation fuzzer) used to make
+    // the whole process PANIC via `std::env::args()` (which unwraps
+    // internally and aborts on the first non-Unicode arg), instead of
+    // failing closed with a usage error. Regression: spawn the built
+    // release binary with a raw non-UTF-8 byte sequence as one argument
+    // and assert it exits with a controlled error, not a panic. Exact
+    // input that triggered this during fuzzing: argv = [gateway, "x"*10,
+    // "--anchor-every", b"\xff\xfe"].
+    // -------------------------------------------------------------
+    #[test]
+    fn non_utf8_cli_arg_fails_closed_not_panic() {
+        use std::ffi::OsStr;
+        #[cfg(unix)]
+        use std::os::unix::ffi::OsStrExt;
+
+        let bin = repo_root().join("demo/agent-trace/gateway/target/release/gateway");
+        if !bin.exists() {
+            // Debug build fallback so this test still runs from `cargo test`
+            // without requiring a prior `--release` build.
+            let debug = repo_root().join("demo/agent-trace/gateway/target/debug/gateway");
+            assert!(debug.exists(), "gateway binary not built (release or debug)");
+        }
+        let bin = if bin.exists() {
+            bin
+        } else {
+            repo_root().join("demo/agent-trace/gateway/target/debug/gateway")
+        };
+
+        let bad = OsStr::from_bytes(&[0xff, 0xfe]);
+        let out = Command::new(&bin)
+            .args(["x"; 10])
+            .arg("--anchor-every")
+            .arg(bad)
+            .output()
+            .expect("spawn gateway");
+
+        assert!(
+            !out.status.success(),
+            "malformed-arg call should not succeed"
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            !stderr.contains("panicked"),
+            "non-UTF-8 CLI argument must fail closed, not panic; stderr was: {stderr}"
+        );
     }
 }
