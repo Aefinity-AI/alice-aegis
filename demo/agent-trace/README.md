@@ -50,6 +50,32 @@ the replay independently derives — the per-step generalization of
 The model's own text is excluded on purpose: a model that writes its own
 `Q: 2 + 2` line and then calls `CALC(2 + 2)` must not satisfy the rule.
 
+### Strict grounding mode (`--strict-grounding`)
+
+By default (as above) a tool-call argument that does not appear verbatim in
+the externally supplied text a step had seen prints a non-fatal `WARNING`
+line and does not change the `VERIFY PASS`/`FAIL` verdict. `agent_trace
+verify ... --strict-grounding` turns that same condition into a hard
+`VERIFY FAIL` (`VERIFY FAIL — strict grounding: step(s) [...] argument not
+grounded in prior prompt/tool-result text (--strict-grounding)`) instead —
+because an argument the replay cannot derive from the prompt plus prior
+tool results is exactly what a fabricated tool call looks like (the model
+inventing a number rather than reading it from context), and a receipt
+whose job is to catch that should be able to fail on it, not merely note
+it. The flag is opt-in and defaults to off (lenient) rather than replacing
+the WARNING outright because: (1) the verbatim-argument rule is sound but
+not complete (see `verbatim_rule_is_sound_but_not_complete` in
+`aegis-linux/examples/agent_trace.rs`) — it can and does warn on
+legitimate arguments the model computed correctly but that happen not to
+be a literal substring of any prior text, so promoting it to a
+default failure would make some genuine PASSes fail; (2) it only applies
+from format 2 on (the field the check depends on, `verbatim_ok`, does not
+exist for pre-format-2 receipts); and (3) the existing tools-1b live20
+receipts (`demo/agent-trace/live20/`) must keep verifying 20/20 unchanged
+— strict grounding is for a verifier operator who wants a stricter,
+zero-tolerance policy for a given deployment, not a retroactive change to
+what "PASS" has meant for receipts already generated and attested.
+
 No files are downloaded. Everything comes from
 `model-lab/tinybit/m7_final_gate_work/artifacts/` already in this repo
 (same default as `demo/edge-receipt`).
@@ -60,6 +86,8 @@ No files are downloaded. Everything comes from
 demo/agent-trace/run.sh build                          # compile agent_trace
 demo/agent-trace/run.sh gen "The quick brown fox" 3 16  # write a receipt (prompt K N)
 demo/agent-trace/run.sh verify <receipt-file>           # replay + check
+# agent_trace verify ... --strict-grounding also available directly (see
+# "Strict grounding mode" above); not wired into run.sh's verify subcommand.
 demo/agent-trace/run.sh tamper                          # 4 adversarial mutations, each must FAIL
 demo/agent-trace/run.sh pack <receipt> [attestdir]      # bundle a receipt (+ table + quote) into one tar
 demo/agent-trace/run.sh verify-bundle <bundle.tar>       # extract + run every applicable check
@@ -67,6 +95,20 @@ demo/agent-trace/run.sh all "The quick brown fox" 3 16  # build + gen + verify +
 ```
 
 Receipts land in `demo/agent-trace/out/trace-<hostname>-<utc>.txt`.
+
+### Python receipt analyzer (`check_verbatim.py`)
+
+`eval/check_verbatim.py` is a receipt-only verifier that checks whether each tool-call argument is grounded in the externally supplied context (the prompt's `Q:` lines and prior tool results). It prints one row per step and a summary.
+
+```
+python3 eval/check_verbatim.py <receipts-dir>                    # lenient mode (warnings only)
+python3 eval/check_verbatim.py --strict-grounding <receipts-dir>  # strict mode (warnings → failures)
+```
+
+**Lenient mode (default)**: flags ungrounded arguments as warnings but exits 0.
+**Strict mode**: promotes ungrounded arguments to FAIL verdicts and exits 1 if any FAILs found.
+
+Lenient mode is the default because the verbatim-argument rule is sound but not complete: it can warn on legitimate arguments the model computed correctly but that happen not to be a literal substring of prior text. Strict mode is for a verifier operator who wants zero-tolerance grounding checks for a given deployment, not a change to what "PASS" has meant for already-generated receipts.
 
 ### Env overrides (same names as `demo/edge-receipt`)
 

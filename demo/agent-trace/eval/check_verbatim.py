@@ -64,13 +64,16 @@ def _argument(raw: str) -> str:
     return m.group(2) if m else raw
 
 
-def check_receipt_steps(text: str):
+def check_receipt_steps(text: str, strict_grounding: bool = False):
     """Return one (step, tool, argument, source, verdict) per step line.
 
     verdict is 'ok' (argument copied from a query), 'ok-tool' (copied from an
     earlier step's tool result), 'FLAG' (found in neither) or '-' (no call).
     `source` is the query the argument was checked against: the last `Q:` line
     at step 0, and a short description of the accepted source afterwards.
+
+    If strict_grounding is True, a 'FLAG' verdict becomes 'FAIL' instead,
+    causing a hard failure rather than a warning.
     """
     m = PROMPT_RE.search(text)
     prompt = _unhex(m.group(1)) if m else ""
@@ -96,18 +99,23 @@ def check_receipt_steps(text: str):
             verdict, source = "ok-tool", next(o for o in outs if o and arg in o)
         else:
             verdict, source = "FLAG", ""
+
+        # In strict mode, promote FLAG to FAIL
+        if strict_grounding and verdict == "FLAG":
+            verdict = "FAIL"
+
         rows.append((idx, tool, arg, source, verdict))
         outs.append(out)
     return rows
 
 
-def check_receipt_text(text: str):
+def check_receipt_text(text: str, strict_grounding: bool = False):
     """Return (tool, argument, last_query, verdict) for step 0 of one receipt.
 
     Kept for callers that only care about the first step; check_receipt_steps
     is the full-episode form.
     """
-    rows = check_receipt_steps(text)
+    rows = check_receipt_steps(text, strict_grounding=strict_grounding)
     if not rows:
         m = PROMPT_RE.search(text)
         return ("?", "", last_query(_unhex(m.group(1)) if m else ""), "-")
@@ -119,6 +127,11 @@ def main(argv):
     if len(argv) < 2:
         print(__doc__)
         return 2
+
+    strict_grounding = "--strict-grounding" in argv
+    # Remove flag from argv for positional arg processing
+    argv = [a for a in argv if a != "--strict-grounding"]
+
     d = argv[1]
     scorer = {}
     if len(argv) > 2:
@@ -127,17 +140,20 @@ def main(argv):
                 scorer[r["item_id"]] = r.get("arg_match", "")
     rows = []
     for f in sorted(os.listdir(d)):
-        if not f.endswith(".txt") or "." in f[:-4]:
-            continue  # skip .gen.err / .attest.out etc.
+        if not f.endswith(".txt") and not f.endswith(".receipt"):
+            continue  # support both .txt and .receipt extensions
+        if "." in f.rsplit(".", 1)[0]:  # skip .gen.err / .attest.out etc.
+            continue
         with open(os.path.join(d, f), errors="replace") as fh:
-            steps = check_receipt_steps(fh.read())
+            steps = check_receipt_steps(fh.read(), strict_grounding=strict_grounding)
         for idx, tool, arg, source, verdict in steps:
-            rows.append((f[:-4], str(idx), tool, arg, source, verdict))
+            rows.append((f.rsplit(".", 1)[0], str(idx), tool, arg, source, verdict))
     print("item\tstep\ttool\targ\tsource\tverbatim")
     for r in rows:
         print("\t".join(r))
     called = [r for r in rows if r[5] != "-"]
-    flagged = [r for r in called if r[5] == "FLAG"]
+    flagged = [r for r in called if r[5] in ("FLAG", "FAIL")]
+    failed = [r for r in called if r[5] == "FAIL"]
     chained = [r for r in called if r[5] == "ok-tool"]
     later = [r for r in called if r[1] != "0"]
     receipts = {r[0] for r in rows}
@@ -146,6 +162,8 @@ def main(argv):
         f"(step0={len(called)-len(later)} later-steps={len(later)}) "
         f"from-tool-result={len(chained)} flagged={len(flagged)}"
     )
+    if failed:
+        print(f"strict-grounding: {len(failed)} FAIL verdict(s)")
     for r in flagged:
         where = f"step {r[1]}"
         if r[1] == "0":
@@ -157,13 +175,17 @@ def main(argv):
         # worst verdict before comparing.
         worst = {}
         for r in called:
-            if worst.get(r[0]) != "FLAG":
+            if worst.get(r[0]) not in ("FLAG", "FAIL"):
                 worst[r[0]] = r[5]
-        fl = [i for i, v in worst.items() if v == "FLAG"]
+        fl = [i for i, v in worst.items() if v in ("FLAG", "FAIL")]
         tp = sum(1 for i in fl if scorer.get(i) == "false")
         fp = sum(1 for i in fl if scorer.get(i) == "true")
-        missed = [i for i, v in worst.items() if v != "FLAG" and scorer.get(i) == "false"]
+        missed = [i for i, v in worst.items() if v not in ("FLAG", "FAIL") and scorer.get(i) == "false"]
         print(f"vs scorer: flagged-and-wrong={tp} flagged-but-right={fp} wrong-not-flagged={missed}")
+
+    # In strict mode, exit with error if any FAILs found
+    if strict_grounding and failed:
+        return 1
     return 0
 
 
