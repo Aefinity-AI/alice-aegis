@@ -1,0 +1,59 @@
+moat3: 331 F32 candidate tensors, 1762120 candidate bytes, model 522831917 bytes
+== baseline (clean, no flip) ==
+baseline: generated=[11, 304, 264, 2678, 6424, 2663, 7997, 2630, 11, 1070, 12439, 264, 3995, 3828, 7086, 48390, 13, 48390, 574, 264, 22999, 323, 25530, 3828, 889, 10456, 311, 13488, 323, 4048, 502, 2574, 13, 3005, 574, 2744, 24450, 311, 7142, 279, 24511, 315, 279, 1917, 2212, 1077, 382, 4054, 40798, 13658, 11, 48390, 6773, 311, 4034, 279, 2254, 6875, 311, 1505, 264, 2363, 389, 279] fnv=cab11400d737ac4a chain=46b76024493d231e44ad6742582b8e9db8aef92e75e68b1e92707d3bbd407348
+== trials ==
+trial#,kind,tensor,byte_off_in_tensor,bit,old_byte,new_byte,A_pass,B_pass,C_pass
+1,control-noflip,-,0,0,00,00,PASS,PASS,PASS
+2,control-noflip,-,0,0,00,00,PASS,PASS,PASS
+3,control-noflip,-,0,0,00,00,PASS,PASS,PASS
+4,control-noflip,-,0,0,00,00,PASS,PASS,PASS
+5,control-noflip,-,0,0,00,00,PASS,PASS,PASS
+6,control-highbit,model.layers.16.input_layernorm.weight,6774,7,31,b1,FAIL,FAIL,FAIL
+7,control-highbit,model.layers.11.input_layernorm.weight,8754,7,7d,fd,FAIL,FAIL,FAIL
+8,control-highbit,model.layers.25.mlp.ffn_sub_norm.weight,16514,7,c7,47,FAIL,FAIL,FAIL
+9,control-highbit,model.layers.24.mlp.ffn_sub_norm.weight,12090,7,01,81,FAIL,FAIL,FAIL
+10,control-highbit,model.layers.15.mlp.ffn_sub_norm.weight,13678,7,44,c4,FAIL,FAIL,FAIL
+11,trial,model.layers.28.self_attn.attn_sub_norm.weight,9807,2,41,45,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+12,trial,model.layers.13.post_attention_layernorm.weight,1151,7,3f,bf,FAIL,FAIL,FAIL
+13,trial,model.layers.11.input_layernorm.weight,7203,0,3c,3d,FAIL,FAIL,FAIL
+14,trial,model.layers.3.input_layernorm.weight,2191,0,3c,3d,FAIL,FAIL,FAIL
+15,trial,model.layers.8.input_layernorm.weight,6255,4,3c,2c,FAIL,FAIL,FAIL
+16,trial,model.layers.25.mlp.ffn_sub_norm.weight,13279,1,41,43,PASS,FAIL,FAIL
+17,trial,model.layers.26.input_layernorm.weight,9583,5,3c,1c,FAIL,FAIL,FAIL
+18,trial,model.layers.19.input_layernorm.weight,8899,3,3c,34,FAIL,FAIL,FAIL
+19,trial,model.layers.17.mlp.ffn_sub_norm.weight,18815,7,0a,8a,PASS,PASS,PASS
+20,trial,model.layers.9.post_attention_layernorm.weight,8815,6,3f,7f,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+21,trial,model.layers.25.post_attention_layernorm.weight,4419,5,3f,1f,FAIL,FAIL,FAIL
+22,trial,model.layers.14.post_attention_layernorm.weight,3907,5,3f,1f,FAIL,FAIL,FAIL
+23,trial,model.layers.15.mlp.ffn_sub_norm.weight,17575,2,3f,3b,FAIL,FAIL,FAIL
+24,trial,model.layers.1.input_layernorm.weight,3691,3,3c,34,FAIL,FAIL,FAIL
+25,trial,model.layers.29.input_layernorm.weight,2611,5,3c,1c,PASS,FAIL,FAIL
+26,trial,model.layers.28.self_attn.attn_sub_norm.weight,2399,2,41,45,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+27,trial,model.layers.10.mlp.ffn_sub_norm.weight,21431,1,3f,3d,FAIL,FAIL,FAIL
+28,trial,model.layers.17.self_attn.attn_sub_norm.weight,2839,7,40,c0,FAIL,FAIL,FAIL
+29,trial,model.layers.5.mlp.ffn_sub_norm.weight,7355,3,3f,37,FAIL,FAIL,FAIL
+30,trial,model.layers.15.self_attn.attn_sub_norm.weight,299,0,3f,3e,FAIL,FAIL,FAIL
+31,trial,model.layers.29.post_attention_layernorm.weight,3751,2,3f,3b,FAIL,FAIL,FAIL
+32,trial,model.layers.19.input_layernorm.weight,7711,1,3c,3e,FAIL,FAIL,FAIL
+33,trial,model.layers.5.self_attn.attn_sub_norm.weight,1467,0,3e,3f,FAIL,FAIL,FAIL
+34,trial,model.layers.28.mlp.ffn_sub_norm.weight,20383,3,41,49,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+35,trial,model.layers.21.input_layernorm.weight,8775,4,3c,2c,FAIL,FAIL,FAIL
+36,trial,model.layers.20.mlp.ffn_sub_norm.weight,6603,5,40,60,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+37,trial,model.layers.19.self_attn.attn_sub_norm.weight,2907,7,40,c0,FAIL,FAIL,FAIL
+38,trial,model.layers.20.input_layernorm.weight,319,6,3c,7c,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+39,trial,model.layers.20.post_attention_layernorm.weight,4627,1,3f,3d,FAIL,FAIL,FAIL
+40,trial,model.layers.22.mlp.ffn_sub_norm.weight,10011,1,0a,08,PASS,PASS,PASS
+41,trial,model.layers.22.mlp.ffn_sub_norm.weight,11111,4,40,50,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+42,trial,model.layers.13.input_layernorm.weight,5831,7,3c,bc,FAIL,FAIL,FAIL
+43,trial,model.layers.19.mlp.ffn_sub_norm.weight,16251,2,40,44,FAIL,FAIL,FAIL
+44,trial,model.layers.3.post_attention_layernorm.weight,7279,4,3f,2f,FAIL,FAIL,FAIL
+45,trial,model.layers.27.post_attention_layernorm.weight,5283,6,3f,7f,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+46,trial,model.layers.4.mlp.ffn_sub_norm.weight,13995,1,3d,3f,FAIL,FAIL,FAIL
+47,trial,model.layers.29.mlp.ffn_sub_norm.weight,18839,7,41,c1,PASS,FAIL,FAIL
+48,trial,model.layers.14.self_attn.attn_sub_norm.weight,1735,6,3f,7f,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+49,trial,model.layers.21.input_layernorm.weight,55,6,3c,7c,FAIL,FAIL,FAIL (engine panicked: fixed-point range assert, caught)
+50,trial,model.layers.26.mlp.ffn_sub_norm.weight,16931,0,41,40,FAIL,FAIL,FAIL
+== summary ==
+headline A_pass_AND_C_fail=3
+headline B_pass_AND_C_fail=0
+model_bytes_unchanged_after_run=true
