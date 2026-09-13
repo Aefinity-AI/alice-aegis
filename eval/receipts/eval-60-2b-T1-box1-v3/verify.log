@@ -1,0 +1,286 @@
+calc_easy_03: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain da96229d19a3f65f
+  local   trace-chain da96229d19a3f65f
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_02: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 7be4eb006ab4b314
+  local   trace-chain 7be4eb006ab4b314
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_04: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 2793efbec083dc4c
+  local   trace-chain 2793efbec083dc4c
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_01: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 9adad3e72d241bc9
+  local   trace-chain 9adad3e72d241bc9
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_06: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 5da4aac703ea8873
+  local   trace-chain 5da4aac703ea8873
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_07: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain f10d9e7085d45d30
+  local   trace-chain f10d9e7085d45d30
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_05: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain bdf33f4a317c2f6d
+  local   trace-chain bdf33f4a317c2f6d
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_08: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 7bde8cebd786c74c
+  local   trace-chain 7bde8cebd786c74c
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_09: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain ab93084813b62a39
+  local   trace-chain ab93084813b62a39
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_10: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 075618629ad12f4e
+  local   trace-chain 075618629ad12f4e
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_11: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain ad9011b8d868bbb7
+  local   trace-chain ad9011b8d868bbb7
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_12: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain fb6a24c4e6542416
+  local   trace-chain fb6a24c4e6542416
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_01: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain eda2c5013ae1504b
+  local   trace-chain eda2c5013ae1504b
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_15: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain a23a24aad204d2b7
+  local   trace-chain a23a24aad204d2b7
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_13: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 7da087375a466011
+  local   trace-chain 7da087375a466011
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_easy_14: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 27ab501e0d5725dd
+  local   trace-chain 27ab501e0d5725dd
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_05: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain ab14ae53c7fe4795
+  local   trace-chain ab14ae53c7fe4795
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_04: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 9fdf0188ab7c8b1c
+  local   trace-chain 9fdf0188ab7c8b1c
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_03: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain b78dd552339e6d1e
+  local   trace-chain b78dd552339e6d1e
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_02: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 021c62f5fc88b5b7
+  local   trace-chain 021c62f5fc88b5b7
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_06: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 9d63f05c7a49d4a6
+  local   trace-chain 9d63f05c7a49d4a6
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_09: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 8d5968cadded2ad3
+  local   trace-chain 8d5968cadded2ad3
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_07: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain a0c9e90706739738
+  local   trace-chain a0c9e90706739738
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_08: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain c88a05f314f6574f
+  local   trace-chain c88a05f314f6574f
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_13: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 8105e059dfba5dd5
+  local   trace-chain 8105e059dfba5dd5
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_10: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 7cdc8971b681b97c
+  local   trace-chain 7cdc8971b681b97c
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_12: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain ee9294c15ad975c3
+  local   trace-chain ee9294c15ad975c3
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_11: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 229ece7ac47eff4f
+  local   trace-chain 229ece7ac47eff4f
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_overflow_01: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain c7a9c7845a813142
+  local   trace-chain c7a9c7845a813142
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_15: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 5e5116a58c4b78bb
+  local   trace-chain 5e5116a58c4b78bb
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_hard_14: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain eabedc1bd542f233
+  local   trace-chain eabedc1bd542f233
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_overflow_02: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain e9a4c3a30ada0a8f
+  local   trace-chain e9a4c3a30ada0a8f
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_overflow_04: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain d987e3153e69c922
+  local   trace-chain d987e3153e69c922
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_overflow_03: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain b02ce1a629cca9a9
+  local   trace-chain b02ce1a629cca9a9
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_overflow_05: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain e6758eb447a95f3d
+  local   trace-chain e6758eb447a95f3d
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_overflow_06: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain f6b18cb7222d04c6
+  local   trace-chain f6b18cb7222d04c6
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+distractor_02: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 168961e335ef7b8c
+  local   trace-chain 168961e335ef7b8c
+  WARNING step 0: tool argument not found verbatim in context
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+distractor_01: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain 9dd2c59945cd5fc2
+  local   trace-chain 9dd2c59945cd5fc2
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_overflow_07: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain f47614fe3b31cb54
+  local   trace-chain f47614fe3b31cb54
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_overflow_08: PASS
+  note: --table given but the receipt has no table-sha256 line; ignored
+  receipt trace-chain ae5638e581725bdb
+  local   trace-chain ae5638e581725bdb
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_hit_03: PASS
+  receipt trace-chain 56be7436ff79821b
+  local   trace-chain 56be7436ff79821b
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_hit_04: PASS
+  receipt trace-chain a2f29a5216816856
+  local   trace-chain a2f29a5216816856
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_hit_02: PASS
+lookup_hit_01: PASS
+  receipt trace-chain ac4a9ae7d3e473e3
+  local   trace-chain ac4a9ae7d3e473e3
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+  receipt trace-chain 7c3c42175c30f5fd
+  local   trace-chain 7c3c42175c30f5fd
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_hit_06: PASS
+  receipt trace-chain 6a17493989e2da14
+  local   trace-chain 6a17493989e2da14
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_hit_08: PASS
+  receipt trace-chain 531bf67a75f6eab5
+  local   trace-chain 531bf67a75f6eab5
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_hit_07: PASS
+  receipt trace-chain 5885f60145d470b0
+  local   trace-chain 5885f60145d470b0
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_hit_05: PASS
+  receipt trace-chain a205b4875852532e
+  local   trace-chain a205b4875852532e
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_miss_04: PASS
+  receipt trace-chain 0e3298cc7d569858
+  local   trace-chain 0e3298cc7d569858
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_miss_03: PASS
+  receipt trace-chain 7228a8c7c2ca7b39
+  local   trace-chain 7228a8c7c2ca7b39
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_miss_01: PASS
+  receipt trace-chain 7e67226c6ae12ce7
+  local   trace-chain 7e67226c6ae12ce7
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_miss_02: PASS
+  receipt trace-chain 828d0019baee8cb6
+  local   trace-chain 828d0019baee8cb6
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_miss_05: PASS
+  receipt trace-chain 4614ddc8efc98094
+  local   trace-chain 4614ddc8efc98094
+  WARNING step 0: tool argument not found verbatim in context
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_near_03: PASS
+  receipt trace-chain 6dc0e17f3812c2e6
+  local   trace-chain 6dc0e17f3812c2e6
+  WARNING step 0: tool argument not found verbatim in context
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_near_01: PASS
+  receipt trace-chain b9dbe3e181b7fc6c
+  local   trace-chain b9dbe3e181b7fc6c
+  WARNING step 0: tool argument not found verbatim in context
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_near_02: PASS
+  receipt trace-chain 4f8d7d0ae32ec306
+  local   trace-chain 4f8d7d0ae32ec306
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_near_04: PASS
+  receipt trace-chain 20b4acc73d3fe73c
+  local   trace-chain 20b4acc73d3fe73c
+  VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+mixed_01: PASS
+  receipt trace-chain cfc242bb41a2c1fb
+  local   trace-chain cfc242bb41a2c1fb
+  VERIFY PASS — replay reproduced 2 steps and the full trace chain bit-for-bit
+mixed_03: PASS
+  receipt trace-chain 4dbbbfe25afb193f
+  local   trace-chain 4dbbbfe25afb193f
+  VERIFY PASS — replay reproduced 2 steps and the full trace chain bit-for-bit
+mixed_02: PASS
+  receipt trace-chain af04ff3ccac36968
+  local   trace-chain af04ff3ccac36968
+  WARNING step 1: tool argument not found verbatim in context
+  VERIFY PASS — replay reproduced 2 steps and the full trace chain bit-for-bit
+TOTAL: 60 PASS / 0 FAIL / 60 items

@@ -18,11 +18,13 @@ endianness on purpose (see §4, §5).
 | `AEGIS-TRACE v0` | 1 | base: header + step(`toks,tool,in,out,decode-chain`) + `trace-chain` | no (lines absent) |
 | `AEGIS-TRACE v1` | 2 | per-step `ctx=`/`q=` fields; `NOTE: format-1 receipt, per-step query binding not present` printed by `verify` for format 1 | no (lines absent) |
 | `AEGIS-TRACE v2` | 3 | `commit`/`host` lead lines, and — unlike format 1/2, where those two lines if present are decorative — folded into trace genesis (see §4) | **yes** |
+| `AEGIS-TRACE v3` | 4 | `item-ctx` lead line (safe-2c): `sha256(item_id \|\| prompt_bytes \|\| session_nonce)`, folded into trace genesis (see §4) | yes (same PROV block as format 3, plus the new `ITEMCTX` block) |
 
-`gen` (as of the current binary) always emits `AEGIS-TRACE v2` (format 3).
-`verify` accepts all three. `table-sha256` and `suite-sha256` lead lines are
-each optional in every format, independent of the format number (table/suite
-support predates format 2 and is not itself a format bump).
+`gen` emits `AEGIS-TRACE v2` (format 3) by default, or `AEGIS-TRACE v3`
+(format 4) when `--item-id`/`--nonce` are given (both required together —
+see §9). `verify` accepts all four. `table-sha256` and `suite-sha256` lead
+lines are each optional in every format, independent of the format number
+(table/suite support predates format 2 and is not itself a format bump).
 
 `gen` refuses to emit `commit unknown` (a format-3 receipt whose commit
 could not be resolved) unless `AEGIS_ALLOW_UNKNOWN_COMMIT=1` is set in its
@@ -69,6 +71,9 @@ rejects it with `FAIL structure: ...` before any artifact/replay check runs:
 - `commit` and `host` line values must be non-empty (`FAIL structure:
   commit line has an empty value` / `FAIL structure: host line has an
   empty value`).
+- `item-ctx` (format 4 / `AEGIS-TRACE v3` only) must be exactly 64
+  lowercase hex chars (`FAIL structure: malformed item-ctx (want 64
+  lowercase hex)`), same rule as `table-sha256`/`suite-sha256`.
 
 **Canonical `gen` line order:**
 ```
@@ -94,7 +99,7 @@ trace-chain <64 hex>
 value) still routes on `key`. Allowed lead keys (`LEAD_KEYS`, exactly these
 12, plus the special `WARNING` key handled separately):
 `AEGIS-TRACE, model, embed, vocab, K, N, prompt-hex, trace-chain,
-table-sha256, suite-sha256, commit, host`.
+table-sha256, suite-sha256, commit, host, item-ctx`.
 Any other key on a non-`step`/non-`WARNING` line is rejected. Every key in
 `LEAD_KEYS` may appear **at most once**; a WARNING line does not count
 against that (it is not checked for duplication as a *key*, but the
@@ -172,6 +177,8 @@ resolved `(step)` set is checked against replay — see §3).
   (format-2 downgrade)`.
 - Format ≥ 3 receipt missing `commit` or `host` line: `FAIL structure:
   format-3 receipt is missing its commit or host line`.
+- Format ≥ 4 receipt missing `item-ctx` line: `FAIL structure: format-4
+  receipt is missing its item-ctx line`.
 - `K` value ≠ number of step lines actually present: `FAIL structure:
   receipt claims K={w_k} but has {n_steps} step lines`.
 - Header bounds (`validate_receipt_header`/`check_header_bounds`, requires
@@ -215,6 +222,7 @@ front, with `FAIL structure: missing <key> line` (one message per key:
 | `table-sha256` | sha256 of the `--table` file's exact bytes (present iff `gen` was given `--table`) | genesis, raw 32 bytes, then table byte length as BE u64 (table_len is **not** itself a printed field — see §4) |
 | `suite-sha256` | caller-supplied 32-byte digest, e.g. of an eval-suite TSV (present iff `--suite-sha256` was given) | genesis, tag `b"SUITE"` then raw 32 bytes |
 | `commit`/`host` | build git commit (40 hex or `unknown`) / `hostname` output, format 3 only | genesis, tag `b"PROV"` then each as (LE u32 len, bytes), commit first then host |
+| `item-ctx` (format 4 only) | `sha256(item_id \|\| prompt_bytes \|\| session_nonce)` — binds the receipt to a specific item/session id, given to `gen` via `--item-id`/`--nonce` (see §9). Unlike `ctx=`/`q=` below, this IS folded into trace genesis, so it cannot be silently edited or relabelled in an otherwise-untouched receipt. | genesis, tag `b"ITEMCTX"` then raw 32 bytes |
 | `step i: toks=` | comma-separated greedy-decoded token ids (u32) for that step | **not folded into trace-chain**; only the *step's* `decode-chain` (a `WitnessChain` digest over tokens+logits) is folded — see §5. Cannot be recomputed without inference. |
 | `tool` | one of `no-tool`, `calc`, `calc-error`, `lookup`, `file-read` — see below | step fold, as UTF-8 bytes of the name |
 | `in` | the tool call's *matched call text* (e.g. `CALC(3 + 4)`), or empty for `no-tool` | step fold, raw bytes (hex-decoded from `in=`) |
@@ -309,11 +317,12 @@ is never required to implement `--fail-fast` or match its wording.
 | 9 | `table_sha` (32 raw bytes) then `table_len` as **BE u64** (8 bytes) | only if receipt has a `table-sha256` line | `table_len` = the declared table **file's** byte length — it is **not printed anywhere in the receipt**; a chain-only recompute of a table-bound receipt needs the actual table file to get `table_len` (and to confirm `table_sha`). No tag byte precedes this block. |
 | 10 | `b"SUITE"` (5 bytes) then `suite_sha` (32 raw bytes) | only if receipt has a `suite-sha256` line | tag present; sits after the table slot whether or not #9 is present |
 | 11 | `b"PROV"` (4 bytes) then, for each of `commit` then `host` in that order: `(field.len() as u32).to_le_bytes()` (4 bytes, **LE**) followed by the field's raw UTF-8 bytes | only for format ≥ 3 (`AEGIS-TRACE v2`) — never present for format 1/2 even if `commit`/`host` lines happen to be printed | length prefix is **LE u32**, unlike the BE u64 lengths in #5-#7 |
+| 12 | `b"ITEMCTX"` (7 bytes) then `item_ctx` (32 raw bytes) | only for format ≥ 4 (`AEGIS-TRACE v3`) — never present for format 1/2/3 even if an `item-ctx` line happens to be printed | hex-decode the `item-ctx` line; sits after the PROV block |
 
 Block #9's table_sha/table_len ordering and lack of a tag is fixed on
 purpose (documented as load-bearing in the source) so pre-suite-hash
 table-bound receipts keep verifying byte-for-byte after suite/PROV support
-was added. A genesis with none of #9-#11 (a bare table-less, suite-less,
+was added. A genesis with none of #9-#12 (a bare table-less, suite-less,
 format 1/2 receipt) is byte-identical to the very first (pre-LOOKUP)
 genesis fold.
 
@@ -445,3 +454,79 @@ receipt, two hand-tampered (MISMATCH) receipts, and six structurally
 malformed (REJECTED) receipts — lives in `vectors/`, indexed by
 `vectors/EXPECTED.tsv` and described in `vectors/README.md`. Run the whole
 set with `python3 tools/trace_chain.py --selftest`.
+
+`tools/trace_chain.py` has not yet been extended to format 4 (`item-ctx`,
+§9) as of this writing — it still recognizes `AEGIS-TRACE v0`/`v1`/`v2`
+only, and does not fold block #12. A format-4 receipt run through it today
+would either be rejected as `unknown AEGIS-TRACE format "v3"` or (if the
+tool is patched to recognize the header without also folding block #12)
+silently reproduce the wrong genesis. Treat `agent_trace verify` as the
+sole reference for format 4 until this is closed.
+
+## 9. Item/session ctx binding (safe-2c, format 4 / `AEGIS-TRACE v3`)
+
+**Problem this closes.** safe-2b's tamper demo
+(`eval/receipts/apply_tampers.py`, tamper 4, "replay-under-wrong-id") found
+that a receipt's own trace-chain math can be entirely self-consistent —
+because through format 3 nothing in the wire format named which item or
+session the episode was run for — so a receipt generated for one item still
+`VERIFY PASS`ed when filed (or replayed) under a different item's id. The
+receipt content itself never changed; only the claim about which item it
+answers did, and nothing checked that claim.
+
+**`gen --item-id <ID> --nonce <N>`.** Both required together (giving only
+one is a CLI error, exit 2). When given, `gen` computes
+`item_ctx = sha256(item_id_bytes ++ prompt_bytes ++ nonce_bytes)` (plain
+concatenation, UTF-8 bytes of `item_id`/`nonce` as given on the command
+line, `prompt_bytes` exactly as folded into genesis block #7), prints an
+`item-ctx <64 hex>` lead line, and bumps the header to `AEGIS-TRACE v3`
+(format 4), folding `item_ctx` into genesis as block #12 (§4). Neither flag
+given: output is byte-identical to format 3 — no line added, no format
+bump.
+
+**`verify --expect-ctx <64 hex>`**, or **`verify --expect-item <ID>
+--expect-prompt-file <F> --nonce <N>`** (mutually exclusive with
+`--expect-ctx`; recomputes the expected value the identical way `gen` did,
+reading `F`'s exact bytes as `prompt_bytes`). Either form is optional — a
+format-4 receipt verified with neither still passes/fails purely on its own
+chain math, exactly like a format-3 receipt's `commit`/`host`. When an
+expectation IS given:
+- Receipt's `item-ctx` line equals the expected hex: no additional effect.
+- Receipt's `item-ctx` line differs: `VERIFY FAIL — ctx mismatch (receipt
+  item-ctx <first 16 hex> vs expected <first 16 hex>)`.
+- Receipt has no `item-ctx` line at all (format < 4): `VERIFY FAIL — ctx
+  mismatch (receipt has no item-ctx line, expected <first 16 hex>)`.
+
+This expectation check runs BEFORE the artifact-hash/replay checks, so a
+mismatch is reported without needing to replay the episode.
+
+**Why this is the fix, not just another independent field comparison.**
+`ctx=`/`q=` (§3, per-step) are checked by independent replay comparison
+only — never folded into `trace-chain` — so editing them (without also
+touching `trace-chain`) is caught by a dedicated mismatch message, but nothing
+stops an attacker from filing a wholly untouched, internally-consistent
+receipt under the wrong name (exactly the tamper-4 shape, which predates
+`ctx=`/`q=` even existing as a concept — it is a receipt-identity problem,
+not a per-step content problem). `item-ctx` is different: it is folded into
+genesis (block #12), so
+1. the `--expect-ctx`/`--expect-item` check catches a receipt filed under
+   the wrong id (its own `item-ctx` line names the WRONG item, even though
+   its internal math is fully self-consistent for that wrong item), and
+2. directly editing the `item-ctx` line in a receipt file, without a model
+   available to recompute every downstream digest, breaks the ordinary hash
+   chain (`VERIFY FAIL — replay diverged from the receipt`) even with no
+   `--expect-ctx` supplied at all — the same tamper-evidence class as
+   editing `commit`/`host` in a format-3 receipt.
+
+**Retrofitting an existing bundle without re-running inference.**
+`eval/receipts/inject_item_ctx.py` adds `item-ctx` (and bumps to format 4)
+to the safe-2 EVAL-60 T1 (2B, box1) bundle by recomputing genesis + step
+folds in pure Python from the receipts' own already-recorded fields
+(model/embed/vocab sha, K, N, prompt bytes, table/suite sha, commit, host,
+and each step's already-recorded `decode-chain`/`tool`/`in`/`out`) — no
+model, no re-run of `decode_step`, exactly the "chain-only recompute" §7
+describes, extended to also fold the new item-ctx block. This is possible
+ONLY because genesis and the step fold are pure hash functions of data
+already committed to the file; it says nothing new about whether the
+receipt's `decode-chain`/`toks` claims are themselves faithful to the model
+(§7's limits still apply).
