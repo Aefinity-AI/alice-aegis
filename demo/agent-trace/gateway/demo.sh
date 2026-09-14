@@ -25,15 +25,15 @@
 #      verify` CLI -- the same binary/algorithm the gateway's worker used,
 #      run standalone with no gateway, no socket, no daemon.
 #
-# Usage: bash demo.sh
-# Requires: the real 2B artifacts at
-#   /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts
+# Usage: CM_2B_ARTIFACTS=/path/to/bitnet2b-2b-artifacts bash demo.sh
+# Requires: CM_2B_ARTIFACTS set to a directory holding the real 2B
+#   artifacts (aegis_pruned_model.cis.safetensors, embed.bin, vocab.bin)
 # and a Rust toolchain (cargo) on PATH to build the two release binaries
 # if they are not already built.
 set -euo pipefail
 cd "$(dirname "$0")"   # demo/agent-trace/gateway
 
-ART=/home/cm/aefinity-artifacts/bitnet2b-2b-artifacts
+ART=${CM_2B_ARTIFACTS:?set CM_2B_ARTIFACTS to the directory holding aegis_pruned_model.cis.safetensors, embed.bin, vocab.bin}
 MODEL="$ART/aegis_pruned_model.cis.safetensors"
 EMBED="$ART/embed.bin"
 VOCAB="$ART/vocab.bin"

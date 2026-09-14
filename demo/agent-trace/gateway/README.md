@@ -14,8 +14,11 @@ immediately, then a background worker pool runs the real
 ## One-command demo
 
 `demo.sh` is a single, self-contained script that demonstrates the whole
-story end to end against the REAL BitNet-2B artifacts on this box
-(`/home/cm/aefinity-artifacts/bitnet2b-2b-artifacts`). It:
+story end to end against the REAL BitNet-2B artifacts. Set
+`CM_2B_ARTIFACTS` to the directory holding
+`aegis_pruned_model.cis.safetensors`, `embed.bin`, and `vocab.bin` before
+running it (the artifacts are not shipped in this repo — obtain them from
+wherever your BitNet-2B pruned-model export lives). It:
 
 1. Uses a real receipt already generated against the real 2B model
    (`tests/fixtures/live20/calc_01.receipt`).
@@ -48,7 +51,7 @@ story end to end against the REAL BitNet-2B artifacts on this box
 Run it with:
 
 ```
-bash demo.sh
+CM_2B_ARTIFACTS=/path/to/bitnet2b-2b-artifacts bash demo.sh
 ```
 
 It builds the two release binaries it needs (`agent_trace` example,
@@ -58,7 +61,37 @@ wall clock (two real ~1-2 minute model verifications).
 
 `demo-expected-output.log` is a captured real run to diff your own run
 against. The exact capability token, `exp=` timestamp, scratch-dir PID
-(`/tmp/safe8-demo-<pid>`), and per-run wall-clock poll-attempt counts will
-differ between runs — everything else (the `AEGIS-TRACE` receipt bodies,
-the ALLOW/DENY/DENY sequence, the `VERIFY PASS` line) should match
-byte-for-byte.
+(`/tmp/safe8-demo-<pid>`), `CM_2B_ARTIFACTS` path, and per-run wall-clock
+poll-attempt counts will differ between runs — everything else (the
+`AEGIS-TRACE` receipt bodies, the ALLOW/DENY/DENY sequence, the
+`VERIFY PASS` line) should match byte-for-byte.
+
+## Verify on a phone
+
+The same standalone `agent_trace verify` step 8 prints can be run on a
+phone with no network path to this gateway at all:
+
+1. Cross-compile a static verifier for aarch64 on any Linux host with the
+   `aarch64-unknown-linux-gnu` target installed:
+   ```
+   RUSTFLAGS="-C target-feature=+crt-static" \
+     cargo build --release --offline --example agent_trace \
+     --target aarch64-unknown-linux-gnu
+   ```
+2. Push the resulting static binary, the receipt file, and the three
+   artifact files to the phone (e.g. via `adb push` into
+   `/data/local/tmp/`).
+3. Run it on-device with absolute paths:
+   ```
+   adb shell /data/local/tmp/agent_trace verify \
+     /data/local/tmp/aegis_pruned_model.cis.safetensors \
+     /data/local/tmp/embed.bin /data/local/tmp/vocab.bin \
+     /data/local/tmp/receipt.orig
+   ```
+   A `VERIFY PASS` line confirms the receipt bit-for-bit, entirely
+   offline.
+
+If you don't want to cross-compile yourself, the public
+[`cis2-spec`](https://github.com/Aefinity-AI/cis2-spec) repo's
+`kits/verification-kit-v1/` already ships prebuilt aarch64 verifier
+binaries for exactly this phone-verification lane.

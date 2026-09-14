@@ -85,7 +85,7 @@ gateway), using nothing but the receipt file and the three public
 artifact files, with the standalone agent_trace CLI -- no gateway,
 no socket, no daemon involved:
 
-  agent_trace verify /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/aegis_pruned_model.cis.safetensors /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/embed.bin /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/vocab.bin /tmp/safe8-demo-70868/receipt.orig
+  agent_trace verify $CM_2B_ARTIFACTS/aegis_pruned_model.cis.safetensors $CM_2B_ARTIFACTS/embed.bin $CM_2B_ARTIFACTS/vocab.bin /tmp/safe8-demo-70868/receipt.orig
 
 (run now, on this box, against the exact receipt used above, for
  illustration -- a third party would run the equivalent command
