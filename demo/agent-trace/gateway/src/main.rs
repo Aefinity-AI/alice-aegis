@@ -52,67 +52,21 @@
 //!     a hard reject (empty allowlist, everything DENIES) rather than a
 //!     silent fall-through.
 
-use aegis_core::witness::{sha256, Sha256};
+use aegis_core::witness::sha256;
+use gateway::{capability, hex, hmac_sha256, unhex};
 use std::collections::HashSet;
 use std::fs;
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-// ---------------------------------------------------------------------
-// HMAC-SHA256, built on aegis_core's Sha256 (no external crate; this repo
-// pins zero runtime deps beyond libm, see aegis-core/Cargo.toml).
-// ---------------------------------------------------------------------
-
-const BLOCK: usize = 64;
-
-fn hmac_sha256(key: &[u8], msg: &[u8]) -> [u8; 32] {
-    let mut key_block = [0u8; BLOCK];
-    if key.len() > BLOCK {
-        let k = sha256(key);
-        key_block[..32].copy_from_slice(&k);
-    } else {
-        key_block[..key.len()].copy_from_slice(key);
-    }
-    let mut ipad = [0x36u8; BLOCK];
-    let mut opad = [0x5cu8; BLOCK];
-    for i in 0..BLOCK {
-        ipad[i] ^= key_block[i];
-        opad[i] ^= key_block[i];
-    }
-    let mut inner = Sha256::new();
-    inner.update(&ipad);
-    inner.update(msg);
-    let inner_digest = inner.finalize();
-
-    let mut outer = Sha256::new();
-    outer.update(&opad);
-    outer.update(&inner_digest);
-    outer.finalize()
-}
-
-fn hex(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        s.push_str(&format!("{:02x}", b));
-    }
-    s
-}
-
-fn unhex(s: &str) -> Option<Vec<u8>> {
-    if s.len() % 2 != 0 || !s.bytes().all(|c| c.is_ascii_hexdigit()) {
-        return None;
-    }
-    let mut out = Vec::with_capacity(s.len() / 2);
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let hi = (bytes[i] as char).to_digit(16)?;
-        let lo = (bytes[i + 1] as char).to_digit(16)?;
-        out.push(((hi << 4) | lo) as u8);
-        i += 2;
-    }
-    Some(out)
-}
+// HMAC-SHA256, hex/unhex: moved to lib.rs (`demo/agent-trace/gateway/src/lib.rs`)
+// so that `src/bin/tool_shim_*.rs` can share the exact same implementation
+// the gateway daemon uses, without a crates.io HMAC dependency (this repo
+// is offline-only, see aegis-core/Cargo.toml).
 
 // ---------------------------------------------------------------------
 // Receipt parsing (deliberately minimal: only what the gateway needs, not
@@ -335,6 +289,14 @@ impl Gateway {
         self.log.last().map(|e| e.digest).unwrap_or([0u8; 32])
     }
 
+    /// Number of decisions this Gateway instance has made so far. Used by
+    /// `serve` as the capability token's `decision_index` (SAFE-5c):
+    /// monotonic, gateway-assigned, never caller-supplied, so a client
+    /// cannot mint its own index and cannot roll it back.
+    pub fn decision_count(&self) -> u64 {
+        self.log.len() as u64
+    }
+
     /// Append one decision to the hash-chained log; publish an anchor line
     /// every `anchor_every` entries. Returns this entry's digest (also its
     /// new chain head).
@@ -394,9 +356,22 @@ impl Gateway {
                 // repo, dirty tree with an unrelated conflict) must not
                 // crash the gateway's decision path.
                 if let (Some(dir), Some(fname)) = (path.parent(), path.file_name()) {
-                    let dir = if dir.as_os_str().is_empty() { Path::new(".") } else { dir };
-                    let _ = Command::new("git").args(["-C"]).arg(dir).args(["add"]).arg(fname).status();
-                    let msg = format!("gateway ledger: chain head at decision {} = {}", self.log.len(), hex(&digest));
+                    let dir = if dir.as_os_str().is_empty() {
+                        Path::new(".")
+                    } else {
+                        dir
+                    };
+                    let _ = Command::new("git")
+                        .args(["-C"])
+                        .arg(dir)
+                        .args(["add"])
+                        .arg(fname)
+                        .status();
+                    let msg = format!(
+                        "gateway ledger: chain head at decision {} = {}",
+                        self.log.len(),
+                        hex(&digest)
+                    );
                     let _ = Command::new("git")
                         .args(["-C"])
                         .arg(dir)
@@ -424,7 +399,9 @@ impl Gateway {
         if let Some(t) = &self.table_path {
             cmd.arg("--table").arg(t);
         }
-        let out = cmd.output().map_err(|e| format!("spawn agent_trace: {e}"))?;
+        let out = cmd
+            .output()
+            .map_err(|e| format!("spawn agent_trace: {e}"))?;
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     }
 
@@ -467,7 +444,17 @@ impl Gateway {
             Ok(t) => t,
             Err(e) => {
                 let d = Decision::Deny(format!("read receipt: {e}"));
-                let head = self.append_log(&d, "", &ArtifactTriple{model:String::new(),embed:String::new(),vocab:String::new()}, session, counter);
+                let head = self.append_log(
+                    &d,
+                    "",
+                    &ArtifactTriple {
+                        model: String::new(),
+                        embed: String::new(),
+                        vocab: String::new(),
+                    },
+                    session,
+                    counter,
+                );
                 return (d, head);
             }
         };
@@ -475,7 +462,17 @@ impl Gateway {
             Ok(p) => p,
             Err(e) => {
                 let d = Decision::Deny(format!("parse receipt: {e:?}"));
-                let head = self.append_log(&d, "", &ArtifactTriple{model:String::new(),embed:String::new(),vocab:String::new()}, session, counter);
+                let head = self.append_log(
+                    &d,
+                    "",
+                    &ArtifactTriple {
+                        model: String::new(),
+                        embed: String::new(),
+                        vocab: String::new(),
+                    },
+                    session,
+                    counter,
+                );
                 return (d, head);
             }
         };
@@ -514,7 +511,8 @@ impl Gateway {
             action_hash,
         };
         if self.seen.contains(&key) {
-            let d = Decision::Deny("freshness: (session, counter, action-hash) already seen".into());
+            let d =
+                Decision::Deny("freshness: (session, counter, action-hash) already seen".into());
             let head = self.append_log(&d, &parsed.trace_chain, &parsed.triple, session, counter);
             return (d, head);
         }
@@ -536,12 +534,14 @@ impl Gateway {
                     "agent_trace verify: VERIFY FAIL"
                 };
                 let d = Decision::Deny(reason.into());
-                let head = self.append_log(&d, &parsed.trace_chain, &parsed.triple, session, counter);
+                let head =
+                    self.append_log(&d, &parsed.trace_chain, &parsed.triple, session, counter);
                 return (d, head);
             }
             Err(e) => {
                 let d = Decision::Deny(format!("agent_trace verify: could not run: {e}"));
-                let head = self.append_log(&d, &parsed.trace_chain, &parsed.triple, session, counter);
+                let head =
+                    self.append_log(&d, &parsed.trace_chain, &parsed.triple, session, counter);
                 return (d, head);
             }
         }
@@ -574,7 +574,9 @@ fn run_e2e_safe1c(args: &[String]) {
     // args: [1]=e2e-safe1c [2]=model [3]=embed [4]=vocab [5]=agent_trace_bin
     // [6]=live20_receipts_dir [7]=tables_dir [8]=work_dir [9]=ledger_file
     if args.len() < 10 {
-        eprintln!("usage: gateway e2e-safe1c <MODEL> <EMBED> <VOCAB> <agent_trace_bin> <live20_dir> <tables_dir> <work_dir> <ledger_file>");
+        eprintln!(
+            "usage: gateway e2e-safe1c <MODEL> <EMBED> <VOCAB> <agent_trace_bin> <live20_dir> <tables_dir> <work_dir> <ledger_file>"
+        );
         std::process::exit(2);
     }
     let model = PathBuf::from(&args[2]);
@@ -596,7 +598,11 @@ fn run_e2e_safe1c(args: &[String]) {
     let good_refs: Vec<&str> = good_lines.iter().map(|s| s.as_str()).collect();
     let good_sig = sign_allowlist(&good_refs, &key);
     let good_allowlist_path = work_dir.join("allowlist.good.signed");
-    fs::write(&good_allowlist_path, format!("{}\nsig {}\n", good_lines[0], good_sig)).unwrap();
+    fs::write(
+        &good_allowlist_path,
+        format!("{}\nsig {}\n", good_lines[0], good_sig),
+    )
+    .unwrap();
 
     // A "one-bit-flipped MODEL.SAF" allowlist entry: hash a copy of the
     // real model with its first byte XORed, and sign an allowlist listing
@@ -609,7 +615,11 @@ fn run_e2e_safe1c(args: &[String]) {
     let bad_refs: Vec<&str> = bad_lines.iter().map(|s| s.as_str()).collect();
     let bad_sig = sign_allowlist(&bad_refs, &key);
     let bad_allowlist_path = work_dir.join("allowlist.bitflipped.signed");
-    fs::write(&bad_allowlist_path, format!("{}\nsig {}\n", bad_lines[0], bad_sig)).unwrap();
+    fs::write(
+        &bad_allowlist_path,
+        format!("{}\nsig {}\n", bad_lines[0], bad_sig),
+    )
+    .unwrap();
 
     let mut ids: Vec<String> = fs::read_dir(&live20_dir)
         .expect("live20 dir")
@@ -648,10 +658,28 @@ fn run_e2e_safe1c(args: &[String]) {
                     f.write_all(line.as_bytes())
                 });
             if let (Some(dir), Some(fname)) = (ledger_path.parent(), ledger_path.file_name()) {
-                let dir = if dir.as_os_str().is_empty() { Path::new(".") } else { dir };
-                let _ = Command::new("git").arg("-C").arg(dir).arg("add").arg(fname).status();
-                let msg = format!("gateway ledger: chain head at decision {n} = {}", hex(&head));
-                let _ = Command::new("git").arg("-C").arg(dir).arg("commit").arg("-m").arg(&msg).status();
+                let dir = if dir.as_os_str().is_empty() {
+                    Path::new(".")
+                } else {
+                    dir
+                };
+                let _ = Command::new("git")
+                    .arg("-C")
+                    .arg(dir)
+                    .arg("add")
+                    .arg(fname)
+                    .status();
+                let msg = format!(
+                    "gateway ledger: chain head at decision {n} = {}",
+                    hex(&head)
+                );
+                let _ = Command::new("git")
+                    .arg("-C")
+                    .arg(dir)
+                    .arg("commit")
+                    .arg("-m")
+                    .arg(&msg)
+                    .status();
             }
         }
     };
@@ -802,10 +830,224 @@ fn run_e2e_safe1c(args: &[String]) {
     eprintln!("e2e-safe1c: {n} decisions logged");
 }
 
+// =======================================================================
+// SAFE-5b: daemon mode. `gateway serve` binds a unix socket and keeps one
+// Gateway instance alive for the process's lifetime, so freshness state
+// (the `seen` set) survives across calls — fixing the "freshness state
+// not surviving across calls" gap flagged in the safe1c e2e report. One
+// request per connection: the client sends
+//   RECEIPT <path>
+//   ACTION <hex>
+//   SESSION <session>
+//   COUNTER <counter>
+//   (blank line or EOF ends the request)
+// and gets back exactly one line:
+//   ALLOW idx=<n> cap=<token> exp=<unix>
+//   DENY <reason>
+// On ALLOW, a capability token is minted via `capability::issue` using
+// this Gateway's own monotonic decision_count() as the index (never
+// caller-supplied) and `--cap-ttl` seconds from now as the expiry. Tool
+// shims (`src/bin/tool_shim_*.rs`) independently verify that token before
+// acting — see `src/capability.rs` and ENFORCEMENT.md.
+// =======================================================================
+
+fn now_unix() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+struct ServeRequest {
+    receipt: PathBuf,
+    action_hex: String,
+    session: String,
+    counter: u64,
+}
+
+fn parse_serve_request(stream: &mut UnixStream) -> Option<ServeRequest> {
+    let reader = BufReader::new(stream.try_clone().ok()?);
+    let mut receipt = None;
+    let mut action_hex = String::new();
+    let mut session = "default".to_string();
+    let mut counter = 0u64;
+    for line in reader.lines() {
+        let line = line.ok()?;
+        if line.trim().is_empty() {
+            break;
+        }
+        if let Some(rest) = line.strip_prefix("RECEIPT ") {
+            receipt = Some(PathBuf::from(rest.trim()));
+        } else if let Some(rest) = line.strip_prefix("ACTION ") {
+            action_hex = rest.trim().to_string();
+        } else if let Some(rest) = line.strip_prefix("SESSION ") {
+            session = rest.trim().to_string();
+        } else if let Some(rest) = line.strip_prefix("COUNTER ") {
+            counter = rest.trim().parse().unwrap_or(0);
+        }
+    }
+    Some(ServeRequest {
+        receipt: receipt?,
+        action_hex,
+        session,
+        counter,
+    })
+}
+
+fn handle_serve_conn(stream: &mut UnixStream, gw: &mut Gateway, cap_key: &[u8], cap_ttl: u64) {
+    let req = match parse_serve_request(stream) {
+        Some(r) => r,
+        None => {
+            let _ = writeln!(stream, "DENY malformed request");
+            return;
+        }
+    };
+    let action_bytes = unhex(&req.action_hex).unwrap_or_default();
+    let (decision, _head) = gw.decide(&req.receipt, &action_bytes, &req.session, req.counter);
+    match decision {
+        Decision::Allow => {
+            let idx = gw.decision_count();
+            let ahash = sha256(&action_bytes);
+            let exp = now_unix() + cap_ttl;
+            let token = capability::issue(cap_key, idx, ahash, exp);
+            let _ = writeln!(stream, "ALLOW idx={idx} cap={token} exp={exp}");
+        }
+        Decision::Deny(reason) => {
+            let _ = writeln!(stream, "DENY {reason}");
+        }
+    }
+}
+
+fn run_serve(args: &[String]) {
+    // args: [1]=serve [2]=model [3]=embed [4]=vocab [5]=agent_trace_bin
+    // [6]=allowlist [7]=allowlist-key-file --socket S --cap-key-file K
+    // [--table T] [--anchor-every N] [--anchor-file F] [--strict]
+    // [--cap-ttl SECS]
+    if args.len() < 8 {
+        eprintln!(
+            "usage: gateway serve <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <agent_trace-bin> <allowlist> <allowlist-key-file> --socket <path> --cap-key-file <path> [--table <path>] [--anchor-every N] [--anchor-file F] [--strict] [--cap-ttl SECS]"
+        );
+        std::process::exit(2);
+    }
+    let model = PathBuf::from(&args[2]);
+    let embed = PathBuf::from(&args[3]);
+    let vocab = PathBuf::from(&args[4]);
+    let bin = PathBuf::from(&args[5]);
+    let allowlist_path = PathBuf::from(&args[6]);
+    let key_path = PathBuf::from(&args[7]);
+
+    let mut socket_path: Option<PathBuf> = std::env::var("XDG_RUNTIME_DIR")
+        .ok()
+        .map(|d| PathBuf::from(d).join("cm-gateway.sock"));
+    let mut cap_key_path: Option<PathBuf> = None;
+    let mut table_path = None;
+    let mut anchor_every = 5usize;
+    let mut anchor_path = None;
+    let mut strict = false;
+    let mut cap_ttl = 60u64;
+    let mut i = 8;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--socket" => {
+                socket_path = args.get(i + 1).map(PathBuf::from);
+                i += 2;
+            }
+            "--cap-key-file" => {
+                cap_key_path = args.get(i + 1).map(PathBuf::from);
+                i += 2;
+            }
+            "--table" => {
+                table_path = args.get(i + 1).map(PathBuf::from);
+                i += 2;
+            }
+            "--anchor-every" => {
+                anchor_every = args.get(i + 1).and_then(|s| s.parse().ok()).unwrap_or(5);
+                i += 2;
+            }
+            "--anchor-file" => {
+                anchor_path = args.get(i + 1).map(PathBuf::from);
+                i += 2;
+            }
+            "--strict" => {
+                strict = true;
+                i += 1;
+            }
+            "--cap-ttl" => {
+                cap_ttl = args.get(i + 1).and_then(|s| s.parse().ok()).unwrap_or(60);
+                i += 2;
+            }
+            _ => {
+                i += 1;
+            }
+        }
+    }
+
+    let socket_path = socket_path.unwrap_or_else(|| {
+        eprintln!("gateway serve: no --socket given and $XDG_RUNTIME_DIR not set");
+        std::process::exit(2);
+    });
+    let cap_key_path = cap_key_path.unwrap_or_else(|| {
+        eprintln!("gateway serve: --cap-key-file is required");
+        std::process::exit(2);
+    });
+
+    let allowlist_key = fs::read(&key_path).unwrap_or_else(|e| {
+        eprintln!("read allowlist key file {}: {e}", key_path.display());
+        std::process::exit(2);
+    });
+    let cap_key = fs::read(&cap_key_path).unwrap_or_else(|e| {
+        eprintln!("read capability key file {}: {e}", cap_key_path.display());
+        std::process::exit(2);
+    });
+
+    let mut gw = match Gateway::new(GatewayConfig {
+        allowlist_path,
+        allowlist_key,
+        anchor_every,
+        anchor_path,
+        agent_trace_bin: bin,
+        model_path: model,
+        embed_path: embed,
+        vocab_path: vocab,
+        table_path,
+        strict,
+    }) {
+        Ok(g) => g,
+        Err(e) => {
+            eprintln!("GATEWAY INIT FAIL: {e:?}");
+            std::process::exit(1);
+        }
+    };
+
+    // A stale socket from a previous run must not block bind.
+    let _ = fs::remove_file(&socket_path);
+    let listener = UnixListener::bind(&socket_path).unwrap_or_else(|e| {
+        eprintln!("bind {}: {e}", socket_path.display());
+        std::process::exit(1);
+    });
+    // Owner-only: this socket is the sole path to a real decision.
+    let _ = fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o600));
+    eprintln!(
+        "gateway serve: listening on {} (cap-ttl={cap_ttl}s)",
+        socket_path.display()
+    );
+
+    for conn in listener.incoming() {
+        match conn {
+            Ok(mut stream) => handle_serve_conn(&mut stream, &mut gw, &cap_key, cap_ttl),
+            Err(e) => eprintln!("gateway serve: accept error: {e}"),
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 && args[1] == "e2e-safe1c" {
         run_e2e_safe1c(&args);
+        return;
+    }
+    if args.len() > 1 && args[1] == "serve" {
+        run_serve(&args);
         return;
     }
     if args.len() < 8 {
@@ -823,10 +1065,7 @@ fn main() {
     let receipt = PathBuf::from(&args[7]);
     let action_hex = args.get(8).cloned().unwrap_or_default();
     let session = args.get(9).cloned().unwrap_or_else(|| "default".into());
-    let counter: u64 = args
-        .get(10)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
+    let counter: u64 = args.get(10).and_then(|s| s.parse().ok()).unwrap_or(0);
 
     let mut table_path = None;
     let mut anchor_every = 5usize;
@@ -907,11 +1146,7 @@ mod tests {
 
     fn workdir() -> PathBuf {
         let n = TESTDIR_CTR.fetch_add(1, Ordering::SeqCst);
-        let d = std::env::temp_dir().join(format!(
-            "gateway-test-{}-{}",
-            std::process::id(),
-            n
-        ));
+        let d = std::env::temp_dir().join(format!("gateway-test-{}-{}", std::process::id(), n));
         fs::create_dir_all(&d).unwrap();
         d
     }
@@ -943,14 +1178,27 @@ mod tests {
         // fast no-op if nothing changed, so this costs nothing when the
         // binary is already current.
         let status = Command::new("cargo")
-            .args(["build", "--release", "--offline", "--example", "agent_trace"])
+            .args([
+                "build",
+                "--release",
+                "--offline",
+                "--example",
+                "agent_trace",
+            ])
             .current_dir(repo_root().join("aegis-linux"))
             .status()
             .expect("cargo build --release agent_trace");
-        assert!(status.success(), "failed to build agent_trace example (release)");
+        assert!(
+            status.success(),
+            "failed to build agent_trace example (release)"
+        );
 
         let bin = repo_root().join("aegis-linux/target/release/examples/agent_trace");
-        assert!(bin.exists(), "agent_trace release binary missing after build: {}", bin.display());
+        assert!(
+            bin.exists(),
+            "agent_trace release binary missing after build: {}",
+            bin.display()
+        );
 
         // Log the binary's sha256 so a stale-verifier situation is
         // detectable from test output going forward.
@@ -962,7 +1210,11 @@ mod tests {
 
     fn artifacts() -> (PathBuf, PathBuf, PathBuf) {
         let a = repo_root().join("model-lab/tinybit/m7_final_gate_work/artifacts");
-        (a.join("MODEL.SAF"), a.join("EMBED.BIN"), a.join("VOCAB.BIN"))
+        (
+            a.join("MODEL.SAF"),
+            a.join("EMBED.BIN"),
+            a.join("VOCAB.BIN"),
+        )
     }
 
     fn artifact_hexes() -> (String, String, String) {
@@ -995,7 +1247,11 @@ mod tests {
         out
     }
 
-    fn write_signed_allowlist(dir: &Path, triples: &[(String, String, String)], key: &[u8]) -> PathBuf {
+    fn write_signed_allowlist(
+        dir: &Path,
+        triples: &[(String, String, String)],
+        key: &[u8],
+    ) -> PathBuf {
         let lines: Vec<String> = triples
             .iter()
             .map(|(m, e, v)| format!("{m} {e} {v}"))
@@ -1012,7 +1268,10 @@ mod tests {
         path
     }
 
-    fn make_gateway(dir: &Path, allowlist_triples: &[(String, String, String)]) -> (Gateway, Vec<u8>) {
+    fn make_gateway(
+        dir: &Path,
+        allowlist_triples: &[(String, String, String)],
+    ) -> (Gateway, Vec<u8>) {
         let (m, e, v) = artifacts();
         let key = b"test-hmac-key-not-for-prod".to_vec();
         let allow_path = write_signed_allowlist(dir, allowlist_triples, &key);
@@ -1124,14 +1383,8 @@ mod tests {
         let dir = workdir();
         let receipt = gen_receipt(&dir, "Q: 6 + 7\nA: CALC(6 + 7).\n", 1, 16);
         // Allowlist deliberately holds a DIFFERENT (bogus) triple only.
-        let (mut gw, _key) = make_gateway(
-            &dir,
-            &[(
-                "0".repeat(64),
-                "1".repeat(64),
-                "2".repeat(64),
-            )],
-        );
+        let (mut gw, _key) =
+            make_gateway(&dir, &[("0".repeat(64), "1".repeat(64), "2".repeat(64))]);
         let action = unhex(&last_step_in_hex(&receipt)).unwrap();
         let (d, _head) = gw.decide(&receipt, &action, "sess-3", 1);
         match d {
@@ -1296,7 +1549,12 @@ mod tests {
         let mut text = fs::read_to_string(&path).unwrap();
         text = text.replacen(
             &format!("{mh} {eh} {vh}\n"),
-            &format!("{mh} {eh} {vh}\n{} {} {}\n", "a".repeat(64), "b".repeat(64), "c".repeat(64)),
+            &format!(
+                "{mh} {eh} {vh}\n{} {} {}\n",
+                "a".repeat(64),
+                "b".repeat(64),
+                "c".repeat(64)
+            ),
             1,
         );
         fs::write(&path, text).unwrap();
@@ -1367,7 +1625,10 @@ mod tests {
         let tables = repo_root().join("demo/agent-trace/tables");
         if id.starts_with("chain_") {
             Some(tables.join("chain.tsv"))
-        } else if id.starts_with("lookup_") || id.starts_with("fileread_") || id.starts_with("mixed_") {
+        } else if id.starts_with("lookup_")
+            || id.starts_with("fileread_")
+            || id.starts_with("mixed_")
+        {
             Some(tables.join("demo.tsv"))
         } else {
             None
@@ -1479,7 +1740,10 @@ mod tests {
         // value here (rather than re-forcing 13) keeps this test honest
         // about what the Rust-native strict policy does today.
         eprintln!("live20 strict allow count: {allow}/{total}");
-        assert_eq!(allow, 17, "expected ALLOW 17/20 in strict mode (see eprintln above for actual count/per-id if this fails; if this regresses, that's a real behavior change worth investigating, not just re-baselining)");
+        assert_eq!(
+            allow, 17,
+            "expected ALLOW 17/20 in strict mode (see eprintln above for actual count/per-id if this fails; if this regresses, that's a real behavior change worth investigating, not just re-baselining)"
+        );
     }
 
     // -------------------------------------------------------------
@@ -1500,6 +1764,9 @@ mod tests {
         // DIFFERENT head, proving the log records DENY decisions too, not
         // just ALLOWs.
         let (_d2, head2) = gw.decide(&r1, &a1, "sess-10", 1);
-        assert_ne!(head1, head2, "log head must change on every decision, including DENY");
+        assert_ne!(
+            head1, head2,
+            "log head must change on every decision, including DENY"
+        );
     }
 }

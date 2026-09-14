@@ -1,0 +1,59 @@
+# SAFE-5a: agent confinement unit (user service template).
+#
+# Runs a placeholder agent command (`ExecStart` below — replace with the
+# real agent entry point) under a systemd sandbox designed so that a
+# compromised agent process cannot: open an AF_INET/AF_INET6 socket, exec
+# an arbitrary tool binary with elevated privilege, or read anything
+# outside its own receipt directory. It CAN still reach the gateway's
+# unix socket (PrivateNetwork does not block AF_UNIX; RestrictAddressFamilies
+# explicitly allows it) and can still exec whatever is on PATH inside its
+# own confined view (systemd alone does not do exec allow-listing — see
+# apparmor/cm-agent for that layer, and ENFORCEMENT.md for the honest
+# statement of what this unit does NOT stop).
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user && cp this file there
+#   systemctl --user daemon-reload
+#   systemctl --user start cm-agent-sandbox.service   # or enable --now
+#
+# For a one-shot manual escape test without installing anything:
+#   systemd-run --user --pty --collect \
+#     -p RestrictAddressFamilies=AF_UNIX -p PrivateNetwork=yes \
+#     -p NoNewPrivileges=yes -p ProtectSystem=strict -p ProtectHome=read-only \
+#     -p CapabilityBoundingSet= \
+#     /bin/sh -c 'curl -m 5 http://example.com; exec /bin/bash -c id'
+
+[Unit]
+Description=CM SAFE-5 sandboxed agent process (placeholder command)
+After=cm-gateway.service
+Wants=cm-gateway.service
+
+[Service]
+Type=simple
+# Placeholder: replace with the real agent launcher. Left as `sleep`
+# rather than a real command so this unit is safe to enable before the
+# real agent binary exists on a box.
+ExecStart=/bin/sleep infinity
+
+# --- Network isolation ---
+RestrictAddressFamilies=AF_UNIX
+PrivateNetwork=yes
+
+# --- Privilege / filesystem isolation ---
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+CapabilityBoundingSet=
+DynamicUser=yes
+# Only the receipt directory (where generated receipts/logs live) is
+# writable; everything else under ProtectSystem=strict/ProtectHome is
+# read-only or invisible to this unit.
+ReadWritePaths=%h/agent-receipts
+# The gateway socket lives under $XDG_RUNTIME_DIR (%t), which
+# DynamicUser's own private /run view does not automatically include —
+# bind-mount it in explicitly so the agent can reach the gateway (and
+# ONLY the gateway) over AF_UNIX.
+BindPaths=%t/cm-gateway.sock
+
+[Install]
+WantedBy=default.target

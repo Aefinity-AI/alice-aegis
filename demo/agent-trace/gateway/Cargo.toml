@@ -17,6 +17,10 @@ for the design this implements and the critique that shaped it.
 [dependencies]
 aegis-core = { path = "../../../aegis-core" }
 
+[lib]
+name = "gateway"
+path = "src/lib.rs"
+
 [[bin]]
 name = "gateway"
 path = "src/main.rs"
