@@ -24,7 +24,9 @@
 # ~/.config/systemd/user/cm-gateway.service on box2 for the deployed copy.
 # The ExecStart below is the template as it applies to a checkout at
 # %h/projects/alice-aegis; the deployed copy on box2 points at the
-# stable path instead.
+# stable path instead (including --table, which must point at the
+# stable path's copy of demo/agent-trace/tables/chain.tsv, not this
+# worktree's).
 
 [Unit]
 Description=CM SAFE-5c box2 receipt gateway daemon (enforcement host)
@@ -39,6 +41,7 @@ ExecStart=%h/projects/alice-aegis/demo/agent-trace/gateway/target/release/gatewa
     %h/projects/alice-aegis/aegis-linux/target/release/examples/agent_trace \
     %h/.config/cm-gateway/allowlist.signed \
     %h/.config/cm-gateway/allowlist.key \
+    --table %h/projects/alice-aegis/demo/agent-trace/tables/chain.tsv \
     --socket %t/cm-gateway.sock \
     --cap-key-file %h/.config/cm-gateway/cap.key \
     --anchor-every 10 \
