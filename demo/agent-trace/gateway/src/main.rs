@@ -414,7 +414,23 @@ impl Gateway {
     /// is inspected in agent_trace.rs's `main`; this is a subprocess
     /// boundary, so checking the printed verdict text mirrors the
     /// second-verifier mode in the design memo).
-    fn run_verify_raw(&self, receipt_path: &Path) -> Result<String, String> {
+    ///
+    /// safe-1i: `binding` carries the gateway's own out-of-band knowledge
+    /// of the prompt digest and item/session ctx (see `decide`'s doc
+    /// comment for how these are derived) straight through to
+    /// `agent_trace verify --expect-prompt-hash`/`--expect-ctx`. When
+    /// `Some`, BOTH flags are always passed together — a receipt is only
+    /// ever accepted if it is bound to the exact item/prompt/session the
+    /// gateway itself is deciding for, not merely internally consistent
+    /// (agent_trace verify's own PASS already guarantees the latter; this
+    /// closes the gap where a receipt that is perfectly self-consistent
+    /// was nonetheless generated for, or replayed under, the wrong
+    /// item/prompt/session — see `deny_ctx_binding_mismatch_structural_reject`).
+    fn run_verify_raw(
+        &self,
+        receipt_path: &Path,
+        binding: Option<(&[u8; 32], &[u8; 32])>,
+    ) -> Result<String, String> {
         let mut cmd = Command::new(&self.agent_trace_bin);
         cmd.arg("verify")
             .arg(&self.model_path)
@@ -424,6 +440,10 @@ impl Gateway {
         if let Some(t) = &self.table_path {
             cmd.arg("--table").arg(t);
         }
+        if let Some((prompt_hash, ctx)) = binding {
+            cmd.arg("--expect-prompt-hash").arg(hex(prompt_hash));
+            cmd.arg("--expect-ctx").arg(hex(ctx));
+        }
         let out = cmd.output().map_err(|e| format!("spawn agent_trace: {e}"))?;
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     }
@@ -431,9 +451,18 @@ impl Gateway {
     /// PASS/FAIL per `run_verify_raw`'s stdout, ignoring grounding
     /// WARNINGs (the "lenient" policy: a receipt with an ungrounded
     /// tool-call argument can still ALLOW as long as the trace chain
-    /// itself replays correctly).
-    fn run_verify(&self, receipt_path: &Path) -> Result<bool, String> {
-        Ok(self.run_verify_raw(receipt_path)?.contains("VERIFY PASS"))
+    /// itself replays correctly). Returns the raw stdout alongside the
+    /// verdict so callers can distinguish a fail-fast structural rejection
+    /// (`FAIL structure: ...` / `VERIFY FAIL — ctx mismatch ...`, printed
+    /// before any replay) from an ordinary replay-stage `VERIFY FAIL`.
+    fn run_verify(
+        &self,
+        receipt_path: &Path,
+        binding: Option<(&[u8; 32], &[u8; 32])>,
+    ) -> Result<(bool, String), String> {
+        let stdout = self.run_verify_raw(receipt_path, binding)?;
+        let pass = stdout.contains("VERIFY PASS");
+        Ok((pass, stdout))
     }
 
     /// Strict policy: PASS AND zero `WARNING step` lines in the replay
@@ -447,22 +476,66 @@ impl Gateway {
     /// internally consistent) but a strict deployment may choose not to
     /// authorize an action whose triggering argument was not grounded in
     /// what the agent actually saw.
-    fn run_verify_strict(&self, receipt_path: &Path) -> Result<bool, String> {
-        let stdout = self.run_verify_raw(receipt_path)?;
-        Ok(stdout.contains("VERIFY PASS") && !stdout.contains("WARNING step"))
+    fn run_verify_strict(
+        &self,
+        receipt_path: &Path,
+        binding: Option<(&[u8; 32], &[u8; 32])>,
+    ) -> Result<(bool, String), String> {
+        let stdout = self.run_verify_raw(receipt_path, binding)?;
+        let pass = stdout.contains("VERIFY PASS") && !stdout.contains("WARNING step");
+        Ok((pass, stdout))
     }
 
     /// The single decision entry point. `session`/`counter` are the
     /// freshness fields (b); `action_bytes` are the literal bytes of the
     /// tool call the caller is about to dispatch, checked byte-for-byte
     /// against the receipt's own last-step tool-call input (a).
+    ///
+    /// safe-1i: `item_id`/`prompt` are the two other pieces of context the
+    /// gateway already has on hand for every decision request, alongside
+    /// `session` (which doubles as the session nonce here — the same value
+    /// `agent_trace gen --nonce`/`--expect-item ... --nonce` would take).
+    /// When both `item_id` and `prompt` are non-empty, `decide` derives:
+    ///   - `expect_prompt_hash = sha256(prompt)`
+    ///   - `expect_ctx = sha256(item_id || prompt || session)` (exactly
+    ///     `agent_trace`'s own `compute_item_ctx`, reimplemented here since
+    ///     this crate only ever shells out to `agent_trace`, never links
+    ///     against it)
+    /// and passes BOTH to `agent_trace verify` (see `run_verify_raw`) —
+    /// never just one, since a receipt bound to the right prompt but the
+    /// wrong item, or vice versa, is exactly the confused-deputy case this
+    /// closes. A receipt that verifies PASS in isolation but was generated
+    /// for a different item/prompt/session is rejected here, fail-fast,
+    /// before the (slow) trace-chain replay this same call would otherwise
+    /// perform — see `deny_ctx_binding_mismatch_structural_reject`.
+    ///
+    /// `item_id`/`prompt` both empty (`""`) opts out of ctx binding
+    /// entirely (no `--expect-prompt-hash`/`--expect-ctx` passed) — the
+    /// pre-safe-1i behavior, kept for receipts that predate item-ctx
+    /// binding (e.g. the live20 fixture corpus, generated before safe-2c).
+    /// A real deployment should never legitimately hit this path; it
+    /// exists only so this prototype's own historical fixtures keep
+    /// verifying without being regenerated.
     pub fn decide(
         &mut self,
         receipt_path: &Path,
         action_bytes: &[u8],
+        item_id: &str,
+        prompt: &str,
         session: &str,
         counter: u64,
     ) -> (Decision, [u8; 32]) {
+        let binding: Option<([u8; 32], [u8; 32])> = if item_id.is_empty() && prompt.is_empty() {
+            None
+        } else {
+            let prompt_hash = sha256(prompt.as_bytes());
+            let mut ctx_input = Vec::with_capacity(item_id.len() + prompt.len() + session.len());
+            ctx_input.extend_from_slice(item_id.as_bytes());
+            ctx_input.extend_from_slice(prompt.as_bytes());
+            ctx_input.extend_from_slice(session.as_bytes());
+            let ctx = sha256(&ctx_input);
+            Some((prompt_hash, ctx))
+        };
         let text = match fs::read_to_string(receipt_path) {
             Ok(t) => t,
             Err(e) => {
@@ -521,21 +594,38 @@ impl Gateway {
 
         // Load-bearing check: agent_trace verify itself (chain replay,
         // WARNING-set match, artifact hashes re-checked independently by
-        // agent_trace against the files on THIS machine).
+        // agent_trace against the files on THIS machine, and — when
+        // `binding` is `Some` — the item/prompt/session ctx binding
+        // checked structurally, before replay; see `run_verify_raw`).
+        let binding_ref = binding.as_ref().map(|(p, c)| (p, c));
         let verify_result = if self.strict {
-            self.run_verify_strict(receipt_path)
+            self.run_verify_strict(receipt_path, binding_ref)
         } else {
-            self.run_verify(receipt_path)
+            self.run_verify(receipt_path, binding_ref)
         };
         match verify_result {
-            Ok(true) => {}
-            Ok(false) => {
-                let reason = if self.strict {
-                    "agent_trace verify: VERIFY FAIL or strict-grounding WARNING present"
+            Ok((true, _)) => {}
+            Ok((false, stdout)) => {
+                // A structural rejection (fail-fast, pre-replay: either
+                // agent_trace's own "FAIL structure: ..." class, or the
+                // "VERIFY FAIL — ctx mismatch (...)" / "--expect-prompt-hash
+                // mismatch" checks this call's `binding` triggers) gets its
+                // own DENY reason, textually distinguishable from an
+                // ordinary replay-stage divergence, by surfacing
+                // agent_trace's own first matching line verbatim.
+                let structural_line = stdout.lines().find(|l| {
+                    l.starts_with("FAIL structure:")
+                        || l.contains("ctx mismatch")
+                        || l.contains("--expect-prompt-hash mismatch")
+                });
+                let reason = if let Some(line) = structural_line {
+                    format!("agent_trace verify: structural rejection: {line}")
+                } else if self.strict {
+                    "agent_trace verify: VERIFY FAIL or strict-grounding WARNING present".into()
                 } else {
-                    "agent_trace verify: VERIFY FAIL"
+                    "agent_trace verify: VERIFY FAIL".into()
                 };
-                let d = Decision::Deny(reason.into());
+                let d = Decision::Deny(reason);
                 let head = self.append_log(&d, &parsed.trace_chain, &parsed.triple, session, counter);
                 return (d, head);
             }
@@ -680,7 +770,7 @@ fn run_e2e_safe1c(args: &[String]) {
             strict: false,
         })
         .expect("gateway init per-episode");
-        let (d, head) = gw.decide(&receipt_path, &action, "live-loop", counter);
+        let (d, head) = gw.decide(&receipt_path, &action, "", "", "live-loop", counter);
         emit(id, &d, head);
         if replay_receipt.is_none() {
             replay_receipt = Some((receipt_path.clone(), action.clone()));
@@ -709,9 +799,9 @@ fn run_e2e_safe1c(args: &[String]) {
             strict: false,
         })
         .unwrap();
-        let (d1, h1) = gw.decide(&rp, &action, "replay-demo", 1);
+        let (d1, h1) = gw.decide(&rp, &action, "", "", "replay-demo", 1);
         emit(&format!("{}(replay-priming)", ids[0]), &d1, h1);
-        let (d2, h2) = gw.decide(&rp, &action, "replay-demo", 1);
+        let (d2, h2) = gw.decide(&rp, &action, "", "", "replay-demo", 1);
         emit(&format!("{}(REPLAY)", ids[0]), &d2, h2);
     }
 
@@ -741,7 +831,7 @@ fn run_e2e_safe1c(args: &[String]) {
             strict: true,
         })
         .unwrap();
-        let (d, head) = gw.decide(&receipt_path, &action, "strict-demo", 1);
+        let (d, head) = gw.decide(&receipt_path, &action, "", "", "strict-demo", 1);
         emit(&format!("{strict_id}(STRICT-UNGROUNDED)"), &d, head);
     }
 
@@ -765,7 +855,7 @@ fn run_e2e_safe1c(args: &[String]) {
             strict: false,
         })
         .unwrap();
-        let (d, head) = gw.decide(&receipt_path, &action, "allowlist-demo", 1);
+        let (d, head) = gw.decide(&receipt_path, &action, "", "", "allowlist-demo", 1);
         emit(&format!("{}(BITFLIP-ALLOWLIST)", ids[0]), &d, head);
     }
 
@@ -795,7 +885,7 @@ fn run_e2e_safe1c(args: &[String]) {
             strict: false,
         })
         .unwrap();
-        let (d, head) = gw.decide(&receipt_path, &action, "tamper-demo", 1);
+        let (d, head) = gw.decide(&receipt_path, &action, "", "", "tamper-demo", 1);
         emit(&format!("{}(TAMPERED-BYTES)", ids[1]), &d, head);
     }
 
@@ -810,7 +900,7 @@ fn main() {
     }
     if args.len() < 8 {
         eprintln!(
-            "usage: gateway <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <agent_trace-bin> <allowlist> <key-file> <receipt> <action-hex> <session> <counter> [--table <path>] [--anchor-every N] [--anchor-file F] [--strict]"
+            "usage: gateway <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <agent_trace-bin> <allowlist> <key-file> <receipt> <action-hex> <session> <counter> [--table <path>] [--anchor-every N] [--anchor-file F] [--strict] [--item-id <ID> --prompt <TEXT>]"
         );
         std::process::exit(2);
     }
@@ -832,6 +922,13 @@ fn main() {
     let mut anchor_every = 5usize;
     let mut anchor_path = None;
     let mut strict = false;
+    // safe-1i: the item id and prompt text the gateway is deciding
+    // against. Both must be given together (or both omitted, which opts
+    // out of ctx binding — see `Gateway::decide`'s doc comment) since a
+    // ctx binding derived from only one of the two would silently not
+    // check the other.
+    let mut item_id = String::new();
+    let mut prompt = String::new();
     let mut i = 11;
     while i < args.len() {
         match args[i].as_str() {
@@ -851,10 +948,22 @@ fn main() {
                 strict = true;
                 i += 1;
             }
+            "--item-id" => {
+                item_id = args.get(i + 1).cloned().unwrap_or_default();
+                i += 2;
+            }
+            "--prompt" => {
+                prompt = args.get(i + 1).cloned().unwrap_or_default();
+                i += 2;
+            }
             _ => {
                 i += 1;
             }
         }
+    }
+    if item_id.is_empty() != prompt.is_empty() {
+        eprintln!("--item-id and --prompt must be given together");
+        std::process::exit(2);
     }
 
     let key = fs::read(&key_path).unwrap_or_else(|e| {
@@ -882,7 +991,7 @@ fn main() {
     };
 
     let action_bytes = unhex(&action_hex).unwrap_or_default();
-    let (decision, head) = gw.decide(&receipt, &action_bytes, &session, counter);
+    let (decision, head) = gw.decide(&receipt, &action_bytes, &item_id, &prompt, &session, counter);
     match decision {
         Decision::Allow => {
             println!("ALLOW log-head={}", hex(&head));
@@ -995,6 +1104,38 @@ mod tests {
         out
     }
 
+    /// Like `gen_receipt`, but also passes `--item-id`/`--nonce` to
+    /// `agent_trace gen`, producing a format-4 (`AEGIS-TRACE v3`) receipt
+    /// whose `item-ctx` line is folded into the trace genesis — the
+    /// receipt shape `Gateway::decide`'s ctx binding (safe-1i) actually
+    /// checks against.
+    fn gen_receipt_with_ctx(
+        dir: &Path,
+        prompt: &str,
+        k: u32,
+        n: u32,
+        item_id: &str,
+        nonce: &str,
+    ) -> PathBuf {
+        let (m, e, v) = artifacts();
+        let bin = agent_trace_bin();
+        let out = dir.join("r-ctx.receipt");
+        let status = Command::new(&bin)
+            .args(["gen"])
+            .arg(&m)
+            .arg(&e)
+            .arg(&v)
+            .arg(k.to_string())
+            .arg(n.to_string())
+            .arg(prompt)
+            .args(["--item-id", item_id, "--nonce", nonce])
+            .stdout(fs::File::create(&out).unwrap())
+            .status()
+            .expect("run agent_trace gen --item-id --nonce");
+        assert!(status.success(), "agent_trace gen --item-id --nonce failed");
+        out
+    }
+
     fn write_signed_allowlist(dir: &Path, triples: &[(String, String, String)], key: &[u8]) -> PathBuf {
         let lines: Vec<String> = triples
             .iter()
@@ -1061,7 +1202,7 @@ mod tests {
         let (mh, eh, vh) = artifact_hexes();
         let (mut gw, _key) = make_gateway(&dir, &[(mh, eh, vh)]);
         let action = unhex(&last_step_in_hex(&receipt)).unwrap();
-        let (d, _head) = gw.decide(&receipt, &action, "sess-1", 1);
+        let (d, _head) = gw.decide(&receipt, &action, "", "", "sess-1", 1);
         assert_eq!(d, Decision::Allow, "expected ALLOW");
     }
 
@@ -1108,7 +1249,7 @@ mod tests {
         let (mh, eh, vh) = artifact_hexes();
         let (mut gw, _key) = make_gateway(&dir, &[(mh, eh, vh)]);
         let action = unhex(&last_step_in_hex(&tampered_path)).unwrap();
-        let (d, _head) = gw.decide(&tampered_path, &action, "sess-2", 1);
+        let (d, _head) = gw.decide(&tampered_path, &action, "", "", "sess-2", 1);
         match d {
             Decision::Deny(_) => {}
             Decision::Allow => panic!("chain-tampered receipt must DENY"),
@@ -1133,7 +1274,7 @@ mod tests {
             )],
         );
         let action = unhex(&last_step_in_hex(&receipt)).unwrap();
-        let (d, _head) = gw.decide(&receipt, &action, "sess-3", 1);
+        let (d, _head) = gw.decide(&receipt, &action, "", "", "sess-3", 1);
         match d {
             Decision::Deny(reason) => assert!(reason.contains("allowlist")),
             Decision::Allow => panic!("off-allowlist triple must DENY"),
@@ -1169,7 +1310,7 @@ mod tests {
         // the weights-digest field and not the whole triple.
         let (mut gw, _key) = make_gateway(&dir, &[(mh_flipped, eh, vh)]);
         let action = unhex(&last_step_in_hex(&receipt)).unwrap();
-        let (d, _head) = gw.decide(&receipt, &action, "sess-3b", 1);
+        let (d, _head) = gw.decide(&receipt, &action, "", "", "sess-3b", 1);
         match d {
             Decision::Deny(reason) => assert!(reason.contains("allowlist")),
             Decision::Allow => panic!("bit-flipped weights digest must DENY"),
@@ -1205,7 +1346,7 @@ mod tests {
         // With no step line left, there is no last-step input to match
         // against, so this exercises the parse-error DENY path -- still a
         // correct DENY for "receipt does not cover this call".
-        let (d, _head) = gw.decide(&tampered_path, b"CALC(6 + 7)", "sess-4", 1);
+        let (d, _head) = gw.decide(&tampered_path, b"CALC(6 + 7)", "", "", "sess-4", 1);
         match d {
             Decision::Deny(_) => {}
             Decision::Allow => panic!("dropped-step receipt must DENY"),
@@ -1226,7 +1367,7 @@ mod tests {
         let (mh, eh, vh) = artifact_hexes();
         let (mut gw, _key) = make_gateway(&dir, &[(mh, eh, vh)]);
         // Different action bytes than the receipt's last-step in=.
-        let (d, _head) = gw.decide(&receipt, b"CALC(999 * 999)", "sess-5", 1);
+        let (d, _head) = gw.decide(&receipt, b"CALC(999 * 999)", "", "", "sess-5", 1);
         match d {
             Decision::Deny(reason) => assert!(reason.contains("verify-execute binding")),
             Decision::Allow => panic!("mismatched action must DENY (confused deputy)"),
@@ -1248,10 +1389,10 @@ mod tests {
         let (mut gw, _key) = make_gateway(&dir, &[(mh, eh, vh)]);
         let action = unhex(&last_step_in_hex(&receipt)).unwrap();
 
-        let (d1, _) = gw.decide(&receipt, &action, "sess-6", 7);
+        let (d1, _) = gw.decide(&receipt, &action, "", "", "sess-6", 7);
         assert_eq!(d1, Decision::Allow, "first submission must ALLOW");
 
-        let (d2, _) = gw.decide(&receipt, &action, "sess-6", 7);
+        let (d2, _) = gw.decide(&receipt, &action, "", "", "sess-6", 7);
         match d2 {
             Decision::Deny(reason) => assert!(reason.contains("freshness")),
             Decision::Allow => panic!("replayed (session, counter) must DENY"),
@@ -1272,11 +1413,11 @@ mod tests {
         let (mut gw, _key) = make_gateway(&dir, &[(mh, eh, vh)]);
 
         let a1 = unhex(&last_step_in_hex(&r1)).unwrap();
-        let (d1, _) = gw.decide(&r1, &a1, "sess-7", 1);
+        let (d1, _) = gw.decide(&r1, &a1, "", "", "sess-7", 1);
         assert_eq!(d1, Decision::Allow);
 
         let a2 = unhex(&last_step_in_hex(&r2)).unwrap();
-        let (d2, _) = gw.decide(&r2, &a2, "sess-7", 2);
+        let (d2, _) = gw.decide(&r2, &a2, "", "", "sess-7", 2);
         assert_eq!(d2, Decision::Allow, "new counter + new action must ALLOW");
     }
 
@@ -1331,8 +1472,73 @@ mod tests {
         let (mh, eh, vh) = artifact_hexes();
         let (mut gw, _key) = make_gateway(&dir, &[(mh, eh, vh)]);
         let action = unhex(&last_step_in_hex(&receipt)).unwrap();
-        let (d, _head) = gw.decide(&receipt, &action, "sess-9", 1);
+        let (d, _head) = gw.decide(&receipt, &action, "", "", "sess-9", 1);
         assert_eq!(d, Decision::Allow);
+    }
+
+    // -------------------------------------------------------------
+    // 10. safe-1i, positive control: a receipt generated with the matching
+    //     --item-id/--nonce, decided against the SAME item_id/prompt/
+    //     session — the gateway's own --expect-prompt-hash/--expect-ctx
+    //     binding must not change PASS on an otherwise-correct receipt.
+    // -------------------------------------------------------------
+    #[test]
+    fn allow_ctx_binding_matching_item_prompt_session() {
+        let dir = workdir();
+        let prompt = "Q: 6 + 7\nA: CALC(6 + 7).\n";
+        let receipt = gen_receipt_with_ctx(&dir, prompt, 1, 16, "item-42", "sess-ctx-1");
+        let (mh, eh, vh) = artifact_hexes();
+        let (mut gw, _key) = make_gateway(&dir, &[(mh, eh, vh)]);
+        let action = unhex(&last_step_in_hex(&receipt)).unwrap();
+        let (d, _head) = gw.decide(&receipt, &action, "item-42", prompt, "sess-ctx-1", 1);
+        assert_eq!(d, Decision::Allow, "matching ctx binding must not change PASS");
+    }
+
+    // -------------------------------------------------------------
+    // 11. safe-1i, the actual hardening: a receipt with a fully correct,
+    //     internally-consistent chain (it would verify PASS in isolation,
+    //     and DOES pass every other gateway check — allowlist, freshness,
+    //     verify-execute binding on the action bytes) but generated for a
+    //     DIFFERENT item id than the one the gateway is deciding this call
+    //     for. This is the confused-deputy-at-the-ctx-level case: a valid
+    //     receipt, replayed/filed under the wrong item. Must DENY via a
+    //     fail-fast STRUCTURAL rejection (agent_trace's own "FAIL
+    //     structure: ..." / "VERIFY FAIL — ctx mismatch (...)" pre-replay
+    //     check, surfaced verbatim in the DENY reason — see `decide`'s
+    //     "structural rejection:" prefix), not an ordinary replay-stage
+    //     divergence.
+    // -------------------------------------------------------------
+    #[test]
+    fn deny_ctx_binding_mismatch_structural_reject() {
+        let dir = workdir();
+        let prompt = "Q: 6 + 7\nA: CALC(6 + 7).\n";
+        // Generated for item "item-A" ...
+        let receipt = gen_receipt_with_ctx(&dir, prompt, 1, 16, "item-A", "sess-ctx-2");
+        let (mh, eh, vh) = artifact_hexes();
+        let (mut gw, _key) = make_gateway(&dir, &[(mh, eh, vh)]);
+        let action = unhex(&last_step_in_hex(&receipt)).unwrap();
+        // ... but decided against "item-B": the chain is completely
+        // untampered (this is NOT the confused-deputy action-mismatch test
+        // above — the action bytes match the receipt's own last step
+        // exactly), so without ctx binding this receipt would ALLOW.
+        let (d, _head) = gw.decide(&receipt, &action, "item-B", prompt, "sess-ctx-2", 1);
+        match d {
+            Decision::Deny(reason) => {
+                assert!(
+                    reason.contains("structural rejection"),
+                    "a ctx-binding mismatch must be denied as a fail-fast structural \
+                     rejection, not a generic/replay-stage VERIFY FAIL; got: {reason}"
+                );
+                assert!(
+                    !reason.contains("replay diverged"),
+                    "must be caught before replay, not by a replay divergence; got: {reason}"
+                );
+            }
+            Decision::Allow => panic!(
+                "a receipt bound to a different item id must DENY even though its own \
+                 chain is untampered and its action bytes match exactly"
+            ),
+        }
     }
 
     // -------------------------------------------------------------
@@ -1428,7 +1634,7 @@ mod tests {
             })
             .expect("gateway init against real live20 artifacts/allowlist");
             let action = unhex(&last_step_in_hex(&receipt)).unwrap();
-            let (d, _head) = gw.decide(&receipt, &action, "live20", 1);
+            let (d, _head) = gw.decide(&receipt, &action, "", "", "live20", 1);
             if d == Decision::Allow {
                 allow_count += 1;
             }
@@ -1495,11 +1701,11 @@ mod tests {
         let (mh, eh, vh) = artifact_hexes();
         let (mut gw, _key) = make_gateway(&dir, &[(mh, eh, vh)]);
         let a1 = unhex(&last_step_in_hex(&r1)).unwrap();
-        let (_d, head1) = gw.decide(&r1, &a1, "sess-10", 1);
+        let (_d, head1) = gw.decide(&r1, &a1, "", "", "sess-10", 1);
         // A DENY (replay of the same triple) advances the chain again to a
         // DIFFERENT head, proving the log records DENY decisions too, not
         // just ALLOWs.
-        let (_d2, head2) = gw.decide(&r1, &a1, "sess-10", 1);
+        let (_d2, head2) = gw.decide(&r1, &a1, "", "", "sess-10", 1);
         assert_ne!(head1, head2, "log head must change on every decision, including DENY");
     }
 }
