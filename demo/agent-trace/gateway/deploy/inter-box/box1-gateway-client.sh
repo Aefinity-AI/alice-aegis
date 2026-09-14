@@ -22,7 +22,7 @@
 # precise unblock step.
 
 set -eu
-BOX2_HOST="${CM_BOX2_HOST:-192.168.10.2}"   # placeholder; confirm box2's real LAN IP/hostname before use
+BOX2_HOST="${CM_BOX2_HOST:-192.168.10.21}"  # box2's fixed LAN alias, confirmed in state/BOXES.md
 BOX2_USER="${CM_BOX2_USER:-cm-box1-agent}"
 IDENTITY="${CM_BOX1_AGENT_KEY:-$HOME/.ssh/cm-box1-agent-relay-only}"
 
