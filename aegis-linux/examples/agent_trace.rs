@@ -54,7 +54,7 @@
 //! (K=3, N=16 by default).
 //!
 //!   agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> ["prompt"] [--table <path>] [--suite-sha256 <64hex>] > receipt
-//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases] [--fail-fast]
+//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--expect-prompt-hash <64hex>] [--phases] [--fail-fast]
 //!
 //! Rule A: prints no timing, ever. Rule B: the receipt carries a commit hash
 //! and hostname. The commit is captured at BUILD time (`aegis-linux/build.rs`
@@ -139,6 +139,22 @@
 //! given on the command line and disagrees with the header, verify fails
 //! before replay. A receipt with no `suite-sha256` header is unaffected —
 //! fully backward compatible.
+//!
+//! Expect-prompt-hash (safe-1h, 2026-09-14): `--expect-prompt-hash <64
+//! lowercase hex>` is an out-of-band oracle, not a receipt field — a caller
+//! who already knows (from outside the receipt) the sha256 of the prompt
+//! bytes it expects can pass it here, and `verify` hashes the receipt's
+//! decoded `prompt-hex` the moment that line is parsed and fails closed
+//! with `FAIL structure: --expect-prompt-hash mismatch (...)` on a
+//! mismatch, before any further parsing or the (potentially very slow)
+//! full replay runs. This closes the one class safe-1g found with no
+//! pre-replay structural oracle at all: a mutation that truncates
+//! `prompt-hex` to a shorter value which is still valid hex and still
+//! decodes as valid UTF-8 is, absent this flag, indistinguishable from a
+//! legitimately shorter prompt until replay diverges. Only accepted with
+//! exactly one receipt argument (there is no single "the" expected prompt
+//! across several). Omitting the flag leaves every other code path
+//! byte-for-byte unchanged — fully backward compatible.
 //!
 //! Format 2 — per-step context/query binding: known gap in format 1 (the
 //! `AEGIS-TRACE v0` receipts above): a receipt records only the INITIAL
@@ -433,6 +449,35 @@ fn parse_suite_sha256(s: &str) -> Result<[u8; 32], String> {
         ));
     }
     let bytes = unhex(s).map_err(|()| "malformed suite-sha256 hex".to_string())?;
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&bytes);
+    Ok(out)
+}
+
+/// Validate a `--expect-prompt-hash` CLI value: exactly 64 lowercase hex
+/// characters (a sha256 digest). Same shape as `parse_suite_sha256`, kept
+/// separate so the error message names the right flag.
+///
+/// safe-1h (2026-09-14): this is the out-of-band oracle for "is this the
+/// correct prompt" that safe-1g found missing. A fuzz mutation that
+/// truncates a receipt's `prompt-hex` field but leaves it valid hex/UTF-8
+/// and within the tokenizer's bounds cannot be rejected by any structural
+/// check derived from the receipt alone — the only authority for "this is
+/// the right prompt" is a full replay recomputing the trace-chain hash,
+/// which is slow (measured ~150-190s/receipt against the real 2B model on
+/// box2; see state/reports/2026-09-13-safe1f-verifier-fuzz-box2.md). A
+/// caller who already knows the expected prompt digest out-of-band (e.g. a
+/// gateway that generated the prompt itself) can pass it here to fail fast,
+/// before `replay_episode` ever runs, instead of waiting out a full replay
+/// only to learn the trace-chain diverged.
+fn parse_expect_prompt_hash(s: &str) -> Result<[u8; 32], String> {
+    if s.len() != 64 || !s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+        return Err(format!(
+            "malformed --expect-prompt-hash (want 64 lowercase hex, got {:?})",
+            short16(s)
+        ));
+    }
+    let bytes = unhex(s).map_err(|()| "malformed --expect-prompt-hash hex".to_string())?;
     let mut out = [0u8; 32];
     out.copy_from_slice(&bytes);
     Ok(out)
@@ -1417,6 +1462,7 @@ fn main() {
     let mut args: Vec<String> = std::env::args().collect();
     let table_path = extract_flag(&mut args, "--table");
     let suite_sha256_arg = extract_flag(&mut args, "--suite-sha256");
+    let expect_prompt_hash_arg = extract_flag(&mut args, "--expect-prompt-hash");
     let phases_flag = extract_bool_flag(&mut args, "--phases");
     let fail_fast_flag = extract_bool_flag(&mut args, "--fail-fast");
     // safe-2c item/session ctx binding. `gen`: `--item-id <ID>` +
@@ -1437,7 +1483,22 @@ fn main() {
             "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>] [--item-id <ID> --nonce <N>]"
         );
         eprintln!(
-            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--phases] [--fail-fast] [--strict-grounding] [--expect-ctx <64hex> | --expect-item <ID> --expect-prompt-file <F> --nonce <N>]"
+            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--expect-prompt-hash <64hex>] [--phases] [--fail-fast] [--strict-grounding] [--expect-ctx <64hex> | --expect-item <ID> --expect-prompt-file <F> --nonce <N>]"
+        );
+        std::process::exit(2);
+    }
+    if expect_prompt_hash_arg.is_some() && args.get(1).map(String::as_str) != Some("verify") {
+        eprintln!("--expect-prompt-hash is only supported by `agent_trace verify`");
+        std::process::exit(2);
+    }
+    // Only ever compared against exactly one receipt's prompt: with several
+    // receipts on one `verify` invocation there is no single "the" expected
+    // prompt digest, so requiring it here (rather than silently applying it
+    // to every receipt, which would misfire on the first receipt whose
+    // prompt legitimately differs) keeps the flag's meaning unambiguous.
+    if expect_prompt_hash_arg.is_some() && args.len() > 6 {
+        eprintln!(
+            "--expect-prompt-hash requires exactly one receipt path (it names one expected prompt)"
         );
         std::process::exit(2);
     }
@@ -1494,6 +1555,16 @@ fn main() {
             Ok(bytes) => Some(bytes),
             Err(reason) => {
                 eprintln!("--suite-sha256: {reason}");
+                std::process::exit(2);
+            }
+        },
+        None => None,
+    };
+    let expect_prompt_hash_arg = match expect_prompt_hash_arg {
+        Some(s) => match parse_expect_prompt_hash(&s) {
+            Ok(bytes) => Some(bytes),
+            Err(reason) => {
+                eprintln!("--expect-prompt-hash: {reason}");
                 std::process::exit(2);
             }
         },
@@ -1680,6 +1751,7 @@ fn main() {
                     suite_sha256_arg,
                     fail_fast_flag,
                     expect_ctx,
+                    expect_prompt_hash_arg,
                 );
                 if !pass {
                     std::process::exit(1);
@@ -1708,6 +1780,10 @@ fn main() {
                         suite_sha256_arg,
                         fail_fast_flag,
                         expect_ctx,
+                        // Multi-receipt verify was already rejected above
+                        // when --expect-prompt-hash was given, so this is
+                        // always None here.
+                        expect_prompt_hash_arg,
                     );
                     if pass {
                         n_pass += 1;
@@ -1846,6 +1922,12 @@ fn verify_one(
     // `--expect-ctx` or the `--expect-item`/`--expect-prompt-file`/`--nonce`
     // triple; see the ctx-mismatch block below.
     expect_ctx: Option<[u8; 32]>,
+    // safe-1h out-of-band oracle: when the caller already knows the
+    // expected prompt digest, hash the receipt's prompt-hex bytes the
+    // moment they are decoded and fail fast on a mismatch, before any of
+    // the rest of parsing/replay runs. `None` (the default, CLI-flag-absent
+    // case) leaves every other code path byte-for-byte unchanged.
+    expect_prompt_hash: Option<[u8; 32]>,
 ) -> bool {
     let wtext = match read_receipt_text(receipt_path) {
         Ok(t) => t,
@@ -2084,6 +2166,25 @@ fn verify_one(
                         return false;
                     }
                 };
+                // safe-1h: fail fast, before any further parsing or the
+                // (slow) replay, when the caller supplied
+                // --expect-prompt-hash and the decoded prompt doesn't hash
+                // to it. This is a distinct, structural rejection — never
+                // "replay diverged" — and it is the only pre-replay oracle
+                // available for a mutation (e.g. a truncated-but-still-
+                // valid-hex prompt-hex field) that stays within every other
+                // structural bound the cheap gate checks.
+                if let Some(expected) = expect_prompt_hash {
+                    let got = sha256(w_prompt.as_bytes());
+                    if got != expected {
+                        println!(
+                            "FAIL structure: --expect-prompt-hash mismatch (receipt prompt hashes to {}, expected {})",
+                            short16(&hex(&got)),
+                            short16(&hex(&expected))
+                        );
+                        return false;
+                    }
+                }
             }
             // A malformed or truncated `trace-chain` value (e.g. a chain
             // cut short mid-hex-digit) previously fell through unvalidated
@@ -3731,6 +3832,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -3767,6 +3869,7 @@ mod tests {
             None,
             None,
             false,
+            None,
             None,
         );
         let _ = std::fs::remove_file(&path);
@@ -3828,6 +3931,7 @@ mod tests {
             None,
             false,
             Some(ctx),
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -3878,6 +3982,7 @@ mod tests {
             None,
             false,
             Some(wrong_expected),
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -3927,6 +4032,7 @@ mod tests {
             None,
             false,
             Some(wrong_expected),
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -3994,6 +4100,7 @@ mod tests {
             None,
             None,
             false,
+            None,
             None,
         );
         let _ = std::fs::remove_file(&path);
@@ -4106,6 +4213,7 @@ mod tests {
             None,
             true,
             None, // --fail-fast
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -4141,6 +4249,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -4174,6 +4283,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         let pass_fail_fast = verify_one(
             path.to_str().unwrap(),
@@ -4185,6 +4295,7 @@ mod tests {
             None,
             None,
             true,
+            None,
             None,
         );
         let _ = std::fs::remove_file(&path);
@@ -4222,6 +4333,7 @@ mod tests {
             None,
             None,
             false,
+            None,
             None,
         );
         let _ = std::fs::remove_file(&path);
@@ -4266,6 +4378,7 @@ mod tests {
             None,
             None,
             false,
+            None,
             None,
         );
         let _ = std::fs::remove_file(&path);
@@ -4365,6 +4478,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
@@ -4407,11 +4521,142 @@ mod tests {
             None,
             false,
             None,
+            None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
             !pass,
             "a truncated trace-chain must fail verify (FAIL structure, before replay)"
+        );
+    }
+
+    // --- safe-1g: cheap structural pre-validation, one test per field the
+    // QUEUE item asked for explicitly. These are integration-level (through
+    // `verify_one`, not just the lower-level helpers already tested above)
+    // so each one also pins that the check fires BEFORE `replay_episode`
+    // would otherwise be reached — none of these mangled receipts trigger a
+    // full model replay; `verify_one` returns `false` from the parse loop
+    // or the immediately-following pre-replay checks. ---
+
+    #[test]
+    fn verify_rejects_k_step_count_mismatch_as_structure() {
+        // K says 3, but only 2 step lines are actually present (a mutation
+        // to `K` — the exact class the safe-1f fuzz report flagged as
+        // needing a fast, pre-replay reject).
+        assert!(!format3_receipt_survives(
+            |t| t.replace("\nK 2\n", "\nK 3\n")
+        ));
+    }
+
+    #[test]
+    fn verify_rejects_malformed_hex_in_prompt_hex_as_structure() {
+        // Corrupt one character of the `prompt-hex` value with a non-hex
+        // byte. Must be caught as a decode failure before replay, not left
+        // to surface later as a trace-chain divergence.
+        assert!(!format3_receipt_survives(|t| {
+            let mut lines: Vec<String> = t.lines().map(|l| l.to_string()).collect();
+            let ph = lines
+                .iter()
+                .position(|l| l.starts_with("prompt-hex "))
+                .expect("a prompt-hex line");
+            let val_start = "prompt-hex ".len();
+            let before = lines[ph].as_bytes()[val_start];
+            assert!(before.is_ascii_hexdigit(), "sanity: hex before corruption");
+            lines[ph].replace_range(val_start..val_start + 1, "z");
+            lines.join("\n") + "\n"
+        }));
+    }
+
+    #[test]
+    fn verify_rejects_wrong_length_item_ctx_as_structure() {
+        // `item-ctx` must be exactly 64 lowercase hex chars (a sha256
+        // digest) on a format-4 (`AEGIS-TRACE v3`) receipt — a shortened
+        // value must fail structurally, distinct from the `trace-chain`
+        // length check above and the `suite-sha256` length check covered
+        // by `parse_suite_sha256_rejects_wrong_length`.
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let ctx = compute_item_ctx(b"item-1", prompt.as_bytes(), b"nonce-1");
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let text = render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        let mut lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+        let ic = lines
+            .iter()
+            .position(|l| l.starts_with("item-ctx "))
+            .expect("an item-ctx line");
+        let full = lines[ic].strip_prefix("item-ctx ").unwrap().to_string();
+        assert_eq!(full.len(), 64, "item-ctx must render as 64 hex digits");
+        lines[ic] = format!("item-ctx {}", &full[..32]);
+        let text = lines.join("\n") + "\n";
+
+        let path = write_temp_receipt("wrong-length-item-ctx.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "an item-ctx shorter than 64 hex chars must fail verify (FAIL structure, before replay)"
+        );
+    }
+
+    #[test]
+    fn verify_rejects_non_utf8_receipt_as_structure_before_replay() {
+        // Invalid UTF-8 must be rejected by `verify_one` itself (its very
+        // first step, `read_receipt_text`) rather than reaching any of the
+        // line-oriented parsing below — pinned here at the `verify_one`
+        // entry point, not just at the `read_receipt_text` unit level (see
+        // `read_receipt_text_rejects_non_utf8_without_panic`).
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let path = std::env::temp_dir().join(format!(
+            "agent_trace_test_{}_non-utf8-receipt.txt",
+            std::process::id()
+        ));
+        std::fs::write(&path, [b'A', b'E', b'G', b'I', b'S', 0xff, 0xfe])
+            .expect("write temp receipt");
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a non-UTF-8 receipt must fail verify immediately (FAIL structure, before replay)"
         );
     }
 
@@ -4460,7 +4705,187 @@ mod tests {
             None,
             false,
             None,
+            None,
         )
+    }
+
+    // --- safe-1h (2026-09-14): --expect-prompt-hash out-of-band oracle.
+    // safe-1g found a fuzz-mutation class — truncating a receipt's
+    // prompt-hex field to a shorter value that is still valid hex and still
+    // decodes as valid UTF-8 — that no pre-replay structural check can
+    // catch: it looks exactly like a legitimately shorter real prompt. The
+    // only way to notice it's wrong, absent this flag, is a full replay
+    // recomputing the trace-chain, which safe-1f measured at
+    // ~150-190s/receipt against the real 2B model (see
+    // state/reports/2026-09-13-safe1f-verifier-fuzz-box2.md). A caller who
+    // already knows the right prompt digest out-of-band gets a fail-fast
+    // structural rejection instead. ---
+
+    #[test]
+    fn expect_prompt_hash_correct_leaves_pass_through_unaffected() {
+        let expected = sha256(b"Q: What is 2 + 2?\nA:");
+        assert!(
+            format3_receipt_survives_with_expect_hash(|t| t.to_string(), Some(expected)),
+            "a correct --expect-prompt-hash must not change PASS on an untampered receipt"
+        );
+    }
+
+    #[test]
+    fn expect_prompt_hash_wrong_fails_fast_with_distinct_message() {
+        // A deliberately wrong expected digest (never the sha256 of any
+        // prompt this test builds) must be rejected with the fail-fast
+        // structural message this branch adds —
+        // `FAIL structure: --expect-prompt-hash mismatch (...)` — not
+        // `VERIFY FAIL — replay diverged from the receipt`, which is what
+        // an ordinary trace-chain mismatch prints from further down the
+        // same function. The two must stay textually distinguishable (one
+        // starts `FAIL structure:`, the other `VERIFY FAIL —`) so a caller
+        // can tell "the prompt itself is wrong" from "something else
+        // diverged during replay".
+        let wrong = [0u8; 32];
+        assert!(
+            !format3_receipt_survives_with_expect_hash(|t| t.to_string(), Some(wrong)),
+            "a wrong --expect-prompt-hash must fail verify"
+        );
+    }
+
+    /// Like `format3_receipt_survives`, but also threads an
+    /// `expect_prompt_hash` through to `verify_one` (the CLI's
+    /// `--expect-prompt-hash` argument, in code form).
+    fn format3_receipt_survives_with_expect_hash(
+        mangle: impl Fn(&str) -> String,
+        expect_prompt_hash: Option<[u8; 32]>,
+    ) -> bool {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let prompt = "Q: What is 2 + 2?\nA:";
+        let (k, n) = (2usize, 8usize);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            None,
+            None,
+        );
+        let text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = write_temp_receipt(&format!("expect-hash-{seq}.txt"), &mangle(&text));
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            expect_prompt_hash,
+        );
+        let _ = std::fs::remove_file(&path);
+        pass
+    }
+
+    #[test]
+    fn expect_prompt_hash_catches_truncated_prompt_hex_safe1g_gap() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let prompt = "Q: What is 2 + 2?\nA:";
+        let (k, n) = (2usize, 8usize);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            None,
+            None,
+        );
+        let text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        let expected = sha256(prompt.as_bytes());
+
+        let prompt_hex_line = text
+            .lines()
+            .find(|l| l.starts_with("prompt-hex "))
+            .expect("a prompt-hex line");
+        let hexval = prompt_hex_line.strip_prefix("prompt-hex ").unwrap();
+        let truncated_hex = &hexval[..hexval.len() - 4];
+        // Confirm this is exactly the safe-1g gap: dropping 2 bytes off the
+        // end leaves even-length, still-valid hex that still decodes as
+        // valid UTF-8 for this ASCII prompt — not a malformed value some
+        // other, cheaper structural check would already reject.
+        let truncated_bytes =
+            unhex(truncated_hex).expect("truncated prompt-hex must still be valid hex");
+        String::from_utf8(truncated_bytes)
+            .expect("truncated prompt-hex must still decode as valid UTF-8");
+
+        let tampered = text.replace(prompt_hex_line, &format!("prompt-hex {truncated_hex}"));
+        assert_ne!(
+            tampered, text,
+            "the tamper must actually change the receipt"
+        );
+
+        static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = write_temp_receipt(&format!("safe1g-gap-{seq}.txt"), &tampered);
+
+        // Without --expect-prompt-hash: not caught by any pre-replay
+        // structural check (that's the whole safe-1g finding) — it only
+        // fails once the (slow) replay diverges from the truncated prompt.
+        let pass_without_flag = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        assert!(
+            !pass_without_flag,
+            "a truncated prompt must still fail verify eventually (via replay divergence)"
+        );
+
+        // With --expect-prompt-hash: caught immediately, fail-fast, at
+        // parse time — before the replay that produced
+        // `pass_without_flag`'s FAIL runs at all.
+        let pass_with_flag = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            Some(expected),
+        );
+        assert!(
+            !pass_with_flag,
+            "--expect-prompt-hash must reject the truncated-prompt-hex mutation"
+        );
+
+        let _ = std::fs::remove_file(&path);
     }
 
     /// Same as `format3_receipt_survives`, but the receipt's `commit` line
@@ -4502,6 +4927,7 @@ mod tests {
             None,
             None,
             false,
+            None,
             None,
         )
     }
@@ -4780,6 +5206,7 @@ mod tests {
             None,
             None,
             false,
+            None,
             None,
         );
         let _ = std::fs::remove_file(&path);
