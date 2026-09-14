@@ -80,7 +80,10 @@ fn main() -> ExitCode {
     action.extend_from_slice(data_str.as_bytes());
     action.push(b'\n');
 
-    check_and_consume(&key, &parsed, &action, &consumed_path);
+    // SAFE-11: this shim's fixed, non-negotiable identity for capability
+    // binding -- never derived from argv/caller input (see
+    // shim_common::check_and_consume doc comment).
+    check_and_consume(&key, &parsed, &action, &consumed_path, "http");
 
     // Capability accepted: only now do we make the real request.
     let mut cmd = Command::new("curl");

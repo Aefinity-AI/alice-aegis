@@ -99,13 +99,18 @@ CMD="echo escape-test-4"
 AHASH=$(printf '%s' "$CMD" | sha256sum | awk '{print $1}')
 EXP=9999999999
 IDX=1
-TOK=$(python3 - "$KEY" "$IDX" "$AHASH" "$EXP" <<'PYEOF'
+# SAFE-11: the signable bytes now also fold in sha256(tool_tag) (see
+# capability.rs) -- this shim's own fixed tag is "shell", so the token
+# minted here must be bound to "shell" or it will (correctly) fail as
+# "bad mac" instead of exercising the replay path this test targets.
+TOK=$(python3 - "$KEY" "$IDX" "$AHASH" "$EXP" "shell" <<'PYEOF'
 import hmac, hashlib, struct, sys
-keyfile, idx, ahash_hex, exp = sys.argv[1:5]
+keyfile, idx, ahash_hex, exp, tag = sys.argv[1:6]
 key = open(keyfile, 'rb').read()
 idx = int(idx); exp = int(exp)
 ahash = bytes.fromhex(ahash_hex)
-msg = struct.pack(">Q", idx) + b"\x00" + ahash + b"\x00" + struct.pack(">Q", exp)
+tag_hash = hashlib.sha256(tag.encode()).digest()
+msg = struct.pack(">Q", idx) + b"\x00" + ahash + b"\x00" + struct.pack(">Q", exp) + b"\x00" + tag_hash
 print(hmac.new(key, msg, hashlib.sha256).hexdigest())
 PYEOF
 )

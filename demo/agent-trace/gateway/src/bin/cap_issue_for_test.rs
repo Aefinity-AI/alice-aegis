@@ -56,7 +56,14 @@ fn main() {
         eprintln!("bad expiry-unix");
         std::process::exit(2);
     });
-    let action_bytes = match args[4].as_str() {
+    // SAFE-11: the action-kind argument ("shell"/"file"/"http") IS the
+    // tool tag the real gateway daemon would bind into the token for this
+    // ALLOW (it names which shim's action-byte convention was used to
+    // build `action_bytes` below) -- pass it straight through to `issue`
+    // so a token minted here is tool-bound exactly like the daemon's own
+    // output, not merely action-hash-bound like it used to be.
+    let tool_tag = args[4].as_str();
+    let action_bytes = match tool_tag {
         "shell" => shell_action(&args[5..].join(" ")),
         "file" => file_action(&args[5], &args[6]),
         "http" => http_action(
@@ -70,6 +77,6 @@ fn main() {
         }
     };
     let hash = gateway::action_hash(&action_bytes);
-    let token = capability::issue(&key, idx, hash, expiry);
+    let token = capability::issue(&key, idx, hash, expiry, tool_tag);
     println!("{}", token);
 }

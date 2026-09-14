@@ -77,7 +77,10 @@ fn main() -> ExitCode {
         }
     };
 
-    check_and_consume(&key, &parsed, &bytes, &consumed_path);
+    // SAFE-11: this shim's fixed, non-negotiable identity for capability
+    // binding -- never derived from argv/caller input (see
+    // shim_common::check_and_consume doc comment).
+    check_and_consume(&key, &parsed, &bytes, &consumed_path, "file");
 
     // Capability accepted: only now do we write the real file.
     match fs::write(&out_path, &bytes) {

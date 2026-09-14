@@ -57,7 +57,10 @@ fn main() -> ExitCode {
     let consumed_path = consumed_file.unwrap_or_else(|| default_consumed_path("shell"));
 
     let command = command_tokens.join(" ");
-    check_and_consume(&key, &parsed, command.as_bytes(), &consumed_path);
+    // SAFE-11: this shim's fixed, non-negotiable identity for capability
+    // binding -- never derived from argv/caller input (see
+    // shim_common::check_and_consume doc comment).
+    check_and_consume(&key, &parsed, command.as_bytes(), &consumed_path, "shell");
 
     // Capability accepted: only now do we run the real command.
     let status = Command::new("sh").arg("-c").arg(&command).status();

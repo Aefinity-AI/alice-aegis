@@ -113,7 +113,22 @@ pub fn refuse(reason: &str) -> ! {
 /// bad/forged token, expired token, replayed (already consumed) token,
 /// and action-hash mismatch (the bytes about to be executed differ from
 /// what the token was issued for).
-pub fn check_and_consume(key: &[u8], args: &ShimArgs, action_bytes: &[u8], consumed_path: &Path) {
+///
+/// `tool_tag` (SAFE-11) MUST be the caller's own FIXED identity (e.g.
+/// `tool_shim_shell` always passes the literal `"shell"`) — never derived
+/// from argv or any other caller-controlled input. This is what binds a
+/// capability token to the specific tool it was approved for and closes
+/// the safe-10 cross-shim replay finding (a token minted for a
+/// file-write ALLOW no longer verifies here if this shim's fixed tag
+/// does not match the tag the gateway daemon actually issued the token
+/// for).
+pub fn check_and_consume(
+    key: &[u8],
+    args: &ShimArgs,
+    action_bytes: &[u8],
+    consumed_path: &Path,
+    tool_tag: &str,
+) {
     let (idx, cap, exp, claimed_hash_hex) =
         match (&args.idx, &args.cap, &args.exp, &args.action_hash_hex) {
             (Some(i), Some(c), Some(e), Some(h)) => (*i, c.clone(), *e, h.clone()),
@@ -127,7 +142,16 @@ pub fn check_and_consume(key: &[u8], args: &ShimArgs, action_bytes: &[u8], consu
     }
 
     let mut consumed = load_consumed(consumed_path);
-    match capability::verify(key, idx, real_hash, exp, &cap, now_unix(), &mut consumed) {
+    match capability::verify(
+        key,
+        idx,
+        real_hash,
+        exp,
+        &cap,
+        now_unix(),
+        &mut consumed,
+        tool_tag,
+    ) {
         Ok(()) => {
             if let Err(e) = persist_consumed(consumed_path, idx) {
                 refuse(&format!("could not persist consumed index: {e}"));
