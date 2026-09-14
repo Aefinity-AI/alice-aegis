@@ -96,6 +96,36 @@ not simulated:
 5. box1 reaching box2's credential store outside the forced channel — not
    runnable, design item (d) not built on this branch.
 
+**SAFE-5c update (2026-09-14, aefinity-box2):** design item (d), the
+two-box split, IS now built on top of this branch (`gateway-relay.sh` on
+box1 forwards over a forced-command SSH channel to `gateway serve` running
+under `cm-gateway.service` on box2; see `deploy/inter-box/` and
+`deploy/box2/`). One honest scale caveat from bringing it up: **box2 is a
+2c/2t Celeron N4020** — a full `agent_trace verify` replay of a real
+BitNet-2B receipt (the model this gateway serves by default,
+`~/aefinity-artifacts/bitnet2b-2b-artifacts/`) takes 6-7+ minutes of
+single-threaded CPU there, which is longer than any normal SSH/script
+timeout and blocks the (single-threaded, one-Gateway-instance) accept loop
+for the whole duration. 2B-scale verification itself is already proven on
+a single, adequately fast box (safe-1c, box1). What SAFE-5c's "legit
+round-trip" escape test 5 needs to demonstrate is that the two-box
+split — the forced channel, the relay, the daemon's freshness/allowlist/
+capability-token logic running on the box that never sees agent-controlled
+content — works correctly end to end, not that box2 can verify a 2B
+receipt fast. So the box2 half of this demo swaps in the small
+("tinybit", ~3.8M param, `model-lab/tinybit/m7_final_gate_work/artifacts/`)
+model + a receipt generated against it and `demo/agent-trace/tables/
+chain.tsv`: `agent_trace verify` on that receipt completes in ~2.3s on
+this same box2 hardware (measured 2026-09-14, see
+`state/reports/2026-09-14-safe5c-tiny-box2.md`, claudius-maximus repo).
+**A production enforcement host serving real 2B-scale receipts would need
+either box1-class compute, or the gateway to verify asynchronously/queued
+rather than synchronously in `handle_serve_conn`** (a `--request-timeout`
+flag was added this same pass so a slow/stuck verify at least fails closed
+instead of hanging every later request behind it indefinitely — it does
+NOT make 2B verification fast on this hardware, it only bounds the damage
+of a slow one).
+
 ## Not enforced (honest residual limits)
 
 - **A compromised gateway host**: holds both HMAC keys (allowlist-signing
