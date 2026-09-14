@@ -1,0 +1,56 @@
+# SAFE-5a: AppArmor deny-exec profile for the sandboxed agent process.
+#
+# This is a defense-in-depth layer on top of systemd/cm-agent-sandbox.service
+# (CapabilityBoundingSet=/RestrictAddressFamilies=/etc already remove most
+# of an agent's reach). AppArmor adds explicit exec allow-listing, which
+# plain systemd sandboxing does NOT provide: NoNewPrivileges/CapabilityBoundingSet
+# stop privilege escalation and most syscalls, but do not by themselves
+# stop an agent process from exec'ing an arbitrary binary already on PATH
+# at its own privilege level.
+#
+# HONEST NOTE (see ENFORCEMENT.md): AppArmor may be INACTIVE on a given
+# box (Debian trixie ships it but it must be enabled at boot,
+# `apparmor_status` shows "apparmor module is loaded" or not). This
+# profile is written and shipped either way; the systemd layer above
+# stands alone and does not depend on AppArmor being active. Load with:
+#   sudo apt-get install apparmor apparmor-utils
+#   sudo cp apparmor/cm-agent /etc/apparmor.d/cm-agent
+#   sudo apparmor_parser -r /etc/apparmor.d/cm-agent
+#   sudo aa-enforce cm-agent
+# and reference it from the sandbox unit with AppArmorProfile=cm-agent.
+
+#include <tunables/global>
+
+profile cm-agent flags=(attach_disconnected) {
+  #include <abstractions/base>
+
+  # Deny exec of everything by default...
+  deny /usr/bin/** x,
+  deny /usr/sbin/** x,
+  deny /bin/** x,
+  deny /sbin/** x,
+
+  # ...except python3 (the agent's own interpreter) and the shell needed
+  # to launch it. Extend this list deliberately, one binary at a time,
+  # rather than widening the deny pattern above.
+  /usr/bin/python3 ix,
+  /usr/bin/python3.* ix,
+
+  # Read its own code/config; write only its receipt directory (adjust to
+  # the real deployment path).
+  /usr/bin/agent/** r,
+  owner @{HOME}/agent-receipts/** rw,
+
+  # No raw network: AF_INET/AF_INET6 sockets denied. (AF_UNIX to the
+  # gateway is allowed implicitly by not being denied here; AppArmor's
+  # network mediation is address-family-level, matching systemd's
+  # RestrictAddressFamilies= as a second, independent enforcement of the
+  # same rule.)
+  deny network inet,
+  deny network inet6,
+
+  # No ptrace of other processes (blocks one route to bypassing the
+  # gateway by attaching to a process that already holds a capability
+  # token or credential).
+  deny ptrace,
+}
