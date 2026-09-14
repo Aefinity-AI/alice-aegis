@@ -277,6 +277,88 @@ pub enum GatewayInitError {
     Allowlist(AllowlistError),
 }
 
+/// SAFE-7: the actual `agent_trace verify` subprocess spawn/poll, factored
+/// out of `Gateway::run_verify_raw` into a free function taking explicit
+/// config (rather than `&self`) so the async `serve` worker pool can call
+/// it directly, off the accept thread, WITHOUT holding the `Gateway`
+/// mutex for the run's full (potentially minutes-long) duration. Behavior
+/// is byte-for-byte what `Gateway::run_verify_raw` did before this split;
+/// `Gateway::run_verify_raw` now just forwards its own fields here.
+fn run_verify_subprocess_raw(
+    agent_trace_bin: &Path,
+    model_path: &Path,
+    embed_path: &Path,
+    vocab_path: &Path,
+    table_path: Option<&Path>,
+    receipt_path: &Path,
+    verify_timeout: Option<Duration>,
+) -> Result<String, String> {
+    use std::process::Stdio;
+
+    let mut cmd = Command::new(agent_trace_bin);
+    cmd.arg("verify")
+        .arg(model_path)
+        .arg(embed_path)
+        .arg(vocab_path)
+        .arg(receipt_path);
+    if let Some(t) = table_path {
+        cmd.arg("--table").arg(t);
+    }
+
+    let Some(timeout) = verify_timeout else {
+        // No ceiling configured: old behavior, block until exit.
+        let out = cmd
+            .output()
+            .map_err(|e| format!("spawn agent_trace: {e}"))?;
+        return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
+    };
+
+    // Spawn + poll rather than `.output()` (which blocks unconditionally):
+    // this is what lets a stuck/slow verify be killed instead of wedging
+    // the caller (`handle_serve_conn` in the pre-SAFE-7 sync daemon, or a
+    // SAFE-7 background verify worker today) for however long the child
+    // feels like running.
+    cmd.stdout(Stdio::piped()).stderr(Stdio::null());
+    let mut child = cmd.spawn().map_err(|e| format!("spawn agent_trace: {e}"))?;
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_status)) => {
+                let mut out = String::new();
+                if let Some(mut stdout) = child.stdout.take() {
+                    use std::io::Read;
+                    let _ = stdout.read_to_string(&mut out);
+                }
+                return Ok(out);
+            }
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!(
+                        "agent_trace verify exceeded --request-timeout ({timeout:?}), killed"
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => return Err(format!("wait agent_trace: {e}")),
+        }
+    }
+}
+
+/// See `Gateway::run_verify` — factored to a free function so the SAFE-7
+/// background worker can apply the same lenient policy without a `Gateway`
+/// reference.
+fn verify_pass_lenient(stdout: &str) -> bool {
+    stdout.contains("VERIFY PASS")
+}
+
+/// See `Gateway::run_verify_strict` — factored to a free function for the
+/// same reason as `verify_pass_lenient`.
+fn verify_pass_strict(stdout: &str) -> bool {
+    stdout.contains("VERIFY PASS") && !stdout.contains("WARNING step")
+}
+
 impl Gateway {
     pub fn new(cfg: GatewayConfig) -> Result<Self, GatewayInitError> {
         let allowlist = load_allowlist(&cfg.allowlist_path, &cfg.allowlist_key)
@@ -320,11 +402,48 @@ impl Gateway {
         session: &str,
         counter: u64,
     ) -> [u8; 32] {
-        let prev = self.log_head();
         let decision_tag = match decision {
             Decision::Allow => "ALLOW".to_string(),
             Decision::Deny(reason) => format!("DENY:{reason}"),
         };
+        self.append_log_tagged(&decision_tag, trace_chain, triple, session, counter)
+    }
+
+    /// SAFE-7: log a PENDING marker at the moment a request is accepted for
+    /// background verification, keyed by its ticket. The eventual ALLOW/DENY
+    /// (once the background worker finishes) is a SECOND, separate call to
+    /// `append_log` — both entries live in the same hash chain
+    /// (`prev_digest` links them in order), so the anchored log is still one
+    /// append-only sequence, it just now shows the PENDING->decision
+    /// transition for requests that went through the async path instead of
+    /// a single entry. (Design choice, documented per the SAFE-7 brief: a
+    /// synchronous fast-path DENY — allowlist/binding/freshness — still
+    /// gets exactly one log entry, same as before SAFE-7, since it never
+    /// reaches the background worker at all.)
+    fn append_log_pending(
+        &mut self,
+        ticket: &str,
+        trace_chain: &str,
+        triple: &ArtifactTriple,
+        session: &str,
+        counter: u64,
+    ) -> [u8; 32] {
+        let tag = format!("PENDING:ticket={ticket}");
+        self.append_log_tagged(&tag, trace_chain, triple, session, counter)
+    }
+
+    /// Shared hash-chaining body for `append_log` and `append_log_pending`
+    /// (SAFE-7 split; behavior for the `append_log` caller is byte-for-byte
+    /// what it was before this split — same digest computed the same way).
+    fn append_log_tagged(
+        &mut self,
+        decision_tag: &str,
+        trace_chain: &str,
+        triple: &ArtifactTriple,
+        session: &str,
+        counter: u64,
+    ) -> [u8; 32] {
+        let prev = self.log_head();
         let mut m = Vec::new();
         m.extend_from_slice(&prev);
         m.extend_from_slice(decision_tag.as_bytes());
@@ -401,58 +520,24 @@ impl Gateway {
     /// is inspected in agent_trace.rs's `main`; this is a subprocess
     /// boundary, so checking the printed verdict text mirrors the
     /// second-verifier mode in the design memo).
+    ///
+    /// Thin delegator to the free function `run_verify_subprocess_raw`
+    /// (SAFE-7): the actual subprocess spawn/poll logic lives there,
+    /// unchanged from before this split, so it can also be called by the
+    /// async `serve` worker pool (see below) WITHOUT holding this
+    /// `Gateway`'s mutex for the entire (potentially minutes-long) verify —
+    /// the worker clones the handful of config fields it needs out of
+    /// `Gateway` once, up front, and calls the free function directly.
     fn run_verify_raw(&self, receipt_path: &Path) -> Result<String, String> {
-        use std::process::Stdio;
-
-        let mut cmd = Command::new(&self.agent_trace_bin);
-        cmd.arg("verify")
-            .arg(&self.model_path)
-            .arg(&self.embed_path)
-            .arg(&self.vocab_path)
-            .arg(receipt_path);
-        if let Some(t) = &self.table_path {
-            cmd.arg("--table").arg(t);
-        }
-
-        let Some(timeout) = self.verify_timeout else {
-            // No ceiling configured: old behavior, block until exit.
-            let out = cmd
-                .output()
-                .map_err(|e| format!("spawn agent_trace: {e}"))?;
-            return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
-        };
-
-        // Spawn + poll rather than `.output()` (which blocks unconditionally):
-        // this is what lets a stuck/slow verify be killed instead of wedging
-        // `handle_serve_conn` (and, transitively, every later connection in
-        // the single-threaded accept loop) for however long the child feels
-        // like running.
-        cmd.stdout(Stdio::piped()).stderr(Stdio::null());
-        let mut child = cmd.spawn().map_err(|e| format!("spawn agent_trace: {e}"))?;
-        let start = Instant::now();
-        loop {
-            match child.try_wait() {
-                Ok(Some(_status)) => {
-                    let mut out = String::new();
-                    if let Some(mut stdout) = child.stdout.take() {
-                        use std::io::Read;
-                        let _ = stdout.read_to_string(&mut out);
-                    }
-                    return Ok(out);
-                }
-                Ok(None) => {
-                    if start.elapsed() >= timeout {
-                        let _ = child.kill();
-                        let _ = child.wait();
-                        return Err(format!(
-                            "agent_trace verify exceeded --request-timeout ({timeout:?}), killed"
-                        ));
-                    }
-                    std::thread::sleep(Duration::from_millis(50));
-                }
-                Err(e) => return Err(format!("wait agent_trace: {e}")),
-            }
-        }
+        run_verify_subprocess_raw(
+            &self.agent_trace_bin,
+            &self.model_path,
+            &self.embed_path,
+            &self.vocab_path,
+            self.table_path.as_deref(),
+            receipt_path,
+            self.verify_timeout,
+        )
     }
 
     /// PASS/FAIL per `run_verify_raw`'s stdout, ignoring grounding
@@ -460,7 +545,7 @@ impl Gateway {
     /// tool-call argument can still ALLOW as long as the trace chain
     /// itself replays correctly).
     fn run_verify(&self, receipt_path: &Path) -> Result<bool, String> {
-        Ok(self.run_verify_raw(receipt_path)?.contains("VERIFY PASS"))
+        Ok(verify_pass_lenient(&self.run_verify_raw(receipt_path)?))
     }
 
     /// Strict policy: PASS AND zero `WARNING step` lines in the replay
@@ -476,7 +561,84 @@ impl Gateway {
     /// what the agent actually saw.
     fn run_verify_strict(&self, receipt_path: &Path) -> Result<bool, String> {
         let stdout = self.run_verify_raw(receipt_path)?;
-        Ok(stdout.contains("VERIFY PASS") && !stdout.contains("WARNING step"))
+        Ok(verify_pass_strict(&stdout))
+    }
+
+    /// SAFE-7: the CHEAP part of `decide()` — receipt parse, allowlist
+    /// membership, verify-execute binding hash, freshness MEMBERSHIP check
+    /// (read-only: does NOT insert into `self.seen`; the caller decides
+    /// when to reserve) — with none of the fields it needs an
+    /// `agent_trace verify` subprocess for. This mirrors `decide()`'s own
+    /// front half EXACTLY (same checks, same order, same DENY reasons) so
+    /// that the async `serve` path can front-load an immediate DENY for
+    /// anything `decide()` would have denied synchronously today, without
+    /// ever touching a subprocess. `decide()` remains the single source of
+    /// truth for the full decision LOGIC (including the slow verify) and
+    /// is used unchanged by every existing caller (the CLI mode and the
+    /// unit tests below); this function exists purely so `serve`'s async
+    /// half does not have to duplicate decide()'s cheap-check bodies. If
+    /// decide()'s cheap-check logic ever changes, mirror the change here.
+    ///
+    /// Returns `Err` with everything needed to log a DENY exactly as
+    /// `decide()` would (empty trace_chain/triple for a read/parse
+    /// failure, the parsed ones otherwise) — the caller is responsible for
+    /// calling `append_log` itself, so this function has no side effects.
+    /// Returns `Ok` with the parsed receipt and the (not yet inserted)
+    /// freshness key once every cheap check has passed and only the slow
+    /// `agent_trace verify` remains.
+    fn cheap_precheck(
+        &self,
+        receipt_path: &Path,
+        action_bytes: &[u8],
+        session: &str,
+        counter: u64,
+    ) -> Result<(ParsedReceipt, FreshnessKey), (String, String, ArtifactTriple)> {
+        let empty_triple = || ArtifactTriple {
+            model: String::new(),
+            embed: String::new(),
+            vocab: String::new(),
+        };
+        let text = fs::read_to_string(receipt_path)
+            .map_err(|e| (format!("read receipt: {e}"), String::new(), empty_triple()))?;
+        let parsed = parse_receipt(&text)
+            .map_err(|e| (format!("parse receipt: {e:?}"), String::new(), empty_triple()))?;
+
+        if !self.allowlist.entries.contains(&parsed.triple) {
+            return Err((
+                "artifact triple not on allowlist".into(),
+                parsed.trace_chain,
+                parsed.triple,
+            ));
+        }
+
+        let action_hash = sha256(action_bytes);
+        let receipt_hash = sha256(&parsed.last_step_input);
+        if action_hash != receipt_hash {
+            return Err((
+                format!(
+                    "verify-execute binding failed: action hash {} != receipt final-step hash {}",
+                    hex(&action_hash),
+                    hex(&receipt_hash)
+                ),
+                parsed.trace_chain,
+                parsed.triple,
+            ));
+        }
+
+        let key = FreshnessKey {
+            session: session.to_string(),
+            counter,
+            action_hash,
+        };
+        if self.seen.contains(&key) {
+            return Err((
+                "freshness: (session, counter, action-hash) already seen".into(),
+                parsed.trace_chain,
+                parsed.triple,
+            ));
+        }
+
+        Ok((parsed, key))
     }
 
     /// The single decision entry point. `session`/`counter` are the
@@ -896,7 +1058,7 @@ fn run_e2e_safe1c(args: &[String]) {
 //   SESSION <session>
 //   COUNTER <counter>
 //   (blank line or EOF ends the request)
-// and gets back exactly one line:
+// and gets back exactly one line (see SAFE-7 below for the PENDING case):
 //   ALLOW idx=<n> cap=<token> exp=<unix>
 //   DENY <reason>
 // On ALLOW, a capability token is minted via `capability::issue` using
@@ -904,6 +1066,41 @@ fn run_e2e_safe1c(args: &[String]) {
 // caller-supplied) and `--cap-ttl` seconds from now as the expiry. Tool
 // shims (`src/bin/tool_shim_*.rs`) independently verify that token before
 // acting — see `src/capability.rs` and ENFORCEMENT.md.
+//
+// SAFE-7: async verify, so one slow `agent_trace verify` (observed 6-7+
+// minutes for a real 2B receipt on this box's hardware) cannot block the
+// accept loop for every connection behind it. On a new decision request
+// the accept thread still does every CHEAP check INLINE and synchronously
+// (`Gateway::cheap_precheck`: receipt parse, allowlist, verify-execute
+// binding, freshness membership) -- if any of those denies, the reply is
+// `DENY <reason>` immediately, exactly as before SAFE-7, never queued.
+// Only once all of those pass does the (session, counter, action-hash)
+// freshness key get RESERVED (inserted into `seen` right there, on the
+// accept thread, before the connection replies) and the receipt handed to
+// a background worker pool (`--verify-workers N`, default 1) that runs the
+// actual `agent_trace verify`. The connection is replied to immediately
+// with:
+//   PENDING ticket=<id>
+// The freshness key is reserved on ENQUEUE, not on eventual ALLOW: this is
+// the "keep reserved" rule from the SAFE-7 brief -- a second concurrent
+// request for the exact same (session, counter) arriving while the first
+// is still PENDING must deterministically DENY (freshness) rather than
+// race the verify, and a verify that later fails or errors does NOT free
+// the key back up either (a replayed session/counter must never be able
+// to produce two live outcomes, so a caller who wants to retry after a
+// DENY must use a new counter, same as it always did after a real ALLOW).
+// The caller learns the outcome by reconnecting and sending:
+//   POLL ticket=<id>
+// which replies `PENDING` (verify still running), `DENY unknown ticket`
+// (ticket never issued by this process, e.g. after a restart), or the
+// final `ALLOW ...`/`DENY ...` line -- byte-for-byte what a synchronous
+// `decide()` call would have produced for the same inputs (async changes
+// WHEN the caller learns the outcome, never WHAT the outcome is). Polling
+// is out-of-band from the PENDING connection: the client is expected to
+// close that connection (or it stays open with nothing more to read/write
+// until the client sends POLL, either is fine) and reconnect for POLL, one
+// request per connection, matching the existing one-request-per-connection
+// convention above.
 // =======================================================================
 
 fn now_unix() -> u64 {
@@ -920,19 +1117,42 @@ struct ServeRequest {
     counter: u64,
 }
 
-fn parse_serve_request(stream: &mut UnixStream) -> Option<ServeRequest> {
+/// SAFE-7: a parsed request is either a normal decision request (as
+/// before) or a `POLL ticket=<id>` request asking for that ticket's
+/// current/final status.
+enum ServeRequestKind {
+    Decide(ServeRequest),
+    Poll { ticket: String },
+}
+
+fn parse_serve_request(stream: &mut UnixStream) -> Option<ServeRequestKind> {
     let reader = BufReader::new(stream.try_clone().ok()?);
+    let mut lines = reader.lines();
+    let first = lines.next()?.ok()?;
+    if let Some(rest) = first.strip_prefix("POLL ") {
+        let ticket = rest.trim().strip_prefix("ticket=")?.trim().to_string();
+        if ticket.is_empty() {
+            return None;
+        }
+        // Drain the rest of the request up to the blank-line/EOF
+        // terminator, same convention as the decide-request parse below,
+        // in case a client sends extra lines after POLL.
+        for line in lines {
+            let line = line.ok()?;
+            if line.trim().is_empty() {
+                break;
+            }
+        }
+        return Some(ServeRequestKind::Poll { ticket });
+    }
+
     let mut receipt = None;
     let mut action_hex = String::new();
     let mut session = "default".to_string();
     let mut counter = 0u64;
-    for line in reader.lines() {
-        let line = line.ok()?;
-        if line.trim().is_empty() {
-            break;
-        }
+    let mut apply = |line: &str, receipt: &mut Option<PathBuf>| {
         if let Some(rest) = line.strip_prefix("RECEIPT ") {
-            receipt = Some(PathBuf::from(rest.trim()));
+            *receipt = Some(PathBuf::from(rest.trim()));
         } else if let Some(rest) = line.strip_prefix("ACTION ") {
             action_hex = rest.trim().to_string();
         } else if let Some(rest) = line.strip_prefix("SESSION ") {
@@ -940,35 +1160,249 @@ fn parse_serve_request(stream: &mut UnixStream) -> Option<ServeRequest> {
         } else if let Some(rest) = line.strip_prefix("COUNTER ") {
             counter = rest.trim().parse().unwrap_or(0);
         }
+    };
+    if !first.trim().is_empty() {
+        apply(&first, &mut receipt);
     }
-    Some(ServeRequest {
+    for line in lines {
+        let line = line.ok()?;
+        if line.trim().is_empty() {
+            break;
+        }
+        apply(&line, &mut receipt);
+    }
+    Some(ServeRequestKind::Decide(ServeRequest {
         receipt: receipt?,
         action_hex,
         session,
         counter,
-    })
+    }))
 }
 
-fn handle_serve_conn(stream: &mut UnixStream, gw: &mut Gateway, cap_key: &[u8], cap_ttl: u64) {
-    let req = match parse_serve_request(stream) {
-        Some(r) => r,
+/// SAFE-7: outcome of a ticket issued for background verification.
+#[derive(Clone)]
+enum TicketOutcome {
+    Pending,
+    /// The exact final reply line, e.g. `ALLOW idx=.. cap=.. exp=..` or
+    /// `DENY <reason>` -- precomputed once by the worker so `POLL` just
+    /// echoes it back verbatim, matching what a synchronous `decide()`
+    /// call would have produced.
+    Done(String),
+}
+
+/// SAFE-7: everything a background verify worker needs, captured at
+/// enqueue time (cheap clones of config `PathBuf`s/bools) so the worker
+/// never needs to touch the `Gateway` mutex while `agent_trace verify`
+/// itself is running -- only the final `Gateway::append_log` + decision
+/// bookkeeping below needs the lock, briefly.
+struct VerifyJob {
+    ticket: String,
+    receipt_path: PathBuf,
+    session: String,
+    counter: u64,
+    trace_chain: String,
+    triple: ArtifactTriple,
+    freshness_key: FreshnessKey,
+    agent_trace_bin: PathBuf,
+    model_path: PathBuf,
+    embed_path: PathBuf,
+    vocab_path: PathBuf,
+    table_path: Option<PathBuf>,
+    strict: bool,
+    verify_timeout: Option<Duration>,
+    cap_key: Vec<u8>,
+    cap_ttl: u64,
+}
+
+/// State shared between the (single-threaded) accept loop and the
+/// background verify worker pool.
+struct SharedServe {
+    gw: std::sync::Mutex<Gateway>,
+    tickets: std::sync::Mutex<std::collections::HashMap<String, TicketOutcome>>,
+    job_tx: std::sync::mpsc::Sender<VerifyJob>,
+    next_ticket: std::sync::atomic::AtomicU64,
+    cap_key: Vec<u8>,
+    cap_ttl: u64,
+}
+
+impl SharedServe {
+    fn mint_ticket(&self) -> String {
+        let n = self
+            .next_ticket
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        format!("T{n}")
+    }
+}
+
+/// One background worker thread's main loop: pull a `VerifyJob`, run the
+/// (potentially very slow) `agent_trace verify` WITHOUT holding `shared`'s
+/// Gateway mutex, then lock briefly to finalize the decision (append the
+/// second, decision, log entry; on ALLOW, mint the capability token) and
+/// record the ticket's outcome.
+fn verify_worker_loop(
+    rx: std::sync::Arc<std::sync::Mutex<std::sync::mpsc::Receiver<VerifyJob>>>,
+    shared: std::sync::Arc<SharedServe>,
+) {
+    loop {
+        let job = {
+            let rx = rx.lock().unwrap();
+            rx.recv()
+        };
+        let job = match job {
+            Ok(j) => j,
+            Err(_) => return, // sender dropped: shutting down
+        };
+
+        let verify_result = run_verify_subprocess_raw(
+            &job.agent_trace_bin,
+            &job.model_path,
+            &job.embed_path,
+            &job.vocab_path,
+            job.table_path.as_deref(),
+            &job.receipt_path,
+            job.verify_timeout,
+        );
+        let pass = match &verify_result {
+            Ok(stdout) => {
+                if job.strict {
+                    verify_pass_strict(stdout)
+                } else {
+                    verify_pass_lenient(stdout)
+                }
+            }
+            Err(_) => false,
+        };
+
+        let final_line = {
+            let mut gw = shared.gw.lock().unwrap();
+            if pass {
+                // Freshness key was already reserved at enqueue time; this
+                // insert is a no-op for that key but keeps the invariant
+                // explicit here too (ALLOW always implies "seen").
+                gw.seen.insert(job.freshness_key.clone());
+                let d = Decision::Allow;
+                let _head =
+                    gw.append_log(&d, &job.trace_chain, &job.triple, &job.session, job.counter);
+                let idx = gw.decision_count();
+                let exp = now_unix() + job.cap_ttl;
+                let token = capability::issue(&job.cap_key, idx, job.freshness_key.action_hash, exp);
+                format!("ALLOW idx={idx} cap={token} exp={exp}")
+            } else {
+                let reason = match &verify_result {
+                    Ok(_) if job.strict => {
+                        "agent_trace verify: VERIFY FAIL or strict-grounding WARNING present"
+                            .to_string()
+                    }
+                    Ok(_) => "agent_trace verify: VERIFY FAIL".to_string(),
+                    Err(e) => format!("agent_trace verify: could not run: {e}"),
+                };
+                let d = Decision::Deny(reason.clone());
+                let _head =
+                    gw.append_log(&d, &job.trace_chain, &job.triple, &job.session, job.counter);
+                // Freshness key stays reserved -- see the SAFE-7 daemon-mode
+                // comment block above run_serve for why a failed/erroring
+                // verify does not free it for retry under the same
+                // (session, counter).
+                format!("DENY {reason}")
+            }
+        };
+        shared
+            .tickets
+            .lock()
+            .unwrap()
+            .insert(job.ticket.clone(), TicketOutcome::Done(final_line));
+    }
+}
+
+fn handle_serve_conn_async(stream: &mut UnixStream, shared: &std::sync::Arc<SharedServe>) {
+    let kind = match parse_serve_request(stream) {
+        Some(k) => k,
         None => {
             let _ = writeln!(stream, "DENY malformed request");
             return;
         }
     };
-    let action_bytes = unhex(&req.action_hex).unwrap_or_default();
-    let (decision, _head) = gw.decide(&req.receipt, &action_bytes, &req.session, req.counter);
-    match decision {
-        Decision::Allow => {
-            let idx = gw.decision_count();
-            let ahash = sha256(&action_bytes);
-            let exp = now_unix() + cap_ttl;
-            let token = capability::issue(cap_key, idx, ahash, exp);
-            let _ = writeln!(stream, "ALLOW idx={idx} cap={token} exp={exp}");
+    match kind {
+        ServeRequestKind::Poll { ticket } => {
+            let outcome = shared.tickets.lock().unwrap().get(&ticket).cloned();
+            match outcome {
+                Some(TicketOutcome::Done(line)) => {
+                    let _ = writeln!(stream, "{line}");
+                }
+                Some(TicketOutcome::Pending) => {
+                    let _ = writeln!(stream, "PENDING");
+                }
+                None => {
+                    let _ = writeln!(stream, "DENY unknown ticket");
+                }
+            }
         }
-        Decision::Deny(reason) => {
-            let _ = writeln!(stream, "DENY {reason}");
+        ServeRequestKind::Decide(req) => {
+            let action_bytes = unhex(&req.action_hex).unwrap_or_default();
+            let mut gw = shared.gw.lock().unwrap();
+            match gw.cheap_precheck(&req.receipt, &action_bytes, &req.session, req.counter) {
+                Err((reason, trace_chain, triple)) => {
+                    let d = Decision::Deny(reason.clone());
+                    let _head = gw.append_log(&d, &trace_chain, &triple, &req.session, req.counter);
+                    drop(gw);
+                    let _ = writeln!(stream, "DENY {reason}");
+                }
+                Ok((parsed, key)) => {
+                    // Reserve the freshness key NOW, before any background
+                    // work is enqueued and before this connection is even
+                    // replied to: a second request for the identical
+                    // (session, counter) that reaches this same
+                    // single-threaded accept loop afterward will see this
+                    // key already in `seen` via cheap_precheck above and
+                    // DENY immediately, never racing the verify below.
+                    gw.seen.insert(key.clone());
+                    let ticket = shared.mint_ticket();
+                    let _head = gw.append_log_pending(
+                        &ticket,
+                        &parsed.trace_chain,
+                        &parsed.triple,
+                        &req.session,
+                        req.counter,
+                    );
+                    let (agent_trace_bin, model_path, embed_path, vocab_path, table_path, strict, verify_timeout) = (
+                        gw.agent_trace_bin.clone(),
+                        gw.model_path.clone(),
+                        gw.embed_path.clone(),
+                        gw.vocab_path.clone(),
+                        gw.table_path.clone(),
+                        gw.strict,
+                        gw.verify_timeout,
+                    );
+                    drop(gw);
+
+                    shared
+                        .tickets
+                        .lock()
+                        .unwrap()
+                        .insert(ticket.clone(), TicketOutcome::Pending);
+
+                    let job = VerifyJob {
+                        ticket: ticket.clone(),
+                        receipt_path: req.receipt.clone(),
+                        session: req.session.clone(),
+                        counter: req.counter,
+                        trace_chain: parsed.trace_chain.clone(),
+                        triple: parsed.triple.clone(),
+                        freshness_key: key,
+                        agent_trace_bin,
+                        model_path,
+                        embed_path,
+                        vocab_path,
+                        table_path,
+                        strict,
+                        verify_timeout,
+                        cap_key: shared.cap_key.clone(),
+                        cap_ttl: shared.cap_ttl,
+                    };
+                    let _ = shared.job_tx.send(job);
+                    let _ = writeln!(stream, "PENDING ticket={ticket}");
+                }
+            }
         }
     }
 }
@@ -977,10 +1411,10 @@ fn run_serve(args: &[String]) {
     // args: [1]=serve [2]=model [3]=embed [4]=vocab [5]=agent_trace_bin
     // [6]=allowlist [7]=allowlist-key-file --socket S --cap-key-file K
     // [--table T] [--anchor-every N] [--anchor-file F] [--strict]
-    // [--cap-ttl SECS] [--request-timeout SECS]
+    // [--cap-ttl SECS] [--request-timeout SECS] [--verify-workers N]
     if args.len() < 8 {
         eprintln!(
-            "usage: gateway serve <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <agent_trace-bin> <allowlist> <allowlist-key-file> --socket <path> --cap-key-file <path> [--table <path>] [--anchor-every N] [--anchor-file F] [--strict] [--cap-ttl SECS] [--request-timeout SECS]"
+            "usage: gateway serve <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <agent_trace-bin> <allowlist> <allowlist-key-file> --socket <path> --cap-key-file <path> [--table <path>] [--anchor-every N] [--anchor-file F] [--strict] [--cap-ttl SECS] [--request-timeout SECS] [--verify-workers N]"
         );
         std::process::exit(2);
     }
@@ -1006,6 +1440,11 @@ fn run_serve(args: &[String]) {
     // BitNet-2B receipt on weak hardware) cannot silently block every
     // later request forever behind it in the single-threaded accept loop.
     let mut request_timeout: Option<Duration> = None;
+    // SAFE-7: number of background threads running `agent_trace verify`
+    // concurrently. Default 1, matching this box's 2c/2t hardware -- more
+    // workers than physical threads just makes each individual verify
+    // slower without helping throughput here.
+    let mut verify_workers = 1usize;
     let mut i = 8;
     while i < args.len() {
         match args[i].as_str() {
@@ -1044,6 +1483,14 @@ fn run_serve(args: &[String]) {
                     .map(Duration::from_secs);
                 i += 2;
             }
+            "--verify-workers" => {
+                verify_workers = args
+                    .get(i + 1)
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .filter(|n| *n > 0)
+                    .unwrap_or(1);
+                i += 2;
+            }
             _ => {
                 i += 1;
             }
@@ -1068,7 +1515,7 @@ fn run_serve(args: &[String]) {
         std::process::exit(2);
     });
 
-    let mut gw = match Gateway::new(GatewayConfig {
+    let gw = match Gateway::new(GatewayConfig {
         allowlist_path,
         allowlist_key,
         anchor_every,
@@ -1097,24 +1544,46 @@ fn run_serve(args: &[String]) {
     // Owner-only: this socket is the sole path to a real decision.
     let _ = fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o600));
     eprintln!(
-        "gateway serve: listening on {} (cap-ttl={cap_ttl}s)",
+        "gateway serve: listening on {} (cap-ttl={cap_ttl}s, verify-workers={verify_workers})",
         socket_path.display()
     );
 
-    // Accept loop is single-threaded and blocking by design (one Gateway,
-    // no shared-state locking): a connection is only accepted, and its
-    // number logged, once the PREVIOUS connection's handler has returned.
-    // A rising gap between consecutive `accepted #n` timestamps in the
-    // log is therefore the visible symptom of one slow/stuck verify
-    // holding up everyone behind it -- exactly what `--request-timeout`
-    // above bounds.
+    // SAFE-7: wire up the shared state + worker pool (see the big comment
+    // block above `now_unix` for the full design). `job_tx` is cloned into
+    // `SharedServe` and handed out to `handle_serve_conn_async`; `job_rx`
+    // is shared (behind a Mutex) by every worker thread, each pulling the
+    // next job in FIFO order.
+    let (job_tx, job_rx) = std::sync::mpsc::channel::<VerifyJob>();
+    let job_rx = std::sync::Arc::new(std::sync::Mutex::new(job_rx));
+    let shared = std::sync::Arc::new(SharedServe {
+        gw: std::sync::Mutex::new(gw),
+        tickets: std::sync::Mutex::new(std::collections::HashMap::new()),
+        job_tx,
+        next_ticket: std::sync::atomic::AtomicU64::new(1),
+        cap_key,
+        cap_ttl,
+    });
+    for _ in 0..verify_workers {
+        let rx = job_rx.clone();
+        let shared = shared.clone();
+        std::thread::spawn(move || verify_worker_loop(rx, shared));
+    }
+
+    // Accept loop is single-threaded: a connection is only ACCEPTED once
+    // the previous connection's handler has returned. That is no longer a
+    // problem for a slow verify (SAFE-7's whole point) because
+    // `handle_serve_conn_async` never blocks on `agent_trace verify`
+    // itself -- it does the cheap checks, then either denies immediately
+    // or hands off to a worker thread and replies `PENDING` right away.
+    // `--request-timeout` still bounds how long any ONE worker's verify
+    // subprocess may run before that worker kills it and records DENY.
     let mut conn_count: u64 = 0;
     for conn in listener.incoming() {
         match conn {
             Ok(mut stream) => {
                 conn_count += 1;
                 eprintln!("gateway serve: accepted #{conn_count}");
-                handle_serve_conn(&mut stream, &mut gw, &cap_key, cap_ttl);
+                handle_serve_conn_async(&mut stream, &shared);
             }
             Err(e) => eprintln!("gateway serve: accept error: {e}"),
         }
@@ -1852,6 +2321,272 @@ mod tests {
         assert_ne!(
             head1, head2,
             "log head must change on every decision, including DENY"
+        );
+    }
+
+    // ===============================================================
+    // SAFE-7: async serve (PENDING/POLL) tests.
+    //
+    // These exercise the ACTUAL background-thread PENDING->POLL->resolved
+    // path over a real unix socket, with a real (short) time gap, not just
+    // the data structures in isolation: `slow_agent_trace_wrapper` below
+    // wraps the real `agent_trace` release binary in a shell script that
+    // sleeps first and then execs it, so `agent_trace verify` genuinely
+    // takes a few seconds here (standing in for the 6-7+ minute real-2B
+    // case that motivated SAFE-7, without needing a real 2B model in this
+    // fast unit-test tier). No wall-clock numbers appear in the SAFE-7
+    // report or commit message per program rules; the sleep durations
+    // below are test plumbing only.
+    // ===============================================================
+
+    fn slow_agent_trace_wrapper(dir: &Path, real_bin: &Path, sleep_secs: u64) -> PathBuf {
+        let path = dir.join(format!("slow_agent_trace_{sleep_secs}.sh"));
+        let script = format!(
+            "#!/bin/sh\nsleep {sleep_secs}\nexec \"{}\" \"$@\"\n",
+            real_bin.display()
+        );
+        fs::write(&path, script).unwrap();
+        let mut perms = fs::metadata(&path).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&path, perms).unwrap();
+        path
+    }
+
+    fn make_gateway_with_bin(
+        dir: &Path,
+        allowlist_triples: &[(String, String, String)],
+        bin: PathBuf,
+    ) -> (Gateway, Vec<u8>) {
+        let (m, e, v) = artifacts();
+        let key = b"test-hmac-key-not-for-prod".to_vec();
+        let allow_path = write_signed_allowlist(dir, allowlist_triples, &key);
+        let gw = Gateway::new(GatewayConfig {
+            allowlist_path: allow_path,
+            allowlist_key: key.clone(),
+            anchor_every: 2,
+            anchor_path: Some(dir.join("anchor.log")),
+            agent_trace_bin: bin,
+            model_path: m,
+            embed_path: e,
+            vocab_path: v,
+            table_path: None,
+            strict: false,
+            verify_timeout: None,
+        })
+        .expect("gateway init");
+        (gw, key)
+    }
+
+    /// Bind a real unix socket, spin up `verify_workers` background verify
+    /// threads and one accept-loop thread, mirroring `run_serve`'s own
+    /// wiring but driven directly from the test (no subprocess, no CLI
+    /// arg parsing) so tests can exercise `handle_serve_conn_async` /
+    /// `verify_worker_loop` exactly as `serve` uses them in production.
+    fn spawn_test_serve(
+        gw: Gateway,
+        verify_workers: usize,
+        dir: &Path,
+    ) -> (PathBuf, std::sync::Arc<SharedServe>) {
+        let socket_path = dir.join("test.sock");
+        let _ = fs::remove_file(&socket_path);
+        let listener = UnixListener::bind(&socket_path).expect("bind test socket");
+        let cap_key = b"test-cap-key-not-for-prod".to_vec();
+        let (job_tx, job_rx) = std::sync::mpsc::channel::<VerifyJob>();
+        let job_rx = std::sync::Arc::new(std::sync::Mutex::new(job_rx));
+        let shared = std::sync::Arc::new(SharedServe {
+            gw: std::sync::Mutex::new(gw),
+            tickets: std::sync::Mutex::new(std::collections::HashMap::new()),
+            job_tx,
+            next_ticket: std::sync::atomic::AtomicU64::new(1),
+            cap_key,
+            cap_ttl: 60,
+        });
+        for _ in 0..verify_workers {
+            let rx = job_rx.clone();
+            let s = shared.clone();
+            std::thread::spawn(move || verify_worker_loop(rx, s));
+        }
+        let accept_shared = shared.clone();
+        std::thread::spawn(move || {
+            for conn in listener.incoming() {
+                if let Ok(mut stream) = conn {
+                    handle_serve_conn_async(&mut stream, &accept_shared);
+                }
+            }
+        });
+        (socket_path, shared)
+    }
+
+    fn send_request(socket: &Path, lines: &[String]) -> String {
+        let mut stream = UnixStream::connect(socket).expect("connect test socket");
+        for l in lines {
+            writeln!(stream, "{l}").unwrap();
+        }
+        writeln!(stream).unwrap(); // blank-line terminator
+        let mut reader = BufReader::new(stream);
+        let mut line = String::new();
+        reader.read_line(&mut line).unwrap();
+        line.trim_end().to_string()
+    }
+
+    fn decide_lines(receipt: &Path, action_hex: &str, session: &str, counter: u64) -> Vec<String> {
+        vec![
+            format!("RECEIPT {}", receipt.display()),
+            format!("ACTION {action_hex}"),
+            format!("SESSION {session}"),
+            format!("COUNTER {counter}"),
+        ]
+    }
+
+    fn poll_lines(ticket: &str) -> Vec<String> {
+        vec![format!("POLL ticket={ticket}")]
+    }
+
+    // -------------------------------------------------------------
+    // (a)+(c): a slow verify goes PENDING, an immediate POLL still reports
+    // PENDING, and a POLL after the (stubbed) slow verify has actually
+    // finished reports the resolved ALLOW.
+    // -------------------------------------------------------------
+    #[test]
+    fn async_slow_verify_pending_then_poll_resolves_to_allow() {
+        let dir = workdir();
+        let receipt = gen_receipt(&dir, "Q: 6 + 7\nA: CALC(6 + 7).\n", 1, 16);
+        let (mh, eh, vh) = artifact_hexes();
+        let real_bin = agent_trace_bin();
+        let slow_bin = slow_agent_trace_wrapper(&dir, &real_bin, 2);
+        let (gw, _key) = make_gateway_with_bin(&dir, &[(mh, eh, vh)], slow_bin);
+        let (socket, _shared) = spawn_test_serve(gw, 1, &dir);
+
+        let action_hex = last_step_in_hex(&receipt);
+        let reply = send_request(&socket, &decide_lines(&receipt, &action_hex, "async-1", 1));
+        assert!(
+            reply.starts_with("PENDING ticket="),
+            "expected PENDING, got {reply:?}"
+        );
+        let ticket = reply.strip_prefix("PENDING ticket=").unwrap().to_string();
+
+        // Poll immediately -- the stub is still sleeping, so the worker
+        // cannot have finished yet.
+        let poll1 = send_request(&socket, &poll_lines(&ticket));
+        assert_eq!(poll1, "PENDING", "expected still-PENDING immediately after enqueue");
+
+        // Wait past the stub's sleep, then poll again -- must be resolved.
+        std::thread::sleep(Duration::from_secs(20));
+        let poll2 = send_request(&socket, &poll_lines(&ticket));
+        assert!(
+            poll2.starts_with("ALLOW idx="),
+            "expected resolved ALLOW after verify finished, got {poll2:?}"
+        );
+    }
+
+    // -------------------------------------------------------------
+    // (b): a second request for the SAME (session, counter) while the
+    // first is still PENDING must DENY immediately (freshness), not queue
+    // behind the in-flight verify.
+    // -------------------------------------------------------------
+    #[test]
+    fn async_duplicate_session_counter_denies_immediately_while_first_pending() {
+        let dir = workdir();
+        let receipt = gen_receipt(&dir, "Q: 6 + 7\nA: CALC(6 + 7).\n", 1, 16);
+        let (mh, eh, vh) = artifact_hexes();
+        let real_bin = agent_trace_bin();
+        let slow_bin = slow_agent_trace_wrapper(&dir, &real_bin, 4);
+        let (gw, _key) = make_gateway_with_bin(&dir, &[(mh, eh, vh)], slow_bin);
+        let (socket, _shared) = spawn_test_serve(gw, 1, &dir);
+
+        let action_hex = last_step_in_hex(&receipt);
+        let reply1 = send_request(&socket, &decide_lines(&receipt, &action_hex, "async-dup", 9));
+        assert!(reply1.starts_with("PENDING ticket="), "expected PENDING, got {reply1:?}");
+
+        // Same (session, counter): must DENY immediately, well before the
+        // stub's sleep (still in flight in the worker) could finish -- the
+        // single-threaded accept loop serializes these two connections,
+        // and this second one never touches the worker/subprocess at all.
+        let reply2 = send_request(&socket, &decide_lines(&receipt, &action_hex, "async-dup", 9));
+        assert!(reply2.starts_with("DENY"), "expected DENY, got {reply2:?}");
+        assert!(
+            reply2.contains("freshness"),
+            "expected freshness DENY, got {reply2:?}"
+        );
+    }
+
+    // -------------------------------------------------------------
+    // POLL on a ticket this process never issued (e.g. after a restart)
+    // must DENY, not hang as PENDING forever.
+    // -------------------------------------------------------------
+    #[test]
+    fn async_poll_unknown_ticket_denies() {
+        let dir = workdir();
+        let (mh, eh, vh) = artifact_hexes();
+        let real_bin = agent_trace_bin();
+        let (gw, _key) = make_gateway_with_bin(&dir, &[(mh, eh, vh)], real_bin);
+        let (socket, _shared) = spawn_test_serve(gw, 1, &dir);
+        let reply = send_request(&socket, &poll_lines("T-does-not-exist"));
+        assert_eq!(reply, "DENY unknown ticket");
+    }
+
+    // -------------------------------------------------------------
+    // (d): async must not change WHAT gets decided, only WHEN the caller
+    // learns it. Run the SAME tampered (chain-broken -> deterministic
+    // VERIFY FAIL) receipt/action through synchronous `decide()` and
+    // through the async PENDING->POLL path, and assert the exact DENY
+    // reason string matches byte-for-byte.
+    // -------------------------------------------------------------
+    #[test]
+    fn async_final_deny_reason_matches_sync_decide_for_same_inputs() {
+        let dir = workdir();
+        let receipt = gen_receipt(&dir, "Q: 6 + 7\nA: CALC(6 + 7).\n", 1, 16);
+        let text = fs::read_to_string(&receipt).unwrap();
+        let tampered: String = text
+            .lines()
+            .map(|l| {
+                if let Some(rest) = l.strip_prefix("step ") {
+                    if let Some(toks_pos) = rest.find("toks=") {
+                        let before = &rest[..toks_pos + "toks=".len()];
+                        let after = &rest[toks_pos + "toks=".len()..];
+                        let (first_tok, tail) = after.split_once(',').expect("at least 2 toks");
+                        let bumped: u64 = first_tok.parse::<u64>().unwrap() + 1;
+                        return format!("step {before}{bumped},{tail}");
+                    }
+                }
+                l.to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        let tampered_path = dir.join("tampered.receipt");
+        fs::write(&tampered_path, &tampered).unwrap();
+
+        let (mh, eh, vh) = artifact_hexes();
+        let real_bin = agent_trace_bin();
+
+        // Ground truth: synchronous decide() on a plain (no-sleep) Gateway.
+        let (mut sync_gw, _k) = make_gateway_with_bin(
+            &dir,
+            &[(mh.clone(), eh.clone(), vh.clone())],
+            real_bin.clone(),
+        );
+        let action = unhex(&last_step_in_hex(&tampered_path)).unwrap();
+        let (sync_decision, _head) = sync_gw.decide(&tampered_path, &action, "sync-cmp", 1);
+        let sync_reason = match sync_decision {
+            Decision::Deny(r) => r,
+            Decision::Allow => panic!("tampered receipt must DENY synchronously (test setup bug)"),
+        };
+
+        // Async: same receipt/action through the slow-wrapper + PENDING/POLL path.
+        let slow_bin = slow_agent_trace_wrapper(&dir, &real_bin, 2);
+        let (gw, _key) = make_gateway_with_bin(&dir, &[(mh, eh, vh)], slow_bin);
+        let (socket, _shared) = spawn_test_serve(gw, 1, &dir);
+        let action_hex = last_step_in_hex(&tampered_path);
+        let reply = send_request(&socket, &decide_lines(&tampered_path, &action_hex, "async-cmp", 1));
+        assert!(reply.starts_with("PENDING ticket="), "expected PENDING, got {reply:?}");
+        let ticket = reply.strip_prefix("PENDING ticket=").unwrap().to_string();
+        std::thread::sleep(Duration::from_secs(20));
+        let final_reply = send_request(&socket, &poll_lines(&ticket));
+        assert_eq!(
+            final_reply,
+            format!("DENY {sync_reason}"),
+            "async final DENY must match sync decide() exactly"
         );
     }
 }
