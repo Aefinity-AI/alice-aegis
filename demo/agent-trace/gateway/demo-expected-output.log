@@ -1,0 +1,96 @@
+== step 0: build release binaries (no-op if already current) ==
+(cargo build output suppressed; both binaries built cleanly)
+== step 1: real live receipt (already generated against the real 2B model; see tests/fixtures/live20/calc_01.receipt) ==
+AEGIS-TRACE v2
+model facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+embed e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+vocab 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+K 1
+N 16
+prompt-hex 513a2032202b20320a413a2043414c432832202b2032292e0a513a203130202b2031300a413a2043414c43283130202b203130292e0a513a2036202a20370a413a
+commit c4b7fe708fa24f252dfac44630cc10063540984b
+host aefinity-box
+step 0: toks=34007,34,7,21,353,220,22,570,720,48,25,220,18,353,220,18 tool=calc in=43414c432836202a203729 out=3432 decode-chain=f5b8cc380a9bd9911936a3f0cc1172b5b6594770a2c9ce04ef5896b3ae3e8367 ctx=2969280a0b532fe16be68156cbceb5f1e1b33b7902e81554397001acd2f42eae q=2969280a0b532fe16be68156cbceb5f1e1b33b7902e81554397001acd2f42eae
+trace-chain 8039848b70d66e508709190fbd1ebb885a50f44b6b529a6ca8da907cf91a6f59
+
+== step 2: sign an allowlist for this box's real artifact hashes ==
+facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+sig bc7de4c2fa709473c524138d4f986cfc63a9394931a271fdc106c01af172a4a9
+
+== step 3: start the gateway daemon (real 2B model, worker pool) ==
+gateway listening: gateway serve: listening on /tmp/safe8-demo-70868/gateway.sock (cap-ttl=3600s, verify-workers=1)
+
+== step 4: submit the real receipt (session=demo counter=1) ==
+PENDING ticket=T1
+polling ticket T1 until the background verify against the real 2B model resolves (this genuinely takes ~1-2 minutes wall clock)...
+  poll attempt 1: PENDING
+  poll attempt 2: PENDING
+  poll attempt 3: PENDING
+  poll attempt 4: PENDING
+  poll attempt 5: PENDING
+  poll attempt 6: PENDING
+  poll attempt 7: PENDING
+  poll attempt 8: PENDING
+  poll attempt 9: PENDING
+  poll attempt 10: PENDING
+  poll attempt 11: PENDING
+  poll attempt 12: PENDING
+  poll attempt 13: ALLOW idx=2 cap=309b6094f63f13bbf1f1b986be6726f7b5bc4094764aca1ec065327da416a7f5 exp=1789395475
+RESULT (real 2B model verify): ALLOW idx=2 cap=309b6094f63f13bbf1f1b986be6726f7b5bc4094764aca1ec065327da416a7f5 exp=1789395475
+
+== step 5: replay the IDENTICAL (session, counter, action) ==
+RESULT (replay): DENY freshness: (session, counter, action-hash) already seen
+
+== step 6: tamper one byte inside the receipt's decode-chain hash (a field the cheap inline precheck does NOT look at -- only the real model-based verify running in the background worker can catch this), then submit under a FRESH (session, counter) ==
+flipped decode-chain f5b8cc380a9bd9911936a3f0cc1172b5b6594770a2c9ce04ef5896b3ae3e8367 -> e5b8cc380a9bd9911936a3f0cc1172b5b6594770a2c9ce04ef5896b3ae3e8367
+AEGIS-TRACE v2
+model facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+embed e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+vocab 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+K 1
+N 16
+prompt-hex 513a2032202b20320a413a2043414c432832202b2032292e0a513a203130202b2031300a413a2043414c43283130202b203130292e0a513a2036202a20370a413a
+commit c4b7fe708fa24f252dfac44630cc10063540984b
+host aefinity-box
+step 0: toks=34007,34,7,21,353,220,22,570,720,48,25,220,18,353,220,18 tool=calc in=43414c432836202a203729 out=3432 decode-chain=e5b8cc380a9bd9911936a3f0cc1172b5b6594770a2c9ce04ef5896b3ae3e8367 ctx=2969280a0b532fe16be68156cbceb5f1e1b33b7902e81554397001acd2f42eae q=2969280a0b532fe16be68156cbceb5f1e1b33b7902e81554397001acd2f42eae
+trace-chain 8039848b70d66e508709190fbd1ebb885a50f44b6b529a6ca8da907cf91a6f59
+PENDING ticket=T2
+polling ticket T2 until the background real-model verify catches the tamper...
+  poll attempt 1: PENDING
+  poll attempt 2: PENDING
+  poll attempt 3: PENDING
+  poll attempt 4: PENDING
+  poll attempt 5: PENDING
+  poll attempt 6: PENDING
+  poll attempt 7: PENDING
+  poll attempt 8: PENDING
+  poll attempt 9: PENDING
+  poll attempt 10: PENDING
+  poll attempt 11: PENDING
+  poll attempt 12: PENDING
+  poll attempt 13: DENY agent_trace verify: VERIFY FAIL
+RESULT (tampered receipt, real 2B model verify): DENY agent_trace verify: VERIFY FAIL
+
+== step 7: stop the gateway daemon ==
+
+== SUMMARY ==
+ALLOW (real receipt, real 2B verify): ALLOW idx=2 cap=309b6094f63f13bbf1f1b986be6726f7b5bc4094764aca1ec065327da416a7f5 exp=1789395475
+DENY  (replay, freshness):            DENY freshness: (session, counter, action-hash) already seen
+DENY  (tampered receipt, real verify): DENY agent_trace verify: VERIFY FAIL
+
+== step 8: standalone third-party verification ==
+The ALLOW'd receipt above can be independently re-verified by ANYONE,
+on ANY machine (including a phone with no network path to this
+gateway), using nothing but the receipt file and the three public
+artifact files, with the standalone agent_trace CLI -- no gateway,
+no socket, no daemon involved:
+
+  agent_trace verify /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/aegis_pruned_model.cis.safetensors /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/embed.bin /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/vocab.bin /tmp/safe8-demo-70868/receipt.orig
+
+(run now, on this box, against the exact receipt used above, for
+ illustration -- a third party would run the equivalent command
+ after copying the receipt and the three artifact files to their
+ own machine):
+receipt trace-chain 8039848b70d66e50
+local   trace-chain 8039848b70d66e50
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
