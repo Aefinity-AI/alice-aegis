@@ -12,8 +12,10 @@
 # "run gateway-relay.sh, feed it box1's stdin, return its stdout" -- a
 # fixed program box2 controls, not an arbitrary command.
 #
-# STATUS: NOT installed (needs box1's pubkey, which we don't have -- see
-# state/reports/2026-09-14-safe5c-box2-half.md). Template below has a
-# placeholder for the real box1 pubkey.
+# STATUS: box1 pubkey generated 2026-09-14 (dedicated key, never used for
+# anything else). NOT YET installed on box2 -- box2 must append this line
+# verbatim to its own ~/.ssh/authorized_keys itself (box1 cannot do this
+# remotely; no outbound credential exists in the other direction by
+# design). See state/reports/2026-09-14-safe5c-box1-half.md.
 
-command="/home/cm/projects/alice-aegis/demo/agent-trace/gateway/deploy/inter-box/gateway-relay.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty,restrict ssh-ed25519 AAAA...REPLACE-WITH-BOX1-AGENT-PUBKEY... cm-box1-agent-relay-only
+command="/home/cm/projects/alice-aegis/demo/agent-trace/gateway/deploy/inter-box/gateway-relay.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty,restrict ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKVFQBwV8erWKRaG2XgEoeweIl1QoENHvFpwQuREjQOd cm-box1-agent-relay-only
