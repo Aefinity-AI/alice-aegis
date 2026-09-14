@@ -79,14 +79,19 @@ not simulated:
    runs, so the denial is the AppArmor profile, not a missing binary or a
    broken shell. **This is the true PASS on exec-blocking that penguin's
    run above could not demonstrate.**
-3. `tool_shim_shell` with no token: `REFUSE: no capability token
-   provided`; with a forged/random one: `REFUSE: capability token
-   signature invalid...`.
+3. `tool_shim_shell` with no token at all: `SHIM REFUSE: no token`; with a
+   forged/random one (correct action-hash, garbage MAC): `SHIM REFUSE:
+   bad mac`. (Verified 2026-09-14 against this branch's actual shim CLI
+   after the box1/PR#91 merge; box1's own pre-merge implementation used
+   the wording "REFUSE: no capability token provided" / "REFUSE:
+   capability token signature invalid" — same fail-closed behavior,
+   different message strings, since this branch kept PR#91's shim code.)
 4. A genuinely valid, single-use token (minted via
    `src/bin/cap_issue_for_test.rs`, reusing the exact `capability::issue`
-   + `shim_common` action-encoding the daemon/shims use) ALLOWs and runs
-   once, then is refused on replay: `REFUSE: capability token already
-   consumed (idx=7) -- single-use tokens cannot be replayed`.
+   function and this branch's real action-byte encoding) ALLOWs and runs
+   once, then is refused on replay: `SHIM REFUSE: already consumed`.
+   (Same note: box1's pre-merge wording was "REFUSE: capability token
+   already consumed (idx=7) -- single-use tokens cannot be replayed".)
 
 5. box1 reaching box2's credential store outside the forced channel — not
    runnable, design item (d) not built on this branch.
