@@ -4415,6 +4415,134 @@ mod tests {
         );
     }
 
+    // --- safe-1g: cheap structural pre-validation, one test per field the
+    // QUEUE item asked for explicitly. These are integration-level (through
+    // `verify_one`, not just the lower-level helpers already tested above)
+    // so each one also pins that the check fires BEFORE `replay_episode`
+    // would otherwise be reached — none of these mangled receipts trigger a
+    // full model replay; `verify_one` returns `false` from the parse loop
+    // or the immediately-following pre-replay checks. ---
+
+    #[test]
+    fn verify_rejects_k_step_count_mismatch_as_structure() {
+        // K says 3, but only 2 step lines are actually present (a mutation
+        // to `K` — the exact class the safe-1f fuzz report flagged as
+        // needing a fast, pre-replay reject).
+        assert!(!format3_receipt_survives(
+            |t| t.replace("\nK 2\n", "\nK 3\n")
+        ));
+    }
+
+    #[test]
+    fn verify_rejects_malformed_hex_in_prompt_hex_as_structure() {
+        // Corrupt one character of the `prompt-hex` value with a non-hex
+        // byte. Must be caught as a decode failure before replay, not left
+        // to surface later as a trace-chain divergence.
+        assert!(!format3_receipt_survives(|t| {
+            let mut lines: Vec<String> = t.lines().map(|l| l.to_string()).collect();
+            let ph = lines
+                .iter()
+                .position(|l| l.starts_with("prompt-hex "))
+                .expect("a prompt-hex line");
+            let val_start = "prompt-hex ".len();
+            let before = lines[ph].as_bytes()[val_start];
+            assert!(before.is_ascii_hexdigit(), "sanity: hex before corruption");
+            lines[ph].replace_range(val_start..val_start + 1, "z");
+            lines.join("\n") + "\n"
+        }));
+    }
+
+    #[test]
+    fn verify_rejects_wrong_length_item_ctx_as_structure() {
+        // `item-ctx` must be exactly 64 lowercase hex chars (a sha256
+        // digest) on a format-4 (`AEGIS-TRACE v3`) receipt — a shortened
+        // value must fail structurally, distinct from the `trace-chain`
+        // length check above and the `suite-sha256` length check covered
+        // by `parse_suite_sha256_rejects_wrong_length`.
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let ctx = compute_item_ctx(b"item-1", prompt.as_bytes(), b"nonce-1");
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let text = render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        let mut lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+        let ic = lines
+            .iter()
+            .position(|l| l.starts_with("item-ctx "))
+            .expect("an item-ctx line");
+        let full = lines[ic].strip_prefix("item-ctx ").unwrap().to_string();
+        assert_eq!(full.len(), 64, "item-ctx must render as 64 hex digits");
+        lines[ic] = format!("item-ctx {}", &full[..32]);
+        let text = lines.join("\n") + "\n";
+
+        let path = write_temp_receipt("wrong-length-item-ctx.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "an item-ctx shorter than 64 hex chars must fail verify (FAIL structure, before replay)"
+        );
+    }
+
+    #[test]
+    fn verify_rejects_non_utf8_receipt_as_structure_before_replay() {
+        // Invalid UTF-8 must be rejected by `verify_one` itself (its very
+        // first step, `read_receipt_text`) rather than reaching any of the
+        // line-oriented parsing below — pinned here at the `verify_one`
+        // entry point, not just at the `read_receipt_text` unit level (see
+        // `read_receipt_text_rejects_non_utf8_without_panic`).
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let path = std::env::temp_dir().join(format!(
+            "agent_trace_test_{}_non-utf8-receipt.txt",
+            std::process::id()
+        ));
+        std::fs::write(&path, [b'A', b'E', b'G', b'I', b'S', 0xff, 0xfe])
+            .expect("write temp receipt");
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a non-UTF-8 receipt must fail verify immediately (FAIL structure, before replay)"
+        );
+    }
+
     // --- E23 (cm-box2, 2026-09-09): the tamper matrix ran 321 mutants of
     // four episodes against the format-2 verifier and 28 of them still
     // reported VERIFY PASS. They fell into three families, each closed by
