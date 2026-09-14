@@ -1,0 +1,18 @@
+NOTE: format-1 receipt, per-step query binding not present
+receipt trace-chain b3de24a4179d576c
+local   trace-chain b3de24a4179d576c
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+# agent_trace --phases: RDTSC/RDTSCP invariant-TSC ticks, NOT core cycles (see aegis-linux/examples/clockstate.rs); tsc_hz below is calibrated against CLOCK_MONOTONIC in this process, not assumed.
+# overhead calibration: 28237929 ticks / 200000 fenced pairs, mean 141.190 ticks/pair
+# NOTE: total_ticks/total_pairs below fold TWO call-site kinds into one counter (aegis_core::phase_timers::PhaseCycles.total_*): one record_total pair per CisEngine::forward_step_int call (every prefill AND generated token) and one per CisEngine::logits_int call (final norm + LM head, generated tokens only). tokens_forward is tracked separately from the caller's known prompt/N lengths, not derived from total_pairs.
+PHASE   TICKS_CORRECTED PAIRS   SHARE_PCT
+gemv        65667384505    4680     61.10
+attn         9952755817    5460      9.26
+kv            235237531    2730      0.22
+norm         9716445987   10944      9.04
+act          7389795625    2730      6.88
+lmhead      11215350053      24     10.44
+sample                0       0      0.00
+other        3297754486       -      3.07
+TOTAL total_ticks=107474724005 total_pairs=49 tokens_forward=91 tsc_hz=2194885419 overhead_ticks=28237929
+headconv (per-process) ticks=6210310833 pairs=1 ms=2829.4

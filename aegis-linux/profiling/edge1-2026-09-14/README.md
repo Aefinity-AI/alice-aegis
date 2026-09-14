@@ -10,18 +10,21 @@ cargo build --release --example agent_trace --target-dir target-release-leg
 ART=~/aefinity-artifacts/bitnet2b-2b-artifacts   # facb3597.. / e32b99a2.. / 5bde1b03.. (see artifact-sha256.txt)
 R=~/legs/eval-60-replay-box1/receipts/calc_easy_01.txt   # K=1, 91 forward tokens
 
-# 1. phase-timer split (TSC-derived, clock-independent) -> phases-out.txt / time-out.txt
+# 1. phase-timer split (TSC-derived, clock-independent) -> phases-out.log / time-out.log
 /usr/bin/time -v target-phases-leg/release/examples/agent_trace verify \
   $ART/aegis_pruned_model.cis.safetensors $ART/embed.bin $ART/vocab.bin "$R" --phases
 
-# 2. full call-graph perf on the default (non-instrumented) binary -> perf-report-top.txt
+# 2. full call-graph perf on the default (non-instrumented) binary -> perf-report-top.log
 sudo perf record -g --call-graph dwarf -F 499 -o perf.data -- \
   target-release-leg/release/examples/agent_trace verify \
   $ART/aegis_pruned_model.cis.safetensors $ART/embed.bin $ART/vocab.bin "$R"
 perf report -i perf.data -f --stdio --no-children --percent-limit 0.5
 ```
 
-**Caveat (bd_prochot):** `bdprochot-status.txt` shows the CPU was clamped to
+(Files here use `.log` not `.txt` — the repo's root `.gitignore` excludes
+`*.txt`, and these are meant to be tracked as evidence.)
+
+**Caveat (bd_prochot):** `bdprochot-status.log` shows the CPU was clamped to
 `cur_ratio=5` (500 MHz) against `req_ratio=27` (2700 MHz) for this run — the
 known box1 BD-PROCHOT MSR-clamp bug from the 09-12 report. Attempting the
 usual fix (`cm-bdprochot.sh fix`, clears MSR 0x1FC bit 0) failed with

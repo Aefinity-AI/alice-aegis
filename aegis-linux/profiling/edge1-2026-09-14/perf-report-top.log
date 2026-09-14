@@ -1,0 +1,257 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 39K of event 'cycles:P'
+# Event count (approx.): 39057094133
+#
+# Overhead  Command      Shared Object         Symbol                                                                                                                                                                                                                                                                            
+# ........  ...........  ....................  ..................................................................................................................................................................................................................................................................................
+#
+    31.52%  agent_trace  agent_trace           [.] _RNvMs_NtCs9ZVv2q1ZhsF_10aegis_core7witnessNtB4_6Sha2568compress
+            |          
+             --31.52%--_RNvMs_NtCs9ZVv2q1ZhsF_10aegis_core7witnessNtB4_6Sha2568compress
+                       |          
+                        --31.34%--_RNvMs_NtCs9ZVv2q1ZhsF_10aegis_core7witnessNtB4_6Sha2566update
+                                  |          
+                                   --30.96%--_RNvNtCs9ZVv2q1ZhsF_10aegis_core7witness6sha256
+                                             _RNvCscUHA9hpU79R_11agent_trace4main
+                                             _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                                             _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                                             _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                                             main
+                                             0x7fd35c989ca7
+                                             __libc_start_main
+                                             _start
+
+    27.28%  agent_trace  agent_trace           [.] _RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_avx211tmm_i8_avx2
+            |          
+             --27.27%--_RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_avx211tmm_i8_avx2
+                       _RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_avx222ternary_matmul_i8_avx2
+                       _RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine19forward_prefill_int
+                       _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+                       _RNvCscUHA9hpU79R_11agent_trace10verify_one
+                       _RNvCscUHA9hpU79R_11agent_trace4main
+                       _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                       _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                       _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                       main
+                       0x7fd35c989ca7
+                       __libc_start_main
+                       _start
+
+     9.91%  agent_trace  agent_trace           [.] _RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_avx211tmv_i8_avx2
+            |          
+             --9.91%--_RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_avx211tmv_i8_avx2
+                       _RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_avx222ternary_matvec_i8_avx2
+                       _RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine16forward_step_int
+                       _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+                       _RNvCscUHA9hpU79R_11agent_trace10verify_one
+                       _RNvCscUHA9hpU79R_11agent_trace4main
+                       _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                       _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                       _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                       main
+                       0x7fd35c989ca7
+                       __libc_start_main
+                       _start
+
+     6.44%  agent_trace  agent_trace           [.] _RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_avx226dot_i8_i16planes_avx2_wide.llvm.4318093012540976959
+            |          
+             --6.44%--_RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_avx226dot_i8_i16planes_avx2_wide.llvm.4318093012540976959
+                       |          
+                        --6.39%--_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine10logits_int
+                                  _RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine13decode_logits
+                                  _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+                                  _RNvCscUHA9hpU79R_11agent_trace10verify_one
+                                  _RNvCscUHA9hpU79R_11agent_trace4main
+                                  _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                                  _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                                  _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                                  main
+                                  0x7fd35c989ca7
+                                  __libc_start_main
+                                  _start
+
+     5.57%  agent_trace  agent_trace           [.] _RNvNtCs9ZVv2q1ZhsF_10aegis_core9cis_infer5normq
+            |          
+             --5.56%--_RNvNtCs9ZVv2q1ZhsF_10aegis_core9cis_infer5normq
+                       |          
+                       |--4.10%--_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine19forward_prefill_int
+                       |          _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+                       |          _RNvCscUHA9hpU79R_11agent_trace10verify_one
+                       |          _RNvCscUHA9hpU79R_11agent_trace4main
+                       |          _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                       |          _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                       |          _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                       |          main
+                       |          0x7fd35c989ca7
+                       |          __libc_start_main
+                       |          _start
+                       |          
+                        --1.45%--_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine16forward_step_int
+                                  _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+                                  _RNvCscUHA9hpU79R_11agent_trace10verify_one
+                                  _RNvCscUHA9hpU79R_11agent_trace4main
+                                  _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                                  _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                                  _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                                  main
+                                  0x7fd35c989ca7
+                                  __libc_start_main
+                                  _start
+
+     4.42%  agent_trace  agent_trace           [.] _RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine13act_mlp_token
+            |
+            ---_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine13act_mlp_token
+               |          
+               |--3.23%--_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine19forward_prefill_int
+               |          _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+               |          _RNvCscUHA9hpU79R_11agent_trace10verify_one
+               |          _RNvCscUHA9hpU79R_11agent_trace4main
+               |          _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+               |          _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+               |          _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+               |          main
+               |          0x7fd35c989ca7
+               |          __libc_start_main
+               |          _start
+               |          
+                --1.19%--_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine16forward_step_int
+                          _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+                          _RNvCscUHA9hpU79R_11agent_trace10verify_one
+                          _RNvCscUHA9hpU79R_11agent_trace4main
+                          _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                          _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                          _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                          main
+                          0x7fd35c989ca7
+                          __libc_start_main
+                          _start
+
+     3.92%  agent_trace  agent_trace           [.] _RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine14attn_token_int
+            |
+            ---_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine14attn_token_int
+               |          
+               |--2.13%--_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine19forward_prefill_int
+               |          _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+               |          _RNvCscUHA9hpU79R_11agent_trace10verify_one
+               |          _RNvCscUHA9hpU79R_11agent_trace4main
+               |          _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+               |          _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+               |          _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+               |          main
+               |          0x7fd35c989ca7
+               |          __libc_start_main
+               |          _start
+               |          
+                --1.79%--_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine16forward_step_int
+                          _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+                          _RNvCscUHA9hpU79R_11agent_trace10verify_one
+                          _RNvCscUHA9hpU79R_11agent_trace4main
+                          _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                          _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                          _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                          main
+                          0x7fd35c989ca7
+                          __libc_start_main
+                          _start
+
+     3.10%  agent_trace  agent_trace           [.] _RNvMs0_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_8CisModel16new_with_options
+            |          
+             --3.09%--_RNvMs0_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_8CisModel16new_with_options
+                       _RNvCscUHA9hpU79R_11agent_trace4main
+                       _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                       _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                       _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                       main
+                       0x7fd35c989ca7
+                       __libc_start_main
+                       _start
+
+     1.37%  agent_trace  agent_trace           [.] _RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine19forward_prefill_int
+            |          
+             --1.37%--_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine19forward_prefill_int
+                       _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+                       _RNvCscUHA9hpU79R_11agent_trace10verify_one
+                       _RNvCscUHA9hpU79R_11agent_trace4main
+                       _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                       _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                       _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                       main
+                       0x7fd35c989ca7
+                       __libc_start_main
+                       _start
+
+     1.15%  agent_trace  [kernel.kallsyms]     [k] 0xffffffff9fa9ebdb
+            |
+            ---0xffffffff9fa9ebdd
+               |          
+                --0.69%--0xffffffff9f1a6fc7
+                          0xffffffff9f1acdb6
+                          0xffffffff9f1af3db
+                          |          
+                           --0.69%--0xffffffff9f1e5ec5
+                                     0xffffffff9f1e6154
+                                     0xffffffff9f1e6339
+                                     0xffffffff9f207985
+                                     0xffffffff9f1815b6
+                                     0xffffffff9f181af2
+
+     0.72%  agent_trace  [kernel.kallsyms]     [k] 0xffffffff9fa9f32a
+            |          
+             --0.72%--0xffffffff9fa9f32c
+                       0xffffffff9f49424c
+                       0xffffffff9f495f3c
+                       0xffffffff9f1243de
+                       0xffffffff9f2412c7
+                       0xffffffff9f241dbd
+                       0xffffffff9faf7267
+                       0xffffffff9fc0012f
+                       0x7fd35c9ef687
+                       0x7fd35c9ef6ac
+                       read
+                       _RINvNtCs6ZjlLoI6YmX_3std2io19default_read_to_endNtNtB4_2fs4FileEB4_
+                       _RNvNvNtCs6ZjlLoI6YmX_3std2fs4read5inner
+                       _RNvCscUHA9hpU79R_11agent_trace4main
+                       _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+                       _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+                       _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+                       main
+                       0x7fd35c989ca7
+                       __libc_start_main
+                       _start
+
+     0.60%  agent_trace  agent_trace           [.] _RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_attn11exp_neg_q31
+            |          
+             --0.60%--_RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_attn11exp_neg_q31
+                       |          
+                        --0.58%--_RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_attn9softmax_i
+                                  _RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine14attn_token_int
+
+     0.52%  agent_trace  agent_trace           [.] _RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine16forward_step_int
+            |
+            ---_RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine16forward_step_int
+               _RNvCscUHA9hpU79R_11agent_trace14replay_episode
+               _RNvCscUHA9hpU79R_11agent_trace10verify_one
+               _RNvCscUHA9hpU79R_11agent_trace4main
+               _RINvNtNtCs6ZjlLoI6YmX_3std3sys9backtrace28___rust_begin_short_backtraceFEuuECscUHA9hpU79R_11agent_trace
+               _RNCINvNtCs6ZjlLoI6YmX_3std2rt10lang_startuE0CscUHA9hpU79R_11agent_trace.llvm.1022543250575513612
+               _RNvNtCs6ZjlLoI6YmX_3std2rt19lang_start_internal
+               main
+               0x7fd35c989ca7
+               __libc_start_main
+               _start
+
+     0.51%  agent_trace  agent_trace           [.] _RNCNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_attn12rope_apply_i0B5_.llvm.3264947132516821935
+            |
+            ---_RNCNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_attn12rope_apply_i0B5_.llvm.3264947132516821935
+               _RNvNtCs9ZVv2q1ZhsF_10aegis_core8cis_attn12rope_apply_i
+               _RNvMs1_NtCs9ZVv2q1ZhsF_10aegis_core9cis_inferNtB5_9CisEngine14attn_token_int
+
+
+
+#
+# (Tip: To record callchains for each sample: perf record -g)
+#

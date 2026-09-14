@@ -1,0 +1,4 @@
+NOTE: format-1 receipt, per-step query binding not present
+receipt trace-chain b3de24a4179d576c
+local   trace-chain b3de24a4179d576c
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
