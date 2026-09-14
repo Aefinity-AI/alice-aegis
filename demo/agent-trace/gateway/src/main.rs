@@ -61,7 +61,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 // HMAC-SHA256, hex/unhex: moved to lib.rs (`demo/agent-trace/gateway/src/lib.rs`)
 // so that `src/bin/tool_shim_*.rs` can share the exact same implementation
@@ -243,6 +243,16 @@ pub struct Gateway {
     vocab_path: PathBuf,
     table_path: Option<PathBuf>,
     strict: bool,
+    /// SAFE-5c box2 follow-up: a hard ceiling on how long one `agent_trace
+    /// verify` subprocess may run before the gateway kills it and returns
+    /// DENY. Without this, a verify that runs long (e.g. a full BitNet-2B
+    /// receipt on weak enforcement-host hardware, observed to take 6-7+
+    /// minutes single-threaded here) blocks `handle_serve_conn` for that
+    /// entire duration -- and because the accept loop is single-threaded
+    /// (`for conn in listener.incoming()`), every subsequent connection
+    /// queues in the OS backlog and gets no response at all until the slow
+    /// one finishes. `None` preserves the old no-timeout behavior.
+    verify_timeout: Option<Duration>,
 }
 
 pub struct GatewayConfig {
@@ -259,6 +269,7 @@ pub struct GatewayConfig {
     /// otherwise verifies PASS but carries any `WARNING step` (tool-call
     /// argument not found verbatim in the context the agent actually saw).
     pub strict: bool,
+    pub verify_timeout: Option<Duration>,
 }
 
 #[derive(Debug)]
@@ -282,6 +293,7 @@ impl Gateway {
             vocab_path: cfg.vocab_path,
             table_path: cfg.table_path,
             strict: cfg.strict,
+            verify_timeout: cfg.verify_timeout,
         })
     }
 
@@ -390,6 +402,8 @@ impl Gateway {
     /// boundary, so checking the printed verdict text mirrors the
     /// second-verifier mode in the design memo).
     fn run_verify_raw(&self, receipt_path: &Path) -> Result<String, String> {
+        use std::process::Stdio;
+
         let mut cmd = Command::new(&self.agent_trace_bin);
         cmd.arg("verify")
             .arg(&self.model_path)
@@ -399,10 +413,46 @@ impl Gateway {
         if let Some(t) = &self.table_path {
             cmd.arg("--table").arg(t);
         }
-        let out = cmd
-            .output()
-            .map_err(|e| format!("spawn agent_trace: {e}"))?;
-        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+
+        let Some(timeout) = self.verify_timeout else {
+            // No ceiling configured: old behavior, block until exit.
+            let out = cmd
+                .output()
+                .map_err(|e| format!("spawn agent_trace: {e}"))?;
+            return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
+        };
+
+        // Spawn + poll rather than `.output()` (which blocks unconditionally):
+        // this is what lets a stuck/slow verify be killed instead of wedging
+        // `handle_serve_conn` (and, transitively, every later connection in
+        // the single-threaded accept loop) for however long the child feels
+        // like running.
+        cmd.stdout(Stdio::piped()).stderr(Stdio::null());
+        let mut child = cmd.spawn().map_err(|e| format!("spawn agent_trace: {e}"))?;
+        let start = Instant::now();
+        loop {
+            match child.try_wait() {
+                Ok(Some(_status)) => {
+                    let mut out = String::new();
+                    if let Some(mut stdout) = child.stdout.take() {
+                        use std::io::Read;
+                        let _ = stdout.read_to_string(&mut out);
+                    }
+                    return Ok(out);
+                }
+                Ok(None) => {
+                    if start.elapsed() >= timeout {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return Err(format!(
+                            "agent_trace verify exceeded --request-timeout ({timeout:?}), killed"
+                        ));
+                    }
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                Err(e) => return Err(format!("wait agent_trace: {e}")),
+            }
+        }
     }
 
     /// PASS/FAIL per `run_verify_raw`'s stdout, ignoring grounding
@@ -706,6 +756,7 @@ fn run_e2e_safe1c(args: &[String]) {
             vocab_path: vocab.clone(),
             table_path: e2e_table_for(id, &tables_dir),
             strict: false,
+            verify_timeout: None,
         })
         .expect("gateway init per-episode");
         let (d, head) = gw.decide(&receipt_path, &action, "live-loop", counter);
@@ -735,6 +786,7 @@ fn run_e2e_safe1c(args: &[String]) {
             vocab_path: vocab.clone(),
             table_path: e2e_table_for(&ids[0], &tables_dir),
             strict: false,
+            verify_timeout: None,
         })
         .unwrap();
         let (d1, h1) = gw.decide(&rp, &action, "replay-demo", 1);
@@ -767,6 +819,7 @@ fn run_e2e_safe1c(args: &[String]) {
             vocab_path: vocab.clone(),
             table_path: e2e_table_for(&strict_id, &tables_dir),
             strict: true,
+            verify_timeout: None,
         })
         .unwrap();
         let (d, head) = gw.decide(&receipt_path, &action, "strict-demo", 1);
@@ -791,6 +844,7 @@ fn run_e2e_safe1c(args: &[String]) {
             vocab_path: vocab.clone(),
             table_path: e2e_table_for(&ids[0], &tables_dir),
             strict: false,
+            verify_timeout: None,
         })
         .unwrap();
         let (d, head) = gw.decide(&receipt_path, &action, "allowlist-demo", 1);
@@ -821,6 +875,7 @@ fn run_e2e_safe1c(args: &[String]) {
             vocab_path: vocab.clone(),
             table_path: e2e_table_for(&ids[1], &tables_dir),
             strict: false,
+            verify_timeout: None,
         })
         .unwrap();
         let (d, head) = gw.decide(&receipt_path, &action, "tamper-demo", 1);
@@ -922,10 +977,10 @@ fn run_serve(args: &[String]) {
     // args: [1]=serve [2]=model [3]=embed [4]=vocab [5]=agent_trace_bin
     // [6]=allowlist [7]=allowlist-key-file --socket S --cap-key-file K
     // [--table T] [--anchor-every N] [--anchor-file F] [--strict]
-    // [--cap-ttl SECS]
+    // [--cap-ttl SECS] [--request-timeout SECS]
     if args.len() < 8 {
         eprintln!(
-            "usage: gateway serve <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <agent_trace-bin> <allowlist> <allowlist-key-file> --socket <path> --cap-key-file <path> [--table <path>] [--anchor-every N] [--anchor-file F] [--strict] [--cap-ttl SECS]"
+            "usage: gateway serve <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <agent_trace-bin> <allowlist> <allowlist-key-file> --socket <path> --cap-key-file <path> [--table <path>] [--anchor-every N] [--anchor-file F] [--strict] [--cap-ttl SECS] [--request-timeout SECS]"
         );
         std::process::exit(2);
     }
@@ -945,6 +1000,12 @@ fn run_serve(args: &[String]) {
     let mut anchor_path = None;
     let mut strict = false;
     let mut cap_ttl = 60u64;
+    // Default: no timeout (old behavior). Set --request-timeout SECS to
+    // bound how long one `agent_trace verify` subprocess may run before
+    // the daemon kills it and DENYs, so a slow/stuck verify (e.g. a
+    // BitNet-2B receipt on weak hardware) cannot silently block every
+    // later request forever behind it in the single-threaded accept loop.
+    let mut request_timeout: Option<Duration> = None;
     let mut i = 8;
     while i < args.len() {
         match args[i].as_str() {
@@ -974,6 +1035,13 @@ fn run_serve(args: &[String]) {
             }
             "--cap-ttl" => {
                 cap_ttl = args.get(i + 1).and_then(|s| s.parse().ok()).unwrap_or(60);
+                i += 2;
+            }
+            "--request-timeout" => {
+                request_timeout = args
+                    .get(i + 1)
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .map(Duration::from_secs);
                 i += 2;
             }
             _ => {
@@ -1011,6 +1079,7 @@ fn run_serve(args: &[String]) {
         vocab_path: vocab,
         table_path,
         strict,
+        verify_timeout: request_timeout,
     }) {
         Ok(g) => g,
         Err(e) => {
@@ -1032,9 +1101,21 @@ fn run_serve(args: &[String]) {
         socket_path.display()
     );
 
+    // Accept loop is single-threaded and blocking by design (one Gateway,
+    // no shared-state locking): a connection is only accepted, and its
+    // number logged, once the PREVIOUS connection's handler has returned.
+    // A rising gap between consecutive `accepted #n` timestamps in the
+    // log is therefore the visible symptom of one slow/stuck verify
+    // holding up everyone behind it -- exactly what `--request-timeout`
+    // above bounds.
+    let mut conn_count: u64 = 0;
     for conn in listener.incoming() {
         match conn {
-            Ok(mut stream) => handle_serve_conn(&mut stream, &mut gw, &cap_key, cap_ttl),
+            Ok(mut stream) => {
+                conn_count += 1;
+                eprintln!("gateway serve: accepted #{conn_count}");
+                handle_serve_conn(&mut stream, &mut gw, &cap_key, cap_ttl);
+            }
             Err(e) => eprintln!("gateway serve: accept error: {e}"),
         }
     }
@@ -1112,6 +1193,7 @@ fn main() {
         vocab_path: vocab,
         table_path,
         strict,
+        verify_timeout: None,
     }) {
         Ok(g) => g,
         Err(e) => {
@@ -1286,6 +1368,7 @@ mod tests {
             vocab_path: v,
             table_path: None,
             strict: false,
+            verify_timeout: None,
         })
         .expect("gateway init");
         (gw, key)
@@ -1570,6 +1653,7 @@ mod tests {
             vocab_path: artifacts().2,
             table_path: None,
             strict: false,
+            verify_timeout: None,
         });
         match result {
             Err(GatewayInitError::Allowlist(AllowlistError::BadSignature)) => {}
@@ -1686,6 +1770,7 @@ mod tests {
                 vocab_path: v.clone(),
                 table_path: table_for(&id),
                 strict,
+                verify_timeout: None,
             })
             .expect("gateway init against real live20 artifacts/allowlist");
             let action = unhex(&last_step_in_hex(&receipt)).unwrap();
