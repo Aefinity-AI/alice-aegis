@@ -1190,6 +1190,73 @@ enum TicketOutcome {
     Done(String),
 }
 
+/// SAFE-7c fuzz finding: a client that enqueues `DECIDE` requests and never
+/// sends the matching `POLL` leaves that ticket's entry in the table
+/// forever -- there was no eviction of any kind, so the table grew without
+/// bound in exact proportion to the number of decide requests ever
+/// accepted, independent of verify throughput or wall-clock time. Bounded
+/// here with a soft cap: once the table holds more than `MAX_TICKETS`
+/// entries, the oldest-inserted entries that have already resolved
+/// (`Done`) are evicted first (a client that never polls a ticket only
+/// loses access to that ticket's answer after `MAX_TICKETS` other
+/// decisions have been made -- the same trade a caller already accepts by
+/// not polling promptly). A ticket still `Pending` is never evicted, so a
+/// slow/backlogged verify can never have its answer silently discarded;
+/// if in-flight `Pending` tickets alone exceed `MAX_TICKETS` the table is
+/// allowed to temporarily grow past the cap rather than lose an
+/// in-progress answer (structurally bounded in practice by `verify-workers`
+/// plus the wall-clock rate of new connections, not something a client
+/// spamming decides -- the case this fix targets -- can trigger).
+const MAX_TICKETS: usize = 4096;
+
+#[derive(Default)]
+struct TicketTable {
+    map: std::collections::HashMap<String, TicketOutcome>,
+    /// Insertion order, oldest first, so eviction always removes the
+    /// longest-resolved-and-forgotten entries first.
+    order: std::collections::VecDeque<String>,
+}
+
+impl TicketTable {
+    fn get(&self, ticket: &str) -> Option<TicketOutcome> {
+        self.map.get(ticket).cloned()
+    }
+
+    /// Record a brand-new ticket as `Pending` (called once, at enqueue).
+    fn insert_pending(&mut self, ticket: String) {
+        self.order.push_back(ticket.clone());
+        self.map.insert(ticket, TicketOutcome::Pending);
+        self.evict_if_over_cap();
+    }
+
+    /// Resolve an existing ticket to its final `Done` line (called once, by
+    /// the worker that finished it).
+    fn mark_done(&mut self, ticket: &str, final_line: String) {
+        self.map
+            .insert(ticket.to_string(), TicketOutcome::Done(final_line));
+        self.evict_if_over_cap();
+    }
+
+    fn evict_if_over_cap(&mut self) {
+        while self.map.len() > MAX_TICKETS {
+            // Only ever pop from the front (oldest) and only if it has
+            // already resolved; a still-Pending oldest entry means the cap
+            // is currently exceeded entirely by in-flight work, which is
+            // left alone (see the MAX_TICKETS doc comment above).
+            match self.order.front() {
+                Some(front) => match self.map.get(front) {
+                    Some(TicketOutcome::Done(_)) => {
+                        let t = self.order.pop_front().unwrap();
+                        self.map.remove(&t);
+                    }
+                    _ => break,
+                },
+                None => break,
+            }
+        }
+    }
+}
+
 /// SAFE-7: everything a background verify worker needs, captured at
 /// enqueue time (cheap clones of config `PathBuf`s/bools) so the worker
 /// never needs to touch the `Gateway` mutex while `agent_trace verify`
@@ -1218,7 +1285,7 @@ struct VerifyJob {
 /// background verify worker pool.
 struct SharedServe {
     gw: std::sync::Mutex<Gateway>,
-    tickets: std::sync::Mutex<std::collections::HashMap<String, TicketOutcome>>,
+    tickets: std::sync::Mutex<TicketTable>,
     job_tx: std::sync::mpsc::Sender<VerifyJob>,
     next_ticket: std::sync::atomic::AtomicU64,
     cap_key: Vec<u8>,
@@ -1310,7 +1377,7 @@ fn verify_worker_loop(
             .tickets
             .lock()
             .unwrap()
-            .insert(job.ticket.clone(), TicketOutcome::Done(final_line));
+            .mark_done(&job.ticket, final_line);
     }
 }
 
@@ -1324,7 +1391,7 @@ fn handle_serve_conn_async(stream: &mut UnixStream, shared: &std::sync::Arc<Shar
     };
     match kind {
         ServeRequestKind::Poll { ticket } => {
-            let outcome = shared.tickets.lock().unwrap().get(&ticket).cloned();
+            let outcome = shared.tickets.lock().unwrap().get(&ticket);
             match outcome {
                 Some(TicketOutcome::Done(line)) => {
                     let _ = writeln!(stream, "{line}");
@@ -1379,7 +1446,7 @@ fn handle_serve_conn_async(stream: &mut UnixStream, shared: &std::sync::Arc<Shar
                         .tickets
                         .lock()
                         .unwrap()
-                        .insert(ticket.clone(), TicketOutcome::Pending);
+                        .insert_pending(ticket.clone());
 
                     let job = VerifyJob {
                         ticket: ticket.clone(),
@@ -1557,7 +1624,7 @@ fn run_serve(args: &[String]) {
     let job_rx = std::sync::Arc::new(std::sync::Mutex::new(job_rx));
     let shared = std::sync::Arc::new(SharedServe {
         gw: std::sync::Mutex::new(gw),
-        tickets: std::sync::Mutex::new(std::collections::HashMap::new()),
+        tickets: std::sync::Mutex::new(TicketTable::default()),
         job_tx,
         next_ticket: std::sync::atomic::AtomicU64::new(1),
         cap_key,
@@ -2395,7 +2462,7 @@ mod tests {
         let job_rx = std::sync::Arc::new(std::sync::Mutex::new(job_rx));
         let shared = std::sync::Arc::new(SharedServe {
             gw: std::sync::Mutex::new(gw),
-            tickets: std::sync::Mutex::new(std::collections::HashMap::new()),
+            tickets: std::sync::Mutex::new(TicketTable::default()),
             job_tx,
             next_ticket: std::sync::atomic::AtomicU64::new(1),
             cap_key,
@@ -2523,6 +2590,60 @@ mod tests {
         let (socket, _shared) = spawn_test_serve(gw, 1, &dir);
         let reply = send_request(&socket, &poll_lines("T-does-not-exist"));
         assert_eq!(reply, "DENY unknown ticket");
+    }
+
+    // -------------------------------------------------------------
+    // SAFE-7c fuzz finding regression: the ticket table used to grow
+    // without bound (nothing was ever removed) if a client enqueued many
+    // DECIDE requests and never sent the matching POLL. `TicketTable` now
+    // evicts already-resolved (`Done`) entries, oldest first, once the
+    // table exceeds `MAX_TICKETS`, while never evicting a still-`Pending`
+    // entry (an in-flight verify's eventual answer must never be silently
+    // discarded).
+    // -------------------------------------------------------------
+    #[test]
+    fn ticket_table_evicts_done_entries_past_cap_never_evicts_pending() {
+        let mut table = TicketTable::default();
+
+        // Fill well past the cap with tickets that resolve immediately.
+        let n = MAX_TICKETS + 1000;
+        for i in 0..n {
+            let t = format!("T{i}");
+            table.insert_pending(t.clone());
+            table.mark_done(&t, format!("ALLOW idx={i} cap=x exp=0"));
+        }
+        assert!(
+            table.map.len() <= MAX_TICKETS,
+            "ticket table must not grow past MAX_TICKETS once entries have resolved and gone \
+             unpolled, got {} entries",
+            table.map.len()
+        );
+        // The most-recently-resolved ticket must still be present (only
+        // the OLDEST resolved entries are evicted).
+        let last = format!("T{}", n - 1);
+        assert!(
+            matches!(table.get(&last), Some(TicketOutcome::Done(_))),
+            "most recent ticket must not have been evicted"
+        );
+        // The very first ticket inserted must have been evicted by now.
+        assert!(
+            table.get("T0").is_none(),
+            "oldest resolved ticket should have been evicted once the cap was exceeded"
+        );
+
+        // A still-Pending ticket must never be evicted, even if it is the
+        // very oldest entry and thousands of newer tickets pile up behind
+        // it un-resolved (e.g. every worker is busy on slower jobs first).
+        let mut table2 = TicketTable::default();
+        table2.insert_pending("T-oldest-pending".to_string());
+        for i in 0..(MAX_TICKETS + 500) {
+            table2.insert_pending(format!("T{i}"));
+        }
+        assert!(
+            matches!(table2.get("T-oldest-pending"), Some(TicketOutcome::Pending)),
+            "a still-Pending ticket must never be evicted, regardless of how many newer \
+             (also still-Pending) tickets pile up behind it"
+        );
     }
 
     // -------------------------------------------------------------
