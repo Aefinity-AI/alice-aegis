@@ -1,0 +1,90 @@
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_0.receipt
+FAIL artifact: EMBED hash mismatch (receipt e32b99a25e34c65 vs local e32b99a25e345c65)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_10.receipt
+FAIL structure: step 0: malformed hex in in
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_11.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_12.receipt
+FAIL structure: unknown line key "vo#ab" on line 3
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_13.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_14.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_15.receipt
+receipt trace-chain 9adad3e72d241bc9
+local   trace-chain 722ef289cfa56377
+STEP 0 CTX MISMATCH
+VERIFY FAIL — replay diverged from the receipt
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_16.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_17.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_18.receipt
+FAIL artifact: VOCAB hash mismatch (receipt 5bde1b0355ef99c6 vs local 5bde1b0355ef99c6)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_19.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_1.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_2.receipt
+FAIL structure: malformed suite-sha256 (want 64 lowercase hex)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_3.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_4.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_5.receipt
+FAIL structure: malformed suite-sha256 (want 64 lowercase hex)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_6.receipt
+FAIL artifact: MODEL hash mismatch (receipt facb35976656p3ba vs local facb3597665603ba)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_7.receipt
+FAIL structure: unknown line key "wuite-sha256" on line 6
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_8.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_01_9.receipt
+FAIL structure: unknown line key "AEGIS-TRCCE" on line 0
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_0.receipt
+FAIL artifact: VOCAB hash mismatch (receipt 5bde1b0355ef99c6 vs local 5bde1b0355ef99c6)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_10.receipt
+FAIL structure: malformed hex in prompt-hex
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_11.receipt
+receipt trace-chain 7be4eb006ab4b314
+local   trace-chain 7be4eb006ab4b314
+STEP 0 CTX MISMATCH
+VERIFY FAIL — replay diverged from the receipt
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_12.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_13.receipt
+FAIL structure: malformed suite-sha256 (want 64 lowercase hex)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_14.receipt
+FAIL structure: malformed suite-sha256 (want 64 lowercase hex)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_15.receipt
+FAIL structure: malformed hex in prompt-hex
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_16.receipt
+receipt trace-chain 7be4eb006ab4b314
+local   trace-chain 7be4eb006ab4b314
+STEP 0 CTX MISMATCH
+VERIFY FAIL — replay diverged from the receipt
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_17.receipt
+FAIL artifact: VOCAB hash mismatch (receipt 5bde1b0355ef99c6 vs local 5bde1b0355ef99c6)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_18.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_19.receipt
+FAIL structure: unknown line key "suite-sha656" on line 6
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_1.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_2.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_3.receipt
+FAIL structure: malformed suite-sha256 (want 64 lowercase hex)
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_4.receipt
+FAIL structure: unknown AEGIS-TRACE format "t3"
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_5.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_6.receipt
+FAIL structure: step 0: malformed hex in decode-chain
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_7.receipt
+FAIL structure: unknown line key "mndel" on line 1
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_8.receipt
+FAIL structure: receipt is not valid UTF-8
+== /tmp/safe1f-fuzz-work/byte_flip_A_calc_easy_02_9.receipt
+FAIL structure: receipt is not valid UTF-8
+SUMMARY pass=0 fail=40
