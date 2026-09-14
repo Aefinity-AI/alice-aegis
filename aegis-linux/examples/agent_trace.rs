@@ -12,29 +12,41 @@
 //! name/input/output.
 //!
 //! Tools: `calc`, grammar `CALC(<int> <op> <int>)` with op in {+ - * / %},
-//! i64 checked arithmetic; and `lookup`, grammar `LOOKUP(<key>)` with
+//! i64 checked arithmetic; `lookup`, grammar `LOOKUP(<key>)` with
 //! key matching `[A-Za-z0-9_.-]{1,64}`, resolved against a fixed table file
 //! supplied with `--table` (a hit returns the table's value string, a miss
-//! returns the literal `NONE`). `lookup` only exists when a table is given —
-//! with no `--table`, `LOOKUP(...)` text is not scanned for at all and the
-//! episode behaves exactly as it did before this tool existed. A step whose
-//! decoded text contains no matching call of either kind is `tool=no-tool`.
-//! A step whose `CALC` call parses but whose arithmetic overflows or
-//! divides/mods by zero is `tool=calc-error` with a fixed error string as
-//! output — itself a recorded, deterministic step outcome, not a crash.
+//! returns the literal `NONE`); and `file-read`, grammar `FILE-READ(<key>)`
+//! with the same key grammar, resolved against **the same** `--table`
+//! binding as `lookup` (a hit returns the table's value string, a miss
+//! returns the literal `NOT-FOUND` — deliberately a different literal than
+//! `lookup`'s `NONE`, so a receipt's `tool`/`out` pair alone tells the two
+//! apart even without the `in=` text). `file-read` is a distinct *tool
+//! identity* over the same declared data, standing in for "read this
+//! resource" as opposed to `lookup`'s "look this key up" — both only exist
+//! when a table is given; with no `--table`, neither `LOOKUP(...)` nor
+//! `FILE-READ(...)` text is scanned for at all and the episode behaves
+//! exactly as it did before either tool existed. A step whose decoded text
+//! contains no matching call of any kind is `tool=no-tool`. A step whose
+//! `CALC` call parses but whose arithmetic overflows or divides/mods by
+//! zero is `tool=calc-error` with a fixed error string as output — itself a
+//! recorded, deterministic step outcome, not a crash.
 //!
-//! Scanner policy (same for one tool or two): find the earliest starting
-//! occurrence of `CALC(` or `LOOKUP(` in the step's newly decoded text and
-//! attempt to parse *only* that occurrence per its own grammar. Exception:
-//! if the step's running prompt (trailing whitespace trimmed) itself ends
-//! with an unclosed `CALC(` or `LOOKUP(` opener — e.g. a suite that primes
-//! the prompt with `"A: CALC("` so the model transcribes only the
-//! arguments — that opener is carried as a scan prefix and the newly
-//! decoded text is scanned as `prefix + decoded_text`, so a continuation
-//! like `"3 + 4)"` closes the call. A prompt with no trailing opener scans
-//! exactly as before (prefix is empty). If it fails to parse, the step is
-//! `no-tool` — the scanner never falls back to a later occurrence or the
-//! other tool. Both tools may appear across one episode (different steps).
+//! Scanner policy (same for two tools or three): find the earliest starting
+//! occurrence of `CALC(`, `LOOKUP(`, or `FILE-READ(` in the step's newly
+//! decoded text and attempt to parse *only* that occurrence per its own
+//! grammar. Exception: if the step's running prompt (trailing whitespace
+//! trimmed) itself ends with an unclosed `CALC(`, `LOOKUP(`, or
+//! `FILE-READ(` opener — e.g. a suite that primes the prompt with
+//! `"A: CALC("` so the model transcribes only the arguments — that opener
+//! is carried as a scan prefix and the newly decoded text is scanned as
+//! `prefix + decoded_text`, so a continuation like `"3 + 4)"` closes the
+//! call. A prompt with no trailing opener scans exactly as before (prefix
+//! is empty). If it fails to parse, the step is `no-tool` — the scanner
+//! never falls back to a later occurrence or another tool. All three tools
+//! may appear across one episode (different steps), in any combination —
+//! the trace-chain fold (`trace_fold_step`) is per-step and tool-agnostic,
+//! so a single K-step episode carrying CALC then LOOKUP then FILE-READ
+//! chains exactly like any other three steps (see `tests::multitool_*`).
 //!
 //! Each step re-encodes its own growing prompt and decodes from position 0
 //! with a fresh engine (no carried KV state across steps) — the simplest
@@ -42,14 +54,24 @@
 //! (K=3, N=16 by default).
 //!
 //!   agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> ["prompt"] [--table <path>] [--suite-sha256 <64hex>] > receipt
-//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--expect-prompt-hash <64hex>] [--phases]
+//!   agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--expect-prompt-hash <64hex>] [--phases] [--fail-fast]
 //!
 //! Rule A: prints no timing, ever. Rule B: the receipt carries a commit hash
-//! and hostname. Through format 2 these were informational only — pure
-//! decoration, editable in a receipt that still reported VERIFY PASS, as
-//! E23 showed. From format 3 (`AEGIS-TRACE v2`) on they are folded into the
-//! trace genesis (see `trace_genesis`), which closes that hole and has one
-//! consequence a reader must not mistake for a failure:
+//! and hostname. The commit is captured at BUILD time (`aegis-linux/build.rs`
+//! bakes `env!("AEGIS_GIT_COMMIT")` in from the repo the binary was built
+//! from) rather than shelled out by `gen` at run time — a runtime `git
+//! rev-parse HEAD` depends on the generating process's current working
+//! directory and used to silently report either "unknown" (run from
+//! outside any checkout) or a different repo's HEAD (run from inside one).
+//! `commit_hash()` is now a pure, cwd-independent lookup; `unknown` means
+//! the binary itself was built without a resolvable git commit (`gen`
+//! refuses to run unless `AEGIS_ALLOW_UNKNOWN_COMMIT=1`, and `verify`
+//! prints a WARNING, never a failure, for such a receipt). Through format 2
+//! commit/host were informational only — pure decoration, editable in a
+//! receipt that still reported VERIFY PASS, as E23 showed. From format 3
+//! (`AEGIS-TRACE v2`) on they are folded into the trace genesis (see
+//! `trace_genesis`), which closes that hole and has one consequence a
+//! reader must not mistake for a failure:
 //!
 //!   TWO MACHINES RUNNING THE SAME EPISODE PRODUCE DIFFERENT `trace-chain`
 //!   VALUES, because their `host` lines (and usually their `commit` lines)
@@ -81,6 +103,21 @@
 //! accumulated across every receipt's replay prints once, after
 //! `SUMMARY`, regardless of the individual PASS/FAIL outcomes (it is a
 //! performance report, not a verify verdict).
+//!
+//! `--fail-fast` (verify only, rejected for gen the same way `--phases`
+//! is): diffs each step against the receipt's claimed step as soon as
+//! that step is replayed, instead of after the full K-step replay
+//! finishes. On the first divergent step it prints the same `step {i}
+//! divergence: ...` line (and any ctx/q mismatch lines) full-mode verify
+//! would print for that step, then `VERIFY FAIL — replay diverged from
+//! the receipt (fail-fast after step {i})` and stops — the remaining
+//! `K - i - 1` steps are never replayed, which is the whole point for a
+//! receipt tampered early (see the `step {i} divergence` test). All
+//! structural/artifact/table/suite checks that run before the replay are
+//! unchanged. On a receipt that verifies clean, `--fail-fast` produces
+//! output byte-identical to full mode (nothing diverges, so the
+//! early-print path never fires). Without `--fail-fast`, behaviour is
+//! byte-identical to before this flag existed.
 //!
 //! Table binding: when `--table` is given, the table file's sha256 and byte
 //! length are folded into the trace genesis (see `trace_genesis`'s doc
@@ -160,6 +197,17 @@ use aegis_core::cis_infer::{CisEngine, CisMode, CisModel, argmax_i64};
 use aegis_core::model::{FullBitNetPipeline, ModelConfig, SafeTensors};
 use aegis_core::tokenizer::AegisTokenizer;
 use aegis_core::witness::{Sha256, WitnessChain, WitnessHeader, hex_lower, sha256};
+
+/// tools-1c: process-wide switch for `--strict-grounding` (default `false`,
+/// i.e. the existing lenient behaviour — a verbatim-argument mismatch prints
+/// a WARNING but does not fail verification). Read by `verify_one`, set once
+/// in `main` from the CLI flag. A process-global rather than a `verify_one`
+/// parameter deliberately: `verify_one` already has 9 parameters and 15 call
+/// sites (7 of them test call sites fixed before this flag existed); a
+/// global keeps every existing call site's behaviour byte-identical without
+/// touching them. See `demo/agent-trace/README.md`'s "strict grounding mode"
+/// section for the flag name, default, and rationale.
+static STRICT_GROUNDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// `--phases`: an Amdahl decomposition of `verify`'s FullInt CIS replay,
 /// printed AFTER the normal VERIFY PASS/FAIL line and never changing it —
@@ -461,6 +509,14 @@ fn verbatim_warning_msg(step: usize) -> String {
 /// the output rather than silently absent.
 const FORMAT1_NOTE: &str = "NOTE: format-1 receipt, per-step query binding not present";
 
+/// Printed once by `verify` for a format-3+ receipt whose `commit` line
+/// reads `unknown` — informational, never a failure (see `verify_one`'s
+/// provenance block and `commit_hash`'s doc comment). Pulled out as a
+/// const, same rationale as `ctx_mismatch_msg` above, so the exact wording
+/// is unit-testable without capturing stdout.
+const UNKNOWN_COMMIT_WARNING: &str =
+    "WARNING: receipt commit is unknown (provenance not pinned to code)";
+
 fn unhex(s: &str) -> Result<Vec<u8>, ()> {
     if !s.len().is_multiple_of(2) {
         return Err(());
@@ -653,18 +709,35 @@ fn find_lookup(text: &str) -> Option<(&str, &str)> {
     Some((full, key))
 }
 
+/// Find the first `FILE-READ(...)` call in `text` and validate its key.
+/// Same grammar and scan-not-search policy as `find_lookup`, over the
+/// literal `FILE-READ(` instead of `LOOKUP(`.
+fn find_file_read(text: &str) -> Option<(&str, &str)> {
+    let start = text.find("FILE-READ(")?;
+    let rest = &text[start + "FILE-READ(".len()..];
+    let close = rest.find(')')?;
+    let key = &rest[..close];
+    if !is_valid_key(key) {
+        return None;
+    }
+    let full = &text[start..start + "FILE-READ(".len() + close + 1];
+    Some((full, key))
+}
+
 /// One recognized tool call site in a step's decoded text, before it has
 /// been run.
 enum ToolCall<'a> {
     Calc(&'a str, i64, u8, i64),
     Lookup(&'a str, &'a str),
+    FileRead(&'a str, &'a str),
 }
 
-/// Scan `text` for the earliest-starting `CALC(` or `LOOKUP(` occurrence and
-/// attempt to parse only that one. `LOOKUP(` is not scanned for at all when
-/// `table_present` is false, so a table-less episode's scan is identical to
-/// the pre-LOOKUP `find_calc`-only behavior. See the module doc comment for
-/// the full scanner policy (earliest occurrence wins; no fallback).
+/// Scan `text` for the earliest-starting `CALC(`, `LOOKUP(`, or
+/// `FILE-READ(` occurrence and attempt to parse only that one. `LOOKUP(`
+/// and `FILE-READ(` are not scanned for at all when `table_present` is
+/// false, so a table-less episode's scan is identical to the pre-LOOKUP
+/// `find_calc`-only behavior. See the module doc comment for the full
+/// scanner policy (earliest occurrence wins; no fallback).
 fn find_tool_call(text: &str, table_present: bool) -> Option<ToolCall<'_>> {
     let calc_pos = text.find("CALC(");
     let lookup_pos = if table_present {
@@ -672,29 +745,43 @@ fn find_tool_call(text: &str, table_present: bool) -> Option<ToolCall<'_>> {
     } else {
         None
     };
-    let calc_first = match (calc_pos, lookup_pos) {
-        (Some(c), Some(l)) => c <= l,
-        (Some(_), None) => true,
-        (None, Some(_)) => false,
-        (None, None) => return None,
-    };
-    if calc_first {
-        find_calc(text).map(|(m, a, op, b)| ToolCall::Calc(m, a, op, b))
+    let file_read_pos = if table_present {
+        text.find("FILE-READ(")
     } else {
-        find_lookup(text).map(|(m, k)| ToolCall::Lookup(m, k))
+        None
+    };
+    // Earliest-starting occurrence among the (up to three) candidates wins;
+    // ties broken CALC < LOOKUP < FILE-READ (matches source order, never
+    // actually reachable since two literals can't start at the same byte).
+    let candidates = [
+        calc_pos.map(|p| (p, 0u8)),
+        lookup_pos.map(|p| (p, 1u8)),
+        file_read_pos.map(|p| (p, 2u8)),
+    ];
+    let winner = candidates
+        .into_iter()
+        .flatten()
+        .min_by_key(|&(p, k)| (p, k))?;
+    match winner.1 {
+        0 => find_calc(text).map(|(m, a, op, b)| ToolCall::Calc(m, a, op, b)),
+        1 => find_lookup(text).map(|(m, k)| ToolCall::Lookup(m, k)),
+        _ => find_file_read(text).map(|(m, k)| ToolCall::FileRead(m, k)),
     }
 }
 
-/// If `prompt` (trailing whitespace trimmed) ends with an unclosed `CALC(`
-/// or `LOOKUP(` opener, return that literal opener so the caller can carry
-/// it as a scan prefix for the step's decoded text. Otherwise `""`, which
-/// makes the caller's scan identical to scanning `decoded_text` alone.
+/// If `prompt` (trailing whitespace trimmed) ends with an unclosed `CALC(`,
+/// `LOOKUP(`, or `FILE-READ(` opener, return that literal opener so the
+/// caller can carry it as a scan prefix for the step's decoded text.
+/// Otherwise `""`, which makes the caller's scan identical to scanning
+/// `decoded_text` alone.
 fn prompt_scan_prefix(prompt: &str) -> &'static str {
     let trimmed = prompt.trim_end();
     if trimmed.ends_with("CALC(") {
         "CALC("
     } else if trimmed.ends_with("LOOKUP(") {
         "LOOKUP("
+    } else if trimmed.ends_with("FILE-READ(") {
+        "FILE-READ("
     } else {
         ""
     }
@@ -741,6 +828,23 @@ fn run_tool(prefix: &str, decoded_text: &str, table: Option<&LookupTable>) -> To
                 output: value.as_bytes().to_vec(),
             }
         }
+        Some(ToolCall::FileRead(matched, key)) => {
+            // `table_present` gated the scan above, so this is always Some.
+            // Shares LOOKUP's table binding but is a distinct tool identity
+            // with its own miss literal (`NOT-FOUND`, not `NONE`) — see the
+            // module doc comment.
+            let table = table.expect("FILE-READ scanned only when a table is present");
+            let value = table
+                .map
+                .get(key)
+                .map(String::as_str)
+                .unwrap_or("NOT-FOUND");
+            ToolOutcome {
+                name: "file-read",
+                input: matched.as_bytes().to_vec(),
+                output: value.as_bytes().to_vec(),
+            }
+        }
     }
 }
 
@@ -755,7 +859,7 @@ fn run_tool(prefix: &str, decoded_text: &str, table: Option<&LookupTable>) -> To
 /// only reachable defensively).
 fn extract_call_arg(input: &[u8]) -> Option<&str> {
     let s = core::str::from_utf8(input).ok()?;
-    for prefix in ["CALC(", "LOOKUP("] {
+    for prefix in ["CALC(", "LOOKUP(", "FILE-READ("] {
         if let Some(rest) = s.strip_prefix(prefix) {
             return rest.strip_suffix(')');
         }
@@ -786,6 +890,18 @@ fn last_q_line(text: &str) -> &str {
 /// at step 1 — a rule that scans the running prompt's last `Q:` line accepts
 /// that self-authored question, which is exactly the case the rule exists to
 /// flag. `true` for `no-tool` or a call with no parseable argument text.
+///
+/// The test is a **substring** test, so the rule is sound but not complete:
+/// a `false` (which raises the step's WARNING) proves the argument does not
+/// occur anywhere in externally supplied text and therefore came from the
+/// model, but a `true` only proves the argument is *some contiguous fragment*
+/// of that text. Given `Q: What is part 401?`, `LOOKUP(40)` draws no WARNING.
+/// The looseness is the safe direction: tightening to a token match would
+/// flag a model that correctly extracts `206` from an external `P-206`, so
+/// the rule trades false negatives away from false positives on purpose.
+/// `verbatim_rule_is_sound_but_not_complete` pins both directions; changing
+/// the rule changes the WARNING set of every receipt already generated, so it
+/// is a format change, not a bug fix.
 fn verbatim_ok_for(external_text: &str, tool_input: &[u8]) -> bool {
     match extract_call_arg(tool_input) {
         Some(arg) if !arg.is_empty() => external_text.contains(arg),
@@ -848,6 +964,20 @@ fn trace_genesis(
     // receipt that still reports VERIFY PASS — E23 showed both were pure
     // decoration before.
     provenance: Option<(&[u8], &[u8])>,
+    // Item/session binding context (safe-2c, format >= 4 / `AEGIS-TRACE
+    // v3`): `sha256(item_id || prompt_bytes || session_nonce)`, folded into
+    // genesis under its own `b"ITEMCTX"` domain tag, after the PROV block.
+    // `None` for every earlier format — genesis bytes for a receipt with no
+    // item-ctx binding are byte-identical to before this field existed,
+    // exactly the same backward-compatibility discipline as the table/suite/
+    // PROV additions above. This is what makes a replayed-under-wrong-id
+    // receipt (safe-2b tamper 4: a whole valid receipt filed under a
+    // different item id, content otherwise untouched) fail: its item-ctx
+    // value is bound into trace-chain, so editing it (or expecting a
+    // different one via `--expect-ctx`/`--expect-item`) does not merely
+    // trip an independent field comparison the way `ctx=`/`q=` do — it
+    // changes genesis and therefore every downstream trace-chain byte.
+    item_ctx: Option<&[u8; 32]>,
 ) -> [u8; 32] {
     let mut s = Sha256::new();
     s.update(TRACE_DOMAIN);
@@ -873,6 +1003,28 @@ fn trace_genesis(
             s.update(field);
         }
     }
+    if let Some(ctx) = item_ctx {
+        s.update(b"ITEMCTX");
+        s.update(ctx);
+    }
+    s.finalize()
+}
+
+/// `sha256(item_id_bytes || prompt_bytes || nonce_bytes)` — the item/session
+/// binding context (safe-2c). Plain concatenation, no length prefixes or
+/// domain tag on the *inputs themselves* (the domain separation lives in
+/// `trace_genesis`'s `b"ITEMCTX"` tag on the *output*, which is what
+/// actually matters for collision-resistance against the rest of the
+/// genesis fold); this matches the exact formula specified for safe-2c
+/// (`ctx = sha256(item_id || prompt_bytes || session_nonce)`). Shared by
+/// `gen` (which sets it) and `verify` (which recomputes an *expected* value
+/// from `--expect-item`/`--expect-prompt-file`/`--nonce` to cross-check
+/// against the receipt's own `item-ctx` line — see `verify_one`).
+fn compute_item_ctx(item_id: &[u8], prompt: &[u8], nonce: &[u8]) -> [u8; 32] {
+    let mut s = Sha256::new();
+    s.update(item_id);
+    s.update(prompt);
+    s.update(nonce);
     s.finalize()
 }
 
@@ -992,10 +1144,8 @@ fn decode_step(
     // `CisEngine::forward_prefill_int`'s doc for why. `AEGIS_PREFILL_BATCH=0`
     // forces the old sequential loop for A/B.
     engine.forward_prefill_int(&prompt_ids, 0);
-    let mut pos = prompt_ids.len();
-
     let mut generated = Vec::with_capacity(n);
-    for _ in 0..n {
+    for pos in (prompt_ids.len()..).take(n) {
         let tok = {
             let logits = engine.decode_logits();
             let t = argmax_i64(logits);
@@ -1004,7 +1154,6 @@ fn decode_step(
         };
         generated.push(tok);
         engine.forward_step_int(tok, pos);
-        pos += 1;
     }
     // Fold this step's engine-owned phase counters into the process-wide
     // `--phases` accumulator before `engine` (and its `phase_cycles`) is
@@ -1018,6 +1167,28 @@ fn decode_step(
     phases_report::accumulate(&engine.phase_cycles, (prompt_ids.len() + n) as u64);
     (generated, chain.digest())
 }
+
+/// The `--fail-fast` per-step hook's type, named so the signature below
+/// reads as one word instead of the raw `dyn FnMut` spelled out inline —
+/// see the `on_step` parameter's own doc comment for what it does.
+type StepHook<'a> = dyn FnMut(usize, &StepRecord) -> bool + 'a;
+
+/// One receipt-claimed step's parsed fields, in the order they were read
+/// off a `step N:` line: `(toks, tool, in, out, decode-chain, ctx, q)`.
+/// `ctx`/`q` are `None` for a format-1 receipt (no per-step binding) and
+/// `Some` for format >= 2 — see `step_diff`'s and `verify_one`'s
+/// `w_format`-gated handling of this pair. Named so `verify_one`'s parsed
+/// step list and `step_diff`'s parameter share one spelling instead of
+/// each repeating the 7-tuple inline.
+type ClaimedStep = (
+    Vec<u32>,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+);
 
 /// Replay the whole K-step episode from the header inputs. Shared by gen
 /// and verify — a verifier that calls this and gets the same
@@ -1036,6 +1207,19 @@ fn replay_episode(
     table: Option<&LookupTable>,
     suite_sha: Option<&[u8; 32]>,
     provenance: Option<(&str, &str)>,
+    // `--fail-fast` hook: called with (step_idx, this step's freshly
+    // decoded `StepRecord`) right after the step is produced, before the
+    // next step's decode starts. Returning `true` stops the replay after
+    // this step (fewer than `k` steps land in the returned
+    // `EpisodeReplay`); `gen` and every non-fail-fast `verify` call pass
+    // `None`, in which case this is a no-op and the loop runs exactly as
+    // it always has — see `verify_one`'s fail-fast branch for the only
+    // caller that passes `Some`.
+    // Item/session binding context (safe-2c): sha256(item_id || prompt_bytes ||
+    // session_nonce), folded into trace genesis when `Some` (format >= 4). `None`
+    // reproduces every pre-existing format's genesis fold byte-for-byte.
+    item_ctx: Option<&[u8; 32]>,
+    mut on_step: Option<&mut StepHook<'_>>,
 ) -> EpisodeReplay {
     let mut prompt = initial_prompt.to_string();
     let mut trace_chain = trace_genesis(
@@ -1048,6 +1232,7 @@ fn replay_episode(
         table.map(|t| (&t.sha256, t.len)),
         suite_sha,
         provenance.map(|(c, h)| (c.as_bytes(), h.as_bytes())),
+        item_ctx,
     );
     let mut steps = Vec::with_capacity(k);
     // The text newly appended to the running prompt since the previous
@@ -1091,7 +1276,7 @@ fn replay_episode(
         external_text.push_str(&tool_result);
         prev_tool_result = Some(tool_result);
 
-        steps.push(StepRecord {
+        let record = StepRecord {
             toks,
             tool_name: outcome.name,
             tool_input: outcome.input,
@@ -1100,7 +1285,15 @@ fn replay_episode(
             ctx_digest,
             query_digest,
             verbatim_ok,
-        });
+        };
+        let stop = on_step
+            .as_mut()
+            .map(|cb| cb(step_idx, &record))
+            .unwrap_or(false);
+        steps.push(record);
+        if stop {
+            break;
+        }
     }
 
     EpisodeReplay { steps, trace_chain }
@@ -1155,22 +1348,68 @@ fn validate_receipt_header(
 // Receipt I/O.
 // ---------------------------------------------------------------------
 
+/// The commit this binary was BUILT from, baked in at compile time by
+/// `aegis-linux/build.rs` (see its doc comment) — deliberately NOT a
+/// runtime `git rev-parse HEAD` in the generating process's current
+/// working directory, which used to silently report either "unknown" (run
+/// from outside any checkout) or a different repo's HEAD (run from inside
+/// one), and then got folded into the trace genesis and TPM-attested as if
+/// it were trustworthy.
 fn commit_hash() -> String {
-    std::process::Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "unknown".to_string())
+    env!("AEGIS_GIT_COMMIT").to_string()
+}
+
+/// Parse an unsigned integer field in canonical decimal form: ASCII digits
+/// only, no leading `+`/`-`, no leading zero (except the single digit `0`
+/// itself), and no surrounding whitespace. Plain `str::parse` is not
+/// sufficient here — Rust's integer `FromStr` accepts a leading `+` and
+/// arbitrarily many leading zeros (`"007"`, `"+3"` both parse to `3`), which
+/// let non-canonical byte strings share a PASSing receipt with their
+/// canonical form. Every integer field in the wire format (K, N, step
+/// index, toks token ids, WARNING step indices) must go through this
+/// helper, not `.parse()` directly. See FORMAT.md §2 "Canonical form".
+fn parse_canonical_uint<T: std::str::FromStr>(s: &str) -> Result<T, ()> {
+    if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(());
+    }
+    if s.len() > 1 && s.as_bytes()[0] == b'0' {
+        return Err(());
+    }
+    s.parse::<T>().map_err(|_| ())
+}
+
+/// Whole-text canonical-form checks that do not depend on any per-line key
+/// (FORMAT.md §2 "Canonical form"): no CR bytes (rejects CRLF line
+/// endings, which `str::lines()` would otherwise silently fold into the
+/// preceding line's content, letting a receipt with a trailing `\r` on
+/// every line hash differently from its canonical LF-only form while still
+/// parsing) and no blank lines anywhere — leading, between records, or
+/// trailing before EOF. Kept as its own function so it is unit-testable
+/// directly against raw receipt text, including the repo's pinned demo
+/// vectors, without needing a loaded model.
+fn check_receipt_text_canonical(wtext: &str) -> Result<(), String> {
+    if wtext.contains('\r') {
+        return Err("receipt contains a CR byte (CRLF line endings are not canonical)".to_string());
+    }
+    if wtext.lines().any(|l| l.is_empty()) {
+        return Err("receipt contains a blank line".to_string());
+    }
+    // Exactly one final LF: `gen` always ends the file with "\n", and a
+    // receipt missing it is not the attested bytes (a second one is the
+    // blank-line case above).
+    if !wtext.ends_with('\n') {
+        return Err("receipt does not end with a newline".to_string());
+    }
+    Ok(())
 }
 
 /// Validate a receipt "step N:" label against the step's actual position in
 /// the file (0-based). `label` is the text before the colon, untrimmed.
+/// The label itself must be canonical decimal — no surrounding whitespace,
+/// no leading zero/`+` — per FORMAT.md §2; a label like `" 0 "` used to be
+/// accepted via `.trim()` before parsing, which made it non-canonical.
 fn check_step_label(label: &str, position: usize) -> Result<(), String> {
-    match label.trim().parse::<usize>() {
+    match parse_canonical_uint::<usize>(label) {
         Ok(n) if n == position => Ok(()),
         Ok(n) => Err(format!("step label {n} at position {position}")),
         Err(_) => Err(format!(
@@ -1225,12 +1464,26 @@ fn main() {
     let suite_sha256_arg = extract_flag(&mut args, "--suite-sha256");
     let expect_prompt_hash_arg = extract_flag(&mut args, "--expect-prompt-hash");
     let phases_flag = extract_bool_flag(&mut args, "--phases");
+    let fail_fast_flag = extract_bool_flag(&mut args, "--fail-fast");
+    // safe-2c item/session ctx binding. `gen`: `--item-id <ID>` +
+    // `--nonce <N>` together set the receipt's `item-ctx` line (format
+    // bumps to `AEGIS-TRACE v3`); omitting both reproduces every prior
+    // format's output byte-for-byte. `verify`: `--expect-ctx <64hex>`
+    // directly, OR `--expect-item <ID>` + `--expect-prompt-file <F>` +
+    // `--nonce <N>` to recompute the expected value the same way `gen`
+    // did (see `compute_item_ctx`).
+    let item_id_arg = extract_flag(&mut args, "--item-id");
+    let expect_ctx_arg = extract_flag(&mut args, "--expect-ctx");
+    let expect_item_arg = extract_flag(&mut args, "--expect-item");
+    let expect_prompt_file_arg = extract_flag(&mut args, "--expect-prompt-file");
+    let nonce_arg = extract_flag(&mut args, "--nonce");
+    let strict_grounding_flag = extract_bool_flag(&mut args, "--strict-grounding");
     if args.len() < 6 {
         eprintln!(
-            "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>]"
+            "usage: agent_trace gen    <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> <K> <N> [prompt] [--table <path>] [--suite-sha256 <64hex>] [--item-id <ID> --nonce <N>]"
         );
         eprintln!(
-            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--expect-prompt-hash <64hex>] [--phases]"
+            "       agent_trace verify <MODEL.SAF> <EMBED.BIN> <VOCAB.BIN> receipt1 [receipt2 ...] [--table <path>] [--suite-sha256 <64hex>] [--expect-prompt-hash <64hex>] [--phases] [--fail-fast] [--strict-grounding] [--expect-ctx <64hex> | --expect-item <ID> --expect-prompt-file <F> --nonce <N>]"
         );
         std::process::exit(2);
     }
@@ -1249,10 +1502,39 @@ fn main() {
         );
         std::process::exit(2);
     }
+    if expect_ctx_arg.is_some() && (expect_item_arg.is_some() || expect_prompt_file_arg.is_some()) {
+        eprintln!("--expect-ctx cannot be combined with --expect-item/--expect-prompt-file");
+        std::process::exit(2);
+    }
+    if expect_item_arg.is_some() != expect_prompt_file_arg.is_some() {
+        eprintln!("--expect-item and --expect-prompt-file must be given together");
+        std::process::exit(2);
+    }
+    if expect_item_arg.is_some() && nonce_arg.is_none() {
+        eprintln!("--expect-item/--expect-prompt-file requires --nonce");
+        std::process::exit(2);
+    }
+    if expect_ctx_arg.is_some() && nonce_arg.is_some() {
+        eprintln!("--expect-ctx does not take --nonce (the ctx value is already final)");
+        std::process::exit(2);
+    }
+    if item_id_arg.is_some() != nonce_arg.is_some() && expect_item_arg.is_none() {
+        eprintln!("--item-id and --nonce must be given together (gen)");
+        std::process::exit(2);
+    }
     if phases_flag && args[1] != "verify" {
         eprintln!("--phases is only supported by `agent_trace verify`");
         std::process::exit(2);
     }
+    if fail_fast_flag && args[1] != "verify" {
+        eprintln!("--fail-fast is only supported by `agent_trace verify`");
+        std::process::exit(2);
+    }
+    if strict_grounding_flag && args[1] != "verify" {
+        eprintln!("--strict-grounding is only supported by `agent_trace verify`");
+        std::process::exit(2);
+    }
+    STRICT_GROUNDING.store(strict_grounding_flag, std::sync::atomic::Ordering::Relaxed);
     #[cfg(not(feature = "phase-timers"))]
     if phases_flag {
         eprintln!(
@@ -1287,6 +1569,39 @@ fn main() {
             }
         },
         None => None,
+    };
+    // Resolve the verify-side expectation into a single `Option<[u8; 32]>`
+    // up front, regardless of which of the two forms the caller used.
+    let expect_ctx: Option<[u8; 32]> = if let Some(hexstr) = &expect_ctx_arg {
+        if hexstr.len() != 64
+            || !hexstr
+                .bytes()
+                .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        {
+            eprintln!("--expect-ctx: malformed (want 64 lowercase hex)");
+            std::process::exit(2);
+        }
+        let bytes = unhex(hexstr).unwrap_or_else(|()| {
+            eprintln!("--expect-ctx: malformed hex");
+            std::process::exit(2);
+        });
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&bytes);
+        Some(out)
+    } else if let (Some(item), Some(prompt_file), Some(nonce)) =
+        (&expect_item_arg, &expect_prompt_file_arg, &nonce_arg)
+    {
+        let prompt_bytes = std::fs::read(prompt_file).unwrap_or_else(|e| {
+            eprintln!("--expect-prompt-file {prompt_file}: {e}");
+            std::process::exit(2);
+        });
+        Some(compute_item_ctx(
+            item.as_bytes(),
+            &prompt_bytes,
+            nonce.as_bytes(),
+        ))
+    } else {
+        None
     };
     let mode = args[1].as_str();
     let model_bytes = std::fs::read(&args[2]).expect("read MODEL.SAF");
@@ -1340,7 +1655,29 @@ fn main() {
             // receipt cannot be relabelled with a different commit or host
             // and still verify.
             let commit = commit_hash();
+            if commit == "unknown"
+                && std::env::var("AEGIS_ALLOW_UNKNOWN_COMMIT").as_deref() != Ok("1")
+            {
+                eprintln!(
+                    "ERROR: this binary was built without a git commit (AEGIS_GIT_COMMIT); set AEGIS_ALLOW_UNKNOWN_COMMIT=1 to generate an unpinned receipt"
+                );
+                std::process::exit(2);
+            }
             let host = host_name();
+            // safe-2c: `--item-id`/`--nonce` together bind this receipt to
+            // a specific item/session (`item_ctx = sha256(item_id ||
+            // prompt_bytes || nonce)`), folded into trace genesis (see
+            // `trace_genesis`'s `item_ctx` parameter) and bumping the
+            // header to `AEGIS-TRACE v3` (format 4). Neither given: output
+            // is byte-identical to before this feature existed.
+            let item_ctx: Option<[u8; 32]> = match (&item_id_arg, &nonce_arg) {
+                (Some(item_id), Some(nonce)) => Some(compute_item_ctx(
+                    item_id.as_bytes(),
+                    prompt.as_bytes(),
+                    nonce.as_bytes(),
+                )),
+                _ => None,
+            };
             let r = replay_episode(
                 &cis_model,
                 &tokenizer,
@@ -1353,9 +1690,18 @@ fn main() {
                 table.as_ref(),
                 suite_sha256_arg.as_ref(),
                 Some((commit.as_str(), host.as_str())),
+                item_ctx.as_ref(),
+                None,
             );
 
-            println!("AEGIS-TRACE v2");
+            println!(
+                "{}",
+                if item_ctx.is_some() {
+                    "AEGIS-TRACE v3"
+                } else {
+                    "AEGIS-TRACE v2"
+                }
+            );
             println!("model {}", hex(&model_sha));
             println!("embed {}", hex(&embed_sha));
             println!("vocab {}", hex(&vocab_sha));
@@ -1370,6 +1716,9 @@ fn main() {
             println!("prompt-hex {}", hex(prompt.as_bytes()));
             println!("commit {commit}");
             println!("host {host}");
+            if let Some(ctx) = &item_ctx {
+                println!("item-ctx {}", hex(ctx));
+            }
             for (i, s) in r.steps.iter().enumerate() {
                 let ids: Vec<String> = s.toks.iter().map(|t| t.to_string()).collect();
                 println!(
@@ -1400,6 +1749,8 @@ fn main() {
                     &vocab_sha,
                     table_path.as_ref(),
                     suite_sha256_arg,
+                    fail_fast_flag,
+                    expect_ctx,
                     expect_prompt_hash_arg,
                 );
                 if !pass {
@@ -1427,6 +1778,8 @@ fn main() {
                         &vocab_sha,
                         table_path.as_ref(),
                         suite_sha256_arg,
+                        fail_fast_flag,
+                        expect_ctx,
                         // Multi-receipt verify was already rejected above
                         // when --expect-prompt-hash was given, so this is
                         // always None here.
@@ -1460,6 +1813,88 @@ fn main() {
     }
 }
 
+/// Diff one replayed step against the receipt's claimed step, printing
+/// exactly the lines `verify_one`'s per-step loop has always printed for a
+/// mismatching step (the `toks-match=.../decode-chain-match=...` line and,
+/// for format >= 2, the ctx/query mismatch lines and the verbatim-argument
+/// WARNING). Returns whether this step is a mismatch (the WARNING line is
+/// not one — it prints regardless). Factored out so full-mode's
+/// after-the-fact loop and `--fail-fast`'s per-step callback (see
+/// `verify_one`) call the identical logic and therefore print
+/// byte-identical lines for the same divergent step, whichever mode finds
+/// it.
+fn step_diff(
+    i: usize,
+    local: &StepRecord,
+    w_step: &ClaimedStep,
+    w_format: u8,
+    emit_warning: bool,
+) -> bool {
+    let (w_toks, w_tool, w_in, w_out, w_dchain, w_ctx, w_query) = w_step;
+    let mut mismatch = false;
+
+    let local_toks_match = &local.toks == w_toks;
+    let local_tool_match = local.tool_name == *w_tool;
+    let local_in_match = hex(&local.tool_input) == *w_in;
+    let local_out_match = hex(&local.tool_output) == *w_out;
+    let local_dchain_match = hex(&local.decode_chain) == *w_dchain;
+    if !(local_toks_match
+        && local_tool_match
+        && local_in_match
+        && local_out_match
+        && local_dchain_match)
+    {
+        println!(
+            "step {i} divergence: toks-match={local_toks_match} tool-match={local_tool_match} in-match={local_in_match} out-match={local_out_match} decode-chain-match={local_dchain_match}"
+        );
+        mismatch = true;
+    }
+
+    // Format-2 only: per-step context/query binding. A format-1 receipt
+    // carries no ctx=/q= fields (w_ctx/w_query are `None`) and is
+    // otherwise verified exactly as above — see the module doc comment's
+    // format-2 entry and the `FORMAT1_NOTE` line already printed above.
+    if w_format >= 2 {
+        let local_ctx = hex(&local.ctx_digest);
+        match w_ctx {
+            Some(claimed) if *claimed == local_ctx => {}
+            _ => {
+                println!("{}", ctx_mismatch_msg(i));
+                mismatch = true;
+            }
+        }
+        let local_query = hex(&local.query_digest);
+        match w_query {
+            Some(claimed) if *claimed == local_query => {}
+            _ => {
+                println!("{}", query_mismatch_msg(i));
+                mismatch = true;
+            }
+        }
+        // `emit_warning`: the after-the-fact loop prints the WARNING here
+        // so it lands after the trace-chain lines exactly as before; the
+        // `--fail-fast` hook passes `false` because that loop still runs
+        // (and prints it) after a clean fail-fast replay, keeping PASS
+        // output byte-identical in both modes.
+        if emit_warning && !local.verbatim_ok {
+            println!("{}", verbatim_warning_msg(i));
+        }
+    }
+
+    mismatch
+}
+
+/// Read a receipt as text. FORMAT.md §2 says a receipt is UTF-8 text, so an
+/// unreadable path or invalid UTF-8 is a *structural* failure the caller
+/// reports as `FAIL structure: ...` — not a panic. The 2026-09-11 E23 fuzz
+/// coverage audit found the reference verifier aborted (`expect`) on a receipt
+/// holding one non-UTF-8 byte instead of printing the documented verdict line.
+fn read_receipt_text(receipt_path: &str) -> Result<String, String> {
+    let bytes = std::fs::read(receipt_path)
+        .map_err(|e| format!("cannot read receipt {receipt_path:?}: {e}"))?;
+    String::from_utf8(bytes).map_err(|_| "receipt is not valid UTF-8".to_string())
+}
+
 /// Verify one receipt against the already-hashed artifacts and the
 /// process-wide `CisModel`/tokenizer `main` built once (see the module doc
 /// comment's multi-receipt verify entry). Prints exactly the lines
@@ -1470,6 +1905,8 @@ fn main() {
 /// `--phases` printing is the caller's responsibility (see `main`), not
 /// this function's — the single- and multi-receipt CLI shapes print the
 /// table at different points, but neither ever prints it from inside here.
+/// `fail_fast`: see the module doc comment's `--fail-fast` entry. `false`
+/// reproduces this function's pre-`--fail-fast` behaviour exactly.
 #[allow(clippy::too_many_arguments)]
 fn verify_one(
     receipt_path: &str,
@@ -1480,6 +1917,11 @@ fn verify_one(
     vocab_sha: &[u8; 32],
     table_path: Option<&String>,
     suite_sha256_arg: Option<[u8; 32]>,
+    fail_fast: bool,
+    // safe-2c ctx-binding expectation: `Some` when the caller passed
+    // `--expect-ctx` or the `--expect-item`/`--expect-prompt-file`/`--nonce`
+    // triple; see the ctx-mismatch block below.
+    expect_ctx: Option<[u8; 32]>,
     // safe-1h out-of-band oracle: when the caller already knows the
     // expected prompt digest, hash the receipt's prompt-hex bytes the
     // moment they are decoded and fail fast on a mismatch, before any of
@@ -1487,22 +1929,25 @@ fn verify_one(
     // case) leaves every other code path byte-for-byte unchanged.
     expect_prompt_hash: Option<[u8; 32]>,
 ) -> bool {
-    let wtext = std::fs::read_to_string(receipt_path).expect("read receipt");
+    let wtext = match read_receipt_text(receipt_path) {
+        Ok(t) => t,
+        Err(reason) => {
+            println!("FAIL structure: {reason}");
+            return false;
+        }
+    };
+    // Canonical form (FORMAT.md §2).
+    if let Err(reason) = check_receipt_text_canonical(&wtext) {
+        println!("FAIL structure: {reason}");
+        return false;
+    }
     let mut w_model = String::new();
     let mut w_embed = String::new();
     let mut w_vocab = String::new();
     let mut w_k = 0usize;
     let mut w_n = 0usize;
     let mut w_prompt = String::new();
-    let mut w_steps: Vec<(
-        Vec<u32>,
-        String,
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-    )> = Vec::new();
+    let mut w_steps: Vec<ClaimedStep> = Vec::new();
     let mut w_trace_chain = String::new();
     let mut w_format: u8 = 1;
     // Whether an `AEGIS-TRACE <ver>` magic line was actually seen, and on
@@ -1518,6 +1963,9 @@ fn verify_one(
     let mut w_suite_sha: Option<String> = None;
     let mut w_commit: Option<String> = None;
     let mut w_host: Option<String> = None;
+    // Item/session binding context (safe-2c, format >= 4 / `AEGIS-TRACE v3`).
+    // See `compute_item_ctx`'s doc comment for the exact preimage.
+    let mut w_item_ctx_hex: Option<String> = None;
     let mut w_warn_steps: Vec<usize> = Vec::new();
     let mut seen_keys: Vec<&str> = Vec::new();
 
@@ -1560,7 +2008,7 @@ fn verify_one(
                     "toks" => {
                         let mut ids = Vec::new();
                         for t in value.split(',').filter(|t| !t.is_empty()) {
-                            match t.parse::<u32>() {
+                            match parse_canonical_uint::<u32>(t) {
                                 Ok(id) => ids.push(id),
                                 Err(_) => {
                                     println!("FAIL structure: step {position}: bad token id {t:?}");
@@ -1571,9 +2019,42 @@ fn verify_one(
                         toks.replace(ids).is_some()
                     }
                     "tool" => tool.replace(value.to_string()).is_some(),
-                    "in" => input.replace(value.to_string()).is_some(),
-                    "out" => output.replace(value.to_string()).is_some(),
-                    "decode-chain" => dchain.replace(value.to_string()).is_some(),
+                    // `in`/`out`/`decode-chain` are hex-encoded bytes folded
+                    // into the trace chain (FORMAT.md §4). Before this
+                    // check, malformed hex here was accepted at parse time
+                    // and only surfaced later as a `VERIFY FAIL — replay
+                    // diverged from the receipt`, because the value could
+                    // not be `unhex`'d for the trace-chain fold and so never
+                    // matched what replay independently computed. That is a
+                    // *structural* defect in the receipt, not a divergence
+                    // between replay and an otherwise well-formed claim —
+                    // `trace_chain.py` (FORMAT.md's clean-room reference)
+                    // has always rejected it up front for exactly that
+                    // reason (see its "Undecodable step hex" comment). See
+                    // `verify_rejects_malformed_step_hex_as_structure`.
+                    "in" => {
+                        if unhex(value).is_err() {
+                            println!("FAIL structure: step {position}: malformed hex in in");
+                            return false;
+                        }
+                        input.replace(value.to_string()).is_some()
+                    }
+                    "out" => {
+                        if unhex(value).is_err() {
+                            println!("FAIL structure: step {position}: malformed hex in out");
+                            return false;
+                        }
+                        output.replace(value.to_string()).is_some()
+                    }
+                    "decode-chain" => {
+                        if unhex(value).is_err() {
+                            println!(
+                                "FAIL structure: step {position}: malformed hex in decode-chain"
+                            );
+                            return false;
+                        }
+                        dchain.replace(value.to_string()).is_some()
+                    }
                     "ctx" => ctx.replace(value.to_string()).is_some(),
                     "q" => query.replace(value.to_string()).is_some(),
                     other => {
@@ -1609,7 +2090,7 @@ fn verify_one(
         // lines ride inside a receipt that printed VERIFY PASS. E23 found
         // both. The allowlist below is the receipt's complete lead-line
         // vocabulary; anything else is a structural failure.
-        const LEAD_KEYS: [&str; 12] = [
+        const LEAD_KEYS: [&str; 13] = [
             "AEGIS-TRACE",
             "model",
             "embed",
@@ -1622,6 +2103,7 @@ fn verify_one(
             "suite-sha256",
             "commit",
             "host",
+            "item-ctx",
         ];
         if key != "WARNING" && !LEAD_KEYS.contains(&key) {
             println!("FAIL structure: unknown line key {key:?} on line {line_no}");
@@ -1645,6 +2127,7 @@ fn verify_one(
                     "v0" => 1,
                     "v1" => 2,
                     "v2" => 3,
+                    "v3" => 4,
                     other => {
                         println!("FAIL structure: unknown AEGIS-TRACE format {other:?}");
                         return false;
@@ -1654,14 +2137,14 @@ fn verify_one(
             "model" => w_model = v.into(),
             "embed" => w_embed = v.into(),
             "vocab" => w_vocab = v.into(),
-            "K" => match v.parse() {
+            "K" => match parse_canonical_uint(v) {
                 Ok(x) => w_k = x,
                 Err(_) => {
                     println!("FAIL structure: malformed K {v:?}");
                     return false;
                 }
             },
-            "N" => match v.parse() {
+            "N" => match parse_canonical_uint(v) {
                 Ok(x) => w_n = x,
                 Err(_) => {
                     println!("FAIL structure: malformed N {v:?}");
@@ -1703,7 +2186,23 @@ fn verify_one(
                     }
                 }
             }
-            "trace-chain" => w_trace_chain = v.into(),
+            // A malformed or truncated `trace-chain` value (e.g. a chain
+            // cut short mid-hex-digit) previously fell through unvalidated
+            // and only ever failed later, at the final bit-for-bit compare
+            // against the locally-replayed chain — reported as `VERIFY FAIL
+            // — replay diverged from the receipt`. That message is reserved
+            // for a well-formed receipt whose claims replay does not
+            // reproduce; a chain that is not even 64 lowercase hex digits
+            // is a structural defect, exactly as `trace_chain.py` (the
+            // FORMAT.md clean-room reference) has always treated it. See
+            // `verify_rejects_truncated_trace_chain_as_structure`.
+            "trace-chain" => {
+                if v.len() != 64 || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+                    println!("FAIL structure: malformed trace-chain (want 64 lowercase hex)");
+                    return false;
+                }
+                w_trace_chain = v.into();
+            }
             "table-sha256" => {
                 if v.len() != 64 || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
                     println!("FAIL structure: malformed table-sha256 (want 64 lowercase hex)");
@@ -1718,8 +2217,27 @@ fn verify_one(
                 }
                 w_suite_sha = Some(v.into());
             }
-            "commit" => w_commit = Some(v.into()),
-            "host" => w_host = Some(v.into()),
+            "item-ctx" => {
+                if v.len() != 64 || !v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+                    println!("FAIL structure: malformed item-ctx (want 64 lowercase hex)");
+                    return false;
+                }
+                w_item_ctx_hex = Some(v.into());
+            }
+            "commit" => {
+                if v.is_empty() {
+                    println!("FAIL structure: commit line has an empty value");
+                    return false;
+                }
+                w_commit = Some(v.into())
+            }
+            "host" => {
+                if v.is_empty() {
+                    println!("FAIL structure: host line has an empty value");
+                    return false;
+                }
+                w_host = Some(v.into())
+            }
             // A WARNING line must be exactly what `verbatim_warning_msg`
             // emits for some step; free text on a WARNING line was another
             // way to smuggle attacker-chosen content into a PASSing
@@ -1730,7 +2248,7 @@ fn verify_one(
                     .strip_prefix("WARNING step ")
                     .and_then(|r| r.split_once(':'))
                     .and_then(|(n, tail)| {
-                        n.parse::<usize>()
+                        parse_canonical_uint::<usize>(n)
                             .ok()
                             .filter(|_| tail == " tool argument not found verbatim in context")
                     });
@@ -1761,16 +2279,15 @@ fn verify_one(
     }
     // Belt and braces: a receipt that declares format 1 must not carry the
     // format-2 per-step binding fields. If it does, the header was altered.
-    if w_format == 1 {
-        if let Some(i) = w_steps
+    if w_format == 1
+        && let Some(i) = w_steps
             .iter()
             .position(|(_, _, _, _, _, ctx, q)| ctx.is_some() || q.is_some())
-        {
-            println!(
-                "FAIL structure: receipt declares format 1 but step {i} carries ctx=/q= (format-2 downgrade)"
-            );
-            return false;
-        }
+    {
+        println!(
+            "FAIL structure: receipt declares format 1 but step {i} carries ctx=/q= (format-2 downgrade)"
+        );
+        return false;
     }
 
     // Format 3 folds `commit`/`host` into the trace genesis, so both lines
@@ -1779,7 +2296,19 @@ fn verify_one(
     // the trace-chain would not match.
     let provenance: Option<(String, String)> = if w_format >= 3 {
         match (w_commit.clone(), w_host.clone()) {
-            (Some(c), Some(h)) => Some((c, h)),
+            (Some(c), Some(h)) => {
+                // Informational only — does not change PASS/FAIL below.
+                // `unknown` means the generating binary was built without
+                // a resolvable git commit (AEGIS_ALLOW_UNKNOWN_COMMIT=1 at
+                // gen time), so this receipt's code provenance is not
+                // pinned even though it is still cryptographically bound
+                // into the trace genesis (tamper-evident, not
+                // tamper-informative).
+                if c == "unknown" {
+                    println!("{UNKNOWN_COMMIT_WARNING}");
+                }
+                Some((c, h))
+            }
             _ => {
                 println!("FAIL structure: format-3 receipt is missing its commit or host line");
                 return false;
@@ -1788,6 +2317,65 @@ fn verify_one(
     } else {
         None
     };
+
+    // Format 4 (`AEGIS-TRACE v3`, safe-2c) folds `item-ctx` into the trace
+    // genesis, so the line is mandatory there — same discipline as format
+    // 3's commit/host requirement above. `w_item_ctx` is the decoded 32
+    // raw bytes, threaded into `replay_episode`/`trace_genesis` below; a
+    // downgrade to an earlier format does not help an attacker for the
+    // same reason commit/host downgrades don't: genesis would then be
+    // rebuilt without the item-ctx bytes and trace-chain would not match.
+    let w_item_ctx: Option<[u8; 32]> = if w_format >= 4 {
+        match &w_item_ctx_hex {
+            Some(hex_str) => {
+                let bytes = unhex(hex_str).expect("already validated as 64 lowercase hex");
+                let mut out = [0u8; 32];
+                out.copy_from_slice(&bytes);
+                Some(out)
+            }
+            None => {
+                println!("FAIL structure: format-4 receipt is missing its item-ctx line");
+                return false;
+            }
+        }
+    } else {
+        None
+    };
+
+    // safe-2c ctx-binding expectation check: an expected item-ctx value,
+    // supplied by the caller either directly (`--expect-ctx`) or derived
+    // the same way `gen`/`compute_item_ctx` would (`--expect-item` +
+    // `--expect-prompt-file` + `--nonce`). This is what catches a
+    // replayed-under-wrong-item-id receipt (safe-2b tamper 4): the
+    // receipt's own math can be entirely self-consistent (it verified
+    // PASS under its ORIGINAL item id) while still carrying the wrong
+    // item-ctx for the id/prompt it has been filed/replayed under. The
+    // trace-chain fold (see `trace_genesis`) independently guarantees the
+    // item-ctx line cannot be silently edited in an otherwise-untouched
+    // receipt; this check is the other half — it says which item-ctx was
+    // actually expected, which no amount of internal self-consistency can
+    // supply on its own.
+    if let Some(expected) = expect_ctx {
+        let expected_hex = hex(&expected);
+        match &w_item_ctx_hex {
+            Some(claimed) if *claimed == expected_hex => {}
+            Some(claimed) => {
+                println!(
+                    "VERIFY FAIL — ctx mismatch (receipt item-ctx {} vs expected {})",
+                    short16(claimed),
+                    short16(&expected_hex)
+                );
+                return false;
+            }
+            None => {
+                println!(
+                    "VERIFY FAIL — ctx mismatch (receipt has no item-ctx line, expected {})",
+                    short16(&expected_hex)
+                );
+                return false;
+            }
+        }
+    }
 
     let mut fail = false;
     for (name, local, claimed) in [
@@ -1904,19 +2492,68 @@ fn verify_one(
         None => None,
     };
 
-    let r = replay_episode(
-        cis_model,
-        tokenizer,
-        model_sha,
-        embed_sha,
-        vocab_sha,
-        &w_prompt,
-        w_k,
-        w_n,
-        table.as_ref(),
-        suite_sha.as_ref(),
-        provenance.as_ref().map(|(c, h)| (c.as_str(), h.as_str())),
-    );
+    // `--fail-fast`: diff each step against the receipt's claimed step as
+    // soon as `replay_episode` produces it, via `step_diff` (the same
+    // function full mode's loop below calls), instead of waiting for the
+    // whole K-step replay to finish. `fail_fast_step` records the first
+    // divergent step's index; the callback returning `true` stops
+    // `replay_episode` right after that step. See the module doc
+    // comment's `--fail-fast` entry.
+    let mut fail_fast_step: Option<usize> = None;
+    let r = if fail_fast {
+        let mut on_step = |i: usize, local: &StepRecord| -> bool {
+            if i >= w_steps.len() {
+                // Malformed receipt (fewer claimed steps than K): let the
+                // replay run to completion so the length check below
+                // fires exactly as it would in full mode, instead of a
+                // fail-fast message that full mode would never print for
+                // this case.
+                return false;
+            }
+            if step_diff(i, local, &w_steps[i], w_format, false) {
+                fail_fast_step = Some(i);
+                true
+            } else {
+                false
+            }
+        };
+        replay_episode(
+            cis_model,
+            tokenizer,
+            model_sha,
+            embed_sha,
+            vocab_sha,
+            &w_prompt,
+            w_k,
+            w_n,
+            table.as_ref(),
+            suite_sha.as_ref(),
+            provenance.as_ref().map(|(c, h)| (c.as_str(), h.as_str())),
+            w_item_ctx.as_ref(),
+            Some(&mut on_step),
+        )
+    } else {
+        replay_episode(
+            cis_model,
+            tokenizer,
+            model_sha,
+            embed_sha,
+            vocab_sha,
+            &w_prompt,
+            w_k,
+            w_n,
+            table.as_ref(),
+            suite_sha.as_ref(),
+            provenance.as_ref().map(|(c, h)| (c.as_str(), h.as_str())),
+            w_item_ctx.as_ref(),
+            None,
+        )
+    };
+
+    if let Some(i) = fail_fast_step {
+        println!("VERIFY FAIL — replay diverged from the receipt (fail-fast after step {i})");
+        return false;
+    }
 
     let local_trace_chain = hex(&r.trace_chain);
     println!("receipt trace-chain {}", short16(&w_trace_chain));
@@ -1931,52 +2568,16 @@ fn verify_one(
         return false;
     }
 
+    // This after-the-fact loop runs in BOTH modes. Under `--fail-fast`
+    // every step already diffed clean as `replay_episode` produced it
+    // (a divergence returned above), so the diff below finds nothing and
+    // its only visible effect is printing the per-step WARNING lines here,
+    // after the trace-chain lines — the same place full mode prints them,
+    // which keeps PASS output byte-identical whichever mode produced it.
     let mut mismatch = false;
-    for (i, (local, (w_toks, w_tool, w_in, w_out, w_dchain, w_ctx, w_query))) in
-        r.steps.iter().zip(w_steps.iter()).enumerate()
-    {
-        let local_toks_match = &local.toks == w_toks;
-        let local_tool_match = local.tool_name == w_tool;
-        let local_in_match = hex(&local.tool_input) == *w_in;
-        let local_out_match = hex(&local.tool_output) == *w_out;
-        let local_dchain_match = hex(&local.decode_chain) == *w_dchain;
-        if !(local_toks_match
-            && local_tool_match
-            && local_in_match
-            && local_out_match
-            && local_dchain_match)
-        {
-            println!(
-                "step {i} divergence: toks-match={local_toks_match} tool-match={local_tool_match} in-match={local_in_match} out-match={local_out_match} decode-chain-match={local_dchain_match}"
-            );
+    for (i, (local, w_step)) in r.steps.iter().zip(w_steps.iter()).enumerate() {
+        if step_diff(i, local, w_step, w_format, true) {
             mismatch = true;
-        }
-
-        // Format-2 only: per-step context/query binding. A format-1
-        // receipt carries no ctx=/q= fields (w_ctx/w_query are `None`) and
-        // is otherwise verified exactly as above — see the module doc
-        // comment's format-2 entry and the `FORMAT1_NOTE` line already
-        // printed above.
-        if w_format >= 2 {
-            let local_ctx = hex(&local.ctx_digest);
-            match w_ctx {
-                Some(claimed) if *claimed == local_ctx => {}
-                _ => {
-                    println!("{}", ctx_mismatch_msg(i));
-                    mismatch = true;
-                }
-            }
-            let local_query = hex(&local.query_digest);
-            match w_query {
-                Some(claimed) if *claimed == local_query => {}
-                _ => {
-                    println!("{}", query_mismatch_msg(i));
-                    mismatch = true;
-                }
-            }
-            if !local.verbatim_ok {
-                println!("{}", verbatim_warning_msg(i));
-            }
         }
     }
 
@@ -1999,6 +2600,53 @@ fn verify_one(
         if claimed != local_warns {
             println!(
                 "VERIFY FAIL — WARNING lines claim steps {claimed:?}, replay derives {local_warns:?}"
+            );
+            mismatch = true;
+        }
+    }
+
+    // The receipt's WARNING lines are part of what a reader is shown, so
+    // they must match what this replay independently derives — otherwise a
+    // warning could be deleted from, or invented in, a PASSing receipt.
+    // Gated to format 2 and later: pre-format-2 receipts predate this
+    // module's warning emission and their WARNING lines are not evidence.
+    if w_format >= 2 {
+        let mut claimed = w_warn_steps.clone();
+        claimed.sort_unstable();
+        claimed.dedup();
+        let local_warns: Vec<usize> = r
+            .steps
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| !s.verbatim_ok)
+            .map(|(i, _)| i)
+            .collect();
+        if claimed != local_warns {
+            println!(
+                "VERIFY FAIL — WARNING lines claim steps {claimed:?}, replay derives {local_warns:?}"
+            );
+            mismatch = true;
+        }
+    }
+
+    // tools-1c strict grounding mode (`--strict-grounding`, default off —
+    // see `STRICT_GROUNDING`'s doc comment and demo/agent-trace/README.md):
+    // an argument this replay could not find verbatim in prior externally
+    // supplied text (`!verbatim_ok`) is a fabricated tool argument, not a
+    // benign warning, under this mode. Gated to format 2+ for the same
+    // reason as the WARNING-line check above (older receipts predate this
+    // module's warning emission and carry no `verbatim_ok` evidence).
+    if STRICT_GROUNDING.load(std::sync::atomic::Ordering::Relaxed) && w_format >= 2 {
+        let local_warns: Vec<usize> = r
+            .steps
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| !s.verbatim_ok)
+            .map(|(i, _)| i)
+            .collect();
+        if !local_warns.is_empty() {
+            println!(
+                "VERIFY FAIL — strict grounding: step(s) {local_warns:?} argument not grounded in prior prompt/tool-result text (--strict-grounding)"
             );
             mismatch = true;
         }
@@ -2101,10 +2749,54 @@ mod tests {
     }
 
     #[test]
+    fn verbatim_rule_is_sound_but_not_complete() {
+        // Sound: an argument absent from external text always warns. There is
+        // no external text a WARNING can be raised against falsely, because
+        // `contains` is exact.
+        let external = "What is part 401?";
+        assert!(!verbatim_ok_for(external, b"LOOKUP(403)"));
+        assert!(!verbatim_ok_for(external, b"LOOKUP(4010)"));
+
+        // Not complete: a fragment of external text passes. `40` never
+        // appeared as a part number, but it is a substring of `401`, so this
+        // step is not flagged. E34's WARNING counts are therefore a lower
+        // bound on ungrounded tool calls, never an upper one.
+        assert!(verbatim_ok_for(external, b"LOOKUP(40)"));
+        assert!(verbatim_ok_for(external, b"LOOKUP(4)"));
+
+        // And a step that calls no tool is never flagged at all, so the
+        // WARNING census says nothing about the groundedness of model prose.
+        assert!(verbatim_ok_for("", b"no-tool"));
+    }
+
+    #[test]
     fn verbatim_rule_step0_ignores_few_shot_examples() {
         // last_q_line drops the shots, so a shot-copied argument is flagged.
         let prompt = "Q: 2 + 2\nA: CALC(2 + 2).\nQ: two + two\nA:";
         assert!(!verbatim_ok_for(last_q_line(prompt), b"CALC(2 + 2)"));
+    }
+
+    #[test]
+    fn tools1c_calc_argument_not_derivable_from_context_is_ungrounded() {
+        // tools-1c: a CALC argument invented by the model (no fragment of
+        // the prompt or of any prior tool result matches it) is exactly the
+        // case `verbatim_ok_for` exists to catch -- this is what drives the
+        // (lenient, default) WARNING and, under `--strict-grounding`, the
+        // VERIFY FAIL in `verify_one`. No prior tool result and the argument
+        // does not occur in the question either, so it must currently warn.
+        let external = "Q: What is 2 + 2?\n";
+        assert!(!verbatim_ok_for(external, b"CALC(97)"));
+    }
+
+    #[test]
+    fn tools1c_calc_argument_grounded_via_prior_lookup_result_passes() {
+        // Legitimate tool chaining, not the attack the rule targets: step
+        // 0's LOOKUP result is appended to the running context as a
+        // `TOOL[...]=...` line (see `tool_result_text`), so a later step's
+        // CALC argument copied from that result is grounded in a prior tool
+        // result, not fabricated, and must NOT warn in either mode.
+        let external = "Q: What is 2 + 2?\nTOOL[lookup]=weight is 42\n";
+        assert!(verbatim_ok_for(external, b"CALC(42)"));
     }
 
     #[test]
@@ -2218,7 +2910,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2")
     }
@@ -2234,7 +2926,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 1, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
@@ -2247,7 +2939,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[8u8; 32], b"calc", b"CALC(1 + 1)", b"2");
@@ -2260,7 +2952,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"no-tool", b"CALC(1 + 1)", b"2");
@@ -2273,7 +2965,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 2)", b"2");
@@ -2286,7 +2978,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let d0 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"2");
         let d1 = trace_fold_step(g, 0, &[9u8; 32], b"calc", b"CALC(1 + 1)", b"3");
@@ -2299,16 +2991,16 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g0 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let g1 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hellp", None, None, None, None,
         );
         let g2 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 4, 16, b"hello", None, None, None, None,
         );
         let g3 = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 17, b"hello", None, None, None, None,
         );
         assert_ne!(g0, g1);
         assert_ne!(g0, g2);
@@ -2320,7 +3012,70 @@ mod tests {
     #[test]
     fn check_step_label_accepts_matching_position() {
         assert!(check_step_label("2", 2).is_ok());
-        assert!(check_step_label(" 0 ", 0).is_ok());
+    }
+
+    #[test]
+    fn check_step_label_rejects_surrounding_whitespace() {
+        // Canonical form (FORMAT.md §2): a label like " 0 " used to be
+        // accepted via `.trim()` before parsing; it is now non-canonical.
+        assert!(check_step_label(" 0 ", 0).is_err());
+    }
+
+    #[test]
+    fn parse_canonical_uint_rejects_leading_zero() {
+        assert!(parse_canonical_uint::<u64>("007").is_err());
+        assert!(parse_canonical_uint::<u64>("0").is_ok());
+    }
+
+    #[test]
+    fn parse_canonical_uint_rejects_leading_plus() {
+        assert!(parse_canonical_uint::<u64>("+3").is_err());
+    }
+
+    #[test]
+    fn parse_canonical_uint_rejects_leading_minus() {
+        assert!(parse_canonical_uint::<u64>("-3").is_err());
+    }
+
+    #[test]
+    fn parse_canonical_uint_rejects_surrounding_whitespace() {
+        assert!(parse_canonical_uint::<u64>(" 3").is_err());
+        assert!(parse_canonical_uint::<u64>("3 ").is_err());
+    }
+
+    #[test]
+    fn parse_canonical_uint_accepts_plain_digits() {
+        assert_eq!(parse_canonical_uint::<u64>("42"), Ok(42u64));
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_rejects_cr() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\r\nK 1\r\n").is_err());
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_rejects_leading_blank_line() {
+        assert!(check_receipt_text_canonical("\nAEGIS-TRACE v2\nK 1\n").is_err());
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_rejects_mid_blank_line() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\n\nK 1\n").is_err());
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_rejects_trailing_blank_line() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\nK 1\n\n").is_err());
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_accepts_clean_text() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\nK 1\n").is_ok());
+    }
+
+    #[test]
+    fn check_receipt_text_canonical_rejects_missing_final_newline() {
+        assert!(check_receipt_text_canonical("AEGIS-TRACE v2\nK 1").is_err());
     }
 
     #[test]
@@ -2448,6 +3203,36 @@ mod tests {
         assert!(parse_table(&bytes).is_err());
     }
 
+    #[test]
+    fn read_receipt_text_rejects_non_utf8_without_panic() {
+        let path = std::env::temp_dir().join(format!(
+            "agent_trace_test_{}_non_utf8_receipt",
+            std::process::id()
+        ));
+        std::fs::write(&path, b"AEGIS-TRACE v2\nmodel \xFF\n").unwrap();
+        let r = read_receipt_text(path.to_str().unwrap());
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(r.unwrap_err(), "receipt is not valid UTF-8");
+    }
+
+    #[test]
+    fn read_receipt_text_reports_missing_file() {
+        let r = read_receipt_text("/nonexistent/agent_trace_no_such_receipt.txt");
+        assert!(r.unwrap_err().starts_with("cannot read receipt"));
+    }
+
+    #[test]
+    fn read_receipt_text_accepts_utf8() {
+        let path = std::env::temp_dir().join(format!(
+            "agent_trace_test_{}_utf8_receipt",
+            std::process::id()
+        ));
+        std::fs::write(&path, "AEGIS-TRACE v2\nK 1\n").unwrap();
+        let r = read_receipt_text(path.to_str().unwrap());
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(r.unwrap(), "AEGIS-TRACE v2\nK 1\n");
+    }
+
     // --- lookup tool: hit/miss ---
 
     #[test]
@@ -2516,7 +3301,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g_none = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let table_sha_a = [7u8; 32];
         let table_sha_b = [8u8; 32];
@@ -2530,6 +3315,7 @@ mod tests {
             Some((&table_sha_a, 42)),
             None,
             None,
+            None,
         );
         let g_b = trace_genesis(
             &model_sha,
@@ -2541,6 +3327,7 @@ mod tests {
             Some((&table_sha_b, 42)),
             None,
             None,
+            None,
         );
         let g_len = trace_genesis(
             &model_sha,
@@ -2550,6 +3337,7 @@ mod tests {
             16,
             b"hello",
             Some((&table_sha_a, 43)),
+            None,
             None,
             None,
         );
@@ -2569,7 +3357,7 @@ mod tests {
         let embed_sha = [2u8; 32];
         let vocab_sha = [3u8; 32];
         let g_none = trace_genesis(
-            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None,
+            &model_sha, &embed_sha, &vocab_sha, 3, 16, b"hello", None, None, None, None,
         );
         let suite_a = [7u8; 32];
         let suite_b = [8u8; 32];
@@ -2583,6 +3371,7 @@ mod tests {
             None,
             Some(&suite_a),
             None,
+            None,
         );
         let g_b = trace_genesis(
             &model_sha,
@@ -2593,6 +3382,7 @@ mod tests {
             b"hello",
             None,
             Some(&suite_b),
+            None,
             None,
         );
         assert_ne!(
@@ -2624,6 +3414,7 @@ mod tests {
                 None,
                 None,
                 Some((commit.as_bytes(), host.as_bytes())),
+                None,
             )
         };
         let box1 = g("aa0f99df", "aefinity-box");
@@ -2671,6 +3462,7 @@ mod tests {
             Some((&table_sha, 32)),
             None,
             None,
+            None,
         );
         let expected: [u8; 32] = [
             0x65, 0x0f, 0x2b, 0x11, 0x05, 0x73, 0x60, 0x3f, 0x20, 0x9a, 0x27, 0x43, 0x34, 0xea,
@@ -2703,6 +3495,7 @@ mod tests {
             Some((&same_bytes, 32)),
             None,
             None,
+            None,
         );
         let g_suite = trace_genesis(
             &model_sha,
@@ -2713,6 +3506,7 @@ mod tests {
             b"hello",
             None,
             Some(&same_bytes),
+            None,
             None,
         );
         assert_ne!(
@@ -2929,6 +3723,68 @@ mod tests {
         path
     }
 
+    /// Render an `EpisodeReplay` produced WITH an `item_ctx` (safe-2c) as
+    /// format-4 (`AEGIS-TRACE v3`) receipt text, `item-ctx` line included.
+    /// `r.trace_chain` must already have been computed with the same
+    /// `item_ctx` (i.e. `replay_episode`'s `item_ctx` argument was
+    /// `Some(item_ctx)`) — this function does not recompute anything, it
+    /// only serializes.
+    fn render_receipt_v3(
+        model_sha: &[u8; 32],
+        embed_sha: &[u8; 32],
+        vocab_sha: &[u8; 32],
+        prompt: &str,
+        k: usize,
+        n: usize,
+        item_ctx: &[u8; 32],
+        r: &EpisodeReplay,
+    ) -> String {
+        let mut text = String::new();
+        text.push_str("AEGIS-TRACE v3\n");
+        text.push_str(&format!("model {}\n", hex(model_sha)));
+        text.push_str(&format!("embed {}\n", hex(embed_sha)));
+        text.push_str(&format!("vocab {}\n", hex(vocab_sha)));
+        text.push_str(&format!("K {k}\n"));
+        text.push_str(&format!("N {n}\n"));
+        text.push_str(&format!("prompt-hex {}\n", hex(prompt.as_bytes())));
+        text.push_str("commit test\n");
+        text.push_str("host test\n");
+        text.push_str(&format!("item-ctx {}\n", hex(item_ctx)));
+        for (i, s) in r.steps.iter().enumerate() {
+            let ids: Vec<String> = s.toks.iter().map(|t| t.to_string()).collect();
+            text.push_str(&format!(
+                "step {i}: toks={} tool={} in={} out={} decode-chain={} ctx={} q={}\n",
+                ids.join(","),
+                s.tool_name,
+                hex(&s.tool_input),
+                hex(&s.tool_output),
+                hex(&s.decode_chain),
+                hex(&s.ctx_digest),
+                hex(&s.query_digest)
+            ));
+        }
+        text.push_str(&format!("trace-chain {}\n", hex(&r.trace_chain)));
+        text
+    }
+
+    /// Replace the `item-ctx <hex>` line's value with a different (but
+    /// still well-formed, 64 lowercase hex) value, leaving `trace-chain`
+    /// (and everything else) untouched — the smallest possible "someone
+    /// edited the ctx line directly" tamper.
+    fn overwrite_item_ctx_line(text: &str, new_hex: &str) -> String {
+        let mut out = String::new();
+        for line in text.lines() {
+            if line.starts_with("item-ctx ") {
+                out.push_str("item-ctx ");
+                out.push_str(new_hex);
+            } else {
+                out.push_str(line);
+            }
+            out.push('\n');
+        }
+        out
+    }
+
     #[test]
     fn format2_round_trip_gen_then_verify_pass_with_ctx_q_fields() {
         // Tool-call binding (a tampered `q=`/tool-call argument breaking
@@ -2944,7 +3800,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None, None,
         );
         assert_eq!(r.steps.len(), k);
         for s in &r.steps {
@@ -2974,6 +3830,8 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
+            None,
             None,
         );
         let _ = std::fs::remove_file(&path);
@@ -2991,7 +3849,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None, None,
         );
         let good_text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let tampered = flip_hex_field(&good_text, "step 1:", "q=");
@@ -3010,12 +3868,441 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
+            None,
             None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
             !pass,
             "a flipped q= field must make verify FAIL (STEP 1 QUERY MISMATCH)"
+        );
+    }
+
+    // --- safe-2c: item/session ctx binding (fixes the safe-2b tamper-4
+    // "replay under wrong item id" gap: a receipt's own math could be
+    // entirely self-consistent while filed under the wrong item). ---
+
+    #[test]
+    fn compute_item_ctx_is_sensitive_to_every_input() {
+        let a = compute_item_ctx(b"item-A", b"prompt text", b"nonce-1");
+        let b = compute_item_ctx(b"item-B", b"prompt text", b"nonce-1");
+        let c = compute_item_ctx(b"item-A", b"different prompt", b"nonce-1");
+        let d = compute_item_ctx(b"item-A", b"prompt text", b"nonce-2");
+        assert_ne!(a, b, "different item_id must produce a different ctx");
+        assert_ne!(a, c, "different prompt must produce a different ctx");
+        assert_ne!(a, d, "different nonce must produce a different ctx");
+    }
+
+    #[test]
+    fn safe2c_matching_ctx_passes_verify() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let item_id = b"item-42";
+        let nonce = b"nonce-A";
+        let ctx = compute_item_ctx(item_id, prompt.as_bytes(), nonce);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let text = render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        let path = write_temp_receipt("safe2c-match.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            Some(ctx),
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            pass,
+            "a receipt whose item-ctx matches --expect-ctx must verify PASS"
+        );
+    }
+
+    #[test]
+    fn safe2c_wrong_expected_item_id_fails_verify() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let item_id = b"item-42";
+        let nonce = b"nonce-A";
+        let ctx = compute_item_ctx(item_id, prompt.as_bytes(), nonce);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let text = render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        let path = write_temp_receipt("safe2c-wrong-item.txt", &text);
+        // Expect the ctx for a DIFFERENT item id, same prompt/nonce — this
+        // is exactly the safe-2b tamper-4 shape: a receipt generated for
+        // one item, checked against the item id it was filed/replayed
+        // under.
+        let wrong_expected = compute_item_ctx(b"item-99", prompt.as_bytes(), nonce);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            Some(wrong_expected),
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a receipt's item-ctx must not verify against a DIFFERENT item's expected ctx \
+             (replay-under-wrong-id, safe-2b tamper 4)"
+        );
+    }
+
+    #[test]
+    fn safe2c_wrong_expected_prompt_fails_verify() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let item_id = b"item-42";
+        let nonce = b"nonce-A";
+        let ctx = compute_item_ctx(item_id, prompt.as_bytes(), nonce);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let text = render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        let path = write_temp_receipt("safe2c-wrong-prompt.txt", &text);
+        // Same item id and nonce, but the expectation was derived from a
+        // DIFFERENT prompt than what this receipt actually attests to.
+        let wrong_expected = compute_item_ctx(item_id, b"a completely different prompt", nonce);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            Some(wrong_expected),
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a receipt's item-ctx must not verify against an expectation derived from a \
+             different prompt"
+        );
+    }
+
+    #[test]
+    fn safe2c_editing_item_ctx_line_directly_breaks_the_hash_chain() {
+        // The item-ctx line is folded into trace genesis (see
+        // `trace_genesis`'s `item_ctx` parameter), so directly editing it
+        // in a receipt file — without also recomputing every downstream
+        // hash — must fail via the ORDINARY chain-divergence path (`VERIFY
+        // FAIL — replay diverged from the receipt`), not merely trip an
+        // independent `--expect-ctx` field comparison. This is what makes
+        // the binding tamper-evident even when the caller supplies no
+        // `--expect-ctx` at all.
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let item_id = b"item-42";
+        let nonce = b"nonce-A";
+        let ctx = compute_item_ctx(item_id, prompt.as_bytes(), nonce);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let good_text =
+            render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        // A different, still well-formed (64 lowercase hex) item-ctx value,
+        // with trace-chain left exactly as the ORIGINAL replay produced it
+        // (the attacker does not have the model to recompute anything).
+        let other_ctx = compute_item_ctx(b"some-other-item", prompt.as_bytes(), nonce);
+        let tampered = overwrite_item_ctx_line(&good_text, &hex(&other_ctx));
+        assert_ne!(
+            good_text, tampered,
+            "tamper helper must actually change the receipt"
+        );
+
+        let path = write_temp_receipt("safe2c-edit-ctx-line.txt", &tampered);
+        // No --expect-ctx given at all: this must still fail, purely from
+        // the hash chain no longer matching what the (unedited)
+        // trace-chain line claims.
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "editing item-ctx directly must break the trace-chain fold, not just an \
+             independent ctx comparison"
+        );
+    }
+
+    // --- --fail-fast ---
+
+    /// `replay_episode`'s per-step hook is the whole mechanism `--fail-fast`
+    /// relies on to avoid replaying steps after the first divergence: this
+    /// tests the hook directly (returning `true` from `on_step` on the
+    /// very first step) and asserts the replay produces exactly one step,
+    /// not `k`. `verify_one`'s `fail_fast` tests below cover the
+    /// end-to-end behaviour built on top of this hook.
+    #[test]
+    fn replay_episode_on_step_hook_stops_the_replay() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 3usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let mut calls = 0usize;
+        let mut cb = |_i: usize, _rec: &StepRecord| -> bool {
+            calls += 1;
+            true
+        };
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            None,
+            None,
+            Some(&mut cb),
+        );
+        assert_eq!(
+            calls, 1,
+            "on_step must not be called again once it has returned true"
+        );
+        assert_eq!(
+            r.steps.len(),
+            1,
+            "a true return from on_step must stop the replay after that step, \
+             not run the remaining k-1 steps"
+        );
+    }
+
+    /// Build a clean (untampered) format-2 receipt, then flip a step-0 hex
+    /// field so the receipt disagrees with replay starting at step 0 —
+    /// the tamper both `fail_fast_verify_fails_at_step_0_tamper` and
+    /// `full_mode_still_fails_on_step_0_tamper` share, so both tests are
+    /// exercising the identical divergence.
+    fn step0_tampered_receipt(
+        cis_model: &CisModel,
+        tokenizer: &AegisTokenizer,
+        model_sha: &[u8; 32],
+        embed_sha: &[u8; 32],
+        vocab_sha: &[u8; 32],
+        prompt: &str,
+        k: usize,
+        n: usize,
+    ) -> String {
+        let r = replay_episode(
+            cis_model, tokenizer, model_sha, embed_sha, vocab_sha, prompt, k, n, None, None, None,
+            None, None,
+        );
+        let good_text = render_receipt(2, model_sha, embed_sha, vocab_sha, prompt, k, n, &r);
+        let tampered = flip_hex_field(&good_text, "step 0:", "decode-chain=");
+        assert_ne!(
+            good_text, tampered,
+            "tamper helper must actually change the receipt"
+        );
+        tampered
+    }
+
+    /// Requirement (a): `--fail-fast` on a receipt tampered at step 0
+    /// reports the divergence at step 0 and fails verify (the fail-fast
+    /// message itself — `VERIFY FAIL — replay diverged from the receipt
+    /// (fail-fast after step {i})` — is only observable on stdout, which
+    /// this test-module style does not capture; see the module doc
+    /// comment's `--fail-fast` entry and `verify_one`'s fail-fast branch
+    /// for where `i` is pinned to the first divergent step index).
+    #[test]
+    fn fail_fast_verify_fails_at_step_0_tamper() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 3usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let tampered = step0_tampered_receipt(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n,
+        );
+        let path = write_temp_receipt("fail-fast-step0.txt", &tampered);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            true,
+            None, // --fail-fast
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a step-0 decode-chain tamper must fail --fail-fast verify"
+        );
+    }
+
+    /// Requirement (c): full-mode verify (`fail_fast=false`) on the exact
+    /// same step-0 tamper `fail_fast_verify_fails_at_step_0_tamper` uses
+    /// must also FAIL — both modes reach the same verdict for the same
+    /// divergence, only fail-fast stops the replay early. Full mode's
+    /// per-step FAIL wording for a non-step-0 tamper is already covered by
+    /// `format2_query_tamper_fails_verify` above.
+    #[test]
+    fn full_mode_still_fails_on_step_0_tamper() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 3usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let tampered = step0_tampered_receipt(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n,
+        );
+        let path = write_temp_receipt("full-mode-step0.txt", &tampered);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a step-0 decode-chain tamper must fail full-mode verify too"
+        );
+    }
+
+    /// Requirement (b): on an untampered receipt, `--fail-fast` still
+    /// PASSes, agreeing with full mode on the same receipt.
+    #[test]
+    fn fail_fast_pass_matches_full_mode_on_clean_receipt() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 2usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None, None, None,
+        );
+        let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        let path = write_temp_receipt("fail-fast-clean.txt", &text);
+        let pass_full = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        let pass_fail_fast = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            true,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(pass_full, "clean receipt must PASS full-mode verify");
+        assert!(
+            pass_fail_fast,
+            "clean receipt must PASS --fail-fast verify too, identically to full mode"
         );
     }
 
@@ -3027,7 +4314,7 @@ mod tests {
         let prompt = "Once upon a time";
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None, None,
         );
         let text = render_receipt(1, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         assert!(
@@ -3044,6 +4331,8 @@ mod tests {
             &embed_sha,
             &vocab_sha,
             None,
+            None,
+            false,
             None,
             None,
         );
@@ -3062,7 +4351,7 @@ mod tests {
         let (k, n, prompt) = (2usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None, None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         // Tamper the last step's ctx= so format-2 rules would reject it.
@@ -3087,6 +4376,8 @@ mod tests {
             &embed_sha,
             &vocab_sha,
             None,
+            None,
+            false,
             None,
             None,
         );
@@ -3118,6 +4409,257 @@ mod tests {
         );
     }
 
+    // --- verifier-structure-first (2026-09-11): malformed step hex and a
+    // truncated trace-chain used to be indistinguishable from a genuine
+    // replay divergence — both printed `VERIFY FAIL — replay diverged from
+    // the receipt`, because neither the step's `in=`/`out=`/`decode-chain=`
+    // values nor the lead `trace-chain` value were hex-validated at parse
+    // time; an unparseable value just failed to equal whatever replay
+    // independently computed. `trace_chain.py` (FORMAT.md's clean-room
+    // reference; see its "Undecodable step hex" comment and its
+    // `is_hex64_lower` check) has always rejected both up front as
+    // structural defects, matching the `malformed-step-hex` and
+    // `malformed-truncated-chain` vectors in
+    // `demo/agent-trace/vectors/EXPECTED.tsv`. The two tests below hold the
+    // reference verifier to the same rule. ---
+
+    #[test]
+    fn verify_rejects_malformed_step_hex_as_structure() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let (k, n, prompt) = (2usize, 8usize, "Once upon a time");
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None, None, None,
+        );
+        let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+
+        // Corrupt step 0's `decode-chain=` value with a non-hex character.
+        // `decode-chain` (unlike `in=`, which is empty on steps that never
+        // call a tool) is always populated, so its value is guaranteed
+        // non-empty here. A pure bit flip within [0-9a-f] would still be
+        // valid hex (and so would still just be a replay divergence) —
+        // this must land outside the hex alphabet to exercise the
+        // structural check.
+        let mut lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+        let step0 = lines
+            .iter()
+            .position(|l| l.starts_with("step 0:"))
+            .expect("a step 0 line");
+        let field = "decode-chain=";
+        let val_start = lines[step0].find(field).expect("a decode-chain= field") + field.len();
+        let rest = &lines[step0][val_start..];
+        let val_len = rest.find(' ').unwrap_or(rest.len());
+        assert!(
+            val_len > 0,
+            "sanity: decode-chain= must have a non-empty value to corrupt"
+        );
+        let i = val_start;
+        let before = lines[step0].as_bytes()[i];
+        assert!(
+            before.is_ascii_hexdigit(),
+            "sanity: the untouched character must be valid hex before corruption"
+        );
+        lines[step0].replace_range(i..i + 1, "z");
+        assert!(
+            !lines[step0].as_bytes()[i].is_ascii_hexdigit(),
+            "sanity: the corrupted field must actually be invalid hex"
+        );
+        let text = lines.join("\n") + "\n";
+
+        let path = write_temp_receipt("malformed-step-hex.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a step with unparseable hex in `decode-chain=` must fail verify (FAIL structure, before replay)"
+        );
+    }
+
+    #[test]
+    fn verify_rejects_truncated_trace_chain_as_structure() {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let (k, n, prompt) = (1usize, 8usize, "Once upon a time");
+        let r = replay_episode(
+            &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
+            None, None, None,
+        );
+        let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+
+        // Cut the trace-chain line's hex value short — a truncated chain,
+        // not merely a different (but still 64-hex) chain.
+        let mut lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+        let tc = lines
+            .iter()
+            .position(|l| l.starts_with("trace-chain "))
+            .expect("a trace-chain line");
+        let full = lines[tc].strip_prefix("trace-chain ").unwrap().to_string();
+        assert_eq!(full.len(), 64, "trace-chain must render as 64 hex digits");
+        lines[tc] = format!("trace-chain {}", &full[..16]);
+        let text = lines.join("\n") + "\n";
+
+        let path = write_temp_receipt("malformed-truncated-chain.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a truncated trace-chain must fail verify (FAIL structure, before replay)"
+        );
+    }
+
+    // --- safe-1g: cheap structural pre-validation, one test per field the
+    // QUEUE item asked for explicitly. These are integration-level (through
+    // `verify_one`, not just the lower-level helpers already tested above)
+    // so each one also pins that the check fires BEFORE `replay_episode`
+    // would otherwise be reached — none of these mangled receipts trigger a
+    // full model replay; `verify_one` returns `false` from the parse loop
+    // or the immediately-following pre-replay checks. ---
+
+    #[test]
+    fn verify_rejects_k_step_count_mismatch_as_structure() {
+        // K says 3, but only 2 step lines are actually present (a mutation
+        // to `K` — the exact class the safe-1f fuzz report flagged as
+        // needing a fast, pre-replay reject).
+        assert!(!format3_receipt_survives(
+            |t| t.replace("\nK 2\n", "\nK 3\n")
+        ));
+    }
+
+    #[test]
+    fn verify_rejects_malformed_hex_in_prompt_hex_as_structure() {
+        // Corrupt one character of the `prompt-hex` value with a non-hex
+        // byte. Must be caught as a decode failure before replay, not left
+        // to surface later as a trace-chain divergence.
+        assert!(!format3_receipt_survives(|t| {
+            let mut lines: Vec<String> = t.lines().map(|l| l.to_string()).collect();
+            let ph = lines
+                .iter()
+                .position(|l| l.starts_with("prompt-hex "))
+                .expect("a prompt-hex line");
+            let val_start = "prompt-hex ".len();
+            let before = lines[ph].as_bytes()[val_start];
+            assert!(before.is_ascii_hexdigit(), "sanity: hex before corruption");
+            lines[ph].replace_range(val_start..val_start + 1, "z");
+            lines.join("\n") + "\n"
+        }));
+    }
+
+    #[test]
+    fn verify_rejects_wrong_length_item_ctx_as_structure() {
+        // `item-ctx` must be exactly 64 lowercase hex chars (a sha256
+        // digest) on a format-4 (`AEGIS-TRACE v3`) receipt — a shortened
+        // value must fail structurally, distinct from the `trace-chain`
+        // length check above and the `suite-sha256` length check covered
+        // by `parse_suite_sha256_rejects_wrong_length`.
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let k = 1usize;
+        let n = 16usize;
+        let prompt = "Once upon a time";
+        let ctx = compute_item_ctx(b"item-1", prompt.as_bytes(), b"nonce-1");
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some(("test", "test")),
+            Some(&ctx),
+            None,
+        );
+        let text = render_receipt_v3(&model_sha, &embed_sha, &vocab_sha, prompt, k, n, &ctx, &r);
+        let mut lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+        let ic = lines
+            .iter()
+            .position(|l| l.starts_with("item-ctx "))
+            .expect("an item-ctx line");
+        let full = lines[ic].strip_prefix("item-ctx ").unwrap().to_string();
+        assert_eq!(full.len(), 64, "item-ctx must render as 64 hex digits");
+        lines[ic] = format!("item-ctx {}", &full[..32]);
+        let text = lines.join("\n") + "\n";
+
+        let path = write_temp_receipt("wrong-length-item-ctx.txt", &text);
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "an item-ctx shorter than 64 hex chars must fail verify (FAIL structure, before replay)"
+        );
+    }
+
+    #[test]
+    fn verify_rejects_non_utf8_receipt_as_structure_before_replay() {
+        // Invalid UTF-8 must be rejected by `verify_one` itself (its very
+        // first step, `read_receipt_text`) rather than reaching any of the
+        // line-oriented parsing below — pinned here at the `verify_one`
+        // entry point, not just at the `read_receipt_text` unit level (see
+        // `read_receipt_text_rejects_non_utf8_without_panic`).
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let path = std::env::temp_dir().join(format!(
+            "agent_trace_test_{}_non-utf8-receipt.txt",
+            std::process::id()
+        ));
+        std::fs::write(&path, [b'A', b'E', b'G', b'I', b'S', 0xff, 0xfe])
+            .expect("write temp receipt");
+        let pass = verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        );
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !pass,
+            "a non-UTF-8 receipt must fail verify immediately (FAIL structure, before replay)"
+        );
+    }
+
     // --- E23 (cm-box2, 2026-09-09): the tamper matrix ran 321 mutants of
     // four episodes against the format-2 verifier and 28 of them still
     // reported VERIFY PASS. They fell into three families, each closed by
@@ -3143,6 +4685,8 @@ mod tests {
             None,
             None,
             Some(("test", "test")),
+            None,
+            None,
         );
         let text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         // Unique per call: these tests run in parallel in one process and
@@ -3158,6 +4702,8 @@ mod tests {
             &embed_sha,
             &vocab_sha,
             None,
+            None,
+            false,
             None,
             None,
         )
@@ -3225,6 +4771,8 @@ mod tests {
             None,
             None,
             Some(("test", "test")),
+            None,
+            None,
         );
         let text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -3238,6 +4786,8 @@ mod tests {
             &embed_sha,
             &vocab_sha,
             None,
+            None,
+            false,
             None,
             expect_prompt_hash,
         );
@@ -3262,6 +4812,8 @@ mod tests {
             None,
             None,
             Some(("test", "test")),
+            None,
+            None,
         );
         let text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let expected = sha256(prompt.as_bytes());
@@ -3303,6 +4855,8 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
+            None,
             None,
         );
         assert!(
@@ -3322,6 +4876,8 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
+            None,
             Some(expected),
         );
         assert!(
@@ -3330,6 +4886,95 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// Same as `format3_receipt_survives`, but the receipt's `commit` line
+    /// (and the genesis it is folded into) is built from `commit` instead
+    /// of the fixed `"test"` — used to exercise the `unknown`-commit
+    /// WARNING path, which must still verify unchanged (see
+    /// `unknown_commit_receipt_still_verifies_pass`).
+    fn format3_receipt_survives_with_commit(commit: &str, mangle: impl Fn(&str) -> String) -> bool {
+        let (cis_model, tokenizer, model_sha, embed_sha, vocab_sha) = load_m7_model();
+        let prompt = "Q: What is 2 + 2?\nA:";
+        let (k, n) = (2usize, 8usize);
+        let r = replay_episode(
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            prompt,
+            k,
+            n,
+            None,
+            None,
+            Some((commit, "test")),
+            None,
+            None,
+        );
+        let mut text = render_receipt(3, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
+        text = text.replace("commit test\n", &format!("commit {commit}\n"));
+        static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = write_temp_receipt(&format!("format3-commit-{seq}.txt"), &mangle(&text));
+        verify_one(
+            path.to_str().unwrap(),
+            &cis_model,
+            &tokenizer,
+            &model_sha,
+            &embed_sha,
+            &vocab_sha,
+            None,
+            None,
+            false,
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn unknown_commit_receipt_still_verifies_pass() {
+        // An "unknown"-commit format-3 receipt is unpinned provenance, not
+        // a tamper: `verify` must PASS it exactly as it would a receipt
+        // with a real commit, and print `UNKNOWN_COMMIT_WARNING` alongside
+        // (see `verify_one`'s provenance block) rather than change
+        // PASS/FAIL semantics.
+        assert!(
+            format3_receipt_survives_with_commit("unknown", |t| t.to_string()),
+            "a format-3 receipt with commit=unknown must still verify PASS \
+             structurally exactly as any other commit value would"
+        );
+    }
+
+    #[test]
+    fn unknown_commit_warning_text_is_exact() {
+        assert_eq!(
+            UNKNOWN_COMMIT_WARNING,
+            "WARNING: receipt commit is unknown (provenance not pinned to code)"
+        );
+    }
+
+    #[test]
+    fn commit_hash_is_forty_hex_or_unknown() {
+        let c = commit_hash();
+        let is_forty_hex =
+            c.len() == 40 && c.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+        assert!(
+            is_forty_hex || c == "unknown",
+            "commit_hash() must be 40 lowercase hex or the literal \"unknown\", got {c:?}"
+        );
+        // This crate's own manifest dir is inside a git checkout (the repo
+        // this test itself was built from), so build.rs must have resolved
+        // a real commit here, never "unknown".
+        if std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.git")).exists() {
+            assert_ne!(
+                c,
+                "unknown",
+                "built inside a git checkout ({}/../.git exists); commit_hash() must not be \
+                 \"unknown\" — check build.rs's git invocation",
+                env!("CARGO_MANIFEST_DIR")
+            );
+        }
     }
 
     #[test]
@@ -3415,6 +5060,115 @@ mod tests {
         )));
     }
 
+    // --- E23 R8 judgment (2026-09-11): canonical-form strictness ---
+
+    #[test]
+    fn canonical_form_rejects_crlf() {
+        assert!(!format3_receipt_survives(|t| t.replace('\n', "\r\n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_leading_blank_line() {
+        assert!(!format3_receipt_survives(|t| format!("\n{t}")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_mid_blank_line() {
+        assert!(!format3_receipt_survives(|t| t.replacen('\n', "\n\n", 1)));
+    }
+
+    #[test]
+    fn canonical_form_rejects_trailing_blank_line() {
+        assert!(!format3_receipt_survives(|t| format!("{t}\n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_missing_final_newline() {
+        assert!(!format3_receipt_survives(|t| t.trim_end().to_string()));
+    }
+
+    #[test]
+    fn canonical_form_rejects_k_leading_zero() {
+        assert!(!format3_receipt_survives(|t| t.replace("K 2\n", "K 02\n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_k_leading_plus() {
+        assert!(!format3_receipt_survives(|t| t.replace("K 2\n", "K +2\n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_n_trailing_space() {
+        assert!(!format3_receipt_survives(|t| t.replace("N 8\n", "N 8 \n")));
+    }
+
+    #[test]
+    fn canonical_form_rejects_empty_commit() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace("commit test\n", "commit \n")
+        ));
+    }
+
+    #[test]
+    fn canonical_form_rejects_empty_host() {
+        assert!(!format3_receipt_survives(
+            |t| t.replace("host test\n", "host \n")
+        ));
+    }
+
+    #[test]
+    fn canonical_form_round_trip_still_verifies_pass() {
+        // Positive control: an untampered, canonically-generated receipt
+        // must still verify PASS after the canonical-form checks above are
+        // added — this is the in-process equivalent of the repo's pinned
+        // demo receipt vectors (see below for the vectors themselves).
+        assert!(
+            format3_receipt_survives(|t| t.to_string()),
+            "a canonical, untampered receipt must still verify PASS"
+        );
+    }
+
+    #[test]
+    fn pinned_demo_vectors_are_canonical() {
+        // The repo's pinned "real receipt" demo vectors (demo/agent-trace/
+        // vectors/, see its README) predate this canonical-form strictness
+        // pass. This confirms they remain canonical text under the new
+        // whole-text rules (CR / blank lines) without needing to load the
+        // model those receipts were generated against. Full model-backed
+        // VERIFY PASS on these files is exercised by
+        // `demo/agent-trace/tools/trace_chain.py --selftest`, not this
+        // Rust test binary.
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../demo/agent-trace/vectors");
+        for name in [
+            "fmt3-k3-763658a.txt",
+            "fmt2-k1-suite.txt",
+            "fmt3-k3-table-chain.txt",
+            "fmt3-k3-dbfb051.txt",
+            "fmt3-k12-table-chain-113afa7.txt",
+        ] {
+            let path = dir.join(name);
+            let text =
+                std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path:?}: {e}"));
+            assert!(
+                check_receipt_text_canonical(&text).is_ok(),
+                "{name} must be canonical text (no CR, no blank lines)"
+            );
+            assert!(
+                text.contains("\ncommit ") || text.starts_with("commit "),
+                "{name}: commit line missing"
+            );
+            assert!(
+                !text.contains("\ncommit \n") && !text.contains("\ncommit\n"),
+                "{name}: commit value must be non-empty"
+            );
+            assert!(
+                !text.contains("\nhost \n") && !text.contains("\nhost\n"),
+                "{name}: host value must be non-empty"
+            );
+        }
+    }
+
     #[test]
     fn malformed_warning_line_is_rejected() {
         assert!(!format3_receipt_survives(|t| t.replace(
@@ -3436,7 +5190,7 @@ mod tests {
         let (k, n, prompt) = (1usize, 8usize, "Once upon a time");
         let r = replay_episode(
             &cis_model, &tokenizer, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, None, None,
-            None,
+            None, None, None,
         );
         let text = render_receipt(2, &model_sha, &embed_sha, &vocab_sha, prompt, k, n, &r);
         let moved = format!("model {}\nAEGIS-TRACE v1\n{}", hex(&model_sha), text);
@@ -3451,12 +5205,155 @@ mod tests {
             &vocab_sha,
             None,
             None,
+            false,
+            None,
             None,
         );
         let _ = std::fs::remove_file(&path);
         assert!(
             !pass,
             "the AEGIS-TRACE header must be required to come first"
+        );
+    }
+
+    // --- file-read tool: grammar, table binding, scanner ---
+
+    #[test]
+    fn find_file_read_matches_valid_key() {
+        let (m, k) = find_file_read("see FILE-READ(README.md) for details").unwrap();
+        assert_eq!(m, "FILE-READ(README.md)");
+        assert_eq!(k, "README.md");
+    }
+
+    #[test]
+    fn find_file_read_rejects_bad_key() {
+        assert!(find_file_read("FILE-READ(../etc/passwd)").is_none());
+        assert!(find_file_read("FILE-READ()").is_none());
+    }
+
+    #[test]
+    fn run_tool_file_read_hit_and_miss() {
+        let t = parse_table(&demo_table_bytes()).unwrap();
+        let hit = run_tool("", "FILE-READ(P-100)", Some(&t));
+        assert_eq!(hit.name, "file-read");
+        assert_eq!(hit.input, b"FILE-READ(P-100)");
+        assert_eq!(hit.output, b"Gasket, O-ring, fuel line");
+
+        let miss = run_tool("", "FILE-READ(P-999)", Some(&t));
+        assert_eq!(miss.name, "file-read");
+        assert_eq!(miss.output, b"NOT-FOUND");
+        // Distinct miss literal from `lookup`'s `NONE` (module doc comment).
+        assert_ne!(miss.output, b"NONE");
+    }
+
+    #[test]
+    fn file_read_is_not_scanned_without_a_table() {
+        let o = run_tool("", "FILE-READ(P-100)", None);
+        assert_eq!(o.name, "no-tool");
+    }
+
+    #[test]
+    fn scanner_picks_earliest_of_three_tools() {
+        let t = parse_table(&demo_table_bytes()).unwrap();
+        let o = run_tool(
+            "",
+            "first FILE-READ(P-100) then LOOKUP(P-205) then CALC(1 + 1)",
+            Some(&t),
+        );
+        assert_eq!(o.name, "file-read");
+    }
+
+    // --- multi-tool episode: one K=3 trace carries CALC + LOOKUP +
+    // FILE-READ, each a distinct tool, chained in order. Hand-written (no
+    // model): the decode-chain digests are fixed dummy bytes, only the
+    // tool triples vary, exactly the shape a synthetic test-vector needs.
+    // ---
+
+    /// The three (name, input, output) triples used by every multitool_*
+    /// test below, in canonical step order 0,1,2.
+    fn multitool_steps() -> [(&'static [u8], &'static [u8], &'static [u8]); 3] {
+        [
+            (b"calc", b"CALC(2 + 2)", b"4"),
+            (b"lookup", b"LOOKUP(P-100)", b"Gasket, O-ring, fuel line"),
+            (b"file-read", b"FILE-READ(P-205)", b"Bolt, 3/8-16 hex head"),
+        ]
+    }
+
+    /// Fold a full episode's steps (in the given order, decode-chain digest
+    /// fixed per step index to keep only the tool triples varying) starting
+    /// from a fixed genesis, returning the final trace-chain.
+    fn fold_episode(genesis: [u8; 32], steps: &[(&[u8], &[u8], &[u8])]) -> [u8; 32] {
+        let mut chain = genesis;
+        for (i, (name, input, output)) in steps.iter().enumerate() {
+            let dd = [(i as u8).wrapping_add(0x10); 32]; // distinct fixed digest per position
+            chain = trace_fold_step(chain, i as u64, &dd, name, input, output);
+        }
+        chain
+    }
+
+    #[test]
+    fn multitool_episode_folds_deterministically() {
+        let genesis = [9u8; 32];
+        let steps = multitool_steps();
+        let a = fold_episode(genesis, &steps);
+        let b = fold_episode(genesis, &steps);
+        assert_eq!(a, b, "identical multi-tool episodes must fold identically");
+    }
+
+    #[test]
+    fn multitool_tamper_swapped_tool_result_fails() {
+        let genesis = [9u8; 32];
+        let good = multitool_steps();
+        let honest = fold_episode(genesis, &good);
+
+        // Swap step 1's and step 2's `out` values (LOOKUP's result now
+        // claimed for FILE-READ's step and vice versa) while leaving every
+        // other field — including `in`/`tool` names and positions — alone.
+        let mut tampered = good;
+        let (out1, out2) = (tampered[1].2, tampered[2].2);
+        tampered[1].2 = out2;
+        tampered[2].2 = out1;
+        let swapped = fold_episode(genesis, &tampered);
+
+        assert_ne!(
+            honest, swapped,
+            "swapping two steps' tool results must change the trace-chain"
+        );
+    }
+
+    #[test]
+    fn multitool_tamper_reordered_calls_fails() {
+        let genesis = [9u8; 32];
+        let good = multitool_steps();
+        let honest = fold_episode(genesis, &good);
+
+        // Same three tool calls, same total K, but replayed calc/lookup/
+        // file-read in a different order — each step's index (folded as
+        // BE u64, see trace_fold_step) now binds a different triple.
+        let reordered = [good[2], good[0], good[1]];
+        let out_of_order = fold_episode(genesis, &reordered);
+
+        assert_ne!(
+            honest, out_of_order,
+            "reordering tool calls across steps must change the trace-chain"
+        );
+    }
+
+    #[test]
+    fn multitool_tamper_dropped_call_fails() {
+        let genesis = [9u8; 32];
+        let good = multitool_steps();
+        let honest = fold_episode(genesis, &good);
+
+        // Drop the middle (LOOKUP) call entirely: K effectively goes from 3
+        // to 2, and the surviving FILE-READ step now folds at position 1
+        // instead of 2.
+        let dropped = [good[0], good[2]];
+        let short = fold_episode(genesis, &dropped);
+
+        assert_ne!(
+            honest, short,
+            "dropping a tool call must change the trace-chain"
         );
     }
 }

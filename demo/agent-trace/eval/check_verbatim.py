@@ -13,18 +13,22 @@ and one distractor by copying a shot (`two + two` -> `CALC(2 + 2)`). All four
 gave a plausible-looking, wrong result. This rule flagged exactly those four
 and none of the 47 correct calls.
 
-K>1: every step is checked, but the rule necessarily weakens after step 0.
-At step 0 the current query is known exactly (the last `Q:` line of the
-prompt), so the argument must appear there. At step k>0 the receipt records
-only the initial prompt -- the text the model generated in between is not
-recoverable from the receipt without the vocabulary -- so the current query is
-unknown. The rule therefore accepts an argument that appears verbatim in ANY
-`Q:` line of the prompt (verdict `ok`) or in the decoded `out=` of an earlier
-step (verdict `ok-tool`, the legitimate tool-chaining case), and flags one that
-appears in neither, since such an argument was invented by the model rather
-than copied from anything the receipt records. This is deliberately permissive:
-a later step that snaps a key to a value present in an earlier shot will not be
-caught. It is strictly more coverage than step 0 alone, not a complete rule.
+K>1: every step is checked against the SAME external-context rule the
+Rust `agent_trace` gateway uses (see demo/agent-trace/README.md): the last
+`Q:` line of the initial prompt -- never any few-shot `Q:` line above it,
+and never the model's own generated text -- plus every prior step's
+decoded tool result (`out=`). The rule therefore accepts an argument that
+appears verbatim in the LAST `Q:` line of the prompt (verdict `ok`) or in
+the decoded `out=` of an earlier step (verdict `ok-tool`, the legitimate
+tool-chaining case), and flags one that appears in neither, since such an
+argument was invented by the model -- or copied from a few-shot example
+above the real question -- rather than copied from anything the current
+step actually saw. Checking against every `Q:` line (not just the last)
+would let a model that snaps an argument to a value from an earlier shot
+slip through ungrounded-argument detection undetected; the receipt-level
+regression test `mixed_lookup_calc_01` (a real live20 episode whose model
+output copies a `CALC(10 + 10)` shot from three questions earlier) is
+exactly the case this restriction exists to catch.
 
 Limits: a FLAG is a review signal, not a verdict of incorrectness, and this
 script is a report rather than a gate (it always exits 0).
@@ -42,7 +46,13 @@ import sys
 
 STEP_RE = re.compile(r"^step (\d+): .*?tool=(\S+) in=([0-9a-f]*) out=([0-9a-f]*)", re.M)
 PROMPT_RE = re.compile(r"^prompt-hex ([0-9a-f]+)", re.M)
-ARG_RE = re.compile(r"^(CALC|LOOKUP)\((.*)\)$")
+# Must match every tool grammar `run_tool`/`extract_call_arg` in
+# aegis-linux/examples/agent_trace.rs recognize (CALC, LOOKUP, FILE-READ) --
+# omitting FILE-READ here left its `in=` field un-stripped (the whole
+# "FILE-READ(...)" wrapper, not just the key), so it could never match
+# verbatim against a query/tool-result substring and every FILE-READ call
+# spuriously FLAGged. See state/reports/2026-09-13-safe1d-grounding-reconcile.md.
+ARG_RE = re.compile(r"^(CALC|LOOKUP|FILE-READ)\((.*)\)$")
 
 
 def last_query(prompt: str) -> str:
@@ -64,13 +74,16 @@ def _argument(raw: str) -> str:
     return m.group(2) if m else raw
 
 
-def check_receipt_steps(text: str):
+def check_receipt_steps(text: str, strict_grounding: bool = False):
     """Return one (step, tool, argument, source, verdict) per step line.
 
     verdict is 'ok' (argument copied from a query), 'ok-tool' (copied from an
     earlier step's tool result), 'FLAG' (found in neither) or '-' (no call).
     `source` is the query the argument was checked against: the last `Q:` line
     at step 0, and a short description of the accepted source afterwards.
+
+    If strict_grounding is True, a 'FLAG' verdict becomes 'FAIL' instead,
+    causing a hard failure rather than a warning.
     """
     m = PROMPT_RE.search(text)
     prompt = _unhex(m.group(1)) if m else ""
@@ -90,24 +103,36 @@ def check_receipt_steps(text: str):
         if idx == 0:
             # The current query is known exactly, so the strict rule applies.
             verdict, source = ("ok", last_q) if arg in last_q else ("FLAG", last_q)
-        elif any(arg in q for q in qs):
-            verdict, source = "ok", next(q for q in qs if arg in q)
+        elif last_q and arg in last_q:
+            # Same last-`Q:`-line-only rule as step 0 (matches the Rust
+            # `agent_trace` gateway's `external_text`, which never contains
+            # any Q: line but the last one of the initial prompt). Checking
+            # against every `Q:` line here (the prior behavior) let a
+            # shot-copied argument that matches an EARLIER few-shot example
+            # count as grounded even though the model never actually saw
+            # that example as its current question.
+            verdict, source = "ok", last_q
         elif any(arg in o for o in outs if o):
             verdict, source = "ok-tool", next(o for o in outs if o and arg in o)
         else:
             verdict, source = "FLAG", ""
+
+        # In strict mode, promote FLAG to FAIL
+        if strict_grounding and verdict == "FLAG":
+            verdict = "FAIL"
+
         rows.append((idx, tool, arg, source, verdict))
         outs.append(out)
     return rows
 
 
-def check_receipt_text(text: str):
+def check_receipt_text(text: str, strict_grounding: bool = False):
     """Return (tool, argument, last_query, verdict) for step 0 of one receipt.
 
     Kept for callers that only care about the first step; check_receipt_steps
     is the full-episode form.
     """
-    rows = check_receipt_steps(text)
+    rows = check_receipt_steps(text, strict_grounding=strict_grounding)
     if not rows:
         m = PROMPT_RE.search(text)
         return ("?", "", last_query(_unhex(m.group(1)) if m else ""), "-")
@@ -119,6 +144,11 @@ def main(argv):
     if len(argv) < 2:
         print(__doc__)
         return 2
+
+    strict_grounding = "--strict-grounding" in argv
+    # Remove flag from argv for positional arg processing
+    argv = [a for a in argv if a != "--strict-grounding"]
+
     d = argv[1]
     scorer = {}
     if len(argv) > 2:
@@ -127,17 +157,20 @@ def main(argv):
                 scorer[r["item_id"]] = r.get("arg_match", "")
     rows = []
     for f in sorted(os.listdir(d)):
-        if not f.endswith(".txt") or "." in f[:-4]:
-            continue  # skip .gen.err / .attest.out etc.
+        if not f.endswith(".txt") and not f.endswith(".receipt"):
+            continue  # support both .txt and .receipt extensions
+        if "." in f.rsplit(".", 1)[0]:  # skip .gen.err / .attest.out etc.
+            continue
         with open(os.path.join(d, f), errors="replace") as fh:
-            steps = check_receipt_steps(fh.read())
+            steps = check_receipt_steps(fh.read(), strict_grounding=strict_grounding)
         for idx, tool, arg, source, verdict in steps:
-            rows.append((f[:-4], str(idx), tool, arg, source, verdict))
+            rows.append((f.rsplit(".", 1)[0], str(idx), tool, arg, source, verdict))
     print("item\tstep\ttool\targ\tsource\tverbatim")
     for r in rows:
         print("\t".join(r))
     called = [r for r in rows if r[5] != "-"]
-    flagged = [r for r in called if r[5] == "FLAG"]
+    flagged = [r for r in called if r[5] in ("FLAG", "FAIL")]
+    failed = [r for r in called if r[5] == "FAIL"]
     chained = [r for r in called if r[5] == "ok-tool"]
     later = [r for r in called if r[1] != "0"]
     receipts = {r[0] for r in rows}
@@ -146,6 +179,8 @@ def main(argv):
         f"(step0={len(called)-len(later)} later-steps={len(later)}) "
         f"from-tool-result={len(chained)} flagged={len(flagged)}"
     )
+    if failed:
+        print(f"strict-grounding: {len(failed)} FAIL verdict(s)")
     for r in flagged:
         where = f"step {r[1]}"
         if r[1] == "0":
@@ -157,13 +192,17 @@ def main(argv):
         # worst verdict before comparing.
         worst = {}
         for r in called:
-            if worst.get(r[0]) != "FLAG":
+            if worst.get(r[0]) not in ("FLAG", "FAIL"):
                 worst[r[0]] = r[5]
-        fl = [i for i, v in worst.items() if v == "FLAG"]
+        fl = [i for i, v in worst.items() if v in ("FLAG", "FAIL")]
         tp = sum(1 for i in fl if scorer.get(i) == "false")
         fp = sum(1 for i in fl if scorer.get(i) == "true")
-        missed = [i for i, v in worst.items() if v != "FLAG" and scorer.get(i) == "false"]
+        missed = [i for i, v in worst.items() if v not in ("FLAG", "FAIL") and scorer.get(i) == "false"]
         print(f"vs scorer: flagged-and-wrong={tp} flagged-but-right={fp} wrong-not-flagged={missed}")
+
+    # In strict mode, exit with error if any FAILs found
+    if strict_grounding and failed:
+        return 1
     return 0
 
 

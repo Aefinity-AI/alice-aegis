@@ -1,5 +1,13 @@
 # Verifiable agent trace — one-command demo
 
+Normative wire format (exact grammar, byte-level genesis/step folds, what a
+chain-only recompute can and cannot prove): see [`FORMAT.md`](FORMAT.md).
+An independent, inference-free implementation of that spec is
+[`tools/trace_chain.py`](tools/trace_chain.py) — run
+`python3 tools/trace_chain.py --selftest` to check it against the vectors
+in [`vectors/`](vectors/), or `python3 tools/trace_chain.py <receipt>
+[--table FILE]` on any receipt.
+
 `run.sh` runs a small, deterministic **agent episode** over the checked-in
 M7 tinybit model: K rounds (default 3) of {greedy, integer-only CIS-1
 `FullInt` decode of up to N tokens (default 16), scan the decoded text for
@@ -42,6 +50,65 @@ the replay independently derives — the per-step generalization of
 The model's own text is excluded on purpose: a model that writes its own
 `Q: 2 + 2` line and then calls `CALC(2 + 2)` must not satisfy the rule.
 
+### Strict grounding mode (`--strict-grounding`)
+
+By default (as above) a tool-call argument that does not appear verbatim in
+the externally supplied text a step had seen prints a non-fatal `WARNING`
+line and does not change the `VERIFY PASS`/`FAIL` verdict. `agent_trace
+verify ... --strict-grounding` turns that same condition into a hard
+`VERIFY FAIL` (`VERIFY FAIL — strict grounding: step(s) [...] argument not
+grounded in prior prompt/tool-result text (--strict-grounding)`) instead —
+because an argument the replay cannot derive from the prompt plus prior
+tool results is exactly what a fabricated tool call looks like (the model
+inventing a number rather than reading it from context), and a receipt
+whose job is to catch that should be able to fail on it, not merely note
+it. The flag is opt-in and defaults to off (lenient) rather than replacing
+the WARNING outright because: (1) the verbatim-argument rule is sound but
+not complete (see `verbatim_rule_is_sound_but_not_complete` in
+`aegis-linux/examples/agent_trace.rs`) — it can and does warn on
+legitimate arguments the model computed correctly but that happen not to
+be a literal substring of any prior text, so promoting it to a
+default failure would make some genuine PASSes fail; (2) it only applies
+from format 2 on (the field the check depends on, `verbatim_ok`, does not
+exist for pre-format-2 receipts); and (3) the existing tools-1b live20
+receipts (`demo/agent-trace/live20/`) must keep verifying 20/20 unchanged
+— strict grounding is for a verifier operator who wants a stricter,
+zero-tolerance policy for a given deployment, not a retroactive change to
+what "PASS" has meant for receipts already generated and attested.
+
+**Format 4 (`AEGIS-TRACE v3`, safe-2c) — item/session ctx binding.** safe-2b's
+tamper demo (`eval/receipts/apply_tampers.py`, tamper 4) found that a valid,
+internally self-consistent receipt replayed under a DIFFERENT item id still
+verified PASS: nothing in the wire format bound a receipt to which item or
+session it was generated for. `gen --item-id <ID> --nonce <N>` (both
+required together) now sets a new `item-ctx <64 hex>` header line, `sha256(
+item_id || prompt_bytes || session_nonce)`, and folds it into the trace
+genesis (see FORMAT.md sec4) — so it cannot be edited without breaking the
+hash chain, exactly like `commit`/`host` from format 3 on. Deliberately
+named `item-ctx`, not `ctx`, in the wire format: the per-step `ctx=`/`q=`
+fields already mean something different (that step's accumulated-prompt/
+query hash, sec3) and are not folded into the chain at all — `item-ctx` is a
+new, distinct, chain-bound header field, not a reuse of that name. Neither
+flag given: `gen`'s output is byte-identical to format 3, no format bump.
+`verify` gains a matching expectation check: `--expect-ctx <64 hex>`
+directly, or `--expect-item <ID> --expect-prompt-file <F> --nonce <N>` to
+recompute the expected value the same way `gen` did. A receipt whose
+item-ctx does not match prints `VERIFY FAIL — ctx mismatch (receipt
+item-ctx <16hex> vs expected <16hex>)` (or `... receipt has no item-ctx
+line, expected <16hex>` if the receipt predates format 4) — this is what
+catches the tamper-4 replay-under-wrong-id case: a receipt's own trace-chain
+math can be entirely self-consistent (it was a genuine PASS under its
+original item id) while its item-ctx still names a different item/prompt
+than the one the caller expected. Because item-ctx is folded into genesis
+rather than merely compared like `ctx=`/`q=`, directly editing the
+`item-ctx` line in a receipt file (without also having the model to
+recompute everything downstream) breaks the ordinary hash chain — `VERIFY
+FAIL — replay diverged from the receipt` — even with no `--expect-ctx` given
+at all. See `eval/receipts/inject_item_ctx.py` for how the safe-2b EVAL-60
+T1 tamper set was retrofitted with item-ctx (a pure hash recompute over the
+receipts' own already-recorded fields — no re-run of inference) and
+re-verified with `--expect-item`/`--expect-prompt-file`/`--nonce`.
+
 No files are downloaded. Everything comes from
 `model-lab/tinybit/m7_final_gate_work/artifacts/` already in this repo
 (same default as `demo/edge-receipt`).
@@ -52,6 +119,8 @@ No files are downloaded. Everything comes from
 demo/agent-trace/run.sh build                          # compile agent_trace
 demo/agent-trace/run.sh gen "The quick brown fox" 3 16  # write a receipt (prompt K N)
 demo/agent-trace/run.sh verify <receipt-file>           # replay + check
+# agent_trace verify ... --strict-grounding also available directly (see
+# "Strict grounding mode" above); not wired into run.sh's verify subcommand.
 demo/agent-trace/run.sh tamper                          # 4 adversarial mutations, each must FAIL
 demo/agent-trace/run.sh pack <receipt> [attestdir]      # bundle a receipt (+ table + quote) into one tar
 demo/agent-trace/run.sh verify-bundle <bundle.tar>       # extract + run every applicable check
@@ -59,6 +128,20 @@ demo/agent-trace/run.sh all "The quick brown fox" 3 16  # build + gen + verify +
 ```
 
 Receipts land in `demo/agent-trace/out/trace-<hostname>-<utc>.txt`.
+
+### Python receipt analyzer (`check_verbatim.py`)
+
+`eval/check_verbatim.py` is a receipt-only verifier that checks whether each tool-call argument is grounded in the externally supplied context (the prompt's `Q:` lines and prior tool results). It prints one row per step and a summary.
+
+```
+python3 eval/check_verbatim.py <receipts-dir>                    # lenient mode (warnings only)
+python3 eval/check_verbatim.py --strict-grounding <receipts-dir>  # strict mode (warnings → failures)
+```
+
+**Lenient mode (default)**: flags ungrounded arguments as warnings but exits 0.
+**Strict mode**: promotes ungrounded arguments to FAIL verdicts and exits 1 if any FAILs found.
+
+Lenient mode is the default because the verbatim-argument rule is sound but not complete: it can warn on legitimate arguments the model computed correctly but that happen not to be a literal substring of prior text. Strict mode is for a verifier operator who wants zero-tolerance grounding checks for a given deployment, not a change to what "PASS" has meant for already-generated receipts.
 
 ### Env overrides (same names as `demo/edge-receipt`)
 
@@ -95,10 +178,16 @@ demo/agent-trace/run.sh verify-bundle demo/agent-trace/out/trace-A-*.bundle.tar
 ```
 
 Both machines must have the identical `MODEL.SAF` / `EMBED.BIN` /
-`VOCAB.BIN` triple. The commit hash and hostname printed in the receipt are
-informational (Rule B provenance) and are NOT folded into the trace chain,
-so a receipt generated on one machine still verifies bit-for-bit on a
-different machine, commit, or host.
+`VOCAB.BIN` triple. The commit hash printed in the receipt is captured at
+**build time** from the repo the `agent_trace` binary was built from (see
+`aegis-linux/build.rs`), not shelled out at generation time — so it no
+longer depends on the generating process's current working directory.
+`unknown` means the binary was built without a resolvable git commit
+(`verify` prints a WARNING, not a failure, for such a receipt). From format
+3 on, commit and hostname ARE folded into the trace genesis (Rule B
+provenance, see above), so a receipt generated on one machine still
+verifies bit-for-bit on a different machine, but the trace-chain value
+itself differs by machine/build — that is expected, not a failure.
 
 `verify-bundle` DOES check: every bundle member's sha256 against
 `MANIFEST.txt` (tamper-evidence for the bundle itself), that the verifying

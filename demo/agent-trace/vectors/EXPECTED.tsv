@@ -1,0 +1,14 @@
+file	table	expect	detail
+fmt3-k3-763658a	-	MATCH	2278dc97974f34bab86cbe0a4172ad7a50ed4ecdaa545e0d4171abbb1e8f7029
+fmt3-k3-dbfb051	-	MATCH	4c6bb23753f71869e0a52d4ca3b9512ffb70852de8ed6e7746a7a12c21af4eb0
+fmt2-k1-suite	-	MATCH	b3de24a4179d576c58a6997e8c3246fc8fefff6463aa56bad4c5142bc3940b74
+fmt3-k3-table-chain	tables/parts-numeric-chain.tsv	MATCH	8e6e44c5b4f9f2197eba4530ec741b2efa1bc1b011aa8016a5840c20c0df5b41
+tamper-commit	-	MISMATCH	-
+tamper-host	-	MISMATCH	-
+malformed-stray-token	-	REJECTED	FAIL structure: step 0: stray token "X"
+malformed-dup-model-line	-	REJECTED	FAIL structure: duplicate model line
+malformed-k-whitespace	-	REJECTED	FAIL structure: malformed K "1 "
+malformed-extra-equals	-	MISMATCH	-
+malformed-truncated-chain	-	REJECTED	FAIL structure: malformed trace-chain (want 64 lowercase hex)
+malformed-step-hex	tables/parts-numeric-chain.tsv	REJECTED	FAIL structure: step 0: malformed hex in in
+fmt3-k12-table-chain-113afa7	tables/parts-numeric-chain.tsv	MATCH	6ae7be985b83d2a560c443d0a85a3246a00c47d74f34b79610345c6f2cf6065f
