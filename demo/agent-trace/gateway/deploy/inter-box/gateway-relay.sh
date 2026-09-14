@@ -38,9 +38,16 @@ set -eu
 SOCK="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR not set}/cm-gateway.sock"
 SHIM_DIR="$(cd "$(dirname "$0")/../.." && pwd)/target/release"
 
-read -r header rest || { echo "DENY malformed request (no header)"; exit 1; }
+# NOTE: read the whole header line into a single variable and match on
+# it directly. `read -r header rest` splits on IFS whitespace, so "MODE
+# GATEWAY" would become header="MODE" rest="GATEWAY" -- neither of the
+# case patterns below (which match on the full two-word / N-word string)
+# would ever match, so every request would fall through to the DENY
+# catch-all regardless of legitimacy. Reading the full line with
+# `IFS= read -r line` and matching on `$line` avoids that mis-split.
+IFS= read -r line || { echo "DENY malformed request (no header)"; exit 1; }
 
-case "$header" in
+case "$line" in
   "MODE GATEWAY")
     # Relay everything else on stdin straight to the gateway's own unix
     # socket protocol (RECEIPT/ACTION/SESSION/COUNTER lines, blank line
@@ -50,6 +57,7 @@ case "$header" in
     exec socat - "UNIX-CONNECT:${SOCK}"
     ;;
   "MODE SHIM "*)
+    header="$line"
     tool="${header#MODE SHIM }"
     tool="${tool%% *}"
     argrest="${header#MODE SHIM "$tool" }"
