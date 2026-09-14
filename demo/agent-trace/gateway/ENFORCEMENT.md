@@ -39,7 +39,12 @@ tokens from `state/reports/2026-09-13-SAFE5-ENFORCEMENT-BOUNDARY-DESIGN.md`
 - **A tool reachable outside its shim**: every real tool entry point must
   be wrapped, or this layer simply does not apply to it.
 - **Two-box split (d) and attestation (e)** are not built on this branch;
-  escape test 5 has no forced inter-box channel yet.
+  escape test 5 has no forced inter-box channel yet. `deploy/box2/` and
+  `deploy/inter-box/` (branch `cm/safe5c-twobox`) draft the box2-side half
+  (keys, hardened gateway unit, SSH forced-command relay + sshd
+  restrictions) but are NOT installed — see
+  `state/reports/2026-09-14-safe5c-box2-half.md` (claudius-maximus repo)
+  for exactly what is missing on the box1 side.
 - **Supply-chain compromise** of the gateway/shim binaries or
   aegis-core's sha256/HMAC.
 
