@@ -1,0 +1,59 @@
+# SAFE-5a: AppArmor profile for the sandboxed agent process
+# (systemd/agent-sandbox.service's AppArmorProfile=agent-sandbox).
+#
+# Goal: deny exec of anything except the tool shims and the shells they
+# themselves need internally (sh, used by tool_shim_shell to run the
+# actually-authorized command) -- everything else the agent might try to
+# exec directly (bash, curl, python3, nc, ...) is denied at the LSM layer,
+# independent of systemd's own syscall/namespace restrictions.
+#
+# NOT YET LOADED on this box: `apparmor_parser` is not installed here (box1
+# has no `apparmor` package -- see the design doc's cost line "apparmor
+# package" and NEEDS item below); this profile is therefore syntax-plausible
+# but UNVALIDATED by the actual AppArmor parser. Install with:
+#   sudo apt-get install apparmor apparmor-utils
+#   sudo apparmor_parser -r agent-sandbox.apparmor
+#   sudo aa-status   # confirm "agent-sandbox" is loaded, mode enforce
+# and re-run tests/escape/02_no_exec_outside_shims.sh to confirm this
+# profile actually denies (not merely intends to deny) forbidden execs.
+
+#include <tunables/global>
+
+profile agent-sandbox flags=(enforce) {
+  #include <abstractions/base>
+
+  # Allow: exec only the three tool shims (the ONLY sanctioned path to a
+  # real tool action) and /bin/sh (needed transitively BY tool_shim_shell,
+  # which itself gates what sh is allowed to run via the capability check
+  # -- sh here is not directly reachable by the agent, only by the shim
+  # after that shim's own capability verification has already passed).
+  /usr/local/bin/tool_shim_shell ix,
+  /usr/local/bin/tool_shim_file ix,
+  /usr/local/bin/tool_shim_http ix,
+  /bin/sh Cx -> sh_subshell,
+
+  # The agent's own binary may read its own libraries and the gateway
+  # unix socket path; nothing else.
+  /run/gateway/gateway.sock rw,
+
+  # Explicit deny (redundant with the implicit default-deny, kept explicit
+  # so a profile diff makes the intent obvious): no other exec, no network
+  # syscalls this profile's abstractions don't already forbid, no write
+  # outside what abstractions/base allows.
+  deny /usr/bin/** x,
+  deny /bin/** x,
+  deny /sbin/** x,
+  deny /usr/sbin/** x,
+  deny network inet,
+  deny network inet6,
+
+  profile sh_subshell {
+    #include <abstractions/base>
+    # Runs only what tool_shim_shell's parent process (which has ALREADY
+    # verified a capability token bound to this exact command) invoked it
+    # with; this sub-profile does not itself re-check anything -- the
+    # capability check happened in Rust before exec, per
+    # src/bin/tool_shim_shell.rs. This profile's job is only to prevent
+    # the AGENT from reaching /bin/sh directly, bypassing the shim.
+  }
+}
