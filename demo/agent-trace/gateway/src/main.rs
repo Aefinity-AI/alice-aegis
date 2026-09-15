@@ -1119,35 +1119,19 @@ fn now_unix() -> u64 {
         .unwrap_or(0)
 }
 
-struct ServeRequest {
-    receipt: PathBuf,
-    action_hex: String,
-    session: String,
-    counter: u64,
-    /// SAFE-11: the tool tag this request's eventual capability token (on
-    /// ALLOW) will be bound to -- see the big comment block above this
-    /// section for why an omitted field fails closed rather than
-    /// defaulting to something a real shim could match.
-    tool: String,
-}
-
-/// SAFE-7: a parsed request is either a normal decision request (as
-/// before) or a `POLL ticket=<id>` request asking for that ticket's
-/// current/final status.
-enum ServeRequestKind {
-    Decide(ServeRequest),
-    Poll { ticket: String },
-}
+// SAFE-7c: the pure line-parsing logic (POLL-line parse, field
+// accumulation, blank-line/EOF termination) now lives in
+// `gateway::protocol` so a `cargo fuzz` target can drive it directly
+// with arbitrary bytes without a live socket. This function does only
+// the I/O (reading lines off the stream, one request per connection)
+// and delegates all parsing decisions to that module.
+use gateway::protocol::{DecideAccumulator, ServeRequestKind, parse_poll_ticket};
 
 fn parse_serve_request(stream: &mut UnixStream) -> Option<ServeRequestKind> {
     let reader = BufReader::new(stream.try_clone().ok()?);
     let mut lines = reader.lines();
     let first = lines.next()?.ok()?;
-    if let Some(rest) = first.strip_prefix("POLL ") {
-        let ticket = rest.trim().strip_prefix("ticket=")?.trim().to_string();
-        if ticket.is_empty() {
-            return None;
-        }
+    if let Some(ticket) = parse_poll_ticket(&first) {
         // Drain the rest of the request up to the blank-line/EOF
         // terminator, same convention as the decide-request parse below,
         // in case a client sends extra lines after POLL.
@@ -1160,44 +1144,18 @@ fn parse_serve_request(stream: &mut UnixStream) -> Option<ServeRequestKind> {
         return Some(ServeRequestKind::Poll { ticket });
     }
 
-    let mut receipt = None;
-    let mut action_hex = String::new();
-    let mut session = "default".to_string();
-    let mut counter = 0u64;
-    // SAFE-11: no default that any real shim tag would match -- an
-    // omitted TOOL line must fail closed (see the doc comment above this
-    // module section).
-    let mut tool = String::new();
-    let mut apply = |line: &str, receipt: &mut Option<PathBuf>| {
-        if let Some(rest) = line.strip_prefix("RECEIPT ") {
-            *receipt = Some(PathBuf::from(rest.trim()));
-        } else if let Some(rest) = line.strip_prefix("ACTION ") {
-            action_hex = rest.trim().to_string();
-        } else if let Some(rest) = line.strip_prefix("SESSION ") {
-            session = rest.trim().to_string();
-        } else if let Some(rest) = line.strip_prefix("COUNTER ") {
-            counter = rest.trim().parse().unwrap_or(0);
-        } else if let Some(rest) = line.strip_prefix("TOOL ") {
-            tool = rest.trim().to_string();
-        }
-    };
+    let mut acc = DecideAccumulator::new();
     if !first.trim().is_empty() {
-        apply(&first, &mut receipt);
+        acc.apply(&first);
     }
     for line in lines {
         let line = line.ok()?;
         if line.trim().is_empty() {
             break;
         }
-        apply(&line, &mut receipt);
+        acc.apply(&line);
     }
-    Some(ServeRequestKind::Decide(ServeRequest {
-        receipt: receipt?,
-        action_hex,
-        session,
-        counter,
-        tool,
-    }))
+    Some(ServeRequestKind::Decide(acc.finish()?))
 }
 
 /// SAFE-7: outcome of a ticket issued for background verification.

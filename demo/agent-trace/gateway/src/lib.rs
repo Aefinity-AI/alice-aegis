@@ -8,6 +8,7 @@
 use aegis_core::witness::{Sha256, sha256};
 
 pub mod capability;
+pub mod protocol;
 pub mod shim_common;
 
 const BLOCK: usize = 64;
