@@ -57,12 +57,16 @@ CM_2B_ARTIFACTS=/path/to/bitnet2b-2b-artifacts bash demo.sh
 It builds the two release binaries it needs (`agent_trace` example,
 `gateway`) if they are not already current — this is a no-op if you have
 already built this repo. Expect the whole run to take roughly 3-4 minutes
-wall clock (two real ~1-2 minute model verifications).
+wall clock (two real ~1-2 minute model verifications; on a slow single-core
+host a 2B verify can take 6-7+ minutes — the poll deadline defaults to 900 s,
+override with `DEMO_VERIFY_TIMEOUT=<seconds>`).
 
 `demo-expected-output.log` is a captured real run to diff your own run
 against. The exact capability token, `exp=` timestamp, scratch-dir PID
-(`/tmp/safe8-demo-<pid>`), `CM_2B_ARTIFACTS` path, and per-run wall-clock
-poll-attempt counts will differ between runs — everything else (the
+(`/tmp/safe8-demo-<pid>`), `CM_2B_ARTIFACTS` path (the captured log's
+`agent_trace verify ...` command line shows the literal, unexpanded
+`$CM_2B_ARTIFACTS` — that is how the gateway echoes it, not a bug), and
+per-run wall-clock poll-attempt counts will differ between runs — everything else (the
 `AEGIS-TRACE` receipt bodies, the ALLOW/DENY/DENY sequence, the
 `VERIFY PASS` line) should match byte-for-byte.
 
