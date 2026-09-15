@@ -41,6 +41,13 @@ RECEIPT_SRC="tests/fixtures/live20/calc_01.receipt"
 REPO_ROOT="$(cd ../../.. && pwd)"
 AGENT_TRACE_BIN="$REPO_ROOT/aegis-linux/target/release/examples/agent_trace"
 GATEWAY_BIN="target/release/gateway"
+# The two paths above are fixed; a CARGO_TARGET_DIR in the environment would
+# move the artifacts elsewhere and make the checks below fail after a clean build.
+unset CARGO_TARGET_DIR
+# Real 2B verify is 6-7+ min single-threaded on weak hardware (see gateway
+# src/main.rs); default well above that, override with DEMO_VERIFY_TIMEOUT.
+DEMO_VERIFY_TIMEOUT="${DEMO_VERIFY_TIMEOUT:-900}"
+export DEMO_VERIFY_TIMEOUT
 
 if [ ! -f "$MODEL" ]; then
     echo "FATAL: real 2B artifacts not found at $ART" >&2
@@ -52,7 +59,7 @@ WORK_BUILDLOG1=$(mktemp)
 WORK_BUILDLOG2=$(mktemp)
 ( cd "$REPO_ROOT/aegis-linux" && cargo build --release --offline --example agent_trace ) \
     > "$WORK_BUILDLOG1" 2>&1 || { cat "$WORK_BUILDLOG1" >&2; rm -f "$WORK_BUILDLOG1" "$WORK_BUILDLOG2"; exit 1; }
-cargo build --release --offline > "$WORK_BUILDLOG2" 2>&1 || { cat "$WORK_BUILDLOG2" >&2; rm -f "$WORK_BUILDLOG1" "$WORK_BUILDLOG2"; exit 1; }
+cargo build --release --offline --bin gateway > "$WORK_BUILDLOG2" 2>&1 || { cat "$WORK_BUILDLOG2" >&2; rm -f "$WORK_BUILDLOG1" "$WORK_BUILDLOG2"; exit 1; }
 rm -f "$WORK_BUILDLOG1" "$WORK_BUILDLOG2"
 echo "(cargo build output suppressed; both binaries built cleanly)"
 
@@ -70,7 +77,9 @@ mkdir -p "$WORK"
 DAEMON_PID=""
 cleanup() {
     if [ -n "$DAEMON_PID" ]; then
-        kill "$DAEMON_PID" >/dev/null 2>&1 || true
+        # gateway runs in its own session (setsid): kill the whole group so an
+        # in-flight agent_trace verify child is not orphaned
+        kill -- -"$DAEMON_PID" >/dev/null 2>&1 || kill "$DAEMON_PID" >/dev/null 2>&1 || true
         wait "$DAEMON_PID" 2>/dev/null || true
     fi
     rm -rf "$WORK"
@@ -104,7 +113,7 @@ cat "$WORK/allowlist.signed"
 echo
 echo "== step 3: start the gateway daemon (real 2B model, worker pool) =="
 SOCK="$WORK/gateway.sock"
-"$GATEWAY_BIN" serve "$MODEL" "$EMBED" "$VOCAB" "$AGENT_TRACE_BIN" \
+setsid "$GATEWAY_BIN" serve "$MODEL" "$EMBED" "$VOCAB" "$AGENT_TRACE_BIN" \
     "$WORK/allowlist.signed" "$ALLOW_KEY" \
     --socket "$SOCK" --cap-key-file "$CAP_KEY" \
     --anchor-every 100 --anchor-file "$WORK/anchor.log" \
@@ -129,7 +138,7 @@ client() {
     # $1 = python client mode ("decide" or "poll"), remaining args passed
     # through as sys.argv to the inline client below.
     python3 - "$SOCK" "$@" <<'PYEOF'
-import socket, sys, time
+import os, socket, sys, time
 
 sock_path = sys.argv[1]
 mode = sys.argv[2]
@@ -158,7 +167,7 @@ elif mode == "poll":
     print(send(f"POLL ticket={ticket}\n\n".encode()))
 elif mode == "poll-until-done":
     ticket = sys.argv[3]
-    deadline = time.time() + 300
+    deadline = time.time() + float(os.environ.get("DEMO_VERIFY_TIMEOUT", "900"))
     attempt = 0
     while time.time() < deadline:
         attempt += 1
