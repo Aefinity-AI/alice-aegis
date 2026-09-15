@@ -4,6 +4,7 @@
 # systemd unit's MemoryMax=2G. Raw logs land next to this script so a
 # later tick's harvest can pull execs/crashes/corpus size out of them.
 set -euo pipefail
+export PATH="$HOME/.cargo/bin:$PATH"
 cd "$(dirname "$0")/.."
 
 LOGDIR="$(dirname "$0")/logs"
