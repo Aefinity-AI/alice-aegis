@@ -1057,15 +1057,24 @@ fn run_e2e_safe1c(args: &[String]) {
 //   ACTION <hex>
 //   SESSION <session>
 //   COUNTER <counter>
+//   TOOL <tag>
 //   (blank line or EOF ends the request)
 // and gets back exactly one line (see SAFE-7 below for the PENDING case):
 //   ALLOW idx=<n> cap=<token> exp=<unix>
 //   DENY <reason>
 // On ALLOW, a capability token is minted via `capability::issue` using
 // this Gateway's own monotonic decision_count() as the index (never
-// caller-supplied) and `--cap-ttl` seconds from now as the expiry. Tool
-// shims (`src/bin/tool_shim_*.rs`) independently verify that token before
-// acting — see `src/capability.rs` and ENFORCEMENT.md.
+// caller-supplied), `--cap-ttl` seconds from now as the expiry, and
+// (SAFE-11) this request's `TOOL <tag>` field as the tool_tag the token
+// is bound to (the tag the caller is declaring it will present this
+// token to, e.g. "shell"/"file"/"http"). A request that omits `TOOL`
+// gets a token bound to the empty tag, which no real shim's own fixed
+// identity ever matches (see shim_common::check_and_consume), so an
+// omitted TOOL field fails closed rather than issuing a token usable
+// anywhere. Tool shims (`src/bin/tool_shim_*.rs`) independently verify
+// that token against THEIR OWN fixed tag before acting — see
+// `src/capability.rs` and ENFORCEMENT.md. A token minted here for
+// TOOL=file does not verify at tool_shim_shell or tool_shim_http.
 //
 // SAFE-7: async verify, so one slow `agent_trace verify` (observed 6-7+
 // minutes for a real 2B receipt on this box's hardware) cannot block the
@@ -1115,6 +1124,11 @@ struct ServeRequest {
     action_hex: String,
     session: String,
     counter: u64,
+    /// SAFE-11: the tool tag this request's eventual capability token (on
+    /// ALLOW) will be bound to -- see the big comment block above this
+    /// section for why an omitted field fails closed rather than
+    /// defaulting to something a real shim could match.
+    tool: String,
 }
 
 /// SAFE-7: a parsed request is either a normal decision request (as
@@ -1150,6 +1164,10 @@ fn parse_serve_request(stream: &mut UnixStream) -> Option<ServeRequestKind> {
     let mut action_hex = String::new();
     let mut session = "default".to_string();
     let mut counter = 0u64;
+    // SAFE-11: no default that any real shim tag would match -- an
+    // omitted TOOL line must fail closed (see the doc comment above this
+    // module section).
+    let mut tool = String::new();
     let mut apply = |line: &str, receipt: &mut Option<PathBuf>| {
         if let Some(rest) = line.strip_prefix("RECEIPT ") {
             *receipt = Some(PathBuf::from(rest.trim()));
@@ -1159,6 +1177,8 @@ fn parse_serve_request(stream: &mut UnixStream) -> Option<ServeRequestKind> {
             session = rest.trim().to_string();
         } else if let Some(rest) = line.strip_prefix("COUNTER ") {
             counter = rest.trim().parse().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("TOOL ") {
+            tool = rest.trim().to_string();
         }
     };
     if !first.trim().is_empty() {
@@ -1176,6 +1196,7 @@ fn parse_serve_request(stream: &mut UnixStream) -> Option<ServeRequestKind> {
         action_hex,
         session,
         counter,
+        tool,
     }))
 }
 
@@ -1279,6 +1300,10 @@ struct VerifyJob {
     verify_timeout: Option<Duration>,
     cap_key: Vec<u8>,
     cap_ttl: u64,
+    /// SAFE-11: the tool tag the eventual capability token (on ALLOW) is
+    /// bound to -- carried from the request's `TOOL <tag>` field through
+    /// to the worker that actually mints the token.
+    tool: String,
 }
 
 /// State shared between the (single-threaded) accept loop and the
@@ -1352,7 +1377,13 @@ fn verify_worker_loop(
                     gw.append_log(&d, &job.trace_chain, &job.triple, &job.session, job.counter);
                 let idx = gw.decision_count();
                 let exp = now_unix() + job.cap_ttl;
-                let token = capability::issue(&job.cap_key, idx, job.freshness_key.action_hash, exp);
+                let token = capability::issue(
+                    &job.cap_key,
+                    idx,
+                    job.freshness_key.action_hash,
+                    exp,
+                    &job.tool,
+                );
                 format!("ALLOW idx={idx} cap={token} exp={exp}")
             } else {
                 let reason = match &verify_result {
@@ -1465,6 +1496,7 @@ fn handle_serve_conn_async(stream: &mut UnixStream, shared: &std::sync::Arc<Shar
                         verify_timeout,
                         cap_key: shared.cap_key.clone(),
                         cap_ttl: shared.cap_ttl,
+                        tool: req.tool.clone(),
                     };
                     let _ = shared.job_tx.send(job);
                     let _ = writeln!(stream, "PENDING ticket={ticket}");
