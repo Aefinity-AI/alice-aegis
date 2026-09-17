@@ -1,0 +1,11 @@
+id	name	receipt	decoded	trace_chain	verify	attest
+C01	Alex Ternion	C01.receipt.txt	C01.decoded.txt	6e544f3143d6517633ead77090a8de5d062996a5a191f9f081afe40b8eb57683	PASS	quoted
+C02	Briony Quark	C02.receipt.txt	C02.decoded.txt	1ef8075bafa7bc74ab047222a0d9b61c7c94d3baf1973fb487afe7c23feb3ec0	PASS	quoted
+C03	Cass Fenwright	C03.receipt.txt	C03.decoded.txt	4f64b6ac0e876fbfa1fa91eef7cc9f312e0788eef88cea62e76a6ba8e63502e6	PASS	quoted
+C04	Dova Marlstone	C04.receipt.txt	C04.decoded.txt	ad5753bc87ec17eb84bdf479870c26fa39f37590a8dfdf7bccd074d042edd710	PASS	quoted
+C05	Enno Vasquez-Pratt	C05.receipt.txt	C05.decoded.txt	641212240c944e008a72a090341c3ab1e38fa7841bafce5f8f9005cfe5ca04fa	PASS	quoted
+C06	Fira Odalen	C06.receipt.txt	C06.decoded.txt	e8bb55175167197984908a4374c559a9661ab5ba933a12e90e8d6a538f447fad	PASS	quoted
+C07	Gwynn Achterly	C07.receipt.txt	C07.decoded.txt	ae4d341849f39455cb897490f30a2218078ba830cb09e9506af11ade31713292	PASS	quoted
+C08	Hollis Tremaine	C08.receipt.txt	C08.decoded.txt	a56451cc2598859d0b5cf664c19e9793470907cf08a42841b8fadd3a1225c024	PASS	quoted
+C09	Ilse Bannerman	C09.receipt.txt	C09.decoded.txt	2730c9881521f12c7d6ccb0b187ce12d8304dc8d41ad66e8eff3d3a6727bf42e	PASS	quoted
+C10	Jethro Calloway	C10.receipt.txt	C10.decoded.txt	d79202409adc66a4c10a58ca9493b1bc7ac12ec7160b52d4138229c2ca576369	PASS	quoted
