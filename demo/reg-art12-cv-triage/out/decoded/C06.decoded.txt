@@ -1,0 +1,5 @@
+model : 7 layers, hidden 384, vocab 8192
+prompt: "Score this candidate 1 to 5 on three criteria: Experience, Communication, Technical Skill. Give one short justification line per score.\nCandidate: 1 year internship experience, eager, submitted a strong take-home project, limited communication samples." -> 85 tokens
+token ids: [199, 35, 794, 293, 89, 283, 404, 904, 372, 1933, 14, 341, 366, 1590, 263, 1206, 267, 283, 404, 904, 372, 1933, 14, 341, 366, 1590, 263, 1206, 267, 283, 404, 904, 372, 1933, 14, 199, 35, 794, 293, 89, 283, 404, 904, 372, 1933, 14, 341, 366, 1590, 263, 1206, 267, 283, 404, 904, 372, 1933, 14, 341, 366, 1590, 263, 1206, 267]
+text     : "\nCandidy was so proud of herself. She had won the race and was so proud of herself. She had won the race and was so proud of herself.\nCandidy was so proud of herself. She had won the race and was so proud of herself. She had won the race and"
+CIS_DECODE digest=f24f229e335c2b8a prompt_toks=85 gen_toks=64 mode=fullint

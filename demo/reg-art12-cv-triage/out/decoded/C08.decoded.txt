@@ -1,0 +1,5 @@
+model : 7 layers, hidden 384, vocab 8192
+prompt: "Score this candidate 1 to 5 on three criteria: Experience, Communication, Technical Skill. Give one short justification line per score.\nCandidate: 3 years QA automation, detail oriented, average communication, some Python scripting." -> 84 tokens
+token ids: [199, 35, 794, 293, 89, 283, 404, 737, 266, 507, 263, 1725, 1029, 14, 341, 601, 628, 263, 531, 12, 2429, 267, 1773, 14, 341, 283, 404, 383, 388, 398, 366, 1590, 263, 1029, 14, 199, 35, 794, 293, 89, 391, 393, 283, 404, 904, 372, 338, 14, 341, 327, 12, 319, 543, 491, 404, 1674, 12, 786, 794, 293, 89, 1, 627, 1590]
+text     : "\nCandidy was so excited to have the perfect game. She ran around the park, jumping and laughing. She was so happy that she had won the game.\nCandidy's mom was so proud of her. She said, \"You are so smart, Candidy! You won"
+CIS_DECODE digest=c52fa40ceeaf204d prompt_toks=84 gen_toks=64 mode=fullint

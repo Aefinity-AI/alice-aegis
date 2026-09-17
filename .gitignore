@@ -55,6 +55,11 @@ hf-venv/
 # CC BY-SA 4.0 attribution for the ARC-Easy data we redistribute — the licence
 # notice must ship with the data, so it must not be swallowed by *.txt above
 !model-lab/data/evals/arc_easy/NOTE.txt
+# reg-1: Art.12/15 CV-triage evidence demo — receipts, decoded text, and
+# TPM ATTEST.txt bookkeeping are the record this demo exists to produce.
+!demo/reg-art12-cv-triage/out/receipts/*.txt
+!demo/reg-art12-cv-triage/out/decoded/*.txt
+!demo/reg-art12-cv-triage/out/attest/*/ATTEST.txt
 
 # Old backups (full copies preserved on the 1TB drive)
 *_ALICE_1_0_BACKUP/

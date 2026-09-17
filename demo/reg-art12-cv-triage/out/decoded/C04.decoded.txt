@@ -1,0 +1,5 @@
+model : 7 layers, hidden 384, vocab 8192
+prompt: "Score this candidate 1 to 5 on three criteria: Experience, Communication, Technical Skill. Give one short justification line per score.\nCandidate: 2 years junior developer, JavaScript only, struggled in panel interview to explain past project." -> 86 tokens
+token ids: [199, 2, 1078, 438, 740, 485, 604, 794, 73, 550, 12, 3641, 266, 263, 823, 14, 199, 2, 1023, 391, 259, 1924, 648, 327, 604, 794, 73, 12, 319, 1023, 391, 259, 1924, 12, 267, 311, 391, 386, 998, 402, 199, 42, 794, 73, 571, 14, 319, 1112, 391, 1191, 648, 398, 327, 14, 319, 41, 929, 1114, 266, 851, 311, 420, 199, 42]
+text     : "\n\"What is this?\" Jandi asked, pointing to the sky.\n\"It's a kite,\" said Jandi, \"It's a kite, and it's very beautiful.\"\nJandi smiled. \"That's right,\" she said. \"I'm going to fly it!\"\nJ"
+CIS_DECODE digest=742a08ee33cea00b prompt_toks=86 gen_toks=64 mode=fullint

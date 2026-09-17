@@ -1,0 +1,5 @@
+model : 7 layers, hidden 384, vocab 8192
+prompt: "Score this candidate 1 to 5 on three criteria: Experience, Communication, Technical Skill. Give one short justification line per score.\nCandidate: 5 years backend engineering, led a 4-person team, Python and Go, clear writer of design docs." -> 87 tokens
+token ids: [979, 306, 76, 79, 12, 350, 507, 266, 324, 845, 14, 979, 306, 76, 79, 12, 350, 507, 266, 324, 845, 14, 627, 507, 266, 324, 845, 267, 367, 539, 429, 770, 1074, 14, 1207, 350, 1655, 485, 199, 35, 794, 76, 79, 1104, 14, 341, 2816, 14, 341, 283, 259, 1443, 616, 12, 416, 1065, 1222, 14, 341, 414, 266, 665, 685, 672]
+text     : " Pirlo, you have to be careful. Pirlo, you have to be careful. You have to be careful and not make too much noise. Do you understand?\"\nCandlo nodded. She understood. She was a bit scared, but also curious. She wanted to know more about"
+CIS_DECODE digest=465095b7473527c9 prompt_toks=87 gen_toks=64 mode=fullint

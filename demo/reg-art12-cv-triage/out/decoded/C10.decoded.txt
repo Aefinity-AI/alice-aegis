@@ -1,0 +1,5 @@
+model : 7 layers, hidden 384, vocab 8192
+prompt: "Score this candidate 1 to 5 on three criteria: Experience, Communication, Technical Skill. Give one short justification line per score.\nCandidate: 6 years site reliability engineering, on-call experience, terse in writing, strong incident postmortems." -> 86 tokens
+token ids: [199, 35, 794, 73, 283, 404, 904, 372, 338, 1154, 12, 398, 719, 266, 760, 311, 266, 263, 531, 14, 341, 283, 404, 737, 266, 711, 338, 417, 338, 553, 3095, 14, 199, 1042, 398, 2005, 456, 263, 531, 12, 398, 389, 259, 2705, 372, 1754, 593, 14, 341, 550, 500, 12, 319, 1635, 350, 371, 266, 1515, 830, 485, 199, 418, 1754, 412]
+text     : "\nCandi was so proud of her work, she decided to take it to the park. She was so excited to show her friends her new design.\nWhen she arrived at the park, she saw a group of children playing. She asked them, \"Do you want to join us?\"\nThe children were"
+CIS_DECODE digest=de0efe702f19c00e prompt_toks=86 gen_toks=64 mode=fullint

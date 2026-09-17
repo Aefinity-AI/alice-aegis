@@ -1,0 +1,5 @@
+model : 7 layers, hidden 384, vocab 8192
+prompt: "Score this candidate 1 to 5 on three criteria: Experience, Communication, Technical Skill. Give one short justification line per score.\nCandidate: 12 years in logistics management, no coding background, excellent stakeholder communication." -> 83 tokens
+token ids: [199, 35, 794, 293, 89, 283, 404, 904, 372, 1933, 14, 341, 366, 1441, 311, 1, 341, 366, 3777, 266, 653, 263, 1191, 4645, 14, 199, 35, 794, 293, 89, 283, 404, 904, 372, 1933, 14, 341, 366, 3777, 266, 653, 263, 1191, 4645, 14, 341, 283, 404, 904, 372, 1933, 14, 0, 437, 446, 259, 403, 12, 407, 283, 259, 397, 484, 408]
+text     : "\nCandidy was so proud of herself. She had done it! She had managed to get the right score.\nCandidy was so proud of herself. She had managed to get the right score. She was so proud of herself.<|endoftext|>Once upon a time, there was a little girl named"
+CIS_DECODE digest=17217479916138be prompt_toks=83 gen_toks=64 mode=fullint

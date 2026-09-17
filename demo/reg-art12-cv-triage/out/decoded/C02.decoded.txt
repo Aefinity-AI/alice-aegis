@@ -1,0 +1,5 @@
+model : 7 layers, hidden 384, vocab 8192
+prompt: "Score this candidate 1 to 5 on three criteria: Experience, Communication, Technical Skill. Give one short justification line per score.\nCandidate: No prior professional experience, recent graduate, strong academic record in mathematics." -> 84 tokens
+token ids: [199, 35, 794, 293, 89, 391, 393, 283, 386, 904, 372, 338, 14, 341, 327, 12, 319, 1112, 283, 259, 386, 566, 826, 12, 786, 794, 293, 89, 14, 627, 491, 259, 386, 566, 4526, 402, 199, 35, 794, 293, 89, 571, 267, 327, 12, 319, 847, 350, 12, 1535, 14, 340, 871, 350, 402, 199, 418, 873, 14, 0, 437, 446, 259, 403]
+text     : "\nCandidy's mom was very proud of her. She said, \"That was a very good idea, Candidy. You are a very good player.\"\nCandidy smiled and said, \"Thank you, Mommy. I love you.\"\nThe end.<|endoftext|>Once upon a time"
+CIS_DECODE digest=e84af40c5e936361 prompt_toks=84 gen_toks=64 mode=fullint
