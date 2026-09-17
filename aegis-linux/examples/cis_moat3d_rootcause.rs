@@ -39,8 +39,7 @@ fn run(
         .expect("read __metadata__")
         .expect("MODEL.SAF carries no aegis_config");
     let config = ModelConfig::from_json(&cfg_json).expect("parse aegis_config");
-    let pipeline =
-        FullBitNetPipeline::new(&tensors, embed_bytes, &config).expect("build pipeline");
+    let pipeline = FullBitNetPipeline::new(&tensors, embed_bytes, &config).expect("build pipeline");
     let cis_model = CisModel::new(&pipeline, &config).expect("CIS model conversion");
     let mut engine = CisEngine::new_with_mode(&cis_model, CisMode::FullInt);
 
@@ -154,20 +153,28 @@ fn main() {
     );
 
     for i in 1..=3 {
-        let (toks, chain, top5, text) = run(&model_bytes, &embed_bytes, &vocab_bytes, prompt, max_new);
+        let (toks, chain, top5, text) =
+            run(&model_bytes, &embed_bytes, &vocab_bytes, prompt, max_new);
         println!(
             "CLEAN[{}]: chain={} top5digest={} tokens={:?}",
-            i, hex(&chain), top5, toks
+            i,
+            hex(&chain),
+            top5,
+            toks
         );
         println!("CLEAN[{}]: text={:?}", i, text);
     }
 
     model_bytes[abs_off] = new;
     for i in 1..=3 {
-        let (toks, chain, top5, text) = run(&model_bytes, &embed_bytes, &vocab_bytes, prompt, max_new);
+        let (toks, chain, top5, text) =
+            run(&model_bytes, &embed_bytes, &vocab_bytes, prompt, max_new);
         println!(
             "CORRUPT[{}]: chain={} top5digest={} tokens={:?}",
-            i, hex(&chain), top5, toks
+            i,
+            hex(&chain),
+            top5,
+            toks
         );
         println!("CORRUPT[{}]: text={:?}", i, text);
     }
