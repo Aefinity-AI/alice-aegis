@@ -1,0 +1,25 @@
+# Canonical episode spec for the E23 trace-tamper matrix: the ONLY prompt/K/N/
+# table combination on record (recovered from round 3's own baseline receipts,
+# see README.md "Pieces" / e23r4.sh's inline comment) that reliably makes the
+# BitNet-2B-artifacts model (~/aefinity-artifacts/bitnet2b-2b-artifacts,
+# override E23_ART) fire `tool=calc` / `tool=lookup` in step 0, so the tamper
+# matrix's `in=`/`out=` fields are non-empty and tool-arg/tool-output tampering
+# is actually exercised. Round 4's own acceptance criterion A7 refuses the run
+# if any of calc/lookup/chain still fires no tool.
+#
+# DO NOT swap in the small tinybit toy model (model-lab/tinybit/...) or the
+# letter-keyed tables (tables/demo.tsv, tables/chain.tsv) here: that
+# combination was tried first (an earlier draft script), produces tool=no-tool
+# on every step at K=3 N=16, and is exactly the coverage gap this file exists
+# to prevent (see E23 R9/R10/R11 note in ../../../state* reports and
+# 2026-09-17-E23-R12-RESULT.md in claudius-maximus/state/reports).
+#
+# Format: tag|prompt (\n and \\ escaped, printf %b-decoded)|K|N|table (repo-relative, or empty)
+#
+# table-sha256 of the two tables below (for provenance / drift detection):
+#   parts-numeric.tsv        c9b9c92d880f382626a9d0cfb5e15eed85d2beccc96e0110ffe2e833cf410ed3
+#   parts-numeric-chain.tsv  fc539f59bbcb70f3ac2b73f2655cf269c9835434439166c90dd736f501638566
+notool|The quick brown fox|3|16|
+calc|Q: What is 7 + 5?\nA: CALC(7 + 5)\nQ: What is 12 + 30?\nA: CALC(|3|16|
+lookup|Q: What is part 401?\nA: LOOKUP(401)\nQ: What is part 402?\nA: LOOKUP(|3|16|demo/agent-trace/tables/parts-numeric.tsv
+chain|Q: What is part 406?\nA: LOOKUP(406)\nTOOL[lookup]=Superseded, see part 403\nA: LOOKUP(403)\nTOOL[lookup]=Gasket, O-ring, fuel line\nQ: What is part 401?\nA: LOOKUP(|3|16|demo/agent-trace/tables/parts-numeric-chain.tsv
