@@ -60,6 +60,11 @@ demo/agent-trace/run.sh all "The quick brown fox" 3 16  # build + gen + verify +
 
 Receipts land in `demo/agent-trace/out/trace-<hostname>-<utc>.txt`.
 
+For a plain-English report on any one receipt (what ran, whether the hash
+chain is intact or broken, the first broken step and what changed, and
+whether it was verified offline), see `receipt-view.py` and
+`receipt-view-README.md` in this directory.
+
 ### Env overrides (same names as `demo/edge-receipt`)
 
 ```
