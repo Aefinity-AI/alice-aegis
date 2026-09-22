@@ -36,7 +36,7 @@ on another (A26), and at parity vector width the integer AVX2 kernel is 2.94× f
 floating-point AVX2 kernel it replaces (A27). On the commodity CPUs where it was measured,
 verifiability did not require specialized or trusted hardware, and did not have to cost performance.
 
-**A standing invitation.** The project maintains a public falsification bounty: find any machine
-on which a conforming build fails to reproduce the digests and the author will pay and record the
-finding in the research ledger as a deliverable. We would rather buy a counterexample than defend
-a claim. Reviewers are invited to try before publication.
+**A standing invitation.** The project maintains a public falsification challenge: find any
+machine on which a conforming build fails to reproduce the digests, and the finding is recorded in
+the research ledger, under your name, as a deliverable in its own right. We would rather publish a
+counterexample than defend a claim. Reviewers are invited to try before publication.

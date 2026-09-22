@@ -201,8 +201,8 @@ boot log rests on operator witness because the verifier prints no CPU identifier
 window and are not comparable to published numbers or to this project's own longer-window
 anchors; and no token-level throughput figure for the integer path has yet been
 measured. The project publishes negative results and retractions in the same ledger as its
-claims, and a standing falsification bounty invites anyone to find a machine on which the digests
-diverge.
+claims, and a standing falsification challenge invites anyone to find a machine on which the
+digests diverge.
 
 The contribution, then, is not a faster kernel or a smaller model. It is a way to say, and to
 prove, exactly what a model computed --- on hardware you do not have to trust, without an operating
@@ -931,10 +931,10 @@ on another (A26), and at parity vector width the integer AVX2 kernel is 2.94× f
 floating-point AVX2 kernel it replaces (A27). On the commodity CPUs where it was measured,
 verifiability did not require specialized or trusted hardware, and did not have to cost performance.
 
-\textbf{A standing invitation.} The project maintains a public falsification bounty: find any machine
-on which a conforming build fails to reproduce the digests and the author will pay and record the
-finding in the research ledger as a deliverable. We would rather buy a counterexample than defend
-a claim. Reviewers are invited to try before publication.
+\textbf{A standing invitation.} The project maintains a public falsification challenge: find any
+machine on which a conforming build fails to reproduce the digests, and the finding is recorded in
+the research ledger, under your name, as a deliverable in its own right. We would rather publish a
+counterexample than defend a claim. Reviewers are invited to try before publication.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
@@ -1203,12 +1203,12 @@ without re-running anything. Repository:
 \texttt{docs/CIS-1\_SPEC\_v1.0.md}; the reproduction commands and CI workflows are in
 §9 above.
 
-\textbf{The \$50 falsification challenge.} The author maintains a standing,
-public bounty (\texttt{CHALLENGE.md}): find any machine on which a conforming
-build produces a different digest or fails witness verification, and the
-author will pay \$50 and record the finding in the research ledger as a
-deliverable in its own right, not a bug to be quietly fixed. Reviewers are
-invited to try before publication.
+\textbf{The falsification challenge.} The author maintains a standing, public
+challenge (\texttt{CHALLENGE.md}): find any machine on which a conforming build
+produces a different digest or fails witness verification, and the finding
+is recorded in the research ledger, credited by name, as a deliverable in
+its own right, not a bug to be quietly fixed. No payment is offered or
+implied. Reviewers are invited to try before publication.
 
 \nocite{*}
 \bibliographystyle{plainnat}

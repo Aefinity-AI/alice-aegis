@@ -97,8 +97,8 @@ boot log rests on operator witness because the verifier prints no CPU identifier
 window and are not comparable to published numbers or to this project's own longer-window
 anchors; and no token-level throughput figure for the integer path has yet been
 measured. The project publishes negative results and retractions in the same ledger as its
-claims, and a standing falsification bounty invites anyone to find a machine on which the digests
-diverge.
+claims, and a standing falsification challenge invites anyone to find a machine on which the
+digests diverge.
 
 The contribution, then, is not a faster kernel or a smaller model. It is a way to say, and to
 prove, exactly what a model computed — on hardware you do not have to trust, without an operating

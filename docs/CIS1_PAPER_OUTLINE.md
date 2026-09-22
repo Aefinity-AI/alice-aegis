@@ -98,7 +98,7 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
 ## 7. Why it matters (one page, written for a program manager)
 - Verifiable inference on commodity hardware with no OS: air-gapped, edge, sovereign deployments;
   audit/regulatory: "prove model X on firmware Y produced output Z".
-- The $50 falsification challenge (CHALLENGE.md) as the paper's standing invitation — reviewers can
+- The falsification challenge (CHALLENGE.md) as the paper's standing invitation — reviewers can
   try to break it before publication.
 - Economics of edge AI: the 2B model's complete all-integer forward pass now clears its
   preregistered quality gate on commodity hardware (+0.1239% PPL vs. float, A35, after the v1.0.3
@@ -124,7 +124,7 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
 3. cm-builder (sonnet): Table 3 auto-generated from the ledger (row → log path), and Figure 1 from spec §5.12.
 4. Adversarial review: run `docs/ADVERSARIAL_REVIEWS_2026-08-01.md`'s protocol against the draft with
    cm-verifier + cm-critic; every objection either changes the text or is answered in §8.
-5. Justin: decide venue, author line (sole author), and whether CHALLENGE.md's bounty is cited.
+5. Justin: decide venue, author line (sole author), and whether CHALLENGE.md's falsification challenge is cited.
 
 ## Open decisions for Justin
 - Preprint first, or workshop deadline first? (arXiv is same-day; a workshop gives a review.)
