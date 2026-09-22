@@ -1,0 +1,65 @@
+# SAFE-5c: box2-only gateway daemon unit. Same daemon as
+# ../../systemd/cm-gateway.service, hardened further because on the
+# two-box split this process is THE enforcement boundary and never needs
+# to originate outbound network traffic of its own (it only reads local
+# artifacts/allowlist, execs the local `agent_trace` binary, and answers
+# the local `gateway.sock` — the ONLY thing that should ever reach that
+# socket is the forced-command relay in ../inter-box/, itself local to
+# box2, so PrivateNetwork=yes here costs nothing and closes one more
+# route for a compromised-gateway-process scenario to exfiltrate the two
+# HMAC keys).
+#
+# Install (box2 only — do NOT copy the key files anywhere near box1):
+#   sh deploy/box2/gen-keys.sh
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/box2/cm-gateway.service ~/.config/systemd/user/
+#   # edit ExecStart paths below for this box's MODEL/EMBED/VOCAB/allowlist
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now cm-gateway.service
+#
+# STABLE INSTALL: box2's production copy of this unit runs the `gateway`
+# binary and deploy/ scripts from /home/cm/.local/lib/cm-gateway (NOT this
+# worktree checkout, which can be deleted) — see
+# state/reports/2026-09-14-safe5c-prep-box2.md (claudius-maximus repo) and
+# ~/.config/systemd/user/cm-gateway.service on box2 for the deployed copy.
+# The ExecStart below is the template as it applies to a checkout at
+# %h/projects/alice-aegis; the deployed copy on box2 points at the
+# stable path instead (including --table, which must point at the
+# stable path's copy of demo/agent-trace/tables/chain.tsv, not this
+# worktree's).
+
+[Unit]
+Description=CM SAFE-5c box2 receipt gateway daemon (enforcement host)
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/projects/alice-aegis/demo/agent-trace/gateway/target/release/gateway serve \
+    %h/aefinity-artifacts/bitnet2b-2b-artifacts/aegis_pruned_model.cis.safetensors \
+    %h/aefinity-artifacts/bitnet2b-2b-artifacts/embed.bin \
+    %h/aefinity-artifacts/bitnet2b-2b-artifacts/vocab.bin \
+    %h/projects/alice-aegis/aegis-linux/target/release/examples/agent_trace \
+    %h/.config/cm-gateway/allowlist.signed \
+    %h/.config/cm-gateway/allowlist.key \
+    --table %h/projects/alice-aegis/demo/agent-trace/tables/chain.tsv \
+    --socket %t/cm-gateway.sock \
+    --cap-key-file %h/.config/cm-gateway/cap.key \
+    --anchor-every 10 \
+    --anchor-file %h/.config/cm-gateway/anchor.log \
+    --cap-ttl 60
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/cm-gateway %t
+# Box2-specific hardening beyond systemd/cm-gateway.service: the gateway
+# process itself has no legitimate reason to touch the network — only
+# AF_UNIX (its own listener socket) is needed.
+RestrictAddressFamilies=AF_UNIX
+PrivateNetwork=yes
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=default.target

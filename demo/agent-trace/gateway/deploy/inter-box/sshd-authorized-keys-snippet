@@ -1,0 +1,21 @@
+# SAFE-5c: line to append to box2's ~/.ssh/authorized_keys for the
+# dedicated box1-agent key (a NEW keypair generated on box1 for this
+# purpose only -- do not reuse any existing box1 key, so it can be
+# revoked independently of anything else box1 does).
+#
+# This line is what makes the channel "forced": no matter what command
+# box1's ssh client asks to run, sshd runs `command=` instead, and the
+# no-* options strip every other thing SSH could otherwise be used for
+# (port forwarding = a generic TCP proxy to anything on box2's network
+# namespace, agent forwarding = box1 borrowing box2's other keys, pty/
+# X11 = an interactive shell or GUI channel). What's left is exactly:
+# "run gateway-relay.sh, feed it box1's stdin, return its stdout" -- a
+# fixed program box2 controls, not an arbitrary command.
+#
+# STATUS: box1 pubkey generated 2026-09-14 (dedicated key, never used for
+# anything else). NOT YET installed on box2 -- box2 must append this line
+# verbatim to its own ~/.ssh/authorized_keys itself (box1 cannot do this
+# remotely; no outbound credential exists in the other direction by
+# design). See state/reports/2026-09-14-safe5c-box1-half.md.
+
+command="/home/cm/.local/lib/cm-gateway/deploy/inter-box/gateway-relay.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty,restrict ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKVFQBwV8erWKRaG2XgEoeweIl1QoENHvFpwQuREjQOd cm-box1-agent-relay-only

@@ -1,0 +1,125 @@
+=== gen calc_01 (K=1 N=16 table=none kinds=calc) ===
+receipt trace-chain 8039848b70d66e50
+local   trace-chain 8039848b70d66e50
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_01: gen=ok verify=PASS
+=== gen calc_02 (K=1 N=16 table=none kinds=calc) ===
+receipt trace-chain 2b4a2076885051c2
+local   trace-chain 2b4a2076885051c2
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_02: gen=ok verify=PASS
+=== gen calc_03 (K=1 N=16 table=none kinds=calc) ===
+receipt trace-chain 0bbd5e965de3b6cc
+local   trace-chain 0bbd5e965de3b6cc
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_03: gen=ok verify=PASS
+=== gen calc_04 (K=1 N=16 table=none kinds=calc) ===
+receipt trace-chain d25422461042918e
+local   trace-chain d25422461042918e
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_04: gen=ok verify=PASS
+=== gen calc_05 (K=1 N=16 table=none kinds=calc) ===
+receipt trace-chain b9ad967ec97e8a3f
+local   trace-chain b9ad967ec97e8a3f
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+calc_05: gen=ok verify=PASS
+=== gen lookup_01 (K=1 N=16 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=lookup) ===
+receipt trace-chain 9891b0f920328e35
+local   trace-chain 9891b0f920328e35
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_01: gen=ok verify=PASS
+=== gen lookup_02 (K=1 N=16 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=lookup) ===
+receipt trace-chain 56142083d44d2d7a
+local   trace-chain 56142083d44d2d7a
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_02: gen=ok verify=PASS
+=== gen lookup_03 (K=1 N=16 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=lookup) ===
+receipt trace-chain 8b4f94d8d2817f93
+local   trace-chain 8b4f94d8d2817f93
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_03: gen=ok verify=PASS
+=== gen lookup_04 (K=1 N=16 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=lookup) ===
+receipt trace-chain ed09016538d3a8c2
+local   trace-chain ed09016538d3a8c2
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_04: gen=ok verify=PASS
+=== gen lookup_05 (K=1 N=16 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=lookup) ===
+receipt trace-chain 3a9179b450cad5a3
+local   trace-chain 3a9179b450cad5a3
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+lookup_05: gen=ok verify=PASS
+=== gen fileread_01 (K=1 N=16 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=file-read) ===
+receipt trace-chain 6de1b57acd114d1f
+local   trace-chain 6de1b57acd114d1f
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+fileread_01: gen=ok verify=PASS
+=== gen fileread_02 (K=1 N=16 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=file-read) ===
+receipt trace-chain f454c25b962755bc
+local   trace-chain f454c25b962755bc
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+fileread_02: gen=ok verify=PASS
+=== gen fileread_03 (K=1 N=16 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=file-read) ===
+receipt trace-chain 044543a3603263d1
+local   trace-chain 044543a3603263d1
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+fileread_03: gen=ok verify=PASS
+=== gen fileread_04 (K=1 N=16 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=file-read) ===
+receipt trace-chain 8daa4fd53441a756
+local   trace-chain 8daa4fd53441a756
+VERIFY PASS — replay reproduced 1 steps and the full trace chain bit-for-bit
+fileread_04: gen=ok verify=PASS
+=== gen mixed_lookup_calc_01 (K=2 N=20 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=lookup,calc) ===
+receipt trace-chain 24353b2bf750f613
+local   trace-chain 24353b2bf750f613
+WARNING step 1: tool argument not found verbatim in context
+VERIFY PASS — replay reproduced 2 steps and the full trace chain bit-for-bit
+mixed_lookup_calc_01: gen=ok verify=PASS
+=== gen mixed_lookup_calc_02 (K=2 N=20 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv kinds=lookup,calc) ===
+receipt trace-chain 7c8f2015b5f208af
+local   trace-chain 7c8f2015b5f208af
+WARNING step 1: tool argument not found verbatim in context
+VERIFY PASS — replay reproduced 2 steps and the full trace chain bit-for-bit
+mixed_lookup_calc_02: gen=ok verify=PASS
+=== gen chain_lookup_01 (K=2 N=40 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/chain.tsv kinds=lookup,lookup) ===
+receipt trace-chain 320925dd5066b9c3
+local   trace-chain 320925dd5066b9c3
+VERIFY PASS — replay reproduced 2 steps and the full trace chain bit-for-bit
+chain_lookup_01: gen=ok verify=PASS
+=== gen chain_lookup_02 (K=2 N=40 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/chain.tsv kinds=lookup,lookup) ===
+receipt trace-chain c8b3a67e29e74da6
+local   trace-chain c8b3a67e29e74da6
+VERIFY PASS — replay reproduced 2 steps and the full trace chain bit-for-bit
+chain_lookup_02: gen=ok verify=PASS
+=== gen chain_fileread_01 (K=2 N=60 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/chain.tsv kinds=file-read,file-read) ===
+receipt trace-chain b218c12ce8079a73
+local   trace-chain b218c12ce8079a73
+VERIFY PASS — replay reproduced 2 steps and the full trace chain bit-for-bit
+chain_fileread_01: gen=ok verify=PASS
+=== gen chain_fileread_02 (K=2 N=60 table=/home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/chain.tsv kinds=file-read,file-read) ===
+receipt trace-chain 8eb70ba90cfea1d4
+local   trace-chain 8eb70ba90cfea1d4
+WARNING step 1: tool argument not found verbatim in context
+VERIFY PASS — replay reproduced 2 steps and the full trace chain bit-for-bit
+chain_fileread_02: gen=ok verify=PASS
+=== all 20 episodes: gen+verify done, see /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/live20/out/summary.tsv ===
+id                    tool_kinds           K  N   table                                                                      gen_status  verify_status
+calc_01               calc                 1  16  none                                                                       ok          PASS
+calc_02               calc                 1  16  none                                                                       ok          PASS
+calc_03               calc                 1  16  none                                                                       ok          PASS
+calc_04               calc                 1  16  none                                                                       ok          PASS
+calc_05               calc                 1  16  none                                                                       ok          PASS
+lookup_01             lookup               1  16  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+lookup_02             lookup               1  16  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+lookup_03             lookup               1  16  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+lookup_04             lookup               1  16  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+lookup_05             lookup               1  16  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+fileread_01           file-read            1  16  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+fileread_02           file-read            1  16  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+fileread_03           file-read            1  16  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+fileread_04           file-read            1  16  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+mixed_lookup_calc_01  lookup,calc          2  20  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+mixed_lookup_calc_02  lookup,calc          2  20  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/demo.tsv   ok          PASS
+chain_lookup_01       lookup,lookup        2  40  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/chain.tsv  ok          PASS
+chain_lookup_02       lookup,lookup        2  40  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/chain.tsv  ok          PASS
+chain_fileread_01     file-read,file-read  2  60  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/chain.tsv  ok          PASS
+chain_fileread_02     file-read,file-read  2  60  /home/cm/projects/alice-aegis-cm-tools1/demo/agent-trace/tables/chain.tsv  ok          PASS

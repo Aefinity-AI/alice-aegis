@@ -1,0 +1,26 @@
+[package]
+name = "gateway"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["Justin B. Thompson (Aefinity AI)"]
+repository = "https://github.com/Aefinity-AI/alice-aegis"
+description = """
+SAFE-1b prototype: a 'no receipt, no action' tool gateway that sits in
+front of agent_trace verify. Only depends on aegis-core (already in this
+workspace, no_std sha256) so this crate builds fully offline. See
+demo/agent-trace/gateway/README.md and
+state/reports/2026-09-13-safe1b-gateway-proto.md (claudius-maximus repo)
+for the design this implements and the critique that shaped it.
+"""
+
+[dependencies]
+aegis-core = { path = "../../../aegis-core" }
+
+[lib]
+name = "gateway"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gateway"
+path = "src/main.rs"

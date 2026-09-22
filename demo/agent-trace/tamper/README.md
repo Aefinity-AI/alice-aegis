@@ -34,6 +34,7 @@ harder; it can never be inflated by adding junk.
 | `mutate4.py` | Emits two labelled buckets from one receipt: **W**, well-formed by construction, and **M**, malformed on purpose. |
 | `wellformed.py` | Independent grammar checker for AEGIS-TRACE receipts, written from the format description rather than from `agent_trace.rs`. Decides bucket membership. |
 | `e23r4.sh` | The harness: generates baselines, mutates, verifies every mutant in parallel, classifies each rejection, checks nine acceptance criteria fixed before the run. |
+| `episodes.tsv` | The canonical tag/prompt/K/N/table spec (notool/calc/lookup/chain) that actually fires `tool=calc`/`tool=lookup`, extracted out of `e23r4.sh` so other tamper-matrix harnesses (e.g. `claudius-maximus/legs/e23-trace-tamper-matrix.sh`) can consume the same, known-working fixture instead of re-deriving (or silently regressing) their own. Added round 12 after R9–R11 found an out-of-tree harness had drifted back to the tinybit toy model / letter-keyed tables and lost tool coverage — see `state/reports/2026-09-17-E23-R12-RESULT.md` in `claudius-maximus`. |
 
 ## What makes a mutant well-formed
 

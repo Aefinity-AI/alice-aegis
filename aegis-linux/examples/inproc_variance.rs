@@ -35,10 +35,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "{},{},{},{},{},{:016x}",
             i,
-            engine.last_decode_cycles / steps as u64,
-            engine.last_decode_cycles,
+            engine.last_decode_ticks / steps as u64,
+            engine.last_decode_ticks,
             engine.last_decode_steps,
-            engine.last_prefill_cycles,
+            engine.last_prefill_ticks,
             h
         );
     }

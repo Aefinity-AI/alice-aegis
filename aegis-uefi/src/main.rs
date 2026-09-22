@@ -1242,8 +1242,8 @@ fn main() -> uefi::Status {
                             // proportion to TSC ticks (invariant-rate), so the reported
                             // tok/s is decode-only: a fixed prefill cost amortized over
                             // more output tokens otherwise fakes a speedup with length.
-                            let (p_ticks, p_toks) = (engine.last_prefill_cycles, engine.last_prefill_tokens);
-                            let (d_ticks, d_steps) = (engine.last_decode_cycles, engine.last_decode_steps);
+                            let (p_ticks, p_toks) = (engine.last_prefill_ticks, engine.last_prefill_tokens);
+                            let (d_ticks, d_steps) = (engine.last_decode_ticks, engine.last_decode_steps);
                             let p_secs = if dt > 0 { secs * (p_ticks as f64 / dt as f64) } else { 0.0 };
                             let d_secs = if dt > 0 { secs * (d_ticks as f64 / dt as f64) } else { 0.0 };
                             let d_tps = if d_secs > 0.0 { d_steps as f64 / d_secs } else { 0.0 };
