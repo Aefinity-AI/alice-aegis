@@ -129,6 +129,11 @@ demo/agent-trace/run.sh all "The quick brown fox" 3 16  # build + gen + verify +
 
 Receipts land in `demo/agent-trace/out/trace-<hostname>-<utc>.txt`.
 
+For a plain-English report on any one receipt (what ran, whether the hash
+chain is intact or broken, the first broken step and what changed, and
+whether it was verified offline), see `receipt-view.py` and
+`receipt-view-README.md` in this directory.
+
 ### Python receipt analyzer (`check_verbatim.py`)
 
 `eval/check_verbatim.py` is a receipt-only verifier that checks whether each tool-call argument is grounded in the externally supplied context (the prompt's `Q:` lines and prior tool results). It prints one row per step and a summary.
