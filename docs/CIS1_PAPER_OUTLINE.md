@@ -124,7 +124,7 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
 3. cm-builder (sonnet): Table 3 auto-generated from the ledger (row → log path), and Figure 1 from spec §5.12.
 4. Adversarial review: run `docs/ADVERSARIAL_REVIEWS_2026-08-01.md`'s protocol against the draft with
    cm-verifier + cm-critic; every objection either changes the text or is answered in §8.
-5. Justin: decide venue, author line (sole author), and whether CHALLENGE.md's bounty is cited.
+5. Justin: decide venue, author line (sole author), and whether CHALLENGE.md's falsification challenge is cited.
 
 ## Open decisions for Justin
 - Preprint first, or workshop deadline first? (arXiv is same-day; a workshop gives a review.)
