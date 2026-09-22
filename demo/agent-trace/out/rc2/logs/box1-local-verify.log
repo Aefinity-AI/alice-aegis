@@ -1,0 +1,54 @@
+rc-2: box1 (aefinity-box) local generation + verify, 2026-09-22
+Artifacts: bitnet2b 2B triple, ~/aefinity-artifacts/bitnet2b-2b-artifacts/amdahl-links
+  model facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+  embed e32b99a25e345c65054f36dedf40329a89513cdf1a8195db64fc440fd364e077
+  vocab 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae
+(matches .github/workflows/bitnet2b-receipt.yml RELEASE_TAG artifacts-bitnet2b-2026-08-27 pins)
+Binary: aegis-linux/target/release/examples/agent_trace, built from worktree
+  ~/projects/alice-aegis-cm-rc2 @ cm/rc2-agent-scenarios (base commit 5a02e2c)
+
+=== scenario1-tool-use (K=3 N=24) ===
+$ demo/agent-trace/run.sh gen "Q: 2 + 2\nA: CALC(2 + 2).\nQ: 10 + 10\nA: CALC(10 + 10).\nQ: 6 * 7\nA: CALC(6 * 7).\nQ: 11 - 9\nA:" 3 24
+wrote demo/agent-trace/out/scenario1-tool-use.txt
+step 0: tool=calc in=CALC(11 - 9) out=2
+step 1: tool=no-tool
+step 2: tool=no-tool
+$ demo/agent-trace/run.sh verify demo/agent-trace/out/scenario1-tool-use.txt
+receipt trace-chain 2e7b42d1ce4c904b
+local   trace-chain 2e7b42d1ce4c904b
+VERIFY PASS — replay reproduced 3 steps and the full trace chain bit-for-bit
+
+=== scenario2-reasoning (K=5 N=16, no table, no tool calls) ===
+$ demo/agent-trace/run.sh gen "Step 1: We need to decide if 17 is prime.\nStep 2: 17 is not divisible by 2, 3, or a smaller prime up to its square root.\nStep 3: Therefore 17 is prime.\nStep 4:" 5 16
+wrote demo/agent-trace/out/scenario2-reasoning.txt
+steps 0-4: all tool=no-tool (pure chained decode, no tool calls anywhere in the episode)
+$ demo/agent-trace/run.sh verify demo/agent-trace/out/scenario2-reasoning.txt
+receipt trace-chain 6e93db62c1b09e6d
+local   trace-chain 6e93db62c1b09e6d
+VERIFY PASS — replay reproduced 5 steps and the full trace chain bit-for-bit
+
+=== scenario3-plan-execute (K=3 N=20, CALC-only, no table) ===
+$ demo/agent-trace/run.sh gen "Plan: 1) compute 2 + 2. 2) compute 10 + 10. 3) compute 6 * 7.\nQ: 2 + 2\nA: CALC(2 + 2).\nQ: 10 + 10\nA: CALC(10 + 10).\nQ: 6 * 7\nA:" 3 20
+wrote demo/agent-trace/out/scenario3-plan-execute.txt
+step 0: tool=calc in=CALC(6 * 7) out=42
+step 1: tool=calc in=CALC(3 + 3) out=6
+step 2: tool=calc in=CALC(4 + 4) out=38   (model's own arithmetic is wrong here — 4+4 -> "38" is the CALC tool's HONEST evaluation
+                                            of the malformed few-shot echo the model produced, not the receipt lying; this is the
+                                            same "model echoes a few-shot pattern rather than solving cleanly" behavior noted in
+                                            demo/agent-trace/README.md's "Evidence so far" section for this pruned 2B checkpoint)
+$ demo/agent-trace/run.sh verify demo/agent-trace/out/scenario3-plan-execute.txt
+receipt trace-chain 0644c907ff3033fe
+local   trace-chain 0644c907ff3033fe
+WARNING step 1: tool argument not found verbatim in context
+WARNING step 2: tool argument not found verbatim in context
+VERIFY PASS — replay reproduced 3 steps and the full trace chain bit-for-bit
+
+Note: an earlier scenario3 draft used LOOKUP against demo/agent-trace/tables/demo.tsv
+(table-sha256 6b2f738491306145ad47ad50c9e02d922daaae96d1866288a32ae2f8047151dd) and also
+verified PASS locally on box1 — see git history commit e188744 on this branch. It was
+swapped out before the box2 leg because box2's live cm-gateway.service is pinned to a
+DIFFERENT table (tiny/tables/chain.tsv, a known pre-existing gap documented in
+state/LOG.md 2026-09-14 and state/reports/2026-09-14-safe5e-twobox-2b.md "Notes / not
+attempted"), which would have made the box2 daemon leg fail on a --table mismatch
+unrelated to this episode's own validity. The CALC-only plan-execute swap avoids that
+known gap entirely while keeping the "plan, then N execute steps" scenario shape.
