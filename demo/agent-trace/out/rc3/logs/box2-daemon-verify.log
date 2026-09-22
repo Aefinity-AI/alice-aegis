@@ -1,0 +1,18 @@
+=== box2 daemon verify: scenario1-tool-use (rc-3 receipt), submitted T4 Tue Sep 22 02:43:24 PM UTC 2026 ===
+$ printf 'RECEIPT /tmp/rc3-scenario1-tool-use.receipt\nACTION \nSESSION cm-rc3-s1\nCOUNTER 1\n\n' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/cm-gateway.sock
+PENDING ticket=T4
+[... 34 PENDING polls (20s interval) from 14:44:09Z to 14:55:16Z ...]
+ALLOW idx=8 cap=f262aed54e3906e6c1f54ec108c942f89a7d11b649bd989642a6955a1d2e4f50 exp=1790088988
+RESULT: PASS (ALLOW) — gateway's internal agent_trace verify replayed the
+  episode on box2's own artifact triple and matched the receipt's
+  trace-chain bit-for-bit. Ticket submitted 14:43:24Z, ALLOW observed
+  14:55:37Z (poll interval 20s) — wall-clock bounded at ~12m13s
+  submit-to-ALLOW (polling-bounded, not a precise `time` measurement: the
+  daemon protocol has no synchronous RPC, only PENDING/ALLOW/DENY). This is
+  slower than rc-2's ~7.5min figure for the SAME scenario shape submitted
+  earlier the same day — box2 is a shared, single-worker daemon (only one
+  verify runs at a time) and no attempt was made to control for other
+  daemon queue activity between rc-2 and this tick's submission; both
+  numbers are reported as-observed, neither is treated as "the" box2 verify
+  time for this scenario.
+Cleanup: /tmp/rc3-scenario1-tool-use.receipt removed from box2 after use.

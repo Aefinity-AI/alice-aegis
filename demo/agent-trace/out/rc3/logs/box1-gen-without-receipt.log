@@ -1,0 +1,37 @@
+=== WITHOUT receipts (re-run, exact rc-2 prompt bytes w/ real newlines): cis_decode N=72 ===
+Tue Sep 22 02:43:59 PM UTC 2026
+model : 30 layers, hidden 2560, vocab 50256
+prompt: "Q: 2 + 2\nA: CALC(2 + 2).\nQ: 10 + 10\nA: CALC(10 + 10).\nQ: 6 * 7\nA: CALC(6 * 7).\nQ: 11 - 9\nA:" -> 67 tokens
+token ids: [34007, 34, 7, 806, 482, 220, 24, 570, 720, 48, 25, 220, 18, 353, 220, 19, 198, 32, 25, 34007, 34, 7, 18, 353, 220, 19, 570, 720, 48, 25, 220, 20, 489, 220, 20, 198, 32, 25, 34007, 34, 7, 20, 489, 220, 20, 570, 720, 48, 25, 220, 23, 353, 220, 24, 198, 32, 25, 34007, 34, 7, 23, 353, 220, 24, 570, 720, 48, 25, 220, 717, 482, 220]
+text     : " CALC(11 - 9). \nQ: 3 * 4\nA: CALC(3 * 4). \nQ: 5 + 5\nA: CALC(5 + 5). \nQ: 8 * 9\nA: CALC(8 * 9). \nQ: 12 - "
+CIS_DECODE digest=62dcc49436927a28 prompt_toks=67 gen_toks=72 mode=fullint
+	Command being timed: "/home/cm/projects/alice-aegis-cm-rc3/aegis-linux/target/release/examples/cis_decode /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/aegis_pruned_model.cis.safetensors /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/embed.bin /home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/vocab.bin 72 Q: 2 + 2
+A: CALC(2 + 2).
+Q: 10 + 10
+A: CALC(10 + 10).
+Q: 6 * 7
+A: CALC(6 * 7).
+Q: 11 - 9
+A:"
+	User time (seconds): 17.46
+	System time (seconds): 0.35
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:17.84
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1399600
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 5971
+	Voluntary context switches: 2
+	Involuntary context switches: 667
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
