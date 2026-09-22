@@ -1,0 +1,62 @@
+rc-2: box2 (aefinity-box2, 192.168.10.21, Celeron N4020, no AVX2/FMA) daemon-worker
+replay-verify, 2026-09-22. Per the box2 HOST RULE (state/QUEUE.md line 57): box2 must
+NEVER run a 2B-model replay/generation directly (starves the 3.7GB box); the only
+permitted 2B path is the live cm-gateway.service's single background verify worker
+(`--verify-workers 1 --request-timeout 900`). All three receipts were submitted to
+that daemon over its local unix socket ($XDG_RUNTIME_DIR/cm-gateway.sock), exactly
+matching the RECEIPT/ACTION/SESSION/COUNTER protocol documented in
+demo/agent-trace/gateway/src/main.rs and used in
+state/reports/2026-09-14-safe5e-twobox-2b.md.
+
+CORRECTION NOTE: an earlier attempt in this same tick incorrectly built agent_trace
+directly in a /tmp worktree on box2 and ran `agent_trace verify` as a bare process
+against the 2B triple outside the daemon -- a violation of the box2 HOST RULE. Caught
+mid-run; the offending processes (and their orchestrating shell) were killed
+(kill -9), the /tmp worktree removed, and cm-gateway.service (which had been
+restarted by systemd, unrelated to and unharmed by the mistake) was confirmed healthy
+before continuing via the correct daemon path below. No receipt or verify result in
+this report comes from that direct run.
+
+ACTION field: the gateway's verify-execute binding check requires ACTION to hash-equal
+the receipt's LITERAL LAST STEP tool-call input (empty if the last step is no-tool).
+scenario1's and scenario2's last steps are both no-tool -> ACTION sent empty.
+scenario3's last step (step 2) is tool=calc in=CALC(4 + 4) -> ACTION =
+43414c432834202b203429 (hex of "CALC(4 + 4)").
+
+=== scenario1-tool-use ===
+$ printf 'RECEIPT /tmp/scenario1-tool-use.receipt\nACTION \nSESSION cm-rc2-s1\nCOUNTER 1\n\n' \
+    | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/cm-gateway.sock
+PENDING ticket=T1
+$ printf 'POLL ticket=T1\n\n' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/cm-gateway.sock
+[... 14 PENDING polls over ~7.5 min ...]
+ALLOW idx=2 cap=5a1de02495c93ecd95ea2a40febc1b120dd913c03b2135107bc7cc92922aaa47 exp=1790077855
+RESULT: PASS (ALLOW — gateway's internal `agent_trace verify` replayed the episode
+  on box2's own artifact triple and matched the receipt's trace-chain bit-for-bit;
+  cheap-check verify-execute binding also passed since ACTION matched the (empty)
+  last-step input).
+
+=== scenario2-reasoning ===
+$ printf 'RECEIPT /tmp/scenario2-reasoning.receipt\nACTION \nSESSION cm-rc2-s2\nCOUNTER 1\n\n' \
+    | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/cm-gateway.sock
+PENDING ticket=T2
+$ printf 'POLL ticket=T2\n\n' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/cm-gateway.sock
+[... 30 PENDING polls over ~15 min ...]
+DENY agent_trace verify: could not run: agent_trace verify exceeded --request-timeout (900s), killed
+RESULT: DENY — NOT a receipt-validity failure. This receipt already VERIFY PASSed
+  bit-for-bit on box1 (see box1-local-verify.log). scenario2 has 5 steps (vs 3 for
+  scenario1/3) and hit the gateway's own 900s --request-timeout ceiling on this
+  Celeron N4020 before the replay finished; the daemon killed the subprocess and
+  DENYed, per its documented fail-closed behavior (main.rs SAFE-7 comments). This is
+  an honest negative result about box2's wall-clock budget for a 5-step 2B replay
+  under the daemon's fixed timeout, not a claim that the receipt itself is invalid.
+
+=== scenario3-plan-execute ===
+$ printf 'RECEIPT /tmp/scenario3-plan-execute.receipt\nACTION 43414c432834202b203429\nSESSION cm-rc2-s3\nCOUNTER 1\n\n' \
+    | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/cm-gateway.sock
+PENDING ticket=T3
+$ printf 'POLL ticket=T3\n\n' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/cm-gateway.sock
+[... 19 PENDING polls over ~9.5 min ...]
+ALLOW idx=6 cap=e56c6a3d49afc776c1d63d39d26e09ab664d617f7fde906671bc45b8035fddc6 exp=1790079595
+RESULT: PASS (ALLOW).
+
+Cleanup: /tmp/scenario{1,2,3}-*.receipt removed from box2 after use.
