@@ -98,7 +98,7 @@ Phase I narratives — write it so a program manager can read §1 and §7 alone.
 ## 7. Why it matters (one page, written for a program manager)
 - Verifiable inference on commodity hardware with no OS: air-gapped, edge, sovereign deployments;
   audit/regulatory: "prove model X on firmware Y produced output Z".
-- The $50 falsification challenge (CHALLENGE.md) as the paper's standing invitation — reviewers can
+- The falsification challenge (CHALLENGE.md) as the paper's standing invitation — reviewers can
   try to break it before publication.
 - Economics of edge AI: the 2B model's complete all-integer forward pass now clears its
   preregistered quality gate on commodity hardware (+0.1239% PPL vs. float, A35, after the v1.0.3
