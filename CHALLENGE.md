@@ -15,7 +15,7 @@ publishes its negative results as deliverables, under the name of whoever
 produced them. If you falsify my core claim, that's the most valuable
 negative result in the program, and it will be published as such.
 
-The ledger itself is [](HALL-OF-DIVERGENCE.md)
+The ledger itself is [`HALL-OF-DIVERGENCE.md`](HALL-OF-DIVERGENCE.md)
 in this repo: divergences and out-of-project reproductions, credited by name.
 
 ## The claim, precisely
