@@ -160,6 +160,7 @@ pub fn check_and_consume(
         Err(VerifyError::BadMac) => refuse("bad mac"),
         Err(VerifyError::Expired) => refuse("expired"),
         Err(VerifyError::AlreadyConsumed) => refuse("already consumed"),
+        Err(VerifyError::NotYetValid) => refuse("not yet valid (clock skew out of bounds)"),
     }
 }
 
