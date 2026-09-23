@@ -42,6 +42,19 @@ pub enum VerifyError {
     BadMac,
     Expired,
     AlreadyConsumed,
+    /// tool-1 GATEWAY HARDENING: the token's `expiry_unix` is further in
+    /// the future than any legitimate capability could be (see
+    /// `MAX_SKEW_SECS` below). A well-behaved gateway never mints a token
+    /// whose expiry is more than `cap_ttl` (default 60s, operator-capped)
+    /// past its own issue-time clock reading, so a token whose expiry is
+    /// implausibly far ahead of the *verifier's* clock is not a normal
+    /// slow-clock skew case -- it is either a forged/tampered `--exp`, or
+    /// the verifying process's own clock has been rolled backward/frozen
+    /// (accidentally or by an attacker with local control, e.g. `faketime`)
+    /// so that `now` never catches up to `expiry_unix` and the naive
+    /// `now > expiry_unix` check would then accept the token forever. This
+    /// bounds that: skew tolerance is finite, not unbounded.
+    NotYetValid,
 }
 
 impl VerifyError {
@@ -50,9 +63,24 @@ impl VerifyError {
             VerifyError::BadMac => "bad mac",
             VerifyError::Expired => "expired",
             VerifyError::AlreadyConsumed => "already consumed",
+            VerifyError::NotYetValid => "not yet valid (clock skew out of bounds)",
         }
     }
 }
+
+/// tool-1 GATEWAY HARDENING: the largest gap between a verifier's `now`
+/// and a token's `expiry_unix` that is tolerated as ordinary clock skew
+/// between the gateway daemon (which stamps `expiry_unix` at ALLOW time
+/// using ITS clock) and a tool shim (which checks it later using ITS OWN
+/// clock, possibly on a different host via the inter-box relay). Chosen
+/// generously above the default `--cap-ttl` (60s) and any plausible NTP
+/// drift/verify-latency, while still being a *bounded* value -- a token
+/// cannot be treated as valid no matter how far `expiry_unix` sits beyond
+/// `now`. Without this bound, a verifier whose own clock is stuck/rolled
+/// back (so `now` never advances past `expiry_unix`) would accept a
+/// token indefinitely, which is a fail-open clock-skew bug, not a
+/// legitimate tolerance.
+pub const MAX_SKEW_SECS: u64 = 3600;
 
 fn signable_bytes(
     decision_index: u64,
@@ -138,6 +166,15 @@ pub fn verify(
     }
     if now > expiry_unix {
         return Err(VerifyError::Expired);
+    }
+    // tool-1 GATEWAY HARDENING: bounded clock-skew check. A genuine token
+    // never has `expiry_unix` more than MAX_SKEW_SECS beyond a sane
+    // verifier clock; if it does, the verifier's own `now` is not to be
+    // trusted (frozen/rolled-back clock) and the token must be rejected
+    // rather than treated as valid-until-the-clock-catches-up (which
+    // would be an unbounded tolerance, i.e. fail-open).
+    if expiry_unix > now.saturating_add(MAX_SKEW_SECS) {
+        return Err(VerifyError::NotYetValid);
     }
     if consumed.contains(&decision_index) {
         return Err(VerifyError::AlreadyConsumed);
@@ -277,5 +314,231 @@ mod tests {
             &key, 1, hash, 1_000_100, &tok, 1_000_000, &mut consumed, "shell",
         );
         assert_eq!(r, Err(VerifyError::BadMac));
+    }
+
+    // ===============================================================
+    // tool-1 GATEWAY HARDENING: (a) receipt/capability replay after key
+    // rotation, (b) oversized/malformed tool-call arguments, (c) clock
+    // skew on expiry. See src/main.rs cap_key loading (read fresh from
+    // --cap-key-file at daemon startup / by each tool_shim_* invocation)
+    // for why "rotation" here means simply verifying with a different key
+    // than the one a token was issued under.
+    // ===============================================================
+
+    // ---- (a) key rotation ----------------------------------------
+
+    #[test]
+    fn key_rotation_invalidates_old_token() {
+        let old_key = k();
+        let new_key = b"post-rotation-cap-key-not-for-prod".to_vec();
+        let hash = ah();
+        // Token minted under the pre-rotation key (this is exactly what a
+        // captured/leaked receipt+token pair from before a rotation looks
+        // like).
+        let tok = issue(&old_key, 1, hash, 1_000_100, "shell");
+        let mut consumed = HashSet::new();
+        // Presented to a verifier that has since rotated to the new key
+        // (e.g. gateway daemon restarted with a fresh --cap-key-file, or a
+        // tool shim invocation that re-reads a rotated key file) -- must
+        // be rejected, not silently accepted just because the rest of the
+        // fields line up.
+        let r = verify(
+            &new_key, 1, hash, 1_000_100, &tok, 1_000_000, &mut consumed, "shell",
+        );
+        assert_eq!(r, Err(VerifyError::BadMac));
+        // The decision index must NOT have been consumed by the rejected
+        // attempt (a forger must not be able to burn a real index via a
+        // bad-key replay).
+        assert!(!consumed.contains(&1));
+    }
+
+    #[test]
+    fn key_rotation_new_tokens_work_after_rotation() {
+        // Sanity: rotation does not brick the system -- a token freshly
+        // minted under the NEW key still verifies fine under the NEW key.
+        let new_key = b"post-rotation-cap-key-not-for-prod".to_vec();
+        let hash = ah();
+        let tok = issue(&new_key, 1, hash, 1_000_100, "shell");
+        let mut consumed = HashSet::new();
+        let r = verify(
+            &new_key, 1, hash, 1_000_100, &tok, 1_000_000, &mut consumed, "shell",
+        );
+        assert!(r.is_ok(), "expected Ok, got {r:?}");
+    }
+
+    #[test]
+    fn key_rotation_old_token_rejected_at_every_stage_not_just_first_check() {
+        // Even if an attacker also replays the (now-rejected) decision
+        // index and re-presents an already-expired-looking combination
+        // under the old token, rotation must reject it purely on BadMac,
+        // before expiry/replay logic is ever consulted -- consistent with
+        // the "forger gets BadMac, not AlreadyConsumed/Expired" ordering
+        // rule documented on `verify` above.
+        let old_key = k();
+        let new_key = b"another-rotated-key".to_vec();
+        let hash = ah();
+        let tok = issue(&old_key, 5, hash, 100, "shell"); // already "expired" by expiry too
+        let mut consumed = HashSet::new();
+        let r = verify(&new_key, 5, hash, 100, &tok, 1_000_000, &mut consumed, "shell");
+        assert_eq!(
+            r,
+            Err(VerifyError::BadMac),
+            "old-key token must fail closed on the key check, not leak Expired/AlreadyConsumed"
+        );
+    }
+
+    // ---- (b) oversized / malformed tool-call arguments -------------
+
+    #[test]
+    fn oversized_action_bytes_do_not_panic_and_verify_correctly() {
+        // A 8 MiB "argument" (e.g. a huge shell command or file payload)
+        // must hash and verify without panicking, and a token minted for
+        // different (smaller) bytes must still be cleanly refused as a
+        // mismatch rather than accepted or causing a panic anywhere in
+        // the hashing/verification path.
+        let key = k();
+        let big = vec![0x41u8; 8 * 1024 * 1024];
+        let big_hash = crate::action_hash(&big);
+        let tok = issue(&key, 1, big_hash, 1_000_100, "shell");
+        let mut consumed = HashSet::new();
+        let r = verify(
+            &key, 1, big_hash, 1_000_100, &tok, 1_000_000, &mut consumed, "shell",
+        );
+        assert!(r.is_ok(), "expected Ok for the exact oversized payload, got {r:?}");
+
+        // A DIFFERENT oversized payload (one bit flipped near the end) must
+        // not verify against that token's hash.
+        let mut other_big = big.clone();
+        *other_big.last_mut().unwrap() ^= 0x01;
+        let other_hash = crate::action_hash(&other_big);
+        let mut consumed2 = HashSet::new();
+        let r2 = verify(
+            &key, 1, other_hash, 1_000_100, &tok, 1_000_000, &mut consumed2, "shell",
+        );
+        assert_eq!(r2, Err(VerifyError::BadMac));
+    }
+
+    #[test]
+    fn malformed_token_strings_are_rejected_cleanly_not_panicking() {
+        let key = k();
+        let hash = ah();
+        let mut consumed = HashSet::new();
+        for malformed in [
+            "",
+            "not-hex-at-all",
+            "zz",
+            &"a".repeat(63), // one short of a real 64-hex-char token
+            &"a".repeat(65), // one too many
+            &"f".repeat(10_000), // grossly oversized token string
+            "\u{0}\u{0}\u{0}",
+            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\n", // trailing newline
+        ] {
+            let r = verify(
+                &key, 1, hash, 1_000_100, malformed, 1_000_000, &mut consumed, "shell",
+            );
+            assert_eq!(
+                r,
+                Err(VerifyError::BadMac),
+                "malformed token {malformed:?} must fail closed as BadMac, not panic or pass"
+            );
+            assert!(
+                !consumed.contains(&1),
+                "a rejected malformed token must never consume the real index"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_shim_args_rejects_malformed_numeric_fields_without_panicking() {
+        // shim_common::parse_shim_args must never panic on malformed
+        // --idx/--exp values (e.g. non-numeric, oversized, negative-looking)
+        // -- it should simply leave the field as None, which
+        // check_and_consume then treats as "no token" (fail closed).
+        use crate::shim_common::parse_shim_args;
+        let argv: Vec<String> = [
+            "--idx",
+            "not-a-number",
+            "--cap",
+            "deadbeef",
+            "--exp",
+            "99999999999999999999999999999999", // overflows u64
+            "--action-hash",
+            "zz-not-hex",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let parsed = parse_shim_args(&argv);
+        assert_eq!(parsed.idx, None, "non-numeric --idx must parse to None, not panic");
+        assert_eq!(
+            parsed.exp, None,
+            "overflowing --exp must parse to None, not panic or wrap"
+        );
+        // --cap and --action-hash are opaque strings at this layer (validated
+        // later by verify()/the hash-mismatch check), so they pass through.
+        assert_eq!(parsed.cap.as_deref(), Some("deadbeef"));
+        assert_eq!(parsed.action_hash_hex.as_deref(), Some("zz-not-hex"));
+    }
+
+    // ---- (c) clock skew on expiry -----------------------------------
+
+    #[test]
+    fn slightly_past_expiry_is_rejected() {
+        let key = k();
+        let hash = ah();
+        let tok = issue(&key, 1, hash, 1_000_100, "shell");
+        let mut consumed = HashSet::new();
+        // Presented just 1 second past expiry -- must still be rejected;
+        // there is no leniency on the "past expiry" side.
+        let r = verify(
+            &key, 1, hash, 1_000_100, &tok, 1_000_101, &mut consumed, "shell",
+        );
+        assert_eq!(r, Err(VerifyError::Expired));
+    }
+
+    #[test]
+    fn far_future_expiry_beyond_skew_bound_is_rejected_not_yet_valid() {
+        // A token whose expiry sits further ahead of `now` than any
+        // legitimate cap-ttl + clock-skew tolerance allows must be
+        // rejected -- this is the case where the verifying clock is
+        // stuck/rolled back (or `--exp` was forged far into the future),
+        // which without a bound would let `now > expiry_unix` never fire
+        // and the token verify "forever". MAX_SKEW_SECS bounds it.
+        let key = k();
+        let hash = ah();
+        let now = 1_000_000u64;
+        let far_future_expiry = now + MAX_SKEW_SECS + 1;
+        let tok = issue(&key, 1, hash, far_future_expiry, "shell");
+        let mut consumed = HashSet::new();
+        let r = verify(&key, 1, hash, far_future_expiry, &tok, now, &mut consumed, "shell");
+        assert_eq!(r, Err(VerifyError::NotYetValid));
+        assert!(!consumed.contains(&1));
+    }
+
+    #[test]
+    fn expiry_within_skew_bound_is_still_accepted() {
+        // Sanity/no-regression: a normal token (expiry well within the
+        // skew bound of "now", e.g. the default 60s cap-ttl) must still
+        // verify -- the fix must not turn into an over-broad rejection.
+        let key = k();
+        let hash = ah();
+        let now = 1_000_000u64;
+        let normal_expiry = now + 60; // default --cap-ttl
+        let tok = issue(&key, 1, hash, normal_expiry, "shell");
+        let mut consumed = HashSet::new();
+        let r = verify(&key, 1, hash, normal_expiry, &tok, now, &mut consumed, "shell");
+        assert!(r.is_ok(), "expected Ok, got {r:?}");
+    }
+
+    #[test]
+    fn expiry_exactly_at_skew_boundary_is_accepted() {
+        let key = k();
+        let hash = ah();
+        let now = 1_000_000u64;
+        let boundary_expiry = now + MAX_SKEW_SECS; // exactly at the bound
+        let tok = issue(&key, 1, hash, boundary_expiry, "shell");
+        let mut consumed = HashSet::new();
+        let r = verify(&key, 1, hash, boundary_expiry, &tok, now, &mut consumed, "shell");
+        assert!(r.is_ok(), "boundary value must still be accepted, got {r:?}");
     }
 }
