@@ -1,0 +1,51 @@
+# nl-12: box1 half of "GATEWAY ON EVERY BOX". Same daemon/unit shape as
+# box3's deploy/box3/cm-gateway.service (alice-aegis repo, commit 97a8873),
+# adapted for box1 (aefinity-box, i5-5200U, AVX2, full worker). Pointed at
+# the tinybit M7 "tiny" artifact triple (staged at
+# ~/.local/lib/cm-gateway/tiny/, copied from
+# ~/projects/cis2-spec/kits/verification-kit-v1/model/, sha256s recorded in
+# state/reports/2026-09-25-nl12-gateway-box1.md, matching box3's report),
+# per nl-12's scope (functional gateway test, not a 2B Rule A measurement).
+#
+# Built from alice-aegis worktree ../alice-aegis-cm-nl12-box1
+# (branch cm/nl12-gateway-box1); binaries copied to the stable path below
+# so the worktree can be deleted without breaking this live unit.
+#
+# Install:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now cm-gateway.service
+
+[Unit]
+Description=CM nl-12 box1 receipt gateway daemon (tiny-model only)
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/lib/cm-gateway/bin/gateway serve \
+    %h/.local/lib/cm-gateway/tiny/MODEL.SAF \
+    %h/.local/lib/cm-gateway/tiny/EMBED.BIN \
+    %h/.local/lib/cm-gateway/tiny/VOCAB.BIN \
+    %h/.local/lib/cm-gateway/bin/agent_trace \
+    %h/.config/cm-gateway/allowlist.signed \
+    %h/.config/cm-gateway/allowlist.key \
+    --table %h/.local/lib/cm-gateway/tiny/receipts/chain.tsv \
+    --socket %t/cm-gateway.sock \
+    --cap-key-file %h/.config/cm-gateway/cap.key \
+    --anchor-every 10 \
+    --anchor-file %h/.config/cm-gateway/anchor.log \
+    --cap-ttl 60 \
+    --request-timeout 30 \
+    --verify-workers 1
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/cm-gateway %t
+RestrictAddressFamilies=AF_UNIX
+PrivateNetwork=yes
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=default.target
