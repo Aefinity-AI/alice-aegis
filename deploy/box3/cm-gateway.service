@@ -1,0 +1,55 @@
+# nl-12: box3 half of "GATEWAY ON EVERY BOX". Same daemon/unit shape as
+# box2's deploy/box2/cm-gateway.service (alice-aegis repo), adapted for
+# box3 (aefinity-box-2a7e, Celeron N4020C, 2c/3.7GB, no AVX2/FMA).
+#
+# HOST RULE: box3 is a light worker and must NEVER run 2B-model
+# replay/generation (state/QUEUE.md line ~58, claudius-maximus repo). This
+# unit is therefore pointed at the tinybit M7 "tiny" artifact triple only
+# (staged at ~/.local/lib/cm-gateway/tiny/, copied from
+# ~/projects/cis2-spec/kits/verification-kit-v1/model/, sha256s recorded in
+# state/reports/2026-09-25-nl12-gateway-box3.md), never at
+# ~/aefinity-artifacts/bitnet2b-2b-artifacts/.
+#
+# Built from alice-aegis worktree ../alice-aegis-cm-nl12-box3
+# (branch cm/nl12-gateway-box3); binaries copied to the stable path below
+# so the worktree can be deleted without breaking this live unit (same
+# pattern as box2's "STABLE INSTALL" note in deploy/box2/cm-gateway.service).
+#
+# Install:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now cm-gateway.service
+
+[Unit]
+Description=CM nl-12 box3 receipt gateway daemon (tiny-model only, light-worker host)
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/lib/cm-gateway/bin/gateway serve \
+    %h/.local/lib/cm-gateway/tiny/MODEL.SAF \
+    %h/.local/lib/cm-gateway/tiny/EMBED.BIN \
+    %h/.local/lib/cm-gateway/tiny/VOCAB.BIN \
+    %h/.local/lib/cm-gateway/bin/agent_trace \
+    %h/.config/cm-gateway/allowlist.signed \
+    %h/.config/cm-gateway/allowlist.key \
+    --table %h/.local/lib/cm-gateway/tiny/receipts/chain.tsv \
+    --socket %t/cm-gateway.sock \
+    --cap-key-file %h/.config/cm-gateway/cap.key \
+    --anchor-every 10 \
+    --anchor-file %h/.config/cm-gateway/anchor.log \
+    --cap-ttl 60 \
+    --request-timeout 30 \
+    --verify-workers 1
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/cm-gateway %t
+RestrictAddressFamilies=AF_UNIX
+PrivateNetwork=yes
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=default.target
