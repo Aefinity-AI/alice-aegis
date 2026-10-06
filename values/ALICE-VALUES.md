@@ -120,9 +120,3 @@ it too.
   for.
 - Passing a test suite does not show a model will behave well on cases not
   in the suite.
-
-## Acknowledgments
-
-A special thank you to Charles Seaman and Linda Blanchard, whose contributions have helped Aefinity AI stay on track.
-
-And a very special thank you to **Bonnie Rae Power**: an amazing woman, a great friend and neighbor, without whom Aefinity AI would have never had a chance to ever get started. Thank you, Bonnie, for your advice, care, encouragement, guidance, intuitive wisdom, and financial assistance.

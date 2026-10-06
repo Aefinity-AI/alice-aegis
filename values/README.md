@@ -41,9 +41,3 @@ Changing any case requires a new version and a new hash, made by a public PR. Re
 5. **Publish everything,** failures included. Small models are expected to fail many cases.
 
 A receipt shows *which* answer the model gave. It does not show that the answer was good; judging that is what the rubric and the open re-grading are for.
-
-## Acknowledgments
-
-A special thank you to Charles Seaman and Linda Blanchard, whose contributions have helped Aefinity AI stay on track.
-
-And a very special thank you to **Bonnie Rae Power**: an amazing woman, a great friend and neighbor, without whom Aefinity AI would have never had a chance to ever get started. Thank you, Bonnie, for your advice, care, encouragement, guidance, intuitive wisdom, and financial assistance.
