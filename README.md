@@ -153,13 +153,3 @@ own licenses and is **not** covered by the Apache-2.0 grant. See
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the complete
 file-by-file accounting, including the source-availability pointer required for
 the MPL-2.0 `ucs2` crate linked into the published `.efi` binaries.
-
-## Acknowledgments
-
-A special thank you to **Linda Blanchard**, **Charles Seaman** and the **Seaman family**, as well as **Bonnie Power** for their unwavering support in making this mission possible.
-
-## Acknowledgments
-
-A special thank you to Charles Seaman and Linda Blanchard, whose contributions have helped Aefinity AI stay on track.
-
-And a very special thank you to **Bonnie Rae Power**: an amazing woman, a great friend and neighbor, without whom Aefinity AI would have never had a chance to ever get started. Thank you, Bonnie, for your advice, care, encouragement, guidance, intuitive wisdom, and financial assistance.
