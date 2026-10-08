@@ -46,8 +46,8 @@ A27); scalar-vs-scalar it measured 1.248× slower on that same machine and
 not yet measured.
 
 Think the bit-identical claim can't survive contact with your hardware?
-**[CHALLENGE.md](CHALLENGE.md)** — find a machine where it diverges and be
-credited by name in the ledger.
+**[CHALLENGE.md](CHALLENGE.md)** — find a machine where it diverges and earn
+a named entry in [HALL-OF-DIVERGENCE.md](HALL-OF-DIVERGENCE.md) (credit only; no cash offer).
 
 ## Components
 
