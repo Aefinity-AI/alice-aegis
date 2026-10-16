@@ -169,6 +169,7 @@ pub fn allocate_huge_pages(pages: usize) -> Result<core::ptr::NonNull<u8>, ()> {
 
 pub fn init_uefi_alloc_large() {
     let target = 2048 * 1024 * 1024; // 2GB Total (cm/cis1-sbir-evidence: 700MB OOMs on BitNet-2B at aa0309d)
+    let floor = 700 * 1024 * 1024; // Pre-2GB minimum; below this boot still fails
     let mut total_allocated = 0;
     let mut chunk_size = 2048 * 1024 * 1024; // Try monolithic first
 
@@ -204,6 +205,8 @@ pub fn init_uefi_alloc_large() {
                 // If a chunk fails, halve the chunk size and try again to fit into smaller memory holes
                 if chunk_size > 10 * 1024 * 1024 {
                     chunk_size /= 2;
+                } else if total_allocated >= floor {
+                    break; // Best effort above the 700MB floor (e.g. a 2048MB CI VM)
                 } else {
                     panic!("FATAL: Large OS Heap fragmented memory allocation failed (OOM)");
                 }
