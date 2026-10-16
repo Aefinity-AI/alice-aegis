@@ -1,0 +1,11 @@
+cis-verify: receipt=/home/cm/legs/alice-2b-w2/receipt-R1.txt
+cis-verify: MODEL.SAF=/home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/aegis_pruned_model.cis.safetensors (522831917 bytes)
+cis-verify: EMBED.BIN=/home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/embed.bin (257310720 bytes)
+cis-verify: VOCAB.BIN=/home/cm/aefinity-artifacts/bitnet2b-2b-artifacts/vocab.bin (1759936 bytes)
+check: receipt parse ......... ok
+check: artifact hashes ........ ok
+check: prompt tokenization ..... ok
+check: token-id sequence (8 steps) ok
+check: cis-digest (FNV-1a 64) .. ok
+check: witness chain (SHA-256) . ok
+VERIFY PASS

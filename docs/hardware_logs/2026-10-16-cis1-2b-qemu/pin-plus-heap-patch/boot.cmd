@@ -1,0 +1,1 @@
+qemu-system-x86_64 -enable-kvm -cpu host -machine q35 -m 8G -smp 4 -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd -drive if=pflash,format=raw,file=OVMF_VARS_4M.fd -drive file=cis1-2b-kit.img,format=raw -device isa-debug-exit,iobase=0xf4,iosize=0x04 -serial file:serial.log -display none -monitor none -no-reboot

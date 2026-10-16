@@ -1,0 +1,14 @@
+kit image: /home/cm/cis1-img-build/final/cis1-2b-kit.img
+db514d51d6731eba99df43346423818e  /home/cm/cis1-img-build/final/cis1-2b-kit.img
+8c1552de7d795535134868b0d29b149a  /home/cm/cis1-img-build/nogop2.efi
+a5ba0db0ac88a480266aa76e9aa99f0f  /home/cm/cis1-img-build/receipt-R1.txt
+
+QEMU check (correctness only, Rule A):
+  qemu-system-x86_64 -enable-kvm -nographic -m 2G -machine q35 \
+    -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+    -drive file=/home/cm/cis1-img-build/final/cis1-2b-kit.img,format=raw \
+    -device isa-debug-exit,iobase=0xf4,iosize=0x04
+
+Physical stick (HUMAN step — never a /dev letter from a script):
+  identify the stick by its tag file, then: mcopy the image contents
+  or dd the image to the CONFIRMED stick device, then md5-verify.
