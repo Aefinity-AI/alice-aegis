@@ -168,9 +168,9 @@ pub fn allocate_huge_pages(pages: usize) -> Result<core::ptr::NonNull<u8>, ()> {
 }
 
 pub fn init_uefi_alloc_large() {
-    let target = 700 * 1024 * 1024; // 700MB Total
+    let target = 2048 * 1024 * 1024; // 2GB Total (cm/cis1-sbir-evidence: 700MB OOMs on BitNet-2B at aa0309d)
     let mut total_allocated = 0;
-    let mut chunk_size = 700 * 1024 * 1024; // Try monolithic first
+    let mut chunk_size = 2048 * 1024 * 1024; // Try monolithic first
 
     let mut heap_index = 1;
 
