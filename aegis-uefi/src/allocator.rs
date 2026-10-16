@@ -167,11 +167,28 @@ pub fn allocate_huge_pages(pages: usize) -> Result<core::ptr::NonNull<u8>, ()> {
     .map_err(|_| ())
 }
 
+fn conventional_free_bytes() -> usize {
+    use uefi::mem::memory_map::MemoryMap;
+    match uefi::boot::memory_map(uefi::boot::MemoryType::LOADER_DATA) {
+        Ok(mmap) => mmap
+            .entries()
+            .filter(|d| d.ty == uefi::boot::MemoryType::CONVENTIONAL)
+            .map(|d| d.page_count as usize * 4096)
+            .sum(),
+        Err(_) => 0, // Unknown: clamp falls back to the 700MB floor
+    }
+}
+
 pub fn init_uefi_alloc_large() {
     let target = 2048 * 1024 * 1024; // 2GB Total (cm/cis1-sbir-evidence: 700MB OOMs on BitNet-2B at aa0309d)
     let floor = 700 * 1024 * 1024; // Pre-2GB minimum; below this boot still fails
+    // Leave the firmware headroom: claiming every free page starves later
+    // boot-services allocations (a 2048MB VM hung after a greedy claim).
+    let reserve = 512 * 1024 * 1024;
+    let free = conventional_free_bytes();
+    let target = free.saturating_sub(reserve).clamp(floor, target) & !(1024 * 1024 - 1); // 1MB-aligned so halved chunks stay page multiples
     let mut total_allocated = 0;
-    let mut chunk_size = 2048 * 1024 * 1024; // Try monolithic first
+    let mut chunk_size = target; // Try monolithic first
 
     let mut heap_index = 1;
 
