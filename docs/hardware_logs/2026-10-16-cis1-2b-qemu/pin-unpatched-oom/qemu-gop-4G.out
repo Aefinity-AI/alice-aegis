@@ -1,0 +1,6 @@
+QEMU 10.0.13 monitor - type 'help' for more information
+(qemu) qemu_rc=35
+
+real	0m15.635s
+user	0m10.032s
+sys	0m5.500s

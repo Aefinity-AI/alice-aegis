@@ -1,0 +1,12 @@
+==== A.L.I.C.E. BOOT ====
+STAGE 1: boot volume opened, AVX enable attempted
+STAGE 2: sizes OK model=522831917 embed=257310720 vocab=1759936
+STAGE 3: tensor memory allocated
+H3 buffers: MODEL.SAF=0x1780000+522831917 EMBED.BIN=0x20A1D000+257310720 VOCAB.BIN=0x100000+1759936
+STAGE 4a: MODEL.SAF loaded
+STAGE 4b: EMBED.BIN loaded
+STAGE 4c: VOCAB.BIN loaded
+STAGE 4d: RECEIPT.TXT loaded — verifier mode armed
+STAGE 5: working heap online
+CPUID: vendor=GenuineIntel brand="Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz" family=6 model=158 stepping=13 feats=<avx2:1,fma:1,sse2:1>
+STAGE V: witness verify PASS — VERIFY PASS — this machine reproduced all 8 decode steps' full logit vectors bit-for-bit, with no OS underneath
