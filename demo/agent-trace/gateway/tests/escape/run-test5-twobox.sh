@@ -22,7 +22,7 @@ set -u
 
 IDENTITY="${CM_BOX1_AGENT_KEY:-$HOME/.ssh/cm-box1-agent-relay-only}"
 TARGET_USER="${CM_BOX2_USER:-cm}"
-TARGET_HOST="${CM_BOX2_HOST:-192.168.10.21}"
+TARGET_HOST="${CM_BOX2_HOST:-<host-ip>}"
 TARGET="${TARGET_USER}@${TARGET_HOST}"
 SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new"
 

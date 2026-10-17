@@ -8,7 +8,7 @@ It is deliberately short; everything it points to carries the detail.
 
 1. Read `program/ROADMAP.md` — the master list of done / in-flight / next,
    each with provenance. This is the single source of truth for "where are we."
-2. Read the auto-memory index (`~/.claude/projects/-home-killboxincorporated/memory/MEMORY.md`)
+2. Read the auto-memory index (`~/.claude/projects/-home-USER/memory/MEMORY.md`)
    and any memory file the current task touches.
 3. If working the hybrid-engine line: read `HANDOFF_2026-07-13_TERNARY_PORTFOLIO.md`.
    If working RANGER: read `ranger/research/phase1/RESULTS-phase1.md` (verdicts)
