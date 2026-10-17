@@ -3,7 +3,7 @@ name = "aegis-core"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
-authors = ["Justin B. Thompson (Aefinity AI)"]
+authors = ["Justin B. Thompson, AEFINITY AI INC."]
 repository = "https://github.com/Aefinity-AI/alice-aegis"
 
 [dependencies]

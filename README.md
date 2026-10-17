@@ -144,7 +144,7 @@ a log in this repository, should be cited.**
 This project's original work is licensed under the **Apache License, Version
 2.0** — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
-Copyright 2026 Justin B. Thompson / Aefinity AI.
+Copyright 2026 Justin B. Thompson / AEFINITY AI INC..
 
 Third-party material redistributed here — Microsoft's BitNet model files and
 the artifacts derived from them, HuggingFace's `modeling_bitnet.py`, ARIS's

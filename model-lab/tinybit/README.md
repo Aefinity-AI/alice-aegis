@@ -67,8 +67,8 @@ dim). `TinyBitConfig.validate_engine_constraints()` enforces this.
 ## How to run
 
 ```bash
-source /home/killboxincorporated/ranger-venv/bin/activate
-cd /home/killboxincorporated/model-lab/tinybit
+source ~/ranger-venv/bin/activate
+cd ~/model-lab/tinybit
 
 # 1. tokenizer (byte-level BPE); --max-bytes streams a subset for speed
 python3 train_tokenizer.py --vocab-size 4096 --max-bytes 40000000
@@ -85,9 +85,9 @@ python3 train.py --steps 2000 -B 8 -T 512 --layers 8 --heads 8 --kv-heads 4 \
 
 # --- export any checkpoint by hand, then repack + eval ---
 python3 export_hf.py checkpoints/tinybit.pt /path/export_dir
-python3 /home/killboxincorporated/aegis-forge/repack_ternary.py \
+python3 ~/aegis-forge/repack_ternary.py \
     /path/export_dir /path/artifacts --max-seq 512
-/home/killboxincorporated/aegis-eval/target/release/aegis-eval \
+~/aegis-eval/target/release/aegis-eval \
     /path/artifacts/MODEL.SAF /path/artifacts/EMBED.BIN /path/artifacts/VOCAB.BIN \
     heldout.txt 512 --sample
 ```

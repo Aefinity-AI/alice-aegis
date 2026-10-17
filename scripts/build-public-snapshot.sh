@@ -75,11 +75,19 @@ echo "==> gate: personal contact details (text)"
 # pattern also matches Microsoft's public corporate contact in their EU AI Act
 # card (data_summary_card.md), which is third-party text we must retain verbatim
 # under MIT — stripping it would be a licence violation, not a privacy win.
-pii_re='[0-9]{3,5} County Road [0-9]+|\(?409\)? ?[-. ]?656[-. ]2416'
+# The pattern lives outside git (one ERE per file, mode 600) so the script does
+# not itself embed the details it screens for. Missing file: skip with a warning.
+pii_file="${AEFINITY_PII_PATTERNS:-$HOME/.config/aefinity/pii-patterns.txt}"
+pii_re=""
+if [ -r "$pii_file" ]; then
+  pii_re="$(paste -sd'|' "$pii_file")"
+else
+  echo "WARN: $pii_file missing; skipping the personal-contact-details gate" >&2
+fi
 for f in "${KEEP[@]}"; do
   [ -f "$f" ] || continue
   case "$f" in *.md|*.txt|*.rs|*.py|*.sh|*.toml|*.json|*.yml|*.yaml)
-    grep -qE "$pii_re" "$f" 2>/dev/null && note "contact details in $f" ;;
+    [ -n "$pii_re" ] && grep -qE "$pii_re" "$f" 2>/dev/null && note "contact details in $f" ;;
   esac
 done
 

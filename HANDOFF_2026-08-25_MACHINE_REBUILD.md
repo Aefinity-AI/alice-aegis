@@ -37,7 +37,7 @@ gitignored artifact, including the model weights.
 ## Traps found (all were failing SILENTLY)
 
 The repo used to live **at `$HOME`**; **109 files** still hardcode
-`/home/killboxincorporated`. Two mattered:
+`~`. Two mattered:
 
 1. `program/loop/hooks/claim_gate.sh` resolved claimlint via `$HOME`, so `[ -x ]`
    failed and the hook **exited 0** — wired and never firing. Fixed to resolve from
@@ -73,9 +73,9 @@ The repo used to live **at `$HOME`**; **109 files** still hardcode
    but the operator's 30-min timeout killed it ~30 s early. Re-run with a longer
    timeout, ideally against the hard-float artifact now that it builds.
 
-6. **109 files still hardcode `/home/killboxincorporated`.** Two failed silently and
+6. **109 files still hardcode `~`.** Two failed silently and
    are fixed; the rest are latent. A `sudo ln -s ~/projects/alice-aegis
-   /home/killboxincorporated` shim would resolve all of them at once but hides the
+   ~` shim would resolve all of them at once but hides the
    debt — a deliberate choice, not a default.
 
 ## Notes
