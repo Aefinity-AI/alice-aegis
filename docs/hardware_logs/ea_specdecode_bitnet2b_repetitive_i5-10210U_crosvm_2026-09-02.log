@@ -1,0 +1,75 @@
+# leg E-A — prompt-lookup speculative decode gate
+# host: penguin (i5-10210U, Comet Lake, crosvm) — Rule A: counts only, no timing
+# scope: systemd --user CPUQuota=60% MemoryMax=1800M, heavy lane lock
+# date: 2026-09-02
+# corpus: /home/justinbrianthompson/projects/alice-aegis-ea/prompts/ea_repetitive.txt
+# available RAM at start (MB): 2206
+# engine commit: f4b707bcfdb77ab3dec255f5e34b774789de6bc4
+
+== E-A specdecode gate ==
+tag              : bitnet2b_repetitive
+model            : /home/justinbrianthompson/projects/alice-aegis/aegis_pruned_model.safetensors
+config           : 30 layers, hidden 2560, heads 20/5, inter 6912, vocab 50256, window 2048, Relu2
+max_new_tokens   : 32
+K set            : [2, 4, 8]
+ngram_min/max    : 1/3
+
+prompts          : 12 from /home/justinbrianthompson/projects/alice-aegis-ea/prompts/ea_repetitive.txt
+
+prompt 00 | in  47 tok | ref out  32 tok | ref digest f74211a124f6d7e6
+   K=2  IDENTICAL | digest f74211a124f6d7e6 | out  32 | passes   16 committed   31 drafted   27 accepted   15 lm_head   31 | tok/pass 1.9375
+   K=4  IDENTICAL | digest f74211a124f6d7e6 | out  32 | passes   13 committed   31 drafted   41 accepted   18 lm_head   31 | tok/pass 2.3846
+   K=8  IDENTICAL | digest f74211a124f6d7e6 | out  32 | passes   13 committed   31 drafted   75 accepted   18 lm_head   31 | tok/pass 2.3846
+prompt 01 | in  35 tok | ref out  32 tok | ref digest f513f3a115f390f2
+   K=2  IDENTICAL | digest f513f3a115f390f2 | out  32 | passes   27 committed   31 drafted   20 accepted    4 lm_head   31 | tok/pass 1.1481
+   K=4  IDENTICAL | digest f513f3a115f390f2 | out  32 | passes   26 committed   31 drafted   33 accepted    5 lm_head   31 | tok/pass 1.1923
+   K=8  IDENTICAL | digest f513f3a115f390f2 | out  32 | passes   26 committed   31 drafted   57 accepted    5 lm_head   31 | tok/pass 1.1923
+prompt 02 | in  36 tok | ref out  32 tok | ref digest d8762aa56d5bb471
+   K=2  IDENTICAL | digest d8762aa56d5bb471 | out  32 | passes   21 committed   31 drafted   31 accepted   10 lm_head   31 | tok/pass 1.4762
+   K=4  IDENTICAL | digest d8762aa56d5bb471 | out  32 | passes   18 committed   31 drafted   48 accepted   13 lm_head   31 | tok/pass 1.7222
+   K=8  IDENTICAL | digest d8762aa56d5bb471 | out  32 | passes   18 committed   31 drafted   79 accepted   13 lm_head   31 | tok/pass 1.7222
+prompt 03 | in  46 tok | ref out  32 tok | ref digest 772c72874ac3eda2
+   K=2  IDENTICAL | digest 772c72874ac3eda2 | out  32 | passes   16 committed   31 drafted   21 accepted   15 lm_head   31 | tok/pass 1.9375
+   K=4  IDENTICAL | digest 772c72874ac3eda2 | out  32 | passes   14 committed   31 drafted   33 accepted   17 lm_head   31 | tok/pass 2.2143
+   K=8  IDENTICAL | digest 772c72874ac3eda2 | out  32 | passes   13 committed   31 drafted   53 accepted   18 lm_head   31 | tok/pass 2.3846
+prompt 04 | in  30 tok | ref out  32 tok | ref digest c57da8719a0660db
+   K=2  IDENTICAL | digest c57da8719a0660db | out  32 | passes   15 committed   31 drafted   22 accepted   16 lm_head   31 | tok/pass 2.0667
+   K=4  IDENTICAL | digest c57da8719a0660db | out  32 | passes   11 committed   31 drafted   29 accepted   20 lm_head   31 | tok/pass 2.8182
+   K=8  IDENTICAL | digest c57da8719a0660db | out  32 | passes    7 committed   31 drafted   30 accepted   24 lm_head   31 | tok/pass 4.4286
+prompt 05 | in  32 tok | ref out  32 tok | ref digest 6a61c13a44810eb7
+   K=2  IDENTICAL | digest 6a61c13a44810eb7 | out  32 | passes   31 committed   31 drafted   15 accepted    0 lm_head   31 | tok/pass 1.0000
+   K=4  IDENTICAL | digest 6a61c13a44810eb7 | out  32 | passes   31 committed   31 drafted   27 accepted    0 lm_head   31 | tok/pass 1.0000
+   K=8  IDENTICAL | digest 6a61c13a44810eb7 | out  32 | passes   31 committed   31 drafted   45 accepted    0 lm_head   31 | tok/pass 1.0000
+prompt 06 | in  28 tok | ref out  32 tok | ref digest 4d59b56ee3f51a4c
+   K=2  IDENTICAL | digest 4d59b56ee3f51a4c | out  32 | passes   16 committed   31 drafted   24 accepted   15 lm_head   31 | tok/pass 1.9375
+   K=4  IDENTICAL | digest 4d59b56ee3f51a4c | out  32 | passes   16 committed   31 drafted   47 accepted   15 lm_head   31 | tok/pass 1.9375
+   K=8  IDENTICAL | digest 4d59b56ee3f51a4c | out  32 | passes   16 committed   31 drafted   74 accepted   15 lm_head   31 | tok/pass 1.9375
+prompt 07 | in  36 tok | ref out  32 tok | ref digest 774c7e1c00deb562
+   K=2  IDENTICAL | digest 774c7e1c00deb562 | out  32 | passes   30 committed   31 drafted    8 accepted    1 lm_head   31 | tok/pass 1.0333
+   K=4  IDENTICAL | digest 774c7e1c00deb562 | out  32 | passes   30 committed   31 drafted   14 accepted    1 lm_head   31 | tok/pass 1.0333
+   K=8  IDENTICAL | digest 774c7e1c00deb562 | out  32 | passes   30 committed   31 drafted   24 accepted    1 lm_head   31 | tok/pass 1.0333
+prompt 08 | in  47 tok | ref out  32 tok | ref digest 671b5a59eabbe125
+   K=2  IDENTICAL | digest 671b5a59eabbe125 | out  32 | passes   15 committed   31 drafted   20 accepted   16 lm_head   31 | tok/pass 2.0667
+   K=4  IDENTICAL | digest 671b5a59eabbe125 | out  32 | passes   13 committed   31 drafted   30 accepted   18 lm_head   31 | tok/pass 2.3846
+   K=8  IDENTICAL | digest 671b5a59eabbe125 | out  32 | passes   11 committed   31 drafted   39 accepted   20 lm_head   31 | tok/pass 2.8182
+prompt 09 | in  37 tok | ref out  32 tok | ref digest ca8114f2a143e843
+   K=2  IDENTICAL | digest ca8114f2a143e843 | out  32 | passes   28 committed   31 drafted   24 accepted    3 lm_head   31 | tok/pass 1.1071
+   K=4  IDENTICAL | digest ca8114f2a143e843 | out  32 | passes   27 committed   31 drafted   41 accepted    4 lm_head   31 | tok/pass 1.1481
+   K=8  IDENTICAL | digest ca8114f2a143e843 | out  32 | passes   27 committed   31 drafted   72 accepted    4 lm_head   31 | tok/pass 1.1481
+prompt 10 | in  24 tok | ref out  32 tok | ref digest ed36b8d845ae6943
+   K=2  IDENTICAL | digest ed36b8d845ae6943 | out  32 | passes   21 committed   31 drafted   21 accepted   10 lm_head   31 | tok/pass 1.4762
+   K=4  IDENTICAL | digest ed36b8d845ae6943 | out  32 | passes   21 committed   31 drafted   32 accepted   10 lm_head   31 | tok/pass 1.4762
+   K=8  IDENTICAL | digest ed36b8d845ae6943 | out  32 | passes   21 committed   31 drafted   35 accepted   10 lm_head   31 | tok/pass 1.4762
+prompt 11 | in  31 tok | ref out  32 tok | ref digest da2c44a194552915
+   K=2  IDENTICAL | digest da2c44a194552915 | out  32 | passes   19 committed   31 drafted   29 accepted   12 lm_head   31 | tok/pass 1.6316
+   K=4  IDENTICAL | digest da2c44a194552915 | out  32 | passes   15 committed   31 drafted   41 accepted   16 lm_head   31 | tok/pass 2.0667
+   K=8  IDENTICAL | digest da2c44a194552915 | out  32 | passes   15 committed   31 drafted   73 accepted   16 lm_head   31 | tok/pass 2.0667
+
+== aggregate ==
+reference tokens generated (all prompts): 384
+K=2  identical  12/12  | passes    255 | committed    372 | drafted    262 | accepted    117 | lm_head    372 | MEAN TOKENS/PASS 1.4588 | draft acceptance 0.4466
+K=4  identical  12/12  | passes    235 | committed    372 | drafted    416 | accepted    137 | lm_head    372 | MEAN TOKENS/PASS 1.5830 | draft acceptance 0.3293
+K=8  identical  12/12  | passes    228 | committed    372 | drafted    656 | accepted    144 | lm_head    372 | MEAN TOKENS/PASS 1.6316 | draft acceptance 0.2195
+
+BYTE-IDENTITY: PASS — every (prompt, K) stream equals sequential greedy decode.
+# harness exit: 0
