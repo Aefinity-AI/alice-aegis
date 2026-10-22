@@ -1,0 +1,96 @@
+E20 — adversarial receipt corpus vs cis-verify
+date: 2026-09-02
+box: penguin (i5-10210U, Debian 13 under crosvm) — identity/counts only, NO timing (Rule A);
+     cargo's own 'finished in' lines are filtered out of this log for that reason.
+repo: alice-aegis @ branch cm/e20-adversarial-receipts
+base commit: 928b937cd5a84fde96a4f5b58eb4df627c5977b4
+artifacts:
+  23cfad0a3c7de2b676e176755f0848cd2cad8e71e2cdffea3d903a232c96e973  model-lab/tinybit/m7_final_gate_work/artifacts/MODEL.SAF
+  3752cd5ca2e39593cdf0910968f8ff629d79417f253e33e1a1c4faa0ce33848e  model-lab/tinybit/m7_final_gate_work/artifacts/EMBED.BIN
+  5a1d79caf517084a73de5e5379d2995e61f23afaada91822da12ecb4ad7fcd8a  model-lab/tinybit/m7_final_gate_work/artifacts/VOCAB.BIN
+  528e205e04882437269fb1fbc6181ba0f2f6fddc120ba25f93c0e5bf233fbaaf  cis-verify/tests/fixtures/witness_v1_m7_once64.receipt
+  b87ad72710556ef721aedd46377c8f9ce777767cf89d75fb398b02073e596c67  tests/golden/witness_v1_bitnet2b_once64.receipt
+rustc: rustc 1.98.0 (88d9e12ae 2026-08-18)  cargo: cargo 1.98.0 (797e8a9bc 2026-08-05)
+
+$ cargo test --release --features std --test adversarial -- --nocapture --test-threads=1
+   Compiling cis-verify v0.1.0 (/home/justinbrianthompson/projects/alice-aegis-e20/cis-verify)
+    Finished `release` profile [optimized] target(s)
+     Running tests/adversarial.rs (target/release/deps/adversarial-ce668714be0e323f)
+
+running 5 tests
+test e20_degenerate_case_measurements ... M7 logits: width 8192 min -193845165 max 99899727 (i32::MAX 2147483647) fits_in_i32 true
+M7 VOCAB.BIN: num_tokens 8192, string table ends at byte 68730, file len 163954
+ok
+test e20_known_good_receipts_still_verify ... ok
+test e20_thirty_crafted_invalid_receipts_are_all_rejected ... E20 adversarial receipt corpus — cis-verify
+id    family          fired            detail
+A01   replay          token-id         local[10]=510 receipt[10]=366
+A02   replay          prompt-tokenize  encode(prompt) produced 1 ids, receipt claims prompt-toks 4
+A03   replay          token-id         local[0]=12 receipt[0]=372
+A04   replay          model            receipt facb3597665603ba45730cc1f70ba6d82f53473d97f04fd039ca4296a45868db
+A05   replay          token-id         local[12]=347 receipt[12]=4294967295
+A06   replay          embed            receipt 3752cd5ca2e39593cdf0910968f8ff629d79417f253e33e1a1c4faa0ce33848e
+B07   forgery         cis-digest       local 7bf702b3154945f1 receipt 7bf702b3154945f0
+B08   forgery         chain            local 8ec1fbcbb03155a9e14e2b124943b0222b7c63c3865fb6aaac3c14584ada4698 r
+B09   forgery         chain            local 8ec1fbcbb03155a9e14e2b124943b0222b7c63c3865fb6aaac3c14584ada4698 r
+B10   forgery         token-id         local[3]=259 receipt[3]=0
+B11   forgery         token-id         local[0]=12 receipt[0]=6598
+B12   forgery         token-id         local[0]=12 receipt[0]=259
+C13   truncation      receipt-parse    bad field 'token-ids' at line 0
+C14   truncation      token-id         local[9]=341 receipt[9]=4294967295
+C15   truncation      token-id         local[9]=341 receipt[9]=4294967295
+C16   truncation      receipt-parse    missing field 'gen-toks'
+C17   truncation      receipt-parse    missing field 'chain'
+C18   truncation      receipt-parse    bad field 'token-ids' at line 0
+D19   wrong-artifact  model            receipt 23cfad0a3c7de2b676e176755f0848cd2cad8e71e2cdffea3d903a232c96e973
+D20   wrong-artifact  chain            local 8b784068b91412dc9b291b23e9886f90139032dd848ceb29aa8c5caf793c2d02 r
+D21   wrong-artifact  token-id         local[0]=407 receipt[0]=12
+D22   wrong-artifact  cis-digest       local 9d5202fa96a8e7be receipt 7bf702b3154945f1
+D23   wrong-artifact  artifact-load    CIS model build: Tensor model.layers.3.mlp.gate_proj.weight: offsets 130
+D24   wrong-artifact  artifact-load    MODEL.SAF: Buffer too small
+E25   mode-downgrade  chain            local 8ec1fbcbb03155a9e14e2b124943b0222b7c63c3865fb6aaac3c14584ada4698 r
+E26   mode-downgrade  chain            local 8ec1fbcbb03155a9e14e2b124943b0222b7c63c3865fb6aaac3c14584ada4698 r
+E27   mode-downgrade  chain            local 8ec1fbcbb03155a9e14e2b124943b0222b7c63c3865fb6aaac3c14584ada4698 r
+E28   mode-downgrade  chain            local 8ec1fbcbb03155a9e14e2b124943b0222b7c63c3865fb6aaac3c14584ada4698 r
+E29   mode-downgrade  chain            local 8ec1fbcbb03155a9e14e2b124943b0222b7c63c3865fb6aaac3c14584ada4698 r
+E30   mode-downgrade  chain            local 8ec1fbcbb03155a9e14e2b124943b0222b7c63c3865fb6aaac3c14584ada4698 r
+E20 result: 30/30 rejected with a pre-registered field
+ok
+test e20_unknown_receipt_lines_are_not_bound_by_the_chain ... ok
+test foreign_model_sha_matches_the_2b_golden_receipt ... ok
+
+
+
+$ cargo test --release --features std   # whole crate
+     Running unittests src/lib.rs (target/release/deps/cis_verify-19ab57b017e08961)
+running 81 tests
+test result: ok. 81 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+     Running unittests src/bin/cis-verify.rs (target/release/deps/cis_verify-352b99d8dc60c888)
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+     Running tests/adversarial.rs (target/release/deps/adversarial-ce668714be0e323f)
+running 5 tests
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+     Running tests/artifact_hash_golden.rs (target/release/deps/artifact_hash_golden-f86a4b9db4634fb0)
+running 2 tests
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+     Running tests/selftest.rs (target/release/deps/selftest-6075372fe6e8af22)
+running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+     Running tests/verify_golden.rs (target/release/deps/verify_golden-086427698c123554)
+running 5 tests
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+   Doc-tests cis_verify
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+$ cargo fmt --check ; cargo clippy --release --features std --all-targets -- -D warnings
+fmt: clean
+    Finished `release` profile [optimized] target(s)
+
+$ cargo build --release --lib   # no_std + alloc, default features
+    Finished `release` profile [optimized] target(s)
+(no_std lib build ok)
+
+$ python3 scripts/integrity_check.py
+integrity_check: clean — no uncomputed metrics, no asserted results
