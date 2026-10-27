@@ -21,13 +21,21 @@ check matches file names only. A content search of the same tree,
 git grep -n -iE 'bitnet.?cpp|ggml|llama|ik_llama' -- docs/hardware_logs
 ```
 
-returns four hits at this commit, all the same comment line in
+returns fifteen hits at this commit. Four are the same comment line in
 `docs/hardware_logs/2026-10-16-cis1-2b-x86/` (`job.sh` and the three `run.sh`
 scripts): a note that those ALICE 2B receipt runs were "paired with" external-engine
-rows taken on another host. The paired rows, and any external-engine output, are not
-in this repository; that tree's `README.md` states that it is not a benchmark and that
-wall times are not quoted. The absence claim, stated so that it can be falsified, is:
-no file in this repository prints an external-engine decode-throughput figure.
+rows taken on another host. The other eleven are the word "llama" inside the
+vocabulary-pruning flag `--llama3-prune` (the E16b and E16c QAT-evaluation logs), a
+`template=Llama3` configuration field, a citation of the Llama-3 technical report and
+a tokenizer-merge note; none names llama.cpp, ggml or ik_llama. The paired rows, and
+any external-engine output, are not in this repository; the 2026-10-16 tree's
+`README.md` states that it is not a benchmark and that wall times are not quoted. A
+second search of those fifteen lines for a throughput word (`tok/s`, `tokens/s`,
+`ms/tok`, `throughput`) returns nothing. The absence claim, stated so that it can be
+falsified, is: no file under `docs/hardware_logs/` prints an external-engine
+decode-throughput figure. External-engine throughput ranges quoted in the paper's
+related-work section are citations of their authors' published numbers, not
+measurements made for this work.
 
 The gap is tracked in the repository at `program/ROADMAP.md:170` (open item),
 `program/AEGIS_OS_DESIGN.md:111` (gate G1: external-engine A/B still OPEN) and

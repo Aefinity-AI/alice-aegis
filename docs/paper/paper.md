@@ -468,7 +468,7 @@ entry rests on operator witness (A34). The row also records a firmware finding m
 on this leg: that the N4020's UEFI boots the unikernel at all was previously unknown before this
 boot (A34).
 
-**A third, standalone implementation verifies the receipt without the engine (A37).** Everything
+**A standalone implementation verifies the receipt without the engine (A37).** Everything
 above shows the receipt can be produced and replayed by machines running `aegis-core` itself, on
 either ISA. A receipt that only the reference engine can check is not yet useful to a third party
 — the verifier is what makes it useful, and it must not depend on the code being verified.
