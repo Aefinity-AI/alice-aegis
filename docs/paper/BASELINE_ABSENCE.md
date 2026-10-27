@@ -14,7 +14,20 @@ absence) records this with the check
 git ls-files docs/hardware_logs | grep -iE 'bitnet.?cpp|ggml|llama|ik_llama'   # must print nothing
 ```
 
-which printed nothing at `d3700f0d` and prints nothing at this commit.
+which printed nothing at `d3700f0d` and prints nothing at this commit. That
+check matches file names only. A content search of the same tree,
+
+```
+git grep -n -iE 'bitnet.?cpp|ggml|llama|ik_llama' -- docs/hardware_logs
+```
+
+returns four hits at this commit, all the same comment line in
+`docs/hardware_logs/2026-10-16-cis1-2b-x86/` (`job.sh` and the three `run.sh`
+scripts): a note that those ALICE 2B receipt runs were "paired with" external-engine
+rows taken on another host. The paired rows, and any external-engine output, are not
+in this repository; that tree's `README.md` states that it is not a benchmark and that
+wall times are not quoted. The absence claim, stated so that it can be falsified, is:
+no file in this repository prints an external-engine decode-throughput figure.
 
 The gap is tracked in the repository at `program/ROADMAP.md:170` (open item),
 `program/AEGIS_OS_DESIGN.md:111` (gate G1: external-engine A/B still OPEN) and

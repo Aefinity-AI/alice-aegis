@@ -41,7 +41,7 @@ OUTPUT_PATH = REPO_ROOT / "docs" / "paper" / "table3_provenance.md"
 # identity"), §5 ("The decode receipt and bare-metal verification"), and §6 ("Cost
 # and quality"), cross-referenced against program/RESEARCH_LEDGER.md rows A19-A40.
 CLAIM_MAP = [
-    ("3.1", "Four-implementation digest jury (HP N4020 bare iron, Dell i5-5200U bare iron x2, crosvm, QEMU/TCG)", "digest 76985613c965f643, ALL_PASS=true, 4 codegen paths", "A25"),
+    ("3.1", "Four-implementation digest jury (HP N4020 bare iron, Dell i5-5200U bare iron, crosvm, QEMU/TCG)", "digest 76985613c965f643, ALL_PASS=true, 4 codegen paths", "A25"),
     ("3.1", "Digest jury crosses to a second ISA (aarch64 CI)", "same digest 76985613c965f643 on aarch64", "A28"),
     ("3.1", "Clean-room spec-only reimplementation reproduces the digest", "2 implementers, 400/484 lines, distinct by md5, pass on the initial run", "A31"),
     ("3.1", "NEON kernel bit-identical on real ARM silicon", "equivalence 5/5, contract 6/6, mechanism 3/3 exhaustive", "A30"),
@@ -57,7 +57,7 @@ CLAIM_MAP = [
     ("4", "AVX2 integer kernel vs float AVX2 kernel", "D/A capture medians 0.339/0.339/0.356x (median of nine 0.340x; about 2.9x); D/C 0.060/0.060/0.062x (about 16x)", "A27"),
     ("4", "Ring-0 unikernel vs minimal Linux decode throughput", "+3.6% / +9.4% / +5.1% (prereg form; derived by scripts/score_mech2.py over the boot log, see Table 4); P-V2-2 FAIL spread 4.7-9.6%", "A22"),
     ("3.1", "Token-level FULL-INTEGER decode digest, BitNet-2B, x86-64 leg", "digest cab11400d737ac4a, prompt_toks=4 gen_toks=64, identical on 2 runs, coherent text", "A36"),
-    ("3.2", "Standalone third-party verifier (no engine dependency) reproduces both digests and verifies the golden receipt", "CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field", "A37"),
+    ("3.2", "Standalone verifier with no engine dependency (a transcription of the spec, not a clean-room audit) reproduces both digests and verifies the golden receipt", "CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field", "A37"),
     ("3.2", "Standalone verifier crosses the ISA boundary in public CI", "CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64", "A38"),
     ("3.1", "BitNet-2B decode receipt crosses the ISA boundary in public CI", "digest cab11400d737ac4a reproduced on aarch64; cis_witness and standalone cis-verify both print VERIFY PASS", "A39"),
     ("3.2", "BitNet-2B receipt re-derived by the unikernel under QEMU/TCG, no OS present", "STAGE V VERIFY PASS, cis-digest cab11400d737ac4a chain 917ddf5fea9a8488…, artifacts 3/3 hashes match", "A40"),

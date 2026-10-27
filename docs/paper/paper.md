@@ -10,7 +10,8 @@ Aefinity AI Inc., Orange, Texas
 We define CIS-1, a frozen integer-only semantics for the transformer decode path — every
 operation, attention included, in fixed-point integers under one rounding rule — and show it is
 checkable, not merely accurate. Given only the spec text and a public harness, two independent
-implementers reproduced the op-level digest without a retry [A31]. The digest is bit-identical across
+implementers (language-model agents denied the reference source) reproduced the op-level digest
+without a retry [A31]. The digest is bit-identical across
 six execution environments: four x86 paths (two bare-metal machines, a virtualized development host,
 and QEMU/TCG emulation, a correctness environment only) [A25], an aarch64 CI runner [A28], and an
 x86-64 CI runner; a complete 64-token decode digest of the in-repo M7 reference model (hidden 384, 8K
@@ -22,7 +23,8 @@ and sign-flips: the integer path is about 25% slower than scalar float on Broadw
 faster on Goldmont Plus (kernel-level, same binary) [A26]; at parity SIMD, the integer AVX2 kernel
 is about 2.9x faster than the float AVX2 kernel (kernel-level, Dell) [A27]. Quality cost, gated
 in advance, closed last: the complete all-integer forward pass on a 2-billion-parameter ternary
-model costs +0.1239% perplexity against float — about 40x (derived) inside a preregistered +5% kill line [A35]. At
+model costs +0.1239% perplexity against float on a 199-token teacher-forced window — about 40x (derived)
+inside a preregistered +5% kill line [A35]. At
 that same 2-billion-parameter scale, a full-integer decode receipt minted on x86 verifies
 bit-for-bit on aarch64 in public CI, checked by two independent verifiers [A39], and the same 2B
 receipt is also re-derived by the unikernel booting with no OS, under QEMU [A40]. The same
@@ -85,7 +87,7 @@ with the raw log it was taken from (Table 3):
    one executing the AVX2 path, the other (which lacks AVX2) the scalar path (A33, A34). At
    BitNet-2B production scale, the same unikernel re-derives the 2B receipt under QEMU/TCG
    emulation — correctness/identity evidence only, not yet run on physical iron (A40).
-4. **Determinism is not the expensive part on either measured machine.** Measured on physical hardware, the integer semantics
+4. **At kernel level, determinism is not the expensive part on either measured machine.** Measured on physical hardware, the integer semantics
    are about 25% slower than scalar floating point on a Broadwell-U core and about 4% *faster* on a
    Goldmont Plus core (kernel-level, same binary, capture medians defined in §4; A26); at parity
    vector width the integer AVX2 kernel is about 2.9x faster than the hand-written floating-point
@@ -106,7 +108,7 @@ with the raw log it was taken from (Table 3):
    text is coherent English (A36). This is the x86 anchor for the BitNet-2B cross-ISA leg — the 2B
    counterpart of A29 — and the same decode digest, the decode receipt built on it, and the
    receipt's verification all reproduce bit-for-bit on the GitHub aarch64 runner in public CI (A39).
-7. **A third, independent implementation verifies the receipt without the engine.**
+7. **A standalone verifier, with no engine dependency, checks the receipt.**
    `cis-verify`, a standalone crate with zero external runtime dependencies and no dependency on
    `aegis-core`, reproduces both pinned conformance digests and verifies the golden receipt — all
    six checks (parse, three artifact hashes, prompt tokenization, the 64-step token sequence, the
@@ -600,10 +602,10 @@ sha-identical artifacts and window as A21, i5-10210U crosvm, argmax digest
 about 40x inside the preregistered +5% kill line (derived: 5.0/0.1239). Two sequential runs agreed on
 every computed value. Reaching that number required a fix: the unfixed
 binary panicked 2/2 runs (`normq: residual out of range`, `cis_infer.rs:313`).
-An env-gated trace (branch `cm/e1b-normq-trace`) localized the fault to the
+A trace run recorded in ledger A35 (the trace output itself is not in the repository) localized the fault to the
 MLP, not attention: the ACT-I (relu²) MLP output exceeded the Q.20 headroom
 (the spec's v1.0.3 erratum rationale records 52–55 bits, spec §5.10 and §11), while attention
-re-entry stayed within it on all 30 layers, a
+re-entry stayed within it, a
 genuine spec gap: spec §5.10 lacked the spec §5.6 per-vector block exponent that the
 hybrid boundary already carried. The fix — an RNE-rounded block exponent on
 the ACT-I output, degenerating to the identity at M7 ranges — is ratified as
@@ -1123,7 +1125,7 @@ python3 docs/paper/gen_table3.py
 
 | Paper § | Claim (short) | Value | Ledger row | Machine | Provenance (path or CI run) | File exists? |
 |---|---|---|---|---|---|---|
-| 3.1 | Four-implementation digest jury (HP N4020 bare iron, Dell i5-5200U bare iron x2, crosvm, QEMU/TCG) | digest 76985613c965f643, ALL_PASS=true, 4 codegen paths | A25 | HP N4020 + Dell i5-5200U + crosvm i5-10210U + QEMU/TCG | `docs/hardware_logs/hp_L_BOOTLOG_2026-08-02.txt` | yes |
+| 3.1 | Four-implementation digest jury (HP N4020 bare iron, Dell i5-5200U bare iron, crosvm, QEMU/TCG) | digest 76985613c965f643, ALL_PASS=true, 4 codegen paths | A25 | HP N4020 + Dell i5-5200U + crosvm i5-10210U + QEMU/TCG | `docs/hardware_logs/hp_L_BOOTLOG_2026-08-02.txt` | yes |
 | 3.1 | Digest jury crosses to a second ISA (aarch64 CI) | same digest 76985613c965f643 on aarch64 | A28 | GitHub ubuntu-24.04-arm (Neoverse N2) | `docs/hardware_logs/cis_selftest_aarch64_github_arm_2026-08-07.log` | yes |
 | 3.1 | Clean-room spec-only reimplementation reproduces the digest | 2 implementers, 400/484 lines, distinct by md5, pass on the initial run | A31 | i5-10210U crosvm (dev host) | `docs/hardware_logs/cis_cleanroom_tier2_2026-08-08.log` | yes |
 | 3.1 | NEON kernel bit-identical on real ARM silicon | equivalence 5/5, contract 6/6, mechanism 3/3 exhaustive | A30 | GitHub ubuntu-24.04-arm (Neoverse N2) | `docs/hardware_logs/cis_neon_tests_aarch64_github_arm_2026-08-07.log` | yes |
@@ -1139,7 +1141,7 @@ python3 docs/paper/gen_table3.py
 | 4 | AVX2 integer kernel vs float AVX2 kernel | D/A capture medians 0.339/0.339/0.356x (median of nine 0.340x; about 2.9x); D/C 0.060/0.060/0.062x (about 16x) | A27 | Dell i5-5200U | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | yes |
 | 4 | Ring-0 unikernel vs minimal Linux decode throughput | +3.6% / +9.4% / +5.1% (prereg form; derived by scripts/score_mech2.py over the boot log, see Table 4); P-V2-2 FAIL spread 4.7-9.6% | A22 | Dell i5-5200U | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | yes |
 | 3.1 | Token-level FULL-INTEGER decode digest, BitNet-2B, x86-64 leg | digest cab11400d737ac4a, prompt_toks=4 gen_toks=64, identical on 2 runs, coherent text | A36 | i5-10210U crosvm | `docs/hardware_logs/cis_decode_bitnet2b_fullint_x86_i5-10210U_crosvm_2026-08-27.log` | yes |
-| 3.2 | Standalone third-party verifier (no engine dependency) reproduces both digests and verifies the golden receipt | CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field | A37 | i5-10210U crosvm | `docs/hardware_logs/cis_verify_standalone_tier2_tier3_golden_i5-10210U_crosvm_2026-08-27.log` | yes |
+| 3.2 | Standalone verifier with no engine dependency (a transcription of the spec, not a clean-room audit) reproduces both digests and verifies the golden receipt | CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field | A37 | i5-10210U crosvm | `docs/hardware_logs/cis_verify_standalone_tier2_tier3_golden_i5-10210U_crosvm_2026-08-27.log` | yes |
 | 3.2 | Standalone verifier crosses the ISA boundary in public CI | CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64 | A38 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_verify_aarch64_github_arm_ci_2026-08-27.log` | yes |
 | 3.1 | BitNet-2B decode receipt crosses the ISA boundary in public CI | digest cab11400d737ac4a reproduced on aarch64; cis_witness and standalone cis-verify both print VERIFY PASS | A39 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_decode_bitnet2b_receipt_crossisa_github_ci_2026-08-27.log` | yes |
 | 3.2 | BitNet-2B receipt re-derived by the unikernel under QEMU/TCG, no OS present | STAGE V VERIFY PASS, cis-digest cab11400d737ac4a chain 917ddf5fea9a8488…, artifacts 3/3 hashes match | A40 | QEMU/TCG (crosvm dev host, i5-10210U) | `docs/hardware_logs/unikernel_bitnet2b_verify_qemu_tcg_2026-08-27.log` | yes |

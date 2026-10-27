@@ -102,7 +102,7 @@ These are not needed for a reproduction.
 ## Kit self-test record
 
 The kit was exercised on 2026-10-27 in a fresh `rust:1-bookworm` container on
-hq (Dell XPS 15 9560, i7-7700HQ, Debian 13), from an anonymous clone of the
+a Dell XPS 15 9560 (i7-7700HQ, Debian 13), from an anonymous clone of the
 public URL at the pinned commit. The log is at
 `docs/hardware_logs/repro_kit_docker_hq_2026-10-27.log`. Result: PASS. Both
 digests and both `VERIFY PASS` lines matched the table above, and the
