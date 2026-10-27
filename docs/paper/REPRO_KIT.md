@@ -8,7 +8,7 @@ commit `d3700f0d8fd096d9428dd98a1e36ffd29874d6d4` on branch `main` of
 three M7 model artifacts (about 9 MB) are plain files in the repo. There is
 no model download and no GPU. After the clone, the only network use is
 cargo fetching one small crate (`libm`, a dependency of `aegis-core`) from
-crates.io on the first build.
+crates.io during the build.
 
 ## Prerequisites
 
