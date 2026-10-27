@@ -28,8 +28,8 @@ bit-for-bit on aarch64 in public CI, checked by two independent verifiers [A39],
 receipt is also re-derived by the unikernel booting with no OS, under QEMU [A40]. The same
 unmodified implementation and standalone verifier also handle a second ternary architecture —
 Falcon-E-1B, with a SwiGLU/silu MLP, 16-head/2-KV-head grouped-query attention, a 32,768-token
-vocabulary, and untied embeddings — inside the same +5% kill line, showing the claim is about the
-spec, not the checkpoint [A41].
+vocabulary, and untied embeddings — inside the same +5% kill line, consistent with the claim being about the
+spec rather than one checkpoint [A41].
 
 ---
 
@@ -55,8 +55,9 @@ opinion or tolerance: it is a digest. An op-level self-test prints one 64-bit va
 complete 64-token greedy decode of a reference model prints another. Either your implementation
 prints those values or it does not conform.
 
-Because the semantics are exact, they support something floating-point inference cannot: a
-**decode receipt**. A receipt binds cryptographic hashes of the three model artifacts, the
+Because the semantics are exact, they support a **decode receipt** — something floating-point
+inference supports only when its reduction order and kernel choices are themselves fixed by
+specification. A receipt binds cryptographic hashes of the three model artifacts, the
 generated token ids, a digest over those tokens, and a hash chain over the complete integer logit
 vector at every decode step. Any conforming machine can replay the decode from source and
 verify the receipt bit-for-bit. The receipt is not a claim about a trusted platform; it is a
@@ -84,20 +85,21 @@ with the raw log it was taken from (Table 3):
    one executing the AVX2 path, the other (which lacks AVX2) the scalar path (A33, A34). At
    BitNet-2B production scale, the same unikernel re-derives the 2B receipt under QEMU/TCG
    emulation — correctness/identity evidence only, not yet run on physical iron (A40).
-4. **Determinism is not the expensive part.** Measured on physical hardware, the integer semantics
+4. **Determinism is not the expensive part on either measured machine.** Measured on physical hardware, the integer semantics
    are about 25% slower than scalar floating point on a Broadwell-U core and about 4% *faster* on a
    Goldmont Plus core (kernel-level, same binary, capture medians defined in §4; A26); at parity
    vector width the integer AVX2 kernel is about 2.9x faster than the hand-written floating-point
-   AVX2 kernel it replaces (kernel-level, Dell; A27). Earlier and larger "cost of
-   determinism" figures, including this project's own, decompose into the cost of missing SIMD,
-   not of integer semantics.
+   AVX2 kernel it replaces (kernel-level, Dell; A27). The earlier and larger "cost of
+   determinism" figures this project circulated, including its own, are A/B-type comparisons
+   (a vector float kernel against a scalar integer kernel, about 4.6x on the Dell); the same-width
+   comparison is C/B, about 1.25x; the two differ only in whether the float arm uses AVX2 (§4).
 5. **The quality cost is small and was gated in advance.** Against a preregistered +5% perplexity
    kill line, the all-integer forward pass costs +0.06% on a 384-hidden reference model (A20), the
    integer-dominant hybrid path (attention still in floating point) costs +0.7408% on a
    2-billion-parameter ternary model (A21), and the complete all-integer forward pass on the same
    2B model costs +0.1239% — closer to float than the hybrid figure, and about 40x (derived) inside the kill line
    (A35). The initial all-integer run at this scale panicked instead: a NORMQ precondition rejected
-   an out-of-range residual, tracing to a gap in spec §5.10, where the ACT-I MLP nonlinearity was
+   an out-of-range residual, which the v1.0.3 erratum records as a gap in spec §5.10, where the ACT-I MLP nonlinearity was
    the one op not carrying the spec §5.6 per-vector block exponent that the hybrid boundary already
    applied. The fix — an RNE-rounded block exponent on the ACT-I output — is ratified as spec
    erratum v1.0.3; both pinned conformance digests are unchanged.
@@ -216,8 +218,8 @@ conforming, and those positions simply contribute nothing to the dot product.
 Section 5 defines twelve operations. **TMV** (spec §5.1), the ternary matrix–vector product, is exact
 in `i32` in any summation order; equally normative is its rejection surface — the spec requires that every implementation
 reject five preconditions (non-multiple-of-4 `dim_in`, an overflowing `dim_in`, and three length checks)
-identically regardless of ISA or internal blocking; three of the five have named tests in the logged run
-(non-multiple-of-4 `dim_in`, output length, weights length), and the `dim_in` ceiling and input length have
+identically regardless of ISA or internal blocking; four of the five have named tests in the logged run
+(non-multiple-of-4 `dim_in`, the `dim_in` ceiling, output length, weights length), and input length has
 none there. The spec also requires that a rejected call write no output (named test:
 `short_weights_are_rejected_before_anything_is_written`, which covers the short-weights case only). **QUANT-ACT** (spec §5.2) is per-token symmetric absmax quantization onto the
 `i8` grid, `q_i = rne(x_i·127/absmax)`, with the scale carried forward as the exact rational
@@ -572,7 +574,7 @@ name so it can be checked against the raw log rather than this prose (Rule B).
 
 The all-integer forward pass costs **+0.0637% perplexity** against float on
 the M7 reference model (5.643085 vs. 5.639491, pinned 471-token teacher-forced
-heldout, i5-10210U crosvm, digest `0xBED4A17A1A5EE296`, A20) — comfortably
+heldout sample (470 scored), i5-10210U crosvm, digest `0xBED4A17A1A5EE296`, A20) — comfortably
 inside the preregistered +5% kill line (about 78x headroom; derived: 5.0/0.0637). The earlier
 integer-dominant *hybrid* configuration on the same model, in which attention
 and activations were still float, cost more: **+0.3127%** (5.657126 vs.
@@ -671,8 +673,8 @@ microarchitecture, not of the semantics: Broadwell's two FMA units favor the
 float LUT+FMA path, while on Goldmont Plus, where floating point is weak,
 integer wins. The Dell result decomposes as **about 4.6x absent-SIMD (derived: 1/0.217;
 A/B capture medians 0.218/0.217/0.217x) × about 1.25x semantics (C/B)** — the earlier, larger "cost of determinism" figures this project
-had previously circulated (including its own) were measuring the cost of
-missing SIMD, not of integer semantics. A methodology control on the same
+had previously circulated (including its own) are A/B-type comparisons, a vector float kernel
+against a scalar integer kernel; the same-width comparison is C/B. A methodology control on the same
 run — A/B on the HP, where AVX2 is absent and arm A must fall back to arm B,
 so the true ratio is known in advance — measured A/B capture medians 1.001/1.000/1.000x (per-shape 0.999–1.001, n=9),
 which is what licenses trusting the Dell's decomposition.
@@ -721,7 +723,7 @@ that failure is reported alongside the pass.
 | Number | Parent (printed instrument line, or derivation formula) | Log file | Machine |
 |---|---|---|---|
 | +0.3127% | A19: hybrid-path PPL cost, M7 (5.657126 vs 5.639491); printed | `docs/hardware_logs/cis1_e2_int_vs_float_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
-| +0.0637% | A20: full-integer PPL cost, M7 (5.643085 vs 5.639491, 471 tokens); printed | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
+| +0.0637% | A20: full-integer PPL cost, M7 (5.643085 vs 5.639491, 471-token sample, 470 scored); printed | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
 | about 78x | derived: 5.0/0.0637 (preregistered +5% kill line over the A20 cost) | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
 | +0.7408% | A21: **HYBRID**-path (f32 attention) PPL cost, BitNet-2B (30.934140 vs 30.706665); printed | `docs/hardware_logs/cis1_e2_bitnet2b_int_vs_float_ppl_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
 | 10.758 / 1,898 tokens | earlier BitNet-2B anchor perplexity, teacher-forced; printed (`Perplexity (teacher-forced, 1898 tokens): 10.758`) | `docs/hardware_logs/wikitext2_sample1900_2026-07-16_repin.log` | not named in the log header |
@@ -746,8 +748,8 @@ that failure is reported alongside the pass.
 | about 16x | derived: 1/0.062 (reciprocal of the last D/C capture median) | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
 | 1.000x / 1.001x / 1.000x | A27: order control A'/A, capture medians; printed; one shape shows 1.202x, flagged in the log, so the D/A range is quoted | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
 | 0.282x / 0.276x / 0.276x | A27 earlier arm-D run, rejected as a confound record: D/A capture medians; printed ("D/A median =") | `docs/hardware_logs/cis_avx2_armD_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U |
-| +3.6% / +9.4% / +5.1% | A22: ring-0 vs minimal-Linux decode throughput, preregistered form; f32-activation harness, not a CIS-1 result | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | Dell i5-5200U |
-| 4.7-9.6% (predicted <3%, FAIL) | A22: P-V2-2 timing-precision spread; f32-activation harness, not a CIS-1 result | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | Dell i5-5200U |
+| +3.6% / +9.4% / +5.1% | A22: ring-0 vs minimal-Linux decode throughput, preregistered form Δ=(t_L−t_U)/t_L; derived by `scripts/score_mech2.py` over `mech2_U_BOOTLOG_2026-08-01.txt` and `mech2colskip_L_dell_BOOTLOG_2026-08-01.txt` (ticks ÷ TSC 2.1975 GHz) and printed in the scoring log; f32-activation harness, not a CIS-1 result | `docs/hardware_logs/mech2_SCORING_2026-08-01.log` | Dell i5-5200U |
+| 4.7-9.6% (predicted <3%, FAIL) | A22: P-V2-2 timing-precision spread; per-prompt spreads 9.59% / 4.70% / 5.78% printed in the scoring log, 4.7-9.6% = min and max rounded to one decimal; f32-activation harness, not a CIS-1 result | `docs/hardware_logs/mech2_SCORING_2026-08-01.log` | Dell i5-5200U |
 
 ---
 
