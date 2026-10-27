@@ -96,9 +96,9 @@ with the raw log it was taken from (Table 3):
    2-billion-parameter ternary model (A21), and the complete all-integer forward pass on the same
    2B model costs +0.1239% — closer to float than the hybrid figure, and about 40x (derived) inside the kill line
    (A35). The initial all-integer run at this scale panicked instead: a NORMQ precondition rejected
-   an out-of-range residual. The v1.0.3 erratum (spec §11) adds the spec §5.6 per-vector block
-   exponent, RNE-rounded, to the ACT-I output of spec §5.10, the one op at the hybrid boundary
-   that had not carried it; both pinned conformance digests are unchanged.
+   an out-of-range residual. The v1.0.3 erratum (spec §5.10, §11) makes the ACT-I output carry
+   the spec §5.6 per-vector block exponent, RNE-rounded, which the hybrid boundary already carried
+   and the all-integer path did not; both pinned conformance digests are unchanged.
 6. **The token-level identity claim now reaches production scale, across both ISAs.** A complete
    64-token greedy decode of the 2-billion-parameter BitNet-2B model, run in the FullInt
    configuration, prints one digest, reproduced identically across two sequential runs on x86-64:
