@@ -1,0 +1,43 @@
+ONELINER_RUN start 2026-10-27T15:49:19Z host: hq = Dell XPS 15 9560, i7-7700HQ, Debian 13, docker 29.9.2; command = line 60 of docs/paper/REPRO_KIT.md verbatim
+note: the harness that captured this run dropped cargo progress lines (Compiling/Running/Finished/warning and their context lines) with a grep filter; every result line of the command is kept verbatim. rc= is the exit status of the docker command.
+Cloning into 'alice-aegis'...
+Note: switching to 'd3700f0d8fd096d9428dd98a1e36ffd29874d6d4'.
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+  git switch -c <new-branch-name>
+Or undo this operation with:
+  git switch -
+Turn off this advice by setting config variable advice.detachedHead to false
+HEAD is now at d3700f0 Merge pull request #119 from Aefinity-AI/cm/docs-publicfix
+1524 |         let max_pos = c.max_position_embeddings;
+1 | pub struct Sampler {
+2 |     temperature: f32,
+3 |     top_p: f32,
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint
+receipt cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e
+local   cis-digest 67e8c0a96abc04e1 chain aee25b770bd7b22e
+VERIFY PASS — replay reproduced 64 tokens, the token digest, and the full logit chain bit-for-bit
+test result: ok. 81 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.43s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+cis-verify: receipt=tests/golden/witness_v1_m7_once64.receipt
+cis-verify: MODEL.SAF=model-lab/tinybit/m7_final_gate_work/artifacts/MODEL.SAF (2797632 bytes)
+cis-verify: EMBED.BIN=model-lab/tinybit/m7_final_gate_work/artifacts/EMBED.BIN (6291456 bytes)
+cis-verify: VOCAB.BIN=model-lab/tinybit/m7_final_gate_work/artifacts/VOCAB.BIN (163954 bytes)
+check: receipt parse ......... ok
+check: artifact hashes ........ ok
+check: prompt tokenization ..... ok
+check: token-id sequence (64 steps) ok
+check: cis-digest (FNV-1a 64) .. ok
+check: witness chain (SHA-256) . ok
+VERIFY PASS
+rc=0
+ONELINER_RUN end 2026-10-27T15:49:43Z
