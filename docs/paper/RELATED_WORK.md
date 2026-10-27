@@ -1,6 +1,6 @@
 # RELATED_WORK (deliverable D2): fetched-source sweep, 2026-10-27
 
-Method: every scored entry below carries a URL fetched in this session (tag "fetched 2026-10-27"); statements come from the fetched page text, not from recall. Where a fetch failed or nothing was found the entry says NOT FETCHED; two attestation standards were fetched only as far as HTTP 200 (TCG: response headers, content-type PDF; NIST: page title) and are listed but not scored. Axes: A1 = no operating system at run time; A2 = integer-exact / bit-identical results across ISAs; A3 = machine-checkable conformance + receipts. No numbers about ALICE or CIS-1 appear here (the claims ledger program/PAPER_CLAIMS_LEDGER.md owns them).
+Method: every scored entry below carries a URL fetched in this session (tag "fetched 2026-10-27"); statements come from the fetched page text, not from recall. Where a fetch failed or nothing was found the entry says NOT FETCHED; two attestation standards (TCG overview, NIST SP 800-155) had their bodies read 2026-10-27 and are scored on the same axes. Axes: A1 = no operating system at run time; A2 = integer-exact / bit-identical results across ISAs; A3 = machine-checkable conformance + receipts. No numbers about ALICE or CIS-1 appear here (the claims ledger program/PAPER_CLAIMS_LEDGER.md owns them).
 
 Alert status: no ALERT. No fetched source covers all three axes, and none contradicts the gap statement below (see coverage table). Closest on A1: Djiby Diop's UEFI project. Closest on A2+A3: EigenAI and Cankaya (GPU-only).
 
@@ -35,7 +35,7 @@ Alert status: no ALERT. No fetched source covers all three axes, and none contra
 - **Seal, Then Sample (Lim, 2026)** — https://arxiv.org/abs/2609.27367 (fetched 2026-10-27). What it does: sampled layerwise proofs committing to activations per chunk and proving a verifier-chosen subset. Relation: A1 no; A2 no (reports argmax agreement with a floating-point reference, i.e. not exact); A3 partial (commitments and sampled proofs).
 - **MPROOF** — NOT FETCHED: two web searches ("MPROOF ChunkFP verifiable LLM inference arXiv"; "MPROOF verifiable inference merkle proof model; ChunkFP ...") returned no document with that name. No entry is made from memory; the closest hits (Seal, Then Sample; TensorCommitments arXiv 2602.12630; TOPLOC arXiv 2501.16007) were not individually fetched, except Seal, Then Sample.
 - **ChunkFP** — NOT FETCHED: same searches, no document with that name found.
-- **TCG attestation overview (v1.0 rev. 1.37, Feb 2024 per the file name) and NIST SP 800-155 (BIOS Integrity Measurement Guidelines, initial public draft)** — https://trustedcomputinggroup.org/wp-content/uploads/Overview-of-TCG-Technologies-for-Device-Identification-and-Attestation-Version-1.0-Revision-1.37_5Feb24-2.pdf and https://csrc.nist.gov/pubs/sp/800/155/ipd (fetched 2026-10-27 only as far as HTTP 200: the TCG PDF by response headers, content-type application/pdf, no body read; the NIST page by its title "SP 800-155, BIOS Integrity Measurement Guidelines"; neither body read this session). What they are, per docs/paper/02_related_work.md and not per a body read here: platform attestation of boot stages (measured boot, TPM), not verification of model output. Relation: not scored; carried over since that prior draft cites them.
+- **TCG attestation overview (Version 1.0, Revision 1.37, January 2, 2024, public-review draft) and NIST SP 800-155 (BIOS Integrity Measurement Guidelines, initial public draft, December 2011; retired October 25, 2024)** — https://trustedcomputinggroup.org/wp-content/uploads/Overview-of-TCG-Technologies-for-Device-Identification-and-Attestation-Version-1.0-Revision-1.37_5Feb24-2.pdf and https://csrc.nist.gov/pubs/sp/800/155/ipd (bodies read 2026-10-27). What they are, per the bodies: platform attestation of boot stages (each stage measures the next and extends the measurement into a TPM PCR; TPM2_Quote returns signed PCR values to a Verifier; the NIST draft describes the BIOS integrity measurement and reporting chain), not verification of model output. The TCG title block prints January 2, 2024 and public-review draft status (the file name's "Feb24" is not the document date); the NIST draft carries a retired notice dated October 25, 2024 and was contributed to the TCG PC Client Firmware Integrity Measurement specification. Relation: A1 no (platform attestation attests which code ran, not what it computed); A2 no; A3 no.
 
 ## Bare-metal and unikernel execution
 
@@ -75,7 +75,7 @@ No system in our sweep combines (1) execution with no operating system at run ti
 | Orion | no | no | no |
 | CommitLLM | no | no | partial: receipt + verifier, known residual hole, no frozen digest |
 | MPROOF, ChunkFP | not fetched | not fetched | not fetched |
-| TCG attestation overview, NIST SP 800-155 | not scored: boot-chain attestation, bodies not read | not scored | not scored |
+| TCG attestation overview, NIST SP 800-155 | no: boot-chain attestation (which code ran), not a computation | no | no: attests which code ran, not what it computed |
 | OO / llm-baremetal (UEFI) | covers | partial: seed command, x86_64 only | partial: self-test only |
 | unikraft/app-llama2-c, Unikraft, MirageOS, OSv, IncludeOS | partial: library or guest OS present | no | no |
 | llama.cpp, OpenVINO, AMD Ryzen AI | no | no | no |
@@ -84,4 +84,4 @@ No system in our sweep combines (1) execution with no operating system at run ti
 
 ## Sources
 
-All URLs above were fetched 2026-10-27 unless the entry says NOT FETCHED. TCG (headers only) and NIST (page title only) were fetched as far as HTTP 200 and are not scored. MPROOF and ChunkFP have no URL, as no document was found.
+All URLs above were fetched 2026-10-27 unless the entry says NOT FETCHED. The TCG and NIST bodies were read 2026-10-27 and are scored. MPROOF and ChunkFP have no URL, as no document was found.

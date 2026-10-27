@@ -3,24 +3,26 @@
 **Justin B. Thompson**
 Aefinity AI Inc., Orange, Texas
 
-2026-08-27
+2026-08-27; revised 2026-10-27
 
 ## Abstract
 
 We define CIS-1, a frozen integer-only semantics for the transformer decode path — every
 operation, attention included, in fixed-point integers under one rounding rule — and show it is
 checkable, not merely accurate. Given only the spec text and a public harness, two independent
-implementers reproduced the op-level digest on first try [A31]. The digest is bit-identical across
-four x86 microarchitecture/codegen paths [A25] and on aarch64 [A28], and a complete 64-token decode
-digest matches across both ISAs [A29]. A decode receipt — hashes of the model artifacts, the
+implementers reproduced the op-level digest without a retry [A31]. The digest is bit-identical across
+six execution environments: four x86 paths (two bare-metal machines, a virtualized development host,
+and QEMU/TCG emulation, a correctness environment only) [A25], an aarch64 CI runner [A28], and an
+x86-64 CI runner; a complete 64-token decode digest of the in-repo M7 reference model (hidden 384, 8K
+vocabulary) matches across both ISAs [A29]. A decode receipt — hashes of the model artifacts, the
 tokens, and a hash chain over every step's logit vector — verifies across the ISA boundary in
 public CI [A32], and is re-derived bit-for-bit by a UEFI unikernel booting with no OS, on two
 physical machines spanning AVX2 and scalar SSE2 [A33, A34]. The cost is microarchitecture-dependent
-and sign-flips: the integer path is 25% slower than scalar float on Broadwell-U and 4–14% faster on
-Goldmont Plus [A26]; at parity SIMD, the integer AVX2 kernel is 2.94× faster than the float AVX2
-kernel [A27]. Quality cost, gated
+and sign-flips: the integer path is about 25% slower than scalar float on Broadwell-U and about 4%
+faster on Goldmont Plus (kernel-level, same binary) [A26]; at parity SIMD, the integer AVX2 kernel
+is about 2.9x faster than the float AVX2 kernel (kernel-level, Dell) [A27]. Quality cost, gated
 in advance, closed last: the complete all-integer forward pass on a 2-billion-parameter ternary
-model costs +0.1239% perplexity against float — 40× inside a preregistered +5% kill line [A35]. At
+model costs +0.1239% perplexity against float — about 40x (derived) inside a preregistered +5% kill line [A35]. At
 that same 2-billion-parameter scale, a full-integer decode receipt minted on x86 verifies
 bit-for-bit on aarch64 in public CI, checked by two independent verifiers [A39], and the same 2B
 receipt is also re-derived by the unikernel booting with no OS, under QEMU [A40]. The same
@@ -66,14 +68,15 @@ with the raw log it was taken from (Table 3):
 1. **The specification is implementable from its text.** Two implementers — language-model agents
    run under distinct personas, given the specification text and the public conformance harness,
    and denied access to the reference source — each wrote a from-scratch scalar implementation
-   that reproduced the op-level digest on first execution (ledger A31). This is evidence of
+   that reproduced the op-level digest without a retry (ledger A31). This is evidence of
    implementability from text, not a third-party audit (§8).
-2. **One semantics, two instruction sets.** The op-level digest is identical on four distinct x86
-   microarchitecture/codegen paths — two bare-metal machines spanning AVX2 and SSE2-class hardware,
-   a virtualized development host, and full-system emulation (A25) — and on an aarch64 Neoverse
-   system (A28).
+2. **One semantics, two instruction sets.** The op-level digest is identical in six execution
+   environments: four x86 microarchitecture/codegen paths — two bare-metal machines spanning AVX2 and
+   SSE2-class hardware, a virtualized development host, and full-system emulation, a correctness
+   environment only (A25) — an aarch64 Neoverse system (A28), and an x86-64 CI runner.
    A NEON kernel is bit-identical to the reference on real ARM silicon (A30), and a complete
-   greedy decode produces the same token digest on x86-64 and aarch64 (A29). Both digests are
+   greedy decode of the in-repo M7 reference model (hidden 384, 8K vocabulary) produces the same token
+   digest on x86-64 and aarch64 (A29). Both digests are
    standing continuous-integration gates: a future divergence fails the build.
 3. **The receipt crosses the ISA boundary and the operating-system boundary.** A receipt minted
    on x86 verifies on aarch64 in public CI (A32). The same receipt is re-derived by a unikernel
@@ -82,17 +85,18 @@ with the raw log it was taken from (Table 3):
    BitNet-2B production scale, the same unikernel re-derives the 2B receipt under QEMU/TCG
    emulation — correctness/identity evidence only, not yet run on physical iron (A40).
 4. **Determinism is not the expensive part.** Measured on physical hardware, the integer semantics
-   cost 25% against scalar floating point on a Broadwell-U core and are 4–14% *faster* on a
-   Goldmont Plus core (A26); at parity vector width the integer AVX2 kernel is 2.94× faster than
-   the hand-written floating-point AVX2 kernel it replaces (A27). Earlier and larger "cost of
+   are about 25% slower than scalar floating point on a Broadwell-U core and about 4% *faster* on a
+   Goldmont Plus core (kernel-level, same binary, capture medians defined in §6; A26); at parity
+   vector width the integer AVX2 kernel is about 2.9x faster than the hand-written floating-point
+   AVX2 kernel it replaces (kernel-level, Dell; A27). Earlier and larger "cost of
    determinism" figures, including this project's own, decompose into the cost of missing SIMD,
    not of integer semantics.
 5. **The quality cost is small and was gated in advance.** Against a preregistered +5% perplexity
    kill line, the all-integer forward pass costs +0.06% on a 384-hidden reference model (A20), the
    integer-dominant hybrid path (attention still in floating point) costs +0.7408% on a
    2-billion-parameter ternary model (A21), and the complete all-integer forward pass on the same
-   2B model costs +0.1239% — closer to float than the hybrid figure, and 40× inside the kill line
-   (A35). The first all-integer run at this scale panicked instead: a NORMQ precondition rejected
+   2B model costs +0.1239% — closer to float than the hybrid figure, and about 40x (derived) inside the kill line
+   (A35). The initial all-integer run at this scale panicked instead: a NORMQ precondition rejected
    an out-of-range residual, tracing to a gap in spec §5.10, where the ACT-I MLP nonlinearity was
    the one op not carrying the spec §5.6 per-vector block exponent that the hybrid boundary already
    applied. The fix — an RNE-rounded block exponent on the ACT-I output — is ratified as spec
@@ -151,7 +155,7 @@ Bits," arXiv:2402.17764, Feb 2024). Microsoft's follow-up technical report
 open-sources a 2B-parameter, 4T-token BitNet b1.58 checkpoint with public
 weights and CPU/GPU inference code (Ma et al., "BitNet b1.58 2B4T Technical
 Report," arXiv:2504.12285, Apr 2025). A companion systems paper describes
-CPU kernels for ternary inference and reports CPU speedups of 2.37–6.17×
+CPU kernels for ternary inference and reports, on its authors' own machines, CPU speedups of 2.37–6.17×
 on x86 and 1.37–5.07× on ARM over unoptimized baselines (Wang et al.,
 "1-bit AI Infra: Part 1.1, Fast and Lossless BitNet b1.58 Inference on
 CPUs," arXiv:2410.16144, Oct 2024); a related report, bitnet.cpp, targets
@@ -196,8 +200,7 @@ Vision Transformers with Shiftmax and ShiftGELU, reporting INT8 accuracy
 comparable to full precision (Li and Gu, arXiv:2207.01405, Jul 2022, rev.
 Aug 2023, ICCV 2023). A 2026 report proposes a clipped-linear softmax
 surrogate for int8 edge accelerators (Danopoulos et al., "Taming the
-Exponential," arXiv:2604.02292, Apr 2026) — UNVERIFIED beyond its abstract,
-not read in full. These works establish that individual nonlinear ops
+Exponential," arXiv:2604.02292, Apr 2026) — abstract read; body not read. These works establish that individual nonlinear ops
 *can* be made integer-only; none states its integer approximations as a
 frozen, versioned specification with pinned rounding and a conformance
 digest, nor addresses RoPE. That distinction — approximation technique vs.
@@ -206,10 +209,10 @@ normative, checkable semantics — is the same gap noted for BitNet above.
 **Verifiable inference.** Platform (not computational) attestation is
 mature: TCG measured boot extends per-stage hashes into TPM PCRs, signed
 and reported to a verifier (Trusted Computing Group, "Overview of TCG
-Technologies for Device Identification and Attestation," v1.0 rev. 1.37,
-Feb 2024); NIST's SP 800-155 draft specifies BIOS/firmware integrity
-measurement guidelines for the same chain (NIST SP 800-155 (Initial Public
-Draft), Dec 2011). This attests *what code ran*, not what it computed.
+Technologies for Device Identification and Attestation," Version 1.0,
+Revision 1.37, January 2, 2024, public-review draft); NIST's SP 800-155 draft specifies BIOS/firmware integrity
+measurement guidelines for the same chain (NIST SP 800-155, initial public
+draft, December 2011; retired October 25, 2024). This attests *what code ran*, not what it computed.
 Cryptographic approaches instead prove computation: zkLLM proves correct
 LLM inference in zero-knowledge with a specialized attention argument,
 generating a full-inference proof for a 13B model in under 15 minutes with
@@ -228,19 +231,15 @@ without the prover/verifier asymmetry ZK and FHE approaches require. It
 attests *what was computed*, and is designed to compose with, not replace,
 platform attestation.
 
-**Bare-metal / no-OS LLM inference.** Running LLM inference directly in UEFI
-boot-services mode, without an operating system, is not unprecedented: a
-secondary report describes a from-scratch C tokenizer/weight-loader/tensor-
-math/inference stack running as a UEFI application on a Dell E6510, with no
-model, precision, or performance details given beyond an interactive chat
-demo and an admission that "optimization work has barely been done"
-(Insights, marvin-42.com, "Bare-Metal AI: Running LLM Inference Directly in
-UEFI, No OS or Kernel Required," Mar 2026 — itself a secondary report on an
-unlinked LocalLLaMA/Reddit project, not a primary technical writeup;
-UNVERIFIED beyond this secondary source). That project establishes UEFI as
-a viable host for LLM inference; it makes no claim of determinism,
-bit-exact reproducibility across ISAs, a cryptographic receipt, or
-independent third-party verification — the properties CIS-1 adds, and the
+**Bare-metal / no-OS LLM inference.** Running LLM inference directly as a UEFI
+application, without an operating system, is not unprecedented: the
+project's own Hugging Face model card describes a freestanding C (no libc)
+x86_64 UEFI project that runs Mamba and LLaMA2 models in GGUF form, with a
+self-test command and a seed command (Diop, "OO / llm-baremetal,"
+https://huggingface.co/djibydiop/llm-baremey; card read, source repository
+not reached). That project shows UEFI is a viable host for LLM inference;
+the card describes no digest, specification, cross-ISA bit-exact claim,
+cryptographic receipt, or independent verification — the properties CIS-1 adds, and the
 ones the unikernel demonstration (§5) is built to exercise rather than the
 no-OS environment alone.
 
@@ -269,10 +268,10 @@ reproduces the pinned digest or does not conform.
 - Karvonen et al., "DiFR: Inference Verification Despite Nondeterminism," arXiv:2511.20621 — https://arxiv.org/abs/2511.20621
 - Kim et al., "I-BERT: Integer-only BERT Quantization," arXiv:2101.01321 — https://arxiv.org/abs/2101.01321
 - Li and Gu, "I-ViT: Integer-only Quantization for Efficient Vision Transformer Inference," arXiv:2207.01405 — https://arxiv.org/abs/2207.01405
-- Insights (marvin-42.com), "Bare-Metal AI: Running LLM Inference Directly in UEFI, No OS or Kernel Required," Mar 2026 — https://insights.marvin-42.com/articles/bare-metal-ai-running-llm-inference-directly-in-uefi-no-os-or-kernel-required (secondary report, no primary source linked; UNVERIFIED beyond this source)
-- Danopoulos et al., "Taming the Exponential: A Fast Softmax Surrogate for Integer-Native Edge Inference," arXiv:2604.02292 — https://arxiv.org/abs/2604.02292 (UNVERIFIED beyond abstract)
-- Trusted Computing Group, "Overview of TCG Technologies for Device Identification and Attestation," v1.0 rev. 1.37 — https://trustedcomputinggroup.org/wp-content/uploads/Overview-of-TCG-Technologies-for-Device-Identification-and-Attestation-Version-1.0-Revision-1.37_5Feb24-2.pdf (content summary drawn from search index only; full text not machine-readable via fetch — UNVERIFIED beyond title/version)
-- NIST SP 800-155 (Initial Public Draft), "BIOS Integrity Measurement Guidelines" — https://csrc.nist.gov/pubs/sp/800/155/ipd
+- Diop, "OO / llm-baremetal," Hugging Face model card — https://huggingface.co/djibydiop/llm-baremey (card read; source repository not reached)
+- Danopoulos et al., "Taming the Exponential: A Fast Softmax Surrogate for Integer-Native Edge Inference," arXiv:2604.02292 — https://arxiv.org/abs/2604.02292 (abstract read; body not read)
+- Trusted Computing Group, "Overview of TCG Technologies for Device Identification and Attestation," Version 1.0, Revision 1.37, January 2, 2024, public-review draft — https://trustedcomputinggroup.org/wp-content/uploads/Overview-of-TCG-Technologies-for-Device-Identification-and-Attestation-Version-1.0-Revision-1.37_5Feb24-2.pdf (body read 2026-10-27)
+- NIST SP 800-155, "BIOS Integrity Measurement Guidelines," initial public draft, December 2011; retired October 25, 2024 — https://csrc.nist.gov/pubs/sp/800/155/ipd (body read 2026-10-27)
 - Sun, Li, and Zhang, "zkLLM: Zero Knowledge Proofs for Large Language Models," arXiv:2404.16109 — https://arxiv.org/abs/2404.16109
 - Peng et al., "A Survey of Zero-Knowledge Proof Based Verifiable Machine Learning," arXiv:2502.18535 — https://arxiv.org/abs/2502.18535
 - "Orion: A Fully Homomorphic Encryption Framework for Deep Learning," arXiv:2311.03470 — https://arxiv.org/abs/2311.03470
@@ -307,24 +306,26 @@ Every object that crosses the decode path is assigned a type, a fixed-point grid
 bound (spec §3). Quantized activations are symmetric `i8` in `−127..+127`, with `−128` explicitly
 forbidden. Dot-product accumulators are `i32`, valid for `dim_in ≤ ⌊i32::MAX/127⌋`. The residual
 stream is `i64` in Q.20 with `|h| < 2⁵⁰` and vector length `n ≤ 8192`. q/k/v vectors are `i32`
-Q.16 with `|·| < 2²⁹` pre-rotation, enforced by a loud panic rather than saturation. Attention
+Q.16 with `|·| < 2²⁹` pre-rotation, where the spec requires a loud panic rather than saturation on violation. Attention
 scores are `i64` Q.24 with `|score| ≤ 2⁵⁹`, accumulated in `i128`. Probabilities live on Q0.15
 with `Σp` within `⌈T/2⌉` of `2¹⁵`. exp LUT entries are Q0.31 (spec §5.7), RoPE tables are `i32` Q1.30
 (spec §5.9), norm gains are `i32` Q.20 in the engine or `i16` in the reference op, and logits are `i64`
 from an exact integer dot. The spec states its headroom claim plainly: a ternary dot of length L
-over `i8` is bounded by `127·L`, and a sum of squares by `127²·L`; violating a stated bound MUST
+over `i8` is bounded by `127·L`, and a sum of squares by `127²·L`; the spec requires that violating a stated bound
 be a loud failure, never a silent wrap or saturation.
 
-Weight containers pack row-major, four weights per byte, low bit-pair first, with `dim_in` a
+Weight containers pack row-major, four weights per byte, lowest-index weight in the least-significant bit pair, with `dim_in` a
 multiple of 4 (spec §4). The two-bit codes are `00` = 0, `01` = +1, `10` = −1, and — ratified in this
 version — `11` decodes to 0 as well (defined-as-zero); a container holding `11` codes is
 conforming, and those positions simply contribute nothing to the dot product.
 
 Section 5 defines twelve operations. **TMV** (spec §5.1), the ternary matrix–vector product, is exact
-in `i32` in any summation order; equally normative is its rejection surface — five preconditions
-(non-multiple-of-4 `dim_in`, an overflowing `dim_in`, and three length checks) that every
-implementation must reject identically regardless of ISA or internal blocking, with a rejected
-call writing no output. **QUANT-ACT** (spec §5.2) is per-token symmetric absmax quantization onto the
+in `i32` in any summation order; equally normative is its rejection surface — the spec requires that every implementation
+reject five preconditions (non-multiple-of-4 `dim_in`, an overflowing `dim_in`, and three length checks)
+identically regardless of ISA or internal blocking; three of the five have named tests in the logged run
+(non-multiple-of-4 `dim_in`, output length, weights length), and the `dim_in` ceiling and input length have
+none there. The spec also requires that a rejected call write no output (named test:
+`short_weights_are_rejected_before_anything_is_written`, which covers the short-weights case only). **QUANT-ACT** (spec §5.2) is per-token symmetric absmax quantization onto the
 `i8` grid, `q_i = rne(x_i·127/absmax)`, with the scale carried forward as the exact rational
 `127/absmax`; the clamp that makes `−128` unrepresentable is explicit. **REQUANT** (spec §5.3) applies
 a fixed-point multiplier `y = clamp(rne((acc·M)/2^(31+S)), −127, 127)` with `M ∈ [2³⁰, 2³¹)` and
@@ -338,8 +339,9 @@ outputs; this full procedure is a v1.0.1 erratum, since the original prose omitt
 bit-determining grids. **NORMQ** (spec §5.5) is the fused engine form: the RMS factor cancels out of
 the `i8` codes algebraically and survives only in a carried exact rational scale. Spec §5.6 governs
 **container-boundary conversions** — bf16/f32-to-fixed conversions are exact RNE on the float bit
-pattern alone, never on accumulated values, and the block-exponent form `fix_f32_vec` MUST panic
-rather than saturate when its fractional width would go negative. Spec §5.7 defines the shared **exp
+pattern alone, never on accumulated values, and the block-exponent form `fix_f32_vec`, the spec requires, panics
+rather than saturates when its fractional width would go negative (named test:
+`fix_f32_vec_panics_past_headroom`). Spec §5.7 defines the shared **exp
 machinery**: a parameter-free floor-isqrt chain generates a 1025-entry, strictly-decreasing Q0.31
 LUT, looked up by a monotone interpolation. **SOFTMAX-I** (spec §5.8) works on the Q.24 score grid,
 subtracts the max exactly, and normalizes by exact RNE division rather than a Newton reciprocal,
@@ -348,9 +350,9 @@ generated at load from `(max_seq, head_dim, f32 bits of rope_theta)` by a normat
 procedure — quadrant-reduced sin/cos via 9-term Taylor sums, RNE-requantized to Q1.30 and clamped
 to `±2³⁰`. **ACT-I** (spec §5.10) elementwise ops work on the Q.20 grid: relu² is an exact squaring
 plus one more RNE requant, and silu evaluates one `exp_neg` call for `σ(g)` in Q0.31 before two
-further RNE requants. Since the v1.0.3 erratum, the ACT-I output MUST also carry the spec §5.6
+further RNE requants. Since the v1.0.3 erratum, the spec requires the ACT-I output to also carry the spec §5.6
 per-vector block exponent (`shift = max(0, bits(max|v|) − 49)`) before entering NORMQ, identity at
-M7 ranges (spec §5.10, ledger A35). **ARGMAX** (spec §5.11) breaks exact-equality ties on the `i64` logits to the
+M7 ranges (spec §5.10, ledger A35; no dedicated test pins this requirement directly). **ARGMAX** (spec §5.11) breaks exact-equality ties on the `i64` logits to the
 lowest index, making a tie a specified, reproducible event rather than rounding noise.
 
 **Spec §5.12 — pipeline grid assignments** fix the grid at every stage of the forward pass:
@@ -368,7 +370,7 @@ worked hazard is `−128`: x86 `vpsignb` and ARM `vmulq_s8` both wrap `−128 ×
 the reference computes in `i32`, so both shipped kernels detect `i8::MIN` in their preparation
 pass and route the whole call to the reference — an unconditional guarantee, not one conditioned
 on the caller upholding an invariant. The rejection surface of spec §5.1 is likewise part of the op:
-whether a call is rejected must not depend on which CPU the binary landed on. The shipped vector
+the spec requires that whether a call is rejected not depend on which CPU the binary landed on. The shipped vector
 kernels, `cis_avx2` and `cis_neon`, are informative rather than normative; their instruction-level
 claims are proven by exhaustive enumeration, and whole-kernel equality is checked by test suites —
 deliberately described as a test bar, not a proof.
@@ -386,7 +388,7 @@ digest, and Tier 3 the token-level digest. Tier 2 (`cis_selftest`) must print ex
 CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true
 ```
 
-Tier 3 (`cis_decode`, prompt `"Once upon a time"`, 64 new tokens, greedy, EOS ignored, `FullInt`) must print
+Tier 3 (`cis_decode` on the in-repo M7 reference model, hidden 384, 8K vocabulary; prompt `"Once upon a time"`, 64 new tokens, greedy, EOS ignored, `FullInt`) must print
 exactly:
 
 ```
@@ -412,32 +414,35 @@ This section is correctness evidence only; no throughput or latency figure appea
 **A four-implementation digest jury (A25).** On 2026-08-02 the op-level self-test printed the
 identical digest, `CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`, on four distinct machines
 and codegen paths: the HP Stream (Celeron N4020, Gemini Lake, SSE2-class) running bare iron on
-minimal Linux, the Dell i5-5200U running bare iron across two cold boots, the crosvm dev host
+minimal Linux, the Dell i5-5200U running bare iron, the crosvm dev host
 (i5-10210U), and QEMU/TCG full-system emulation. The ledger states its own scope exactly, and we
 repeat it rather than round it up: "Four distinct microarchitectures + codegen paths, one
-bit-exact integer semantics. Correctness leg only; no performance numbers taken from it" (A25).
+bit-exact integer semantics. Correctness leg only; no performance numbers taken from it" (A25). Counting the aarch64 runner (A28) and
+the x86-64 CI runner (Table 2), the same op-level digest has been printed in six execution environments;
+QEMU/TCG is a correctness environment only.
 
-**The jury crosses its first ISA boundary (A28).** On 2026-08-07 the same op-level digest,
+**The jury crosses an ISA boundary (A28).** On 2026-08-07 the same op-level digest,
 `76985613c965f643`, reproduced on a GitHub `ubuntu-24.04-arm` hosted runner (`uname -m`=aarch64
 asserted in-job, CPU part `0xd49`, Neoverse N2 class, Azure southcentralus). The reference
 semantics compiled untouched — `cis.rs` has zero imports, and `lib.rs` cfg-gates every
-x86-intrinsic module — and reproduced the digest on first execution. The standing CI gate
+x86-intrinsic module — and reproduced the digest without a retry. The standing CI gate
 `arm-digest.yml` now pins this digest on every push; a future mismatch fails the build, with the
 ledger's own instruction to preserve the log as a finding, not fix it into silence. Because this
 leg runs on a cloud runner, the machine is named as precisely as the platform allows; it stands
 as an identity artifact only — no timing is quoted or quotable from it (A28).
 
-Table 2 collects the digest jury; every cell traces to A25 or A28.
+Table 2 collects the digest jury; every cell traces to A25, to A28, or to the x86-64 job of the A29 CI log.
 
 **Table 2 — the digest jury**
 
 | Machine | Microarchitecture | Environment | Digest | Row |
 |---|---|---|---|---|
 | HP Stream (Celeron N4020) | Gemini Lake, SSE2-class | bare iron, minimal Linux | 76985613c965f643 | A25 |
-| Dell Inspiron 15 (i5-5200U) | — | bare iron (2 cold boots) | 76985613c965f643 | A25 |
+| Dell Inspiron 15 (i5-5200U) | — | bare iron | 76985613c965f643 | A25 |
 | crosvm dev host (i5-10210U) | — | crosvm (virtualized) | 76985613c965f643 | A25 |
 | QEMU/TCG | — | full-system emulation | 76985613c965f643 | A25 |
 | GitHub `ubuntu-24.04-arm` (Azure southcentralus) | Neoverse N2 class (CPU part 0xd49) | hosted CI runner | 76985613c965f643 | A28 |
+| GitHub `ubuntu-24.04` (x86-64 CI runner) | x86-64 | hosted CI runner | 76985613c965f643 | A29 CI log |
 
 **The specification is implementable from its text (A31).** On 2026-08-08 two independent
 implementers — subagents under distinct personas — were given the v1.0.1 spec text as their sole
@@ -445,8 +450,8 @@ source, with reference-source access forbidden and, as far as the harness can es
 used. Each wrote a from-scratch scalar Rust implementation of the spec §5 operations (400 and 484
 lines respectively, verified distinct by diff/md5). Both, linked against the verbatim-ported
 public conformance harness, printed exactly `CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`
-— all 14 sections, first run after their own cargo-check. The v1.0.1 spec §5.4 erratum to RMSNORM-I's
-Q2.30/2¹⁵ grids is what made this possible: both implementers hit RMSNORM-I's golden on first
+— all 14 sections, on the initial run after their own cargo-check. The v1.0.1 spec §5.4 erratum to RMSNORM-I's
+Q2.30/2¹⁵ grids is what made this possible: both implementers hit RMSNORM-I's golden on the initial
 attempt from the corrected prose. The ledger states the honest scope plainly, and we do not
 soften it: the public conformance suite's golden vectors were visible to the implementers, and
 both reports state the A8 goldens were needed to settle `from_ratio` edge cases the text leaves
@@ -518,7 +523,7 @@ claim (Rule A).
 
 **Receipt format (A32).** The golden receipt `tests/golden/witness_v1_m7_once64.receipt` binds
 SHA-256 hashes of all three model artifacts, the 64 generated token ids, the token digest
-`67e8c0a96abc04e1`, and a chained SHA-256 commitment over every decode step's full i64 logit
+`67e8c0a96abc04e1` (the in-repo M7 reference model, hidden 384, 8K vocabulary), and a chained SHA-256 commitment over every decode step's full i64 logit
 vector — chain `aee25b770bd7b22e…`. It was minted on the crosvm dev host (i5-10210U). This is not
 a summary digest: it is the entire integer state sequence, 64 steps deep, each step's complete
 logit vector folded into the chain. Every field the receipt binds is listed above exactly as the
@@ -552,8 +557,8 @@ it was appended after the baked-in QEMU entry and carries a different firmware m
 is log-structural evidence, not a hardware identifier (A33).
 
 **Physical iron, no operating system: the HP leg (A34).** On the same date, the identical stick
-and identical receipt were booted on the HP Stream (Celeron N4020, Gemini Lake) for the
-first-ever unikernel boot on that machine: VERIFY PASS, payload unchanged since the Dell leg.
+and identical receipt were booted on the HP Stream (Celeron N4020, Gemini Lake) for a
+boot the unikernel had not made on that machine before: VERIFY PASS, payload unchanged since the Dell leg.
 BOOTLOG.TXT gained exactly one new entry (diffed against the banked Dell-era log): `VERIFY
 PASS — this machine reproduced all 64 decode steps' full logit vectors bit-for-bit, with no OS
 underneath`. The scalar-path corollary matters: the N4020 lacks AVX2, so a PASS on it implies the
@@ -574,7 +579,7 @@ fork of `aegis-core`: zero external runtime dependencies, no dependency on `aegi
 `unsafe`, `no_std`+alloc at its core. On the same dev host, it reproduces the pinned op-level
 digest (`CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`), both pinned table digests (the exp
 LUT and RoPE constants), and the token-level decode digest
-(`CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint`) on first attempt,
+(`CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint`) without a retry,
 then verifies the golden receipt `tests/golden/witness_v1_m7_once64.receipt` end to end — all six
 checks (receipt parse, the three artifact hashes, prompt tokenization, the 64-step token-id
 sequence, the cis-digest, and the witness chain) — and prints `VERIFY PASS` in about 1.4 seconds.
@@ -640,7 +645,7 @@ name so it can be checked against the raw log rather than this prose (Rule B).
 The all-integer forward pass costs **+0.0637% perplexity** against float on
 the M7 reference model (5.643085 vs. 5.639491, pinned 471-token teacher-forced
 heldout, i5-10210U crosvm, digest `0xBED4A17A1A5EE296`, A20) — comfortably
-inside the preregistered +5% kill line (78× headroom). The earlier
+inside the preregistered +5% kill line (about 78x headroom; derived: 5.0/0.0637). The earlier
 integer-dominant *hybrid* configuration on the same model, in which attention
 and activations were still float, cost more: **+0.3127%** (5.657126 vs.
 5.639491, digest `0x42E820C2A8A59CD6`, A19). The all-integer path is *closer*
@@ -666,7 +671,7 @@ attention, in integer — is now measured: **+0.1239% perplexity** (full-integer
 30.744724 vs. float 30.706665, teacher-forced, 199 scored tokens, same
 sha-identical artifacts and window as A21, i5-10210U crosvm, argmax digest
 `0xB274DE03F5862DB7`, A35), *closer* to float than the hybrid figure above —
-40× inside the preregistered +5% kill line. Two sequential runs agreed on
+about 40x inside the preregistered +5% kill line (derived: 5.0/0.1239). Two sequential runs agreed on
 every computed value. Reaching that number required a fix: the unfixed
 binary panicked 2/2 runs (`normq: residual out of range`, `cis_infer.rs:313`).
 An env-gated trace (branch `cm/e1b-normq-trace`) localized the fault to the
@@ -724,43 +729,56 @@ checkpoint (A41).
 
 CIS-1's throughput cost was measured directly rather than assumed, on two
 physical machines, one binary, three interleaved captures across three
-shapes each, 9/9 bit-exact (A26). On the **Dell i5-5200U (Broadwell-U)**,
-scalar integer costs 25% against scalar float: C/B median **1.248×**
-(range 1.239–1.260). On the **HP N4020 (Gemini Lake / Goldmont Plus)**,
-integer is **4–14% faster**: C/B median **0.961×** (range 0.856–0.963).
+shapes each, 9/9 bit-exact (A26, kernel-level). Throughout this section a *capture* is one run of
+the benchmark over its three shapes: the log prints one ratio per shape and then a summary line, and the
+*capture median* is the value on that summary line, the median of the capture's three per-shape ratios;
+each log holds three captures. (In the A27 log the D/A summary line prints its value without the word
+"median".) On the **Dell i5-5200U (Broadwell-U)**, scalar integer is about 25% slower than scalar float
+(derived from the C/B capture medians **1.254×/1.246×/1.252×**; per-shape range 1.239–1.260×). On the
+**HP N4020 (Gemini Lake / Goldmont Plus)**, integer is **about 4% faster** at the capture median: C/B
+capture medians **0.961×/0.962×/0.961×** (per-shape range 0.856–0.963×).
 The two machines disagree in sign because the cost is a property of the
 microarchitecture, not of the semantics: Broadwell's two FMA units favor the
 float LUT+FMA path, while on Goldmont Plus, where floating point is weak,
-integer wins. The Dell result decomposes as **4.61× absent-SIMD × 1.248×
-semantics** — the earlier, larger "cost of determinism" figures this project
+integer wins. The Dell result decomposes as **about 4.6x absent-SIMD (derived: 1/0.217;
+A/B capture medians 0.218/0.217/0.217x) × about 1.25x semantics (C/B)** — the earlier, larger "cost of determinism" figures this project
 had previously circulated (including its own) were measuring the cost of
 missing SIMD, not of integer semantics. A methodology control on the same
 run — A/B on the HP, where AVX2 is absent and arm A must fall back to arm B,
-so the true ratio is known in advance — measured 1.000× (0.999–1.001, n=9),
+so the true ratio is known in advance — measured A/B capture medians 1.001/1.000/1.000x (per-shape 0.999–1.001, n=9),
 which is what licenses trusting the Dell's decomposition.
 
-At parity SIMD width, the picture sharpens further (A27). On the Dell,
-`cis_avx2::ternary_matvec_i8_avx2` measured **D/A median 0.340× — 2.94×
-faster** than the hand-written float AVX2 kernel it replaces (range
-0.331–0.439), bit-identical to the scalar reference 9/9 with 0 void; D/C
-median 0.061× is **16.4× over the scalar reference**. This result carries a
-method note that is part of its provenance, not incidental: the *first*
-arm-D run measured D/A 0.276× but was **rejected** — arm A's own repeated
+At parity SIMD width, the picture sharpens further (A27, kernel-level, Dell). On the Dell,
+`cis_avx2::ternary_matvec_i8_avx2` measured **D/A capture medians 0.339×/0.339×/0.356×**
+(per-shape range 0.331–0.439×; one shape carries an order effect of 1.202× that the log flags, so the
+range is quoted, not a single median) — **about 2.9x faster (derived: 1/0.339)** than the hand-written
+float AVX2 kernel it replaces, bit-identical to the scalar reference 9/9 with 0 void; D/C capture
+medians **0.060×/0.060×/0.062×** put it **about 16x over the scalar reference (derived: 1/0.062)**.
+This result carries a
+method note that is part of its provenance, not incidental: the earlier arm-D run (2026-08-05)
+measured D/A 0.276x (capture medians 0.282/0.276/0.276x) and was rejected as a confound record; it stays
+in the ledger — arm A's own repeated
 measurements drifted +58% across the run where clock arithmetic predicted
 +28%, while arms B and C tracked the clock to 0.1%, indicating arm D had
 perturbed arm A's cache state and flattered the ratio. The bench was then
 changed to re-measure arm A immediately after arm D on every repetition
-(A′); on the accepted run, A′/A median = 1.000× (D/A equals D/A′ to three
-decimals), which is what licenses treating 0.340× as measured rather than
-assumed.
+(A′); on the accepted run, A′/A capture medians = 1.000/1.001/1.000x (D/A equals D/A′ to three
+decimals in each capture), which is what licenses treating the D/A capture medians as measured rather
+than assumed.
+
+**External-engine baseline.** A like-for-like external-engine comparison on a named physical box has not
+been run; `docs/paper/BASELINE_ABSENCE.md` states why. The ratios in this section (A26, A27) are
+same-binary, kernel-level ratios on named machines, and the A22 figures below are an f32-activation
+harness result; none is an external-engine comparison. The throughput ranges cited in §2 are those
+papers' own measurements on their authors' machines.
 
 ## Engine context (not CIS-1 claims)
 
-These figures characterize the surrounding unikernel/kernel-candidate work
+These figures characterize the surrounding unikernel work
 on the Dell i5-5200U. They are not part of the CIS-1 conformance or
 cross-ISA claims and are reported here only as supporting context.
 
-The ring-0 unikernel was compared against a minimal-Linux decode path under
+As float-engine OS-cost context (f32-activation harness; not a CIS-1 result), the ring-0 unikernel was compared against a minimal-Linux decode path under
 a preregistered, paired, hands-off-boot protocol (A22): the preregistered
 throughput form gave **+3.6% / +9.4% / +5.1%** across three prompts (3/3),
 with 27/27 within-boot bit-exactness and byte-identical responses. The same
@@ -769,41 +787,37 @@ measured spread 4.7–9.6% against a predicted <3%. The bit-exactness held;
 the wall-time repeatability did not match the prereg's own expectation, and
 that failure is reported alongside the pass.
 
-A column-skip kernel candidate measured **2.88–2.89×** faster than the
-incumbent on the real BitNet-2B `down_proj` activation distribution (ordered
-variant, byte-identical to the incumbent by construction and test — zero
-quality risk on adoption); a chain variant measured 2.80×. Its GMAC/s figures
-are stated **NOMINAL** (skipped work is counted as done; speedup is a time
-ratio), and it is not wired end-to-end — this is a kernel-level result only
-(A23).
-
-A memory-bandwidth ceiling was measured on the same machine: peak sequential
-read 11.19 / 10.95 GB/s at one thread, 11.63 / 11.70 GB/s at four threads,
-against a ternary weight-stream pattern of 0.62 GB/s (A24). The stream
-figure is a scalar LUT-walk **lower bound** on the engine's streaming rate,
-not the engine's actual rate — the bench's own caveat — and its roughly 18×
-gap to peak sequential bandwidth is what motivates the column-skip work
-above.
-
 ## Table 4 — every number in this section
 
-| Number | Metric | Machine | Row |
+| Number | Parent (printed instrument line, or derivation formula) | Log file | Machine |
 |---|---|---|---|
-| +0.3127% | Hybrid-path PPL cost, M7 (5.657126 vs 5.639491) | i5-10210U crosvm | A19 |
-| +0.0637% | Full-integer PPL cost, M7 (5.643085 vs 5.639491) | i5-10210U crosvm | A20 |
-| +0.7408% | **HYBRID**-path (f32 attention) PPL cost, BitNet-2B (30.934140 vs 30.706665) | i5-10210U crosvm | A21 |
-| +0.1239% | **FULL-INTEGER**-path PPL cost, BitNet-2B, after v1.0.3 erratum (30.744724 vs 30.706665) | i5-10210U crosvm | A35 |
-| +0.7433% | HYBRID-path PPL cost, Falcon-E-1B (11.823613 vs 11.736378) | i5-10210U crosvm | A41 |
-| +0.7012% | FULL-INTEGER-path PPL cost, Falcon-E-1B (11.818673 vs 11.736378) | i5-10210U crosvm | A41 |
-| 1.248× | Scalar integer/float throughput ratio, C/B | Dell i5-5200U (Broadwell-U) | A26 |
-| 0.961× | Scalar integer/float throughput ratio, C/B | HP N4020 (Gemini Lake) | A26 |
-| 4.61× × 1.248× | Absent-SIMD × semantics decomposition | Dell i5-5200U | A26 |
-| 0.340× (2.94×) | AVX2 integer/float kernel ratio, D/A, parity SIMD | Dell i5-5200U | A27 |
-| 0.061× (16.4×) | AVX2 integer kernel vs. scalar reference, D/C | Dell i5-5200U | A27 |
-| +3.6% / +9.4% / +5.1% | Ring-0 vs. minimal-Linux decode throughput, preregistered form | Dell i5-5200U | A22 |
-| 4.7–9.6% (predicted <3%, FAIL) | P-V2-2 timing-precision spread | Dell i5-5200U | A22 |
-| 2.88–2.89× / 2.80× | Column-skip kernel vs. incumbent, ordered/chain (NOMINAL GMAC/s) | Dell i5-5200U | A23 |
-| 11.19–11.70 GB/s vs. 0.62 GB/s | Peak sequential read vs. ternary weight-stream (LUT-walk lower bound) | Dell i5-5200U | A24 |
+| +0.3127% | A19: hybrid-path PPL cost, M7 (5.657126 vs 5.639491); printed | `docs/hardware_logs/cis1_e2_int_vs_float_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
+| +0.0637% | A20: full-integer PPL cost, M7 (5.643085 vs 5.639491); printed | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
+| about 78x | derived: 5.0/0.0637 (preregistered +5% kill line over the A20 cost) | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
+| +0.7408% | A21: **HYBRID**-path (f32 attention) PPL cost, BitNet-2B (30.934140 vs 30.706665); printed | `docs/hardware_logs/cis1_e2_bitnet2b_int_vs_float_ppl_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
+| +0.1239% | A35: **FULL-INTEGER**-path PPL cost, BitNet-2B, after v1.0.3 erratum (30.744724 vs 30.706665); printed | `docs/hardware_logs/cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_e1c_fixed.log` | i5-10210U crosvm |
+| about 40x | derived: 5.0/0.1239 = 40.4 (preregistered +5% kill line over the A35 cost) | `docs/hardware_logs/cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_e1c_fixed.log` | i5-10210U crosvm |
+| +0.7433% | A41: HYBRID-path PPL cost, Falcon-E-1B (11.823613 vs 11.736378); printed | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | i5-10210U crosvm |
+| +0.7012% | A41: FULL-INTEGER-path PPL cost, Falcon-E-1B (11.818673 vs 11.736378); printed | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | i5-10210U crosvm |
+| 1.254x / 1.246x / 1.252x | A26: scalar integer/float throughput ratio C/B, capture medians; printed ("C/B median =") | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
+| 1.239x to 1.260x | A26: per-shape C/B range over the nine per-shape values; printed | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
+| 1.248x | median of the nine per-shape values = 1.248x (derived; manifest id cis_cb_dell) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
+| about 25% slower | derived from the C/B capture medians 1.254/1.246/1.252x: (1.25x - 1) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
+| 0.218x / 0.217x / 0.217x | A26: float SIMD headroom A/B, capture medians; printed ("A/B median =") | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
+| about 4.6x | derived: 1/0.217 (absent-SIMD factor; the decomposition is about 4.6x × about 1.25x) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
+| 0.961x / 0.962x / 0.961x | A26: scalar integer/float throughput ratio C/B, capture medians; printed | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
+| 0.856x to 0.963x | A26: per-shape C/B range; printed | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
+| about 4% faster | derived from the C/B capture medians 0.961/0.962/0.961x: (1 - 0.961) | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
+| 1.001x / 1.000x / 1.000x | A26: methodology control A/B, capture medians; printed (per-shape 0.999 to 1.001, n=9) | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
+| 0.339x / 0.339x / 0.356x | A27: AVX2 integer/float kernel ratio D/A at parity SIMD, capture medians; printed ("D/A = ...", no word "median"); per-shape range 0.331x to 0.439x | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
+| 0.340x | median of the nine per-shape values = 0.340x (derived; manifest id cis_da_dell) | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
+| about 2.9x | derived: 1/0.339 (reciprocal of the capture-1 D/A median) | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
+| 0.060x / 0.060x / 0.062x | A27: AVX2 integer kernel vs scalar reference D/C, capture medians; printed ("D/C median =") | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
+| about 16x | derived: 1/0.062 (reciprocal of the last D/C capture median) | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
+| 1.000x / 1.001x / 1.000x | A27: order control A'/A, capture medians; printed; one shape shows 1.202x, flagged in the log, so the D/A range is quoted | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
+| 0.282x / 0.276x / 0.276x | A27 earlier arm-D run, rejected as a confound record: D/A capture medians; printed ("D/A median =") | `docs/hardware_logs/cis_avx2_armD_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U |
+| +3.6% / +9.4% / +5.1% | A22: ring-0 vs minimal-Linux decode throughput, preregistered form; f32-activation harness, not a CIS-1 result | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | Dell i5-5200U |
+| 4.7-9.6% (predicted <3%, FAIL) | A22: P-V2-2 timing-precision spread; f32-activation harness, not a CIS-1 result | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | Dell i5-5200U |
 
 ---
 
@@ -829,20 +843,18 @@ and the specification is public.
 **For research reproducibility.** Every result in this paper is either a digest reproduced in
 public continuous integration or a measurement logged on a named physical machine, and Table 3 says
 which. A reader who obtains the artifacts does not have to trust our
-numbers; they can print the same 64-bit values. We believe this is the correct standard for
-inference-engine claims and that the industry's tolerance-based "matches within epsilon"
-reporting has hidden real divergence for years.
+numbers; they can print the same 64-bit values.
 
 **For the economics of edge AI.** The engine that produces these receipts boots from firmware with
 no operating system on decade-old laptops and re-derives the receipt for the reference model there
 (A33, A34); the same engine runs a 2-billion-parameter ternary model in its Linux harness on the same
 class of hardware (A21). The complete all-integer forward pass on that 2B model now passes its
-preregistered quality gate (+0.1239% perplexity against float, 40× inside the +5% kill line, A35) —
+preregistered quality gate (+0.1239% perplexity against float, about 40x (derived) inside the +5% kill line, A35) —
 though the 2B model has not yet been booted on the unikernel itself; no ledger row yet establishes
 that. The cost of the integer semantics is a property of the
-microarchitecture, not of the semantics: 25% against scalar floating point on one core, 4–14% faster
-on another (A26), and at parity vector width the integer AVX2 kernel is 2.94× faster than the
-floating-point AVX2 kernel it replaces (A27). On the commodity CPUs where it was measured,
+microarchitecture, not of the semantics: about 25% slower than scalar floating point on one core, about 4% faster
+on another (kernel-level, same binary; A26), and at parity vector width the integer AVX2 kernel is about 2.9x faster than the
+floating-point AVX2 kernel it replaces (kernel-level, Dell; A27). On the commodity CPUs where it was measured,
 verifiability did not require specialized or trusted hardware, and did not have to cost performance.
 
 **A standing invitation.** The project maintains a public falsification challenge: find any
@@ -893,10 +905,10 @@ other across runs beyond what the shared, sha-identical artifacts and window sup
 *relative* integer-vs-float cost, measured in the same run with the same binary and window, is the
 claim.
 
-**Cost figures are microarchitecture-specific.** The 25% cost on Broadwell-U and the 4–14%
-advantage on Goldmont Plus (A26) are measurements of two machines, not a model of CPUs in
-general; the 2.94× AVX2 result (A27) is one machine, three shapes, three captures, with its
-rejected first run and the order control recorded. No token-level throughput number for the
+**Cost figures are microarchitecture-specific.** The about-25% cost on Broadwell-U and the about-4%
+advantage on Goldmont Plus (A26, capture medians) are measurements of two machines, not a model of CPUs in
+general; the about-2.9x AVX2 result (A27, kernel-level) is one machine, three shapes, three captures, with its
+rejected earlier run and the order control recorded (one shape's order effect of 1.202x is flagged in the log). No token-level throughput number for the
 integer path exists yet, and the README says so.
 
 **Cloud-runner legs are identity evidence only.** The aarch64 results (A28, A29, A30, A32) were
@@ -957,7 +969,7 @@ CI (run 31249589879, snapshot `ce93bbb`, A32).
 
 **The two conformance digests.**
 - Op-level: `CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`
-- Token-level decode: `CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint`
+- Token-level decode (in-repo M7 reference model, hidden 384, 8K vocabulary): `CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint`
 
 **Commands** (the invocation cores of `.github/workflows/arm-digest.yml`; the workflow additionally pipes each output through `grep '^CIS_…' | tee /dev/stderr | grep -q <digest> || exit 1` so a mismatch fails the job, and re-declares the artifact directory `M` before the witness step — see the file for the exact wrappers — which
 runs them on every push on both `ubuntu-24.04` and `ubuntu-24.04-arm`):
@@ -976,7 +988,7 @@ cargo build --release --example cis_witness --manifest-path aegis-linux/Cargo.to
   tests/golden/witness_v1_m7_once64.receipt
 ```
 
-The first two lines reproduce the op-level digest; the next two, the
+Lines one and two reproduce the op-level digest; lines three and four, the
 token-level digest against the in-repo M7 model; the last two replay and
 verify the x86-minted golden receipt. A mismatch in any digest is a
 falsification of the corresponding claim in §4–5, not a bug to be quietly
@@ -993,7 +1005,7 @@ cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin c
   "$M/MODEL.SAF" "$M/EMBED.BIN" "$M/VOCAB.BIN"
 ```
 
-The first command runs the crate's test suite, including the pinned op-level digest, both pinned
+The opening command runs the crate's test suite, including the pinned op-level digest, both pinned
 table digests, the token-level decode digest, and the golden-receipt verification and tamper
 tests. The second runs the CLI directly against the golden receipt and prints `VERIFY PASS` (or
 `VERIFY FAIL (<field>)`) in about 1.4 seconds.
@@ -1020,7 +1032,7 @@ cargo run --release --features std --manifest-path cis-verify/Cargo.toml --bin c
   "$M/aegis_pruned_model.cis.safetensors" "$M/embed.bin" "$M/vocab.bin"
 ```
 
-The first two lines build the reference drivers; `cis_decode` reproduces the BitNet-2B token-level
+Lines one and two build the reference drivers; `cis_decode` reproduces the BitNet-2B token-level
 digest (`cab11400d737ac4a`); `cis_witness verify` and the standalone `cis-verify` CLI each
 independently verify the same golden receipt. The aarch64 job running the same four commands is
 the source for A38 (the standalone verifier's aarch64 leg) and A39 (the receipt's cross-ISA
@@ -1053,7 +1065,7 @@ python3 docs/paper/gen_table3.py
 |---|---|---|---|---|---|---|
 | 4 | Four-implementation digest jury (HP N4020 bare iron, Dell i5-5200U bare iron x2, crosvm, QEMU/TCG) | digest 76985613c965f643, ALL_PASS=true, 4 codegen paths | A25 | HP N4020 + Dell i5-5200U + crosvm i5-10210U + QEMU/TCG | `docs/hardware_logs/hp_L_BOOTLOG_2026-08-02.txt` | yes |
 | 4 | Digest jury crosses to a second ISA (aarch64 CI) | same digest 76985613c965f643 on aarch64 | A28 | GitHub ubuntu-24.04-arm (Neoverse N2) | `docs/hardware_logs/cis_selftest_aarch64_github_arm_2026-08-07.log` | yes |
-| 4 | Clean-room spec-only reimplementation reproduces the digest | 2 implementers, 400/484 lines, distinct by md5, first-run pass | A31 | i5-10210U crosvm (dev host) | `docs/hardware_logs/cis_cleanroom_tier2_2026-08-08.log` | yes |
+| 4 | Clean-room spec-only reimplementation reproduces the digest | 2 implementers, 400/484 lines, distinct by md5, pass on the initial run | A31 | i5-10210U crosvm (dev host) | `docs/hardware_logs/cis_cleanroom_tier2_2026-08-08.log` | yes |
 | 4 | NEON kernel bit-identical on real ARM silicon | equivalence 5/5, contract 6/6, mechanism 3/3 exhaustive | A30 | GitHub ubuntu-24.04-arm (Neoverse N2) | `docs/hardware_logs/cis_neon_tests_aarch64_github_arm_2026-08-07.log` | yes |
 | 4 | Token-level full-pipeline decode digest identical x86_64 vs aarch64 | digest 67e8c0a96abc04e1, prompt_toks=4 gen_toks=64 | A29 | GitHub ubuntu-24.04 + ubuntu-24.04-arm | `docs/hardware_logs/cis_decode_token_crossisa_ci_2026-08-07.log` | yes |
 | 5 | Decode receipt format + CI replay verification | chain aee25b770bd7b22e…, CI run 31249589879 (snapshot ce93bbb) | A32 | i5-10210U crosvm (mint) + GitHub ubuntu-24.04-arm + ubuntu-24.04 (verify) | `docs/hardware_logs/witness_receipt_aarch64_ci_2026-08-08.log (CI run 31249589879)` | yes |
@@ -1063,8 +1075,8 @@ python3 docs/paper/gen_table3.py
 | 6 | Quality cost, full-integer path, M7 | +0.0637% PPL (5.643085 vs 5.639491), digest 0xBED4A17A1A5EE296 | A20 | i5-10210U crosvm | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | yes |
 | 6 | Quality cost, integer-dominant HYBRID path (f32 attention), BitNet-2B | +0.7408% PPL (30.934140 vs 30.706665), digest 0x24C4E510A86659D6 | A21 | i5-10210U crosvm | `docs/hardware_logs/cis1_e2_bitnet2b_int_vs_float_ppl_i5-10210U_crosvm_2026-08-01.log` | yes |
 | 6 | Quality cost, FULL-INTEGER path, BitNet-2B (after v1.0.3 erratum) | +0.1239% PPL (30.744724 vs 30.706665), argmax digest 0xB274DE03F5862DB7 | A35 | i5-10210U crosvm | `docs/hardware_logs/cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_e1c_fixed.log` | yes |
-| 6 | Throughput cost by microarchitecture (C/B ratio) | Dell (Broadwell-U) 1.248x slower; HP (Gemini Lake) 0.961x (faster) | A26 | Dell i5-5200U (Broadwell-U) + HP N4020 (Gemini Lake) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | yes |
-| 6 | AVX2 integer kernel vs float AVX2 kernel | D/A 0.340x = 2.94x faster; D/C 0.061x = 16.4x over scalar | A27 | Dell i5-5200U | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | yes |
+| 6 | Throughput cost by microarchitecture (C/B ratio) | Dell (Broadwell-U) C/B capture medians 1.254/1.246/1.252x; HP (Gemini Lake) 0.961/0.962/0.961x | A26 | Dell i5-5200U (Broadwell-U) + HP N4020 (Gemini Lake) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | yes |
+| 6 | AVX2 integer kernel vs float AVX2 kernel | D/A capture medians 0.339/0.339/0.356x (per-shape 0.331-0.439x); D/C 0.060/0.060/0.062x | A27 | Dell i5-5200U | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | yes |
 | 6 | Ring-0 unikernel vs minimal Linux decode throughput | +3.6% / +9.4% / +5.1% (prereg form); P-V2-2 FAIL spread 4.7-9.6% | A22 | Dell i5-5200U | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | yes |
 | 6 | Column-skip kernel candidate (engine context, not a CIS-1 claim) | 2.88-2.89x vs incumbent (ordered variant); 2.80x (chain variant) | A23 | Dell i5-5200U | `docs/hardware_logs/mech2colskip_L_dell_BOOTLOG_2026-08-01.txt` | yes |
 | 6 | Bandwidth ceiling (engine context, not a CIS-1 claim) | peak seq. 11.19/10.95 GB/s (1T), 11.63/11.70 GB/s (4T) vs ternary stream 0.62 GB/s | A24 | Dell i5-5200U | `docs/hardware_logs/mech2colskip_L_dell_BOOTLOG_2026-08-01.txt` | yes |
