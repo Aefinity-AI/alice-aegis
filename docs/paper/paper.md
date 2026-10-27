@@ -69,7 +69,7 @@ with the raw log it was taken from (Table 3):
    run under distinct personas, given the specification text and the public conformance harness,
    and denied access to the reference source — each wrote a from-scratch scalar implementation
    that reproduced the op-level digest without a retry (ledger A31). This is evidence of
-   implementability from text, not a third-party audit (§8).
+   implementability from text, not a third-party audit (§5).
 2. **One semantics, two instruction sets.** The op-level digest is identical in six execution
    environments: four x86 microarchitecture/codegen paths — two bare-metal machines spanning AVX2 and
    SSE2-class hardware, a virtualized development host, and full-system emulation, a correctness
@@ -86,7 +86,7 @@ with the raw log it was taken from (Table 3):
    emulation — correctness/identity evidence only, not yet run on physical iron (A40).
 4. **Determinism is not the expensive part.** Measured on physical hardware, the integer semantics
    are about 25% slower than scalar floating point on a Broadwell-U core and about 4% *faster* on a
-   Goldmont Plus core (kernel-level, same binary, capture medians defined in §6; A26); at parity
+   Goldmont Plus core (kernel-level, same binary, capture medians defined in §4; A26); at parity
    vector width the integer AVX2 kernel is about 2.9x faster than the hand-written floating-point
    AVX2 kernel it replaces (kernel-level, Dell; A27). Earlier and larger "cost of
    determinism" figures, including this project's own, decompose into the cost of missing SIMD,
@@ -118,7 +118,7 @@ with the raw log it was taken from (Table 3):
    `CIS_SELFTEST digest=76985613c965f643 ALL_PASS=true`, passes its full suite (81 unit +
    integration tests), and prints `VERIFY PASS` on the x86-minted golden receipt — both the x86-64
    and aarch64 jobs are now standing CI gates (A38). Honest scope: this was an LM-agent
-   transcription of the spec with the reference source visible, not a clean-room audit (§8).
+   transcription of the spec with the reference source visible, not a clean-room audit (§5).
 8. **The claim is about the spec, not the checkpoint.** With no engine change and no forge step,
    the unmodified pipeline and the unmodified standalone verifier handle a second ternary
    architecture that is not BitNet — Falcon-E-1B (24 layers, hidden 2048, SwiGLU/silu MLP,
@@ -127,7 +127,9 @@ with the raw log it was taken from (Table 3):
    reproducible 64-token decode digest, and a receipt that verifies bit-for-bit by both the
    reference `cis_witness` and the standalone `cis-verify` (A41).
 
-We are equally explicit about what is *not* shown (§8): the clean-room implementers were
+Because a conforming engine's output is a function of the artifacts and the input alone, an operator can check, on hardware and firmware they do not have to audit, that the model that was validated is the model that ran. Because the receipt commits to every logit vector, an auditor can replay a disputed decode on their own machine; platform attestation says which binary ran, and the receipt says what that binary computed.
+
+We are equally explicit about what is *not* shown (§5): the clean-room implementers were
 language-model agents rather than third-party engineers; the physical-machine attribution of one
 boot log rests on operator witness because the verifier prints no CPU identifier; the
 2B-parameter perplexity figures (hybrid and all-integer) use a pruned vocabulary and a short
@@ -143,7 +145,7 @@ system you would otherwise have to audit.
 
 ---
 
-# 3. CIS-1: the semantics
+# 2. Design: CIS-1, the semantics
 
 CIS-1 rests on one axiom (spec §1): *every reduction in the decode path is a sum of integers whose
 worst case provably fits its accumulator.* Integer addition is associative and commutative, so a
@@ -152,6 +154,35 @@ AVX2, NEON, GPU, FPGA, a for-loop in Python — and MUST produce bit-identical r
 explicitly rejects the alternative of a canonical float summation order: pinning one loop
 structure would kill SIMD freedom and still break under FMA-vs-separate rounding. Determinism is
 therefore a property of the arithmetic itself, not a discipline the kernel author must maintain.
+
+> **Definition (bit-identical decode).** Fix a model checkpoint, a prompt, and
+> `max_new`. Two conforming CIS-1 `FullInt` implementations are *bit-identical*
+> on this input iff, for every decode step `t = 1..max_new`, the complete `i64`
+> logit vector each computes is equal entry-for-entry and the argmax token id
+> each selects is equal. The witness chain is a deterministic function of
+> exactly that per-step state — the header folds the three artifact hashes
+> and `(max_new, prompt)`, and each step folds `(step index, token id, full
+> logit vector)` — so bit-identical decode is equivalent to an equal SHA-256
+> chain digest. Covered: every integer value that determines an argmax, at
+> every step. Not covered: KV-cache *bytes* are never hashed directly — a
+> verifier may lay out its cache arena however it likes, since cache contents
+> are themselves determined by the same integer arithmetic and cannot diverge
+> without producing a different logit vector downstream; and sampling is
+> out of scope, since v1.0 conformance is greedy argmax only (spec §10) — no
+> seeded-sampling claim is made or checked.
+
+**Mechanism.** The definition holds across ISA, vector width, and compiler
+because spec §1's axiom pins the arithmetic, not the loop: every reduction is
+a sum of integers with a proven headroom bound (see the bounds above), so associativity
+and commutativity let accumulation happen in any order, on any SIMD width,
+without changing the sum; one rounding mode and pinned transcendental tables
+(spec §2) remove the two remaining classical sources of drift — accumulation
+order and library-dependent constant precision. Ledger evidence per leg:
+cross-ISA (A39, BitNet-2B receipt reproduced on aarch64 CI by both verifiers),
+cross-model-family (A41, Falcon-E-1B — a non-BitNet ternary
+transformer — through the unmodified pipeline), and cross-compiler (A42): nine compiler
+configurations (opt-level 0, 1, 2, 3 and s; target-cpu x86-64 and native; LTO on and off) of the
+self-test binary print the same digest, and seven of the nine builds are distinct binaries by SHA-256 (ledger A42).
 
 Rounding is fixed at one mode everywhere: round-half-even (RNE), with `rne(num/den)` for `den > 0`
 computed exactly in `i128` as the reference primitive (spec §2). The spec calls tie handling normative,
@@ -269,7 +300,11 @@ CIS_DECODE digest=67e8c0a96abc04e1 prompt_toks=4 gen_toks=64 mode=fullint
 
 ---
 
-# 4. Implementability and cross-ISA identity
+# 3. Conformance
+
+Section 3.1 shows that independent implementations reach the same digest; Section 3.2 shows how a decode is verified after the fact.
+
+## 3.1 Implementability and cross-ISA identity
 
 This section is correctness evidence only; no throughput or latency figure appears below
 (Rule A — identity legs carry no performance claim).
@@ -379,9 +414,9 @@ Identity evidence only; no timing is quoted or quotable from it (A39).
 
 ---
 
-# 5. The decode receipt and bare-metal verification
+## 3.2 The decode receipt and bare-metal verification
 
-This section, like §4, carries no timing or throughput number; every figure below is an identity
+This section, like §3.1, carries no timing or throughput number; every figure below is an identity
 claim (Rule A).
 
 **Receipt format (A32).** The golden receipt `tests/golden/witness_v1_m7_once64.receipt` binds
@@ -400,7 +435,7 @@ snapshot `ce93bbb`: `artifacts 3/3`, the token digest and chain `aee25b770bd7b22
 exactly, and the harness printed `VERIFY PASS — replay reproduced 64 tokens, the token digest,
 and the full logit chain bit-for-bit`. The same run's x86-64 job verifies the identical receipt,
 and `arm-digest.yml` now pins both legs on every push. This upgrades the op-level digest's
-cross-ISA claim (§4, A28) to a full decode trajectory — 64 steps times the complete logit vector,
+cross-ISA claim (§3.1, A28) to a full decode trajectory — 64 steps times the complete logit vector,
 hash-chained — rather than a single summary value. As with the other cloud-runner legs, the
 machine is named as precisely as the platform allows; this is an identity artifact only, and no
 timing is quoted or quotable from it (A32).
@@ -414,7 +449,7 @@ underneath`. The receipt on the stick is md5-identical to the golden (`87c45bdd�
 payload is the QEMU-proven `aegis-kit-iron.img` (`320e1918…`), and the stick's readback was
 verified bit-identical before boot. This completes the chain crosvm-mint → QEMU → public CI
 x86-64 → public CI aarch64 (A32) → physical iron, ring 0. We state the attribution limitation as
-the ledger states it, not deferred to §8: the new BOOTLOG entry is attributed to the Dell because
+the ledger states it, not deferred to §5: the new BOOTLOG entry is attributed to the Dell because
 it was appended after the baked-in QEMU entry and carries a different firmware memory map
 (EMBED.BIN at `0x3AC000` versus QEMU's `0x1780000`) — but verifier mode prints no CPUID, so this
 is log-structural evidence, not a hardware identifier (A33).
@@ -450,7 +485,37 @@ Its tamper tests fail by naming the corrupted field (token id, chain, model/voca
 receipt parse), not by silently passing. Honest scope, stated plainly: this was an LM agent
 transcribing the spec with the reference source visible, not a clean-room reimplementation in the
 sense A31 uses that term — it is evidence that the spec and the receipt format are re-implementable
-without the engine's SIMD/dispatch code, not an independent third-party audit (§8, A37).
+without the engine's SIMD/dispatch code, not an independent third-party audit (§5, A37).
+
+**Verification model.** A receipt contains three artifact hashes, the prompt,
+`max_new`, the generated token ids, the Tier-3 digest, and the final chain
+value — it does not contain the per-step logit vectors; only their SHA-256
+fold survives to disk (`docs/design/CIS_VERIFY_DESIGN.md` §1.2). `cis-verify`
+is a separate implementation of the spec (A37, A38: zero shared code with
+`aegis-core`, no `unsafe`, `no_std`+alloc) that verifies a receipt by
+recomputing the entire `FullInt` forward pass — every spec §5 op, from the
+three artifact bytes and the declared prompt — and comparing its own chain
+against the receipt's. Verification cost is one full deterministic decode, on
+any machine that can build the verifier crate: it trusts neither the
+prover's hardware nor its binary, only the spec and the artifact bytes. This
+is not a succinct proof — there is no check cheaper than re-running the
+decode, and per-step logits are not stored in the receipt for a verifier to
+spot-check against; the chain is the only compressed artifact.
+
+Threat model:
+- A forged receipt needs token ids and a final chain value consistent with
+  SHA-256 preimage resistance — i.e., it requires breaking SHA-256, or
+  already knowing the true forward-pass output, in which case it is not a
+  forgery.
+- A divergent implementation (wrong rounding, wrong grid, a skipped
+  rejection check) produces a different logit vector at whatever step it
+  diverges, which folds forward and changes every later chain value
+  and the final digest; `cis-verify`'s tamper tests name the
+  mismatching field (token id, chain, or artifact hash) rather than passing
+  silently (A37).
+- Out of scope: where the model weights came from (model provenance), and
+  whether the prompt is secret — the prompt is hashed into the header in the
+  clear, so a verifier learns it from the receipt itself.
 
 **Both verifiers cross the ISA boundary, on both receipts (A38, A39).** `cis-verify`'s standalone
 verification (A37) now also runs on aarch64: built and run on the GitHub `ubuntu-24.04-arm`
@@ -465,7 +530,7 @@ cis-digest `cab11400d737ac4a`, chain
 implementations at once: the reference `cis_witness verify` prints `VERIFY PASS`, and the
 standalone `cis-verify` (A37/A38) independently prints `VERIFY PASS` on the same receipt; the
 x86-64 job prints the identical lines. This is a standing CI gate, `bitnet2b-receipt.yml`, on
-every push to `main` (A39). Together, A38 and A39 close the receipt-side counterpart of §4's A39
+every push to `main` (A39). Together, A38 and A39 close the receipt-side counterpart of §3.1's A39
 digest result: the same receipt, at production scale, checked by two independent implementations,
 on both ISAs, on every push.
 
@@ -496,7 +561,7 @@ next to the claims that need it, rather than only in the paper's limitations sec
 
 ---
 
-# 6. Cost and quality
+# 4. Evaluation: cost and quality
 
 Every figure in this section is a physical-hardware measurement or a same-run,
 same-binary comparison logged under `docs/hardware_logs/`; none derives from
@@ -538,8 +603,9 @@ about 40x inside the preregistered +5% kill line (derived: 5.0/0.1239). Two sequ
 every computed value. Reaching that number required a fix: the unfixed
 binary panicked 2/2 runs (`normq: residual out of range`, `cis_infer.rs:313`).
 An env-gated trace (branch `cm/e1b-normq-trace`) localized the fault to the
-MLP, not attention — attention re-entry stayed exact at ≤38 bits on all 30
-layers, while the ACT-I (relu²) MLP output landed on Q.20 at 52–55 bits, a
+MLP, not attention: the ACT-I (relu²) MLP output exceeded the Q.20 headroom
+(the spec's v1.0.3 erratum rationale records 52–55 bits, spec §5.10 and §11), while attention
+re-entry stayed within it on all 30 layers, a
 genuine spec gap: spec §5.10 lacked the spec §5.6 per-vector block exponent that the
 hybrid boundary already carried. The fix — an RNE-rounded block exponent on
 the ACT-I output, degenerating to the identity at M7 ranges — is ratified as
@@ -621,9 +687,9 @@ This result carries a
 method note that is part of its provenance, not incidental: the earlier arm-D run (2026-08-05)
 measured D/A 0.276x (capture medians 0.282/0.276/0.276x) and was rejected as a confound record; it stays
 in the ledger — arm A's own repeated
-measurements drifted +58% across the run where clock arithmetic predicted
-+28%, while arms B and C tracked the clock to 0.1%, indicating arm D had
-perturbed arm A's cache state and flattered the ratio. The bench was then
+measurements rose across the run by more than clock arithmetic predicted, while arms B
+and C tracked the clock, indicating arm D had
+perturbed arm A's cache state and flattered the ratio (from the research ledger's A27 method note; no log prints the drift figures). The bench was then
 changed to re-measure arm A immediately after arm D on every repetition
 (A′); on the accepted run, A′/A capture medians = 1.000/1.001/1.000x (D/A equals D/A′ to three
 decimals in each capture), which is what licenses treating the D/A capture medians as measured rather
@@ -632,7 +698,7 @@ than assumed.
 **External-engine baseline.** A like-for-like external-engine comparison on a named physical box has not
 been run; `docs/paper/BASELINE_ABSENCE.md` states why. The ratios in this section (A26, A27) are
 same-binary, kernel-level ratios on named machines, and the A22 figures below are an f32-activation
-harness result; none is an external-engine comparison. The throughput ranges cited in §2 are those
+harness result; none is an external-engine comparison. The throughput ranges cited in §6 are those
 papers' own measurements on their authors' machines.
 
 ## Engine context (not CIS-1 claims)
@@ -655,24 +721,25 @@ that failure is reported alongside the pass.
 | Number | Parent (printed instrument line, or derivation formula) | Log file | Machine |
 |---|---|---|---|
 | +0.3127% | A19: hybrid-path PPL cost, M7 (5.657126 vs 5.639491); printed | `docs/hardware_logs/cis1_e2_int_vs_float_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
-| +0.0637% | A20: full-integer PPL cost, M7 (5.643085 vs 5.639491); printed | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
+| +0.0637% | A20: full-integer PPL cost, M7 (5.643085 vs 5.639491, 471 tokens); printed | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
 | about 78x | derived: 5.0/0.0637 (preregistered +5% kill line over the A20 cost) | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
 | +0.7408% | A21: **HYBRID**-path (f32 attention) PPL cost, BitNet-2B (30.934140 vs 30.706665); printed | `docs/hardware_logs/cis1_e2_bitnet2b_int_vs_float_ppl_i5-10210U_crosvm_2026-08-01.log` | i5-10210U crosvm |
-| +0.1239% | A35: **FULL-INTEGER**-path PPL cost, BitNet-2B, after v1.0.3 erratum (30.744724 vs 30.706665); printed | `docs/hardware_logs/cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_e1c_fixed.log` | i5-10210U crosvm |
+| 10.758 / 1,898 tokens | earlier BitNet-2B anchor perplexity, teacher-forced; printed (`Perplexity (teacher-forced, 1898 tokens): 10.758`) | `docs/hardware_logs/wikitext2_sample1900_2026-07-16_repin.log` | not named in the log header |
+| +0.1239% | A35: **FULL-INTEGER**-path PPL cost, BitNet-2B, after v1.0.3 erratum (30.744724 vs 30.706665, 199 scored tokens); printed | `docs/hardware_logs/cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_e1c_fixed.log` | i5-10210U crosvm |
 | about 40x | derived: 5.0/0.1239 = 40.4 (preregistered +5% kill line over the A35 cost) | `docs/hardware_logs/cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_e1c_fixed.log` | i5-10210U crosvm |
-| +0.7433% | A41: HYBRID-path PPL cost, Falcon-E-1B (11.823613 vs 11.736378); printed | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | i5-10210U crosvm |
-| +0.7012% | A41: FULL-INTEGER-path PPL cost, Falcon-E-1B (11.818673 vs 11.736378); printed | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | i5-10210U crosvm |
+| +0.7433% | A41: HYBRID-path PPL cost, Falcon-E-1B (11.823613 vs 11.736378, 198 scored tokens); printed | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | i5-10210U crosvm |
+| +0.7012% | A41: FULL-INTEGER-path PPL cost, Falcon-E-1B (11.818673 vs 11.736378, 198 scored tokens); printed | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | i5-10210U crosvm |
 | 1.254x / 1.246x / 1.252x | A26: scalar integer/float throughput ratio C/B, capture medians; printed ("C/B median =") | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
-| 1.239x to 1.260x | A26: per-shape C/B range over the nine per-shape values; printed | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
+| 1.239x to 1.260x | A26: per-shape C/B range; derived: min and max of the nine printed per-shape values | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
 | 1.248x | median of the nine per-shape values = 1.248x (derived; manifest id cis_cb_dell) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
 | about 25% slower | derived from the C/B capture medians 1.254/1.246/1.252x: (1.25x - 1) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
 | 0.218x / 0.217x / 0.217x | A26: float SIMD headroom A/B, capture medians; printed ("A/B median =") | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
 | about 4.6x | derived: 1/0.217 (absent-SIMD factor; the decomposition is about 4.6x × about 1.25x) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | Dell i5-5200U (Broadwell-U) |
 | 0.961x / 0.962x / 0.961x | A26: scalar integer/float throughput ratio C/B, capture medians; printed | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
-| 0.856x to 0.963x | A26: per-shape C/B range; printed | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
+| 0.856x to 0.963x | A26: per-shape C/B range; derived: min and max of the nine printed per-shape values | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
 | about 4% faster | derived from the C/B capture medians 0.961/0.962/0.961x: (1 - 0.961) | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
-| 1.001x / 1.000x / 1.000x | A26: methodology control A/B, capture medians; printed (per-shape 0.999 to 1.001, n=9) | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
-| 0.339x / 0.339x / 0.356x | A27: AVX2 integer/float kernel ratio D/A at parity SIMD, capture medians; printed ("D/A = ...", no word "median"); per-shape range 0.331x to 0.439x | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
+| 1.001x / 1.000x / 1.000x | A26: methodology control A/B, capture medians; printed; per-shape 0.999 to 1.001 (derived: min and max of the nine printed per-shape values) | `docs/hardware_logs/cis_vs_float_L_hp_BOOTLOG_2026-08-05.txt` | HP N4020 (Gemini Lake) |
+| 0.339x / 0.339x / 0.356x | A27: AVX2 integer/float kernel ratio D/A at parity SIMD, capture medians; printed ("D/A = ...", no word "median"); per-shape range 0.331x to 0.439x (derived: min and max of the nine printed per-shape values) | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
 | 0.340x | median of the nine per-shape values = 0.340x (derived; manifest id cis_da_dell) | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
 | about 2.9x | derived: 1/0.339 (reciprocal of the capture-1 D/A median) | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
 | 0.060x / 0.060x / 0.062x | A27: AVX2 integer kernel vs scalar reference D/C, capture medians; printed ("D/C median =") | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | Dell i5-5200U |
@@ -684,59 +751,24 @@ that failure is reported alongside the pass.
 
 ---
 
-# 7. Why this matters
-
-**For deployment without trust.** Edge, air-gapped, and sovereign deployments run models on
-hardware and firmware the operator cannot fully audit and networks they cannot rely on. Today the
-operator's assurance that "the model we validated is the model that ran" rests on platform
-attestation — a measured boot chain that vouches for the software stack — plus the hope that the
-stack is deterministic. CIS-1 removes the hope. A conforming engine's output is a mathematical
-function of the artifacts and the input; the decode receipt is the evidence, and any conforming
-machine, including one booted from a USB stick with no operating system, can check it. Platform
-attestation and computational verification are complementary: one says which binary ran, the
-other says what that binary computed.
-
-**For audit and regulation.** Regulators and incident investigators increasingly need to answer
-"what did the system output for this input, and can you prove it?" With floating-point inference
-the honest answer is a distribution. With CIS-1 it is a receipt: hashes of the exact artifacts,
-the exact tokens, and a commitment to every intermediate logit vector, replayable by the auditor
-on their own hardware. The receipt format is small, the verifier is the reference implementation,
-and the specification is public.
-
-**For research reproducibility.** Every result in this paper is either a digest reproduced in
-public continuous integration or a measurement logged on a named physical machine, and Table 3 says
-which. A reader who obtains the artifacts does not have to trust our
-numbers; they can print the same 64-bit values.
-
-**For the economics of edge AI.** The engine that produces these receipts boots from firmware with
-no operating system on decade-old laptops and re-derives the receipt for the reference model there
-(A33, A34); the same engine runs a 2-billion-parameter ternary model in its Linux harness on the same
-class of hardware (A21). The complete all-integer forward pass on that 2B model now passes its
-preregistered quality gate (+0.1239% perplexity against float, about 40x (derived) inside the +5% kill line, A35) —
-though the 2B model has not yet been booted on the unikernel itself; no ledger row yet establishes
-that. The cost of the integer semantics is a property of the
-microarchitecture, not of the semantics: about 25% slower than scalar floating point on one core, about 4% faster
-on another (kernel-level, same binary; A26), and at parity vector width the integer AVX2 kernel is about 2.9x faster than the
-floating-point AVX2 kernel it replaces (kernel-level, Dell; A27). On the commodity CPUs where it was measured,
-verifiability did not require specialized or trusted hardware, and did not have to cost performance.
-
-**A standing invitation.** The project maintains a public falsification challenge: find any
-machine on which a conforming build fails to reproduce the digests, and the finding is recorded in
-the research ledger, under your name, as a deliverable in its own right. We would rather publish a
-counterexample than defend a claim. Reviewers are invited to try before publication.
-
----
-
-# 8. Limitations and what is not claimed
+# 5. Limitations and what is not claimed
 
 We state these as precisely as the ledger does, because each is where a careful reviewer should push.
+
+Five limits matter most; each is expanded in the paragraph named after it.
+
+1. The M7 pin is a 64-token digest (**The M7 pin is a 64-token digest**).
+2. Integer-path throughput is unmeasured (**Cost figures are microarchitecture-specific**).
+3. Bit-identical is not the same as correct (**Bit-identical is not the same as correct**).
+4. Governance of the reference digests is open: who publishes them and how they rotate (**Governance of the reference digests is open**).
+5. There are no outside reproductions yet, as of 2026-10-27 (**No outside reproductions yet**).
 
 **Scope of the semantics.** The frozen v1.0 spec fixes the data types and grids (spec §3) and lists what is not claimed (spec §10); the numeric operating envelope below is the one the headroom derivations were carried out for, recorded in ledger rows A20–A21 and the v0.3 working notes (CIS-1_SPEC_DRAFT_v0.1.md), not in the frozen text itself. CIS-1 v1.0 covers the BitNet-b1.58-style decoder block
 (ternary linear layers, RMSNorm, GQA attention with RoPE, squared-ReLU MLP) with hidden size
 384–2560, head dimension ≤128, and sequence length ≤512; headroom bounds are derived for these
 ranges only. Bit-identity across kernel paths is claimed for the full-integer pipeline (v0.3 and
 later); the earlier hybrid path, which kept attention and activations in floating point, is not
-claimed to be cross-path identical and is reported only for the quality comparison in §6.
+claimed to be cross-path identical and is reported only for the quality comparison in §4.
 
 **The clean-room implementers were language-model agents.** The two from-scratch implementations
 that reproduced the op-level digest (A31) were written by LLM subagents given the specification
@@ -745,7 +777,7 @@ establish, not used. This demonstrates implementability from text; it is not an 
 third-party audit, and we do not describe it as one.
 
 **The `cis-verify` reimplementation is an LM-agent transcription, not a clean-room audit.** Like
-the two implementers behind A31, `cis-verify` (§5) was built by a language-model agent — given the
+the two implementers behind A31, `cis-verify` (§3.2) was built by a language-model agent — given the
 specification and the receipt format as reference material, in three phases — not by an
 independent third party working blind to the source. This demonstrates that the spec and receipt
 format are re-implementable without `aegis-core`'s SIMD/dispatch code and data structures; it is
@@ -768,11 +800,30 @@ other across runs beyond what the shared, sha-identical artifacts and window sup
 *relative* integer-vs-float cost, measured in the same run with the same binary and window, is the
 claim.
 
-**Cost figures are microarchitecture-specific.** The about-25% cost on Broadwell-U and the about-4%
-advantage on Goldmont Plus (A26, capture medians) are measurements of two machines, not a model of CPUs in
-general; the about-2.9x AVX2 result (A27, kernel-level) is one machine, three shapes, three captures, with its
+**Cost figures are microarchitecture-specific.** The cost of about 25% on Broadwell-U and the advantage of about 4%
+on Goldmont Plus (A26, capture medians) are measurements of two machines, not a model of CPUs in
+general; the AVX2 result of about 2.9x (A27, kernel-level) is one machine, three shapes, three captures, with its
 rejected earlier run and the order control recorded (one shape's order effect of 1.202x is flagged in the log). No token-level throughput number for the
 integer path exists yet, and the README says so.
+
+**The M7 pin is a 64-token digest.** The token-level digest `67e8c0a96abc04e1` pins one short prompt
+and a fixed 64-token greedy decode of the in-repo M7 model (hidden 384, 8K vocabulary). It shows that
+every implementation we ran agrees on that decode; it does not sample the space of prompts, lengths, or
+checkpoints.
+
+**Bit-identical is not the same as correct.** Conformance means two implementations compute the same
+integers. It does not mean those integers answer any question correctly: a specification error would be
+reproduced identically everywhere. The v1.0.3 erratum (§4) was found when the full-integer run on
+BitNet-2B panicked, not by comparing digests, and output quality is measured separately, as perplexity
+against float (§4).
+
+**Governance of the reference digests is open.** The reference digests are published in this repository
+and its CI. Who may publish or amend them, how they rotate when the spec is revised, and how a third
+party would dispute one are not defined; today the author maintains them.
+
+**No outside reproductions yet.** As of 2026-10-27 no party outside the project has reported reproducing
+the digests; the table in §7 records the reports received and is empty. The only check of the
+reproduction kit is the in-house one described there.
 
 **Cloud-runner legs are identity evidence only.** The aarch64 results (A28, A29, A30, A32) were
 obtained on hosted CI runners; the machine is named as precisely as the platform allows, and no
@@ -813,7 +864,7 @@ and the reader should treat any number without one as a description, not a measu
 
 ---
 
-# 2. Background and related work
+# 6. Background and related work
 
 **Ternary-weight and integer-only LLMs.** BitNet b1.58 quantizes every weight
 to {−1, 0, +1} (1.58 bits/parameter) and trains directly at that precision
@@ -910,7 +961,7 @@ https://huggingface.co/djibydiop/llm-baremey; card read, source repository
 not reached). That project shows UEFI is a viable host for LLM inference;
 the card describes no digest, specification, cross-ISA bit-exact claim,
 cryptographic receipt, or independent verification — the properties CIS-1 adds, and the
-ones the unikernel demonstration (§5) is built to exercise rather than the
+ones the unikernel demonstration (§3.2) is built to exercise rather than the
 no-OS environment alone.
 
 **Conformance-by-digest as a design pattern.** Cryptographic standards
@@ -950,7 +1001,7 @@ reproduces the pinned digest or does not conform.
 
 ---
 
-# 9. Reproducibility statement
+# 7. Availability and reproducibility
 
 **Repository.** `https://github.com/Aefinity-AI/alice-aegis`. The spec is
 `docs/CIS-1_SPEC_v1.0.md`; the research ledger with every measurement's raw
@@ -958,7 +1009,7 @@ log path is `program/RESEARCH_LEDGER.md`.
 
 **CI workflows.** `.github/workflows/arm-digest.yml` re-proves both
 conformance digests and the decode receipt on x86-64 and aarch64 on every
-push — the standing gate behind every identity claim in §4–5. This is a
+push — the standing gate behind every identity claim in §3. This is a
 correctness/identity gate only (Rule A): no timing figure is ever recorded
 from it. `.github/workflows/aefinity-ci.yml` is the general build/format/lint
 gate (host job) plus an OVMF boot-correctness job for the unikernel.
@@ -991,11 +1042,11 @@ cargo build --release --example cis_witness --manifest-path aegis-linux/Cargo.to
 Lines one and two reproduce the op-level digest; lines three and four, the
 token-level digest against the in-repo M7 model; the last two replay and
 verify the x86-minted golden receipt. A mismatch in any digest is a
-falsification of the corresponding claim in §4–5, not a bug to be quietly
+falsification of the corresponding claim in §3, not a bug to be quietly
 fixed — the workflow says so at the point it would fail.
 
 **Standalone verifier (`cis-verify`).** A separate crate at `cis-verify/`, with zero external
-runtime dependencies and no dependency on `aegis-core` (§5, A37):
+runtime dependencies and no dependency on `aegis-core` (§3.2, A37):
 
 ```
 cargo test --features std --manifest-path cis-verify/Cargo.toml -- --nocapture
@@ -1045,9 +1096,22 @@ added to. Both directories are shipped with the paper's release artifact so
 a reader can check a claim against its raw log without re-running anything,
 and can re-run the commands above to check it against live hardware anyway.
 
+## Outside reproductions
+
+| Architecture | CPU model | OS | Result | Date |
+|---|---|---|---|---|
+| none reported as of 2026-10-27 | - | - | - | - |
+
+In-house check of the kit, 2026-10-27: x86-64, Core i7-7700HQ, Debian 13, PASS (the two 2026-10-27 repro-kit logs under `docs/hardware_logs/`).
+
+**A standing invitation.** The project maintains a public falsification challenge: find any
+machine on which a conforming build fails to reproduce the digests, and the finding is recorded in
+the research ledger, under your name, as a deliverable in its own right. We would rather publish a
+counterexample than defend a claim. Reviewers are invited to try before publication.
+
 ---
 
-# Table 3 — provenance
+# Appendix A. Table 3 — provenance
 
 Generated by `docs/paper/gen_table3.py` from `program/RESEARCH_LEDGER.md` rows
 A19-A41 and `docs/CIS1_PAPER_OUTLINE.md` §4-6. Do not hand-edit this file —
@@ -1059,37 +1123,35 @@ Regenerate with:
 python3 docs/paper/gen_table3.py
 ```
 
-23 claims total, 23 with a verified existing primary log file.
+21 claims total, 21 with a verified existing primary log file.
 
 | Paper § | Claim (short) | Value | Ledger row | Machine | Provenance (path or CI run) | File exists? |
 |---|---|---|---|---|---|---|
-| 4 | Four-implementation digest jury (HP N4020 bare iron, Dell i5-5200U bare iron x2, crosvm, QEMU/TCG) | digest 76985613c965f643, ALL_PASS=true, 4 codegen paths | A25 | HP N4020 + Dell i5-5200U + crosvm i5-10210U + QEMU/TCG | `docs/hardware_logs/hp_L_BOOTLOG_2026-08-02.txt` | yes |
-| 4 | Digest jury crosses to a second ISA (aarch64 CI) | same digest 76985613c965f643 on aarch64 | A28 | GitHub ubuntu-24.04-arm (Neoverse N2) | `docs/hardware_logs/cis_selftest_aarch64_github_arm_2026-08-07.log` | yes |
-| 4 | Clean-room spec-only reimplementation reproduces the digest | 2 implementers, 400/484 lines, distinct by md5, pass on the initial run | A31 | i5-10210U crosvm (dev host) | `docs/hardware_logs/cis_cleanroom_tier2_2026-08-08.log` | yes |
-| 4 | NEON kernel bit-identical on real ARM silicon | equivalence 5/5, contract 6/6, mechanism 3/3 exhaustive | A30 | GitHub ubuntu-24.04-arm (Neoverse N2) | `docs/hardware_logs/cis_neon_tests_aarch64_github_arm_2026-08-07.log` | yes |
-| 4 | Token-level full-pipeline decode digest identical x86_64 vs aarch64 | digest 67e8c0a96abc04e1, prompt_toks=4 gen_toks=64 | A29 | GitHub ubuntu-24.04 + ubuntu-24.04-arm | `docs/hardware_logs/cis_decode_token_crossisa_ci_2026-08-07.log` | yes |
-| 5 | Decode receipt format + CI replay verification | chain aee25b770bd7b22e…, CI run 31249589879 (snapshot ce93bbb) | A32 | i5-10210U crosvm (mint) + GitHub ubuntu-24.04-arm + ubuntu-24.04 (verify) | `docs/hardware_logs/witness_receipt_aarch64_ci_2026-08-08.log (CI run 31249589879)` | yes |
-| 5 | Physical iron verification, Dell (AVX2 path) | STAGE V VERIFY PASS, receipt md5 87c45bdd…, BOOTLOG md5 becd7cef | A33 | Dell Inspiron 15 (i5-5200U, physical iron) | `docs/hardware_logs/dell_i5-5200U_kit_iron_verify_bootlog_2026-08-08.txt` | yes |
-| 5 | Physical iron verification, HP N4020 (SSE2 scalar path) | VERIFY PASS, BOOTLOG md5 4fb5fc8b, one new BOOTLOG entry vs Dell | A34 | HP Stream (Celeron N4020, physical iron) | `docs/hardware_logs/hp_n4020_kit_iron_verify_bootlog_2026-08-08.txt` | yes |
-| 6 | Quality cost, hybrid path, M7 | +0.3127% PPL (float 5.639491 vs int 5.657126), digest 0x42E820C2A8A59CD6 | A19 | i5-10210U crosvm | `docs/hardware_logs/cis1_e2_int_vs_float_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | yes |
-| 6 | Quality cost, full-integer path, M7 | +0.0637% PPL (5.643085 vs 5.639491), digest 0xBED4A17A1A5EE296 | A20 | i5-10210U crosvm | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | yes |
-| 6 | Quality cost, integer-dominant HYBRID path (f32 attention), BitNet-2B | +0.7408% PPL (30.934140 vs 30.706665), digest 0x24C4E510A86659D6 | A21 | i5-10210U crosvm | `docs/hardware_logs/cis1_e2_bitnet2b_int_vs_float_ppl_i5-10210U_crosvm_2026-08-01.log` | yes |
-| 6 | Quality cost, FULL-INTEGER path, BitNet-2B (after v1.0.3 erratum) | +0.1239% PPL (30.744724 vs 30.706665), argmax digest 0xB274DE03F5862DB7 | A35 | i5-10210U crosvm | `docs/hardware_logs/cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_e1c_fixed.log` | yes |
-| 6 | Throughput cost by microarchitecture (C/B ratio) | Dell (Broadwell-U) C/B capture medians 1.254/1.246/1.252x; HP (Gemini Lake) 0.961/0.962/0.961x | A26 | Dell i5-5200U (Broadwell-U) + HP N4020 (Gemini Lake) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | yes |
-| 6 | AVX2 integer kernel vs float AVX2 kernel | D/A capture medians 0.339/0.339/0.356x (per-shape 0.331-0.439x); D/C 0.060/0.060/0.062x | A27 | Dell i5-5200U | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | yes |
-| 6 | Ring-0 unikernel vs minimal Linux decode throughput | +3.6% / +9.4% / +5.1% (prereg form); P-V2-2 FAIL spread 4.7-9.6% | A22 | Dell i5-5200U | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | yes |
-| 6 | Column-skip kernel candidate (engine context, not a CIS-1 claim) | 2.88-2.89x vs incumbent (ordered variant); 2.80x (chain variant) | A23 | Dell i5-5200U | `docs/hardware_logs/mech2colskip_L_dell_BOOTLOG_2026-08-01.txt` | yes |
-| 6 | Bandwidth ceiling (engine context, not a CIS-1 claim) | peak seq. 11.19/10.95 GB/s (1T), 11.63/11.70 GB/s (4T) vs ternary stream 0.62 GB/s | A24 | Dell i5-5200U | `docs/hardware_logs/mech2colskip_L_dell_BOOTLOG_2026-08-01.txt` | yes |
-| 4 | Token-level FULL-INTEGER decode digest, BitNet-2B, x86-64 leg | digest cab11400d737ac4a, prompt_toks=4 gen_toks=64, identical on 2 runs, coherent text | A36 | i5-10210U crosvm | `docs/hardware_logs/cis_decode_bitnet2b_fullint_x86_i5-10210U_crosvm_2026-08-27.log` | yes |
-| 5 | Standalone third-party verifier (no engine dependency) reproduces both digests and verifies the golden receipt | CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field | A37 | i5-10210U crosvm | `docs/hardware_logs/cis_verify_standalone_tier2_tier3_golden_i5-10210U_crosvm_2026-08-27.log` | yes |
-| 5 | Standalone verifier crosses the ISA boundary in public CI | CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64 | A38 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_verify_aarch64_github_arm_ci_2026-08-27.log` | yes |
-| 4 | BitNet-2B decode receipt crosses the ISA boundary in public CI | digest cab11400d737ac4a reproduced on aarch64; cis_witness and standalone cis-verify both print VERIFY PASS | A39 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_decode_bitnet2b_receipt_crossisa_github_ci_2026-08-27.log` | yes |
-| 5 | BitNet-2B receipt re-derived by the unikernel under QEMU/TCG, no OS present | STAGE V VERIFY PASS, cis-digest cab11400d737ac4a chain 917ddf5fea9a8488…, artifacts 3/3 hashes match | A40 | QEMU/TCG (crosvm dev host, i5-10210U) | `docs/hardware_logs/unikernel_bitnet2b_verify_qemu_tcg_2026-08-27.log` | yes |
-| 6 | CIS-1 generalizes to a second model family (Falcon-E-1B): quality, decode digest, and receipt | full-int +0.7012% PPL (11.818673 vs 11.736378, 198 tokens); decode digest 3e21adb66d7a17d6; receipt chain 3ea8cc522efb28ef…, VERIFY PASS by cis_witness and standalone cis-verify | A41 | i5-10210U crosvm | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | yes |
+| 3.1 | Four-implementation digest jury (HP N4020 bare iron, Dell i5-5200U bare iron x2, crosvm, QEMU/TCG) | digest 76985613c965f643, ALL_PASS=true, 4 codegen paths | A25 | HP N4020 + Dell i5-5200U + crosvm i5-10210U + QEMU/TCG | `docs/hardware_logs/hp_L_BOOTLOG_2026-08-02.txt` | yes |
+| 3.1 | Digest jury crosses to a second ISA (aarch64 CI) | same digest 76985613c965f643 on aarch64 | A28 | GitHub ubuntu-24.04-arm (Neoverse N2) | `docs/hardware_logs/cis_selftest_aarch64_github_arm_2026-08-07.log` | yes |
+| 3.1 | Clean-room spec-only reimplementation reproduces the digest | 2 implementers, 400/484 lines, distinct by md5, pass on the initial run | A31 | i5-10210U crosvm (dev host) | `docs/hardware_logs/cis_cleanroom_tier2_2026-08-08.log` | yes |
+| 3.1 | NEON kernel bit-identical on real ARM silicon | equivalence 5/5, contract 6/6, mechanism 3/3 exhaustive | A30 | GitHub ubuntu-24.04-arm (Neoverse N2) | `docs/hardware_logs/cis_neon_tests_aarch64_github_arm_2026-08-07.log` | yes |
+| 3.1 | Token-level full-pipeline decode digest identical x86_64 vs aarch64 | digest 67e8c0a96abc04e1, prompt_toks=4 gen_toks=64 | A29 | GitHub ubuntu-24.04 + ubuntu-24.04-arm | `docs/hardware_logs/cis_decode_token_crossisa_ci_2026-08-07.log` | yes |
+| 3.2 | Decode receipt format + CI replay verification | chain aee25b770bd7b22e…, CI run 31249589879 (snapshot ce93bbb) | A32 | i5-10210U crosvm (mint) + GitHub ubuntu-24.04-arm + ubuntu-24.04 (verify) | `docs/hardware_logs/witness_receipt_aarch64_ci_2026-08-08.log (CI run 31249589879)` | yes |
+| 3.2 | Physical iron verification, Dell (AVX2 path) | STAGE V VERIFY PASS, receipt md5 87c45bdd…, BOOTLOG md5 becd7cef | A33 | Dell Inspiron 15 (i5-5200U, physical iron) | `docs/hardware_logs/dell_i5-5200U_kit_iron_verify_bootlog_2026-08-08.txt` | yes |
+| 3.2 | Physical iron verification, HP N4020 (SSE2 scalar path) | VERIFY PASS, BOOTLOG md5 4fb5fc8b, one new BOOTLOG entry vs Dell | A34 | HP Stream (Celeron N4020, physical iron) | `docs/hardware_logs/hp_n4020_kit_iron_verify_bootlog_2026-08-08.txt` | yes |
+| 4 | Quality cost, hybrid path, M7 | +0.3127% PPL (float 5.639491 vs int 5.657126), digest 0x42E820C2A8A59CD6 | A19 | i5-10210U crosvm | `docs/hardware_logs/cis1_e2_int_vs_float_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | yes |
+| 4 | Quality cost, full-integer path, M7 | +0.0637% PPL (5.643085 vs 5.639491), digest 0xBED4A17A1A5EE296 | A20 | i5-10210U crosvm | `docs/hardware_logs/cis1_fullint_attention_ppl_m7_i5-10210U_crosvm_2026-08-01.log` | yes |
+| 4 | Quality cost, integer-dominant HYBRID path (f32 attention), BitNet-2B | +0.7408% PPL (30.934140 vs 30.706665), digest 0x24C4E510A86659D6 | A21 | i5-10210U crosvm | `docs/hardware_logs/cis1_e2_bitnet2b_int_vs_float_ppl_i5-10210U_crosvm_2026-08-01.log` | yes |
+| 4 | Quality cost, FULL-INTEGER path, BitNet-2B (after v1.0.3 erratum) | +0.1239% PPL (30.744724 vs 30.706665), argmax digest 0xB274DE03F5862DB7 | A35 | i5-10210U crosvm | `docs/hardware_logs/cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_e1c_fixed.log` | yes |
+| 4 | Throughput cost by microarchitecture (C/B ratio) | Dell (Broadwell-U) C/B capture medians 1.254/1.246/1.252x (median of nine 1.248x); HP (Gemini Lake) 0.961/0.962/0.961x | A26 | Dell i5-5200U (Broadwell-U) + HP N4020 (Gemini Lake) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | yes |
+| 4 | AVX2 integer kernel vs float AVX2 kernel | D/A capture medians 0.339/0.339/0.356x (median of nine 0.340x; about 2.9x); D/C 0.060/0.060/0.062x (about 16x) | A27 | Dell i5-5200U | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | yes |
+| 4 | Ring-0 unikernel vs minimal Linux decode throughput | +3.6% / +9.4% / +5.1% (prereg form); P-V2-2 FAIL spread 4.7-9.6% | A22 | Dell i5-5200U | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | yes |
+| 3.1 | Token-level FULL-INTEGER decode digest, BitNet-2B, x86-64 leg | digest cab11400d737ac4a, prompt_toks=4 gen_toks=64, identical on 2 runs, coherent text | A36 | i5-10210U crosvm | `docs/hardware_logs/cis_decode_bitnet2b_fullint_x86_i5-10210U_crosvm_2026-08-27.log` | yes |
+| 3.2 | Standalone third-party verifier (no engine dependency) reproduces both digests and verifies the golden receipt | CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field | A37 | i5-10210U crosvm | `docs/hardware_logs/cis_verify_standalone_tier2_tier3_golden_i5-10210U_crosvm_2026-08-27.log` | yes |
+| 3.2 | Standalone verifier crosses the ISA boundary in public CI | CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64 | A38 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_verify_aarch64_github_arm_ci_2026-08-27.log` | yes |
+| 3.1 | BitNet-2B decode receipt crosses the ISA boundary in public CI | digest cab11400d737ac4a reproduced on aarch64; cis_witness and standalone cis-verify both print VERIFY PASS | A39 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_decode_bitnet2b_receipt_crossisa_github_ci_2026-08-27.log` | yes |
+| 3.2 | BitNet-2B receipt re-derived by the unikernel under QEMU/TCG, no OS present | STAGE V VERIFY PASS, cis-digest cab11400d737ac4a chain 917ddf5fea9a8488…, artifacts 3/3 hashes match | A40 | QEMU/TCG (crosvm dev host, i5-10210U) | `docs/hardware_logs/unikernel_bitnet2b_verify_qemu_tcg_2026-08-27.log` | yes |
+| 4 | CIS-1 generalizes to a second model family (Falcon-E-1B): quality, decode digest, and receipt | full-int +0.7012% PPL (11.818673 vs 11.736378, 198 tokens); decode digest 3e21adb66d7a17d6; receipt chain 3ea8cc522efb28ef…, VERIFY PASS by cis_witness and standalone cis-verify | A41 | i5-10210U crosvm | `docs/hardware_logs/cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log` | yes |
 
 ---
 
-# Acknowledgments and reproducibility
+# Appendix B. Reproducibility notes
 
 This paper's every quantitative claim traces to a ledger row in
 `program/RESEARCH_LEDGER.md` and a raw log under `docs/hardware_logs/`
@@ -1098,7 +1160,7 @@ ships both directories so a reader can check a claim against its raw log
 without re-running anything. Repository:
 `https://github.com/Aefinity-AI/alice-aegis`. The frozen specification is
 `docs/CIS-1_SPEC_v1.0.md`; the reproduction commands and CI workflows are in
-§9 above.
+§7 above.
 
 **The falsification challenge.** The author maintains a standing, public
 challenge (`CHALLENGE.md`): find any machine on which a conforming build
