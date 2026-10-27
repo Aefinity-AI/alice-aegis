@@ -57,7 +57,7 @@ prints those values or it does not conform.
 
 Because the semantics are exact, they support a **decode receipt** — something floating-point
 inference supports only when its reduction order and kernel choices are themselves fixed by
-specification. A receipt binds cryptographic hashes of the three model artifacts, the
+specification (§6). A receipt binds cryptographic hashes of the three model artifacts, the
 generated token ids, a digest over those tokens, and a hash chain over the complete integer logit
 vector at every decode step. Any conforming machine can replay the decode from source and
 verify the receipt bit-for-bit. The receipt is not a claim about a trusted platform; it is a
@@ -89,20 +89,16 @@ with the raw log it was taken from (Table 3):
    are about 25% slower than scalar floating point on a Broadwell-U core and about 4% *faster* on a
    Goldmont Plus core (kernel-level, same binary, capture medians defined in §4; A26); at parity
    vector width the integer AVX2 kernel is about 2.9x faster than the hand-written floating-point
-   AVX2 kernel it replaces (kernel-level, Dell; A27). The earlier and larger "cost of
-   determinism" figures this project circulated, including its own, are A/B-type comparisons
-   (a vector float kernel against a scalar integer kernel, about 4.6x on the Dell); the same-width
-   comparison is C/B, about 1.25x; the two differ only in whether the float arm uses AVX2 (§4).
+   AVX2 kernel it replaces (kernel-level, Dell; A27).
 5. **The quality cost is small and was gated in advance.** Against a preregistered +5% perplexity
    kill line, the all-integer forward pass costs +0.06% on a 384-hidden reference model (A20), the
    integer-dominant hybrid path (attention still in floating point) costs +0.7408% on a
    2-billion-parameter ternary model (A21), and the complete all-integer forward pass on the same
    2B model costs +0.1239% — closer to float than the hybrid figure, and about 40x (derived) inside the kill line
    (A35). The initial all-integer run at this scale panicked instead: a NORMQ precondition rejected
-   an out-of-range residual, which the v1.0.3 erratum records as a gap in spec §5.10, where the ACT-I MLP nonlinearity was
-   the one op not carrying the spec §5.6 per-vector block exponent that the hybrid boundary already
-   applied. The fix — an RNE-rounded block exponent on the ACT-I output — is ratified as spec
-   erratum v1.0.3; both pinned conformance digests are unchanged.
+   an out-of-range residual. The v1.0.3 erratum (spec §11) adds the spec §5.6 per-vector block
+   exponent, RNE-rounded, to the ACT-I output of spec §5.10, the one op at the hybrid boundary
+   that had not carried it; both pinned conformance digests are unchanged.
 6. **The token-level identity claim now reaches production scale, across both ISAs.** A complete
    64-token greedy decode of the 2-billion-parameter BitNet-2B model, run in the FullInt
    configuration, prints one digest, reproduced identically across two sequential runs on x86-64:
@@ -672,9 +668,7 @@ The two machines disagree in sign because the cost is a property of the
 microarchitecture, not of the semantics: Broadwell's two FMA units favor the
 float LUT+FMA path, while on Goldmont Plus, where floating point is weak,
 integer wins. The Dell result decomposes as **about 4.6x absent-SIMD (derived: 1/0.217;
-A/B capture medians 0.218/0.217/0.217x) × about 1.25x semantics (C/B)** — the earlier, larger "cost of determinism" figures this project
-had previously circulated (including its own) are A/B-type comparisons, a vector float kernel
-against a scalar integer kernel; the same-width comparison is C/B. A methodology control on the same
+A/B capture medians 0.218/0.217/0.217x) × about 1.25x semantics (C/B)**. A methodology control on the same
 run — A/B on the HP, where AVX2 is absent and arm A must fall back to arm B,
 so the true ratio is known in advance — measured A/B capture medians 1.001/1.000/1.000x (per-shape 0.999–1.001, n=9),
 which is what licenses trusting the Dell's decomposition.
@@ -1143,7 +1137,7 @@ python3 docs/paper/gen_table3.py
 | 4 | Quality cost, FULL-INTEGER path, BitNet-2B (after v1.0.3 erratum) | +0.1239% PPL (30.744724 vs 30.706665), argmax digest 0xB274DE03F5862DB7 | A35 | i5-10210U crosvm | `docs/hardware_logs/cis1_fullint_ppl_bitnet2b_i5-10210U_crosvm_2026-08-27_e1c_fixed.log` | yes |
 | 4 | Throughput cost by microarchitecture (C/B ratio) | Dell (Broadwell-U) C/B capture medians 1.254/1.246/1.252x (median of nine 1.248x); HP (Gemini Lake) 0.961/0.962/0.961x | A26 | Dell i5-5200U (Broadwell-U) + HP N4020 (Gemini Lake) | `docs/hardware_logs/cis_vs_float_L_dell_BOOTLOG_2026-08-05.txt` | yes |
 | 4 | AVX2 integer kernel vs float AVX2 kernel | D/A capture medians 0.339/0.339/0.356x (median of nine 0.340x; about 2.9x); D/C 0.060/0.060/0.062x (about 16x) | A27 | Dell i5-5200U | `docs/hardware_logs/cis_avx2_armD_ordercontrol_L_dell_BOOTLOG_2026-08-06.txt` | yes |
-| 4 | Ring-0 unikernel vs minimal Linux decode throughput | +3.6% / +9.4% / +5.1% (prereg form); P-V2-2 FAIL spread 4.7-9.6% | A22 | Dell i5-5200U | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | yes |
+| 4 | Ring-0 unikernel vs minimal Linux decode throughput | +3.6% / +9.4% / +5.1% (prereg form; derived by scripts/score_mech2.py over the boot log, see Table 4); P-V2-2 FAIL spread 4.7-9.6% | A22 | Dell i5-5200U | `docs/hardware_logs/mech2_U_BOOTLOG_2026-08-01.txt` | yes |
 | 3.1 | Token-level FULL-INTEGER decode digest, BitNet-2B, x86-64 leg | digest cab11400d737ac4a, prompt_toks=4 gen_toks=64, identical on 2 runs, coherent text | A36 | i5-10210U crosvm | `docs/hardware_logs/cis_decode_bitnet2b_fullint_x86_i5-10210U_crosvm_2026-08-27.log` | yes |
 | 3.2 | Standalone third-party verifier (no engine dependency) reproduces both digests and verifies the golden receipt | CIS_SELFTEST 76985613c965f643 ALL_PASS=true; CIS_DECODE 67e8c0a96abc04e1; VERIFY PASS in ~1.4s, tamper tests name the field | A37 | i5-10210U crosvm | `docs/hardware_logs/cis_verify_standalone_tier2_tier3_golden_i5-10210U_crosvm_2026-08-27.log` | yes |
 | 3.2 | Standalone verifier crosses the ISA boundary in public CI | CIS_SELFTEST 76985613c965f643 ALL_PASS=true, 81 unit+integration tests pass, VERIFY PASS on x86-minted golden receipt, on aarch64 | A38 | GitHub ubuntu-24.04-arm (Neoverse N2) + ubuntu-24.04 | `docs/hardware_logs/cis_verify_aarch64_github_arm_ci_2026-08-27.log` | yes |
