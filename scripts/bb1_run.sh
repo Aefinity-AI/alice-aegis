@@ -32,7 +32,7 @@ cat > "$OUT/manifest.json" <<JSON
 JSON
 run_A() { # threads log
   taskset -c "$PIN" "$ALICE_BIN" "$ALICE_ASSETS/MODEL.SAF" "$ALICE_ASSETS/EMBED.BIN" "$ALICE_ASSETS/VOCAB.BIN" \
-    --threads "$1" --n-gen "$NGEN" --prompt-file "$OUT/prompt.txt" > "$2" 2>&1; }
+    --threads "$1" --n-gen "$((NGEN-1))" --prompt-file "$OUT/prompt.txt" > "$2" 2>&1; }
 run_B() {
   local s e; s=$(date +%s.%N)
   LD_LIBRARY_PATH="$BITNET_DIR/build-bb1/bin" taskset -c "$PIN" "$BITNET_DIR/build-bb1/bin/llama-completion" -m "$GGUF" -p "$PROMPT" -n "$NGEN" -t "$1" --temp 0 --ignore-eos -no-cnv > "$2.out" 2> "$2.err" || true
