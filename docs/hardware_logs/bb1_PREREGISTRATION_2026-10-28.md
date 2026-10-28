@@ -1,0 +1,45 @@
+# bb-1 EXTERNAL-ENGINE BASELINE — PRE-REGISTRATION (claims row C047)
+
+**Written 2026-10-28, BEFORE any bb-1 measurement.** Rules, bands and exclusions below are fixed now and apply to both arms identically. Whatever is measured is reportable, including NOT-MET.
+
+## 1. Question
+On one legacy x86 host, what is wall-clock decode throughput of the ALICE integer-path decode relative to an external ternary engine (bitnet.cpp) on the same BitNet-b1.58-2B-class model, same prompt, same generated-token count, same OS condition?
+
+## 2. Arms
+| arm | stack |
+|---|---|
+| **B** | bitnet.cpp pinned at commit 0b341e5, unmodified-source AVX2 build (the "unpatched" build in /home/cm/legs/w2-bitnet-box1), official i2_s GGUF, sha256 prefix 4221b252 (full hash recorded at pre-run and must match the pinned value before any run) |
+| **A** | ALICE integer-path decode (aegis-core, commit pinned in the run manifest before boot 1), same model weights converted by the repo's own pipeline, driven by the NEW wall-clock instrument (section 4) |
+
+Patched bitnet.cpp build, if used, is a separate declared arm B' reported beside B, never substituted for B.
+
+## 3. Protocol (locked)
+- Host: w2 (Dell, i5-5200U, Broadwell-U, AVX2), Linux userspace under systemd-run, no other lab job, governor performance, bd-PROCHOT/throttle state read back before each boot.
+- Identical across arms: prompt text (fixed string recorded in manifest), prompt token count, generated token count N_gen = 64 (greedy, temperature 0), same OS condition (same kernel, same boot, same cgroup limits, same core pinning).
+- Threads: 1 and 4, both reported; no pooling across thread counts.
+- Boots per arm: per oscost_PREREGISTRATION_2026-07-30 = interleaved A, B, A, B ... N = 5 boots per arm per thread count minimum, fresh process per run; within a boot, 1 discarded warm-up run then 7 counted fresh-process runs.
+- Load average, per-core MHz and thermal-throttle counters sampled before and after every run and logged. Raw logs copied verbatim to docs/hardware_logs/, never edited (Rule C).
+- Work identity gate: both arms must emit the same prompt token count and N_gen tokens. Output-text identity is reported but not required (different quantization kernels may differ); if prompt/N_gen differ, no timing comparison is valid.
+
+## 4. Instrument
+Decode tokens/s = N_gen / wall seconds of the decode loop only (monotonic clock, excludes model load, includes sampling), measured identically on both arms. Arm B uses bitnet.cpp's own eval timing AND an outer wall clock around the process; the outer-wall value is primary. Arm A's instrument is new code added to a bench harness; it is reviewed and committed BEFORE boot 1, and its first output is a dry-run that is not counted.
+
+## 5. Metrics
+Primary: per boot, per thread count, median over counted runs of decode tok/s; ratio R = tok/s(A) / tok/s(B), pooled median over boots with percentile-bootstrap CI over boots (10,000 resamples). Secondary: prefill tok/s, within-boot CV, peak RSS, clock %-of-nominal.
+Clock parity gate: if adjacent A/B boots differ in mean MHz by >2%, those boots are excluded and the exclusion reported.
+
+## 6. Rules fixed in advance (symmetric)
+Evaluated separately at threads=1 and threads=4, on the pooled R with its CI:
+| outcome | condition | statement allowed |
+|---|---|---|
+| MET | CI lower bound >= 0.90 | "ALICE decode is within 10% of or above bitnet.cpp at this thread count on this host and model" |
+| NOT-MET | CI upper bound < 0.90 | "ALICE decode is more than 10% slower than bitnet.cpp ..." reported as-is |
+| INCONCLUSIVE | otherwise | "not distinguishable at N=5/boots" ; extension of N must be declared before unblinding |
+Faster-than direction: if CI lower bound > 1.00, report as ahead, same wording care. Valid runs only after the work-identity gate. Failed boots count and are listed; no run is dropped except by the stated parity/identity gates. No threshold, prompt or arm is changed after data.
+
+## 7. Provenance (Rule B)
+Every number in any ledger row cites a raw log path, git commit of each engine, GGUF/weights hash, host, date. Ledger batch and both logs are new files under docs/hardware_logs/.
+
+## 8. NOT claimed
+Not a claim about any other host, CPU, model size or quantization; not multi-host; not energy; not quality/perplexity; not a comparison to bitnet.cpp's patched or GPU paths; not a bare-metal result; no tok/s from emulators. Result applies to Broadwell-U AVX2, one model, N_gen=64.
+Banned wording: first, novel, world's, unique.
