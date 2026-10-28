@@ -37,7 +37,7 @@ run_B() {
   local s e; s=$(date +%s.%N)
   LD_LIBRARY_PATH="$BITNET_DIR/build-bb1/bin" taskset -c "$PIN" "$BITNET_DIR/build-bb1/bin/llama-completion" -m "$GGUF" -p "$PROMPT" -n "$NGEN" -t "$1" --temp 0 --ignore-eos -no-cnv > "$2.out" 2> "$2.err" || true
   e=$(date +%s.%N)
-  { echo arm=B; echo threads="$1"; echo outer_wall_s="$(echo "$e - $s" | bc -l)"; grep -E "eval time|sample time|load time" "$2.err" | sed 's/^/bitnet_timing: /'; } > "$2"; }
+  { echo arm=B; echo threads="$1"; echo outer_wall_s="$(python3 -c "print($e - $s)")"; grep -E "eval time|sample time|load time" "$2.err" | sed 's/^/bitnet_timing: /'; } > "$2"; }
 # Work-identity gate (PREREG s.3), automated. A: prompt_tokens, n_gen_emitted. B: perf lines
 # "prompt eval time = .. / N tokens", "eval time = .. / M runs" (M = N_gen-1, first token comes from prefill).
 REF_PT=""; GATE="$OUT/gate.log"
@@ -45,6 +45,7 @@ gate() { # $1 arm $2 log ; abort on mismatch
   local pt ng
   if [ "$1" = A ]; then pt=$(sed -n 's/^prompt_tokens=//p' "$2"); ng=$(sed -n 's/^n_gen_emitted=//p' "$2")
   else pt=$(sed -n 's/.*prompt eval time.*\/ *\([0-9]*\) tokens.*/\1/p' "$2.err" | head -1)
+       [ -n "$pt" ] && pt=$((pt-1))   # arm B counts the BOS token the llama.cpp tokenizer prepends; ALICE count excludes it (PREREG s9)
        ng=$(sed -n 's/.*[^t] eval time.*\/ *\([0-9]*\) runs.*/\1/p' "$2.err" | grep -v '^$' | tail -1); [ -n "$ng" ] && ng=$((ng+1)); fi
   echo "$(basename "$2") arm=$1 prompt_tokens=${pt:-NA} n_gen=${ng:-NA}" >> "$GATE"
   [ -n "$REF_PT" ] || REF_PT=$pt
