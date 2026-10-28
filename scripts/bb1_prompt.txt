@@ -1,0 +1,1 @@
+Explain, in plain language, how a transformer language model turns a prompt into a reply, one token at a time.
