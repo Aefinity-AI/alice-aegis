@@ -43,3 +43,9 @@ Every number in any ledger row cites a raw log path, git commit of each engine, 
 ## 8. NOT claimed
 Not a claim about any other host, CPU, model size or quantization; not multi-host; not energy; not quality/perplexity; not a comparison to bitnet.cpp's patched or GPU paths; not a bare-metal result; no tok/s from emulators. Result applies to Broadwell-U AVX2, one model, N_gen=64.
 Banned wording: first, novel, world's, unique.
+
+## 9. Pre-result clarifications (2026-10-28, before any bb-1 measurement; design unchanged)
+- **N_gen / rate definition.** N_gen = 64 generated tokens on both arms (arm B run with --ignore-eos, arm A ignore_eos=true). Token 1 is produced at the end of prefill on both engines, so the timed decode loop is 63 forward steps (bitnet.cpp reports "eval time ... / 63 runs"). Decode tok/s = 63 / decode seconds (ALICE field `tok_s_decode`; bitnet.cpp eval-time rate), the same definition on both arms. `tok_s_ngen` (64/s) is logged but not used. Section 4's "N_gen / wall seconds" is read in this sense.
+- **Prompt.** Fixed string in scripts/bb1_prompt.txt (sha256 in manifest). Prompt token count must be equal on both arms; the runner checks every run and aborts with GATE_FAIL on any mismatch of prompt tokens or N_gen (gate.log lists every run).
+- **Arm B flags.** `llama-cli -m GGUF -p PROMPT -n 64 -t T --temp 0 --ignore-eos -no-cnv` (all present in the pinned source arg.cpp at 0b341e5).
+- **Open reading (not resolved here).** Section 4 says outer process wall is primary for B, but that includes model load and prefill, which arm A excludes. The runner records both; which is primary for R must be fixed before boot 1 (the like-for-like value is bitnet.cpp eval time).

@@ -8,11 +8,12 @@ set -euo pipefail
 OUT=${1:?outdir}; mkdir -p "$OUT"
 : "${ALICE_BIN:?}" "${ALICE_ASSETS:?}" "${BITNET_DIR:?}" "${GGUF:?}" "${GGUF_SHA256:?}" "${ALICE_REPO:?}"
 BOOTS=${BOOTS:-5}; RUNS=${RUNS:-8}; NGEN=${NGEN:-64}
-PROMPT='Explain, in plain language, how a transformer language model turns a prompt into a reply, one token at a time.'
+PF="$(cd "$(dirname "$0")" && pwd)/bb1_prompt.txt"   # fixed prompt, committed (sha256 in manifest)
+PROMPT=$(cat "$PF")
 PIN=${PIN_CPUS:-0-3}
 [ "$(sha256sum "$GGUF" | cut -d' ' -f1)" = "$GGUF_SHA256" ] || { echo "GGUF hash mismatch" >&2; exit 3; }
 case "$GGUF_SHA256" in 4221b252*) ;; *) echo "GGUF is not the pinned 4221b252 model" >&2; exit 3;; esac
-printf '%s' "$PROMPT" > "$OUT/prompt.txt"
+cp "$PF" "$OUT/prompt.txt"
 sample() { # $1 label
   { echo "## $1 $(date -u +%FT%TZ)"; cat /proc/loadavg
     grep MHz /proc/cpuinfo | tr -s ' \t' ' '
@@ -25,6 +26,7 @@ cat > "$OUT/manifest.json" <<JSON
  "bitnet_commit":"$(git -C "$BITNET_DIR" rev-parse HEAD 2>/dev/null || echo unknown)",
  "gguf":"$GGUF","gguf_sha256":"$GGUF_SHA256",
  "alice_assets_sha256":{"MODEL.SAF":"$(sha256sum "$ALICE_ASSETS/MODEL.SAF"|cut -d' ' -f1)","EMBED.BIN":"$(sha256sum "$ALICE_ASSETS/EMBED.BIN"|cut -d' ' -f1)","VOCAB.BIN":"$(sha256sum "$ALICE_ASSETS/VOCAB.BIN"|cut -d' ' -f1)"},
+ "prompt_sha256":"$(sha256sum "$PF"|cut -d' ' -f1)",
  "prompt":$(printf '%s' "$PROMPT" | python3 -c 'import json,sys;print(json.dumps(sys.stdin.read()))'),
  "n_gen":$NGEN,"boots":$BOOTS,"runs_per_boot":$RUNS,"cpu_pin":"$PIN","threads":[1,4]}
 JSON
@@ -33,9 +35,21 @@ run_A() { # threads log
     --threads "$1" --n-gen "$NGEN" --prompt-file "$OUT/prompt.txt" > "$2" 2>&1; }
 run_B() {
   local s e; s=$(date +%s.%N)
-  taskset -c "$PIN" "$BITNET_DIR/build/bin/llama-cli" -m "$GGUF" -p "$PROMPT" -n "$NGEN" -t "$1" --temp 0 -no-cnv > "$2.out" 2> "$2.err" || true
+  taskset -c "$PIN" "$BITNET_DIR/build/bin/llama-cli" -m "$GGUF" -p "$PROMPT" -n "$NGEN" -t "$1" --temp 0 --ignore-eos -no-cnv > "$2.out" 2> "$2.err" || true
   e=$(date +%s.%N)
   { echo arm=B; echo threads="$1"; echo outer_wall_s="$(echo "$e - $s" | bc -l)"; grep -E "eval time|sample time|load time" "$2.err" | sed 's/^/bitnet_timing: /'; } > "$2"; }
+# Work-identity gate (PREREG s.3), automated. A: prompt_tokens, n_gen_emitted. B: perf lines
+# "prompt eval time = .. / N tokens", "eval time = .. / M runs" (M = N_gen-1, first token comes from prefill).
+REF_PT=""; GATE="$OUT/gate.log"
+gate() { # $1 arm $2 log ; abort on mismatch
+  local pt ng
+  if [ "$1" = A ]; then pt=$(sed -n 's/^prompt_tokens=//p' "$2"); ng=$(sed -n 's/^n_gen_emitted=//p' "$2")
+  else pt=$(sed -n 's/.*prompt eval time.*\/ *\([0-9]*\) tokens.*/\1/p' "$2.err" | head -1)
+       ng=$(sed -n 's/.*[^t] eval time.*\/ *\([0-9]*\) runs.*/\1/p' "$2.err" | grep -v '^$' | tail -1); [ -n "$ng" ] && ng=$((ng+1)); fi
+  echo "$(basename "$2") arm=$1 prompt_tokens=${pt:-NA} n_gen=${ng:-NA}" >> "$GATE"
+  [ -n "$REF_PT" ] || REF_PT=$pt
+  if [ -z "$pt" ] || [ "$pt" != "$REF_PT" ] || [ "$ng" != "$NGEN" ]; then
+    echo "GATE FAIL: work identity ($1 pt=${pt:-NA} ref=$REF_PT n_gen=${ng:-NA} want $NGEN) $2" | tee "$OUT/GATE_FAIL" >&2; exit 4; fi; }
 for T in 1 4; do
   for ((b=1; b<=BOOTS; b++)); do
     for arm in A B; do          # interleaved A,B,A,B...
@@ -46,6 +60,7 @@ for T in 1 4; do
         sample "pre-run $(basename "$log")"
         if [ $arm = A ]; then run_A "$T" "$log"; else run_B "$T" "$log"; fi
         sample "post-run $(basename "$log")"
+        gate "$arm" "$log"
       done
     done
   done
