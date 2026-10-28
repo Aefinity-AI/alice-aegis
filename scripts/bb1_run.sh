@@ -35,7 +35,7 @@ run_A() { # threads log
     --threads "$1" --n-gen "$NGEN" --prompt-file "$OUT/prompt.txt" > "$2" 2>&1; }
 run_B() {
   local s e; s=$(date +%s.%N)
-  taskset -c "$PIN" "$BITNET_DIR/build/bin/llama-cli" -m "$GGUF" -p "$PROMPT" -n "$NGEN" -t "$1" --temp 0 --ignore-eos -no-cnv > "$2.out" 2> "$2.err" || true
+  LD_LIBRARY_PATH="$BITNET_DIR/build-bb1/bin" taskset -c "$PIN" "$BITNET_DIR/build-bb1/bin/llama-completion" -m "$GGUF" -p "$PROMPT" -n "$NGEN" -t "$1" --temp 0 --ignore-eos -no-cnv > "$2.out" 2> "$2.err" || true
   e=$(date +%s.%N)
   { echo arm=B; echo threads="$1"; echo outer_wall_s="$(echo "$e - $s" | bc -l)"; grep -E "eval time|sample time|load time" "$2.err" | sed 's/^/bitnet_timing: /'; } > "$2"; }
 # Work-identity gate (PREREG s.3), automated. A: prompt_tokens, n_gen_emitted. B: perf lines
