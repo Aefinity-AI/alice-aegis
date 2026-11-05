@@ -1,0 +1,108 @@
+Forge scale convention: identity record for the --scale-convention change, 2026-11-05T18:16Z
+Machine: Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz, Debian 13. IDENTITY ONLY (Rule A: this log carries no timing).
+Script under test: aegis-forge/repack_ternary.py sha256 cf2e0285b782d29a71064c6c2794452a28f1a8230ffa5c298f0995d4e553599b
+Base: origin/main d3700f0d8fd096d9428dd98a1e36ffd29874d6d4. Python: Python 3.13.5.
+Paths are shortened: <E16> is an archived copy of the E16 checkpoint (kernel output e16_ckpt), <MS> is microsoft/bitnet-b1.58-2B-4T, <FALCON> is tiiuae/Falcon-E-1B-Instruct, <TINYBIT> is the tinybit gate export and artifacts, <ANCHOR> is aegis_pruned_model.safetensors, <OUT> is scratch.
+Copied from the raw run output with paths shortened as above, the job runner's wrapper lines (unit name, exit status, resource use) removed, and the section 7 comparison command written in.
+Effect on reproduction: the E16b and E16c commands now need --scale-convention reciprocal. Artifacts and published numbers are unchanged.
+
+== source identities ==
+ab9ebbaad9572120609f3518553b584a0fa8ba12785284a55947301411bc8a6e  <E16>/config.json
+a8104b4fcc34bac4131b6324f12707ada54610e12f25bc75430fabc83b99cfde  <E16>/model.safetensors
+  model_type bitnet architectures ['BitNetForCausalLM']
+2b43e80788972e6d53967b01ac3609d7df23cf0aabb0c866e51be694a59c1149  <MS>/config.json
+8143ae115ed6babe5e5ada8fb8c5b769d8f417802b2db042ad98b4f7ed73975b  <MS>/model.safetensors
+  model_type bitnet architectures ['BitNetForCausalLM']
+d7a3ce66fe9b18625772b5a9d66fe9a6658df24e55ac1cf31dec7b06700d62cd  <FALCON>/config.json
+6c52dd484e4af14175c5bcef67d0f07b4ff7d1ea87baa5ba01f3f289d15cf75a  <FALCON>/model.safetensors
+  model_type llama architectures ['LlamaForCausalLM']
+
+== test suite ==
+all repack self-tests passed
+exit=0
+
+== 1. auto refuses a bitnet config, before anything is written ==
+$ python3 aegis-forge/repack_ternary.py <E16> <OUT>/refuse-E16
+weight_scale convention is not settled by a bitnet config: pass --scale-convention copy for Microsoft BitNet-2B (source stores the engine's multiply scale) or --scale-convention reciprocal for a QAT export fine-tuned from it (source stores 1/mean|w|). A wrong choice inverts every scale and still passes all shape and ternary checks; refusing to guess.
+exit=1 entries_left_in_out_dir=0
+$ python3 aegis-forge/repack_ternary.py <MS> <OUT>/refuse-MS
+weight_scale convention is not settled by a bitnet config: pass --scale-convention copy for Microsoft BitNet-2B (source stores the engine's multiply scale) or --scale-convention reciprocal for a QAT export fine-tuned from it (source stores 1/mean|w|). A wrong choice inverts every scale and still passes all shape and ternary checks; refusing to guess.
+exit=1 entries_left_in_out_dir=0
+
+== 2. E16c re-forge (pruned) with the flag, against the hashes published in 2026-08-28-E16c-qat-eval-pruned.md ==
+$ python3 aegis-forge/repack_ternary.py <E16> <OUT>/e16c --scale-convention reciprocal --max-seq 512 --llama3-prune
+weight_scale convention: reciprocal (explicit)
+exit=0
+MATCH MODEL.SAF sha256 c5075aa121d6b79f49923ed19bc33449f75596b7e1f6d3f52fd67aa366e03f89 is at line 8 of 2026-08-28-E16c-qat-eval-pruned.md
+MATCH EMBED.BIN sha256 4f9f78aa4155b06a33951c5a3cdca59f359b08ed386e00d03cbe5c92875dbc24 is at line 9 of 2026-08-28-E16c-qat-eval-pruned.md
+MATCH VOCAB.BIN sha256 5bde1b0355ef99c6875190ebfff081d985ca48977ae9269e3477f5cc2d97d9ae is at line 10 of 2026-08-28-E16c-qat-eval-pruned.md
+
+== 3. E16b re-forge (full-vocab) with the flag, against the hashes published in 2026-08-28-E16b-qat-eval.md ==
+(the E16b log prints no command line; --max-seq 512 is the setting that reproduces its hashes)
+$ python3 aegis-forge/repack_ternary.py <E16> <OUT>/e16b --scale-convention reciprocal --max-seq 512
+weight_scale convention: reciprocal (explicit)
+exit=0
+MATCH MODEL.SAF sha256 2b55924cd88de95beb7eb9596e6242d5189e922f11c61c4b4c46135a59a0ef72 is at line 18 of 2026-08-28-E16b-qat-eval.md
+MATCH EMBED.BIN sha256 d9a6bf7174ce07ab3aee81144bdcb519d04b12638ec9fb59f191f35919c61462 is at line 19 of 2026-08-28-E16b-qat-eval.md
+MATCH VOCAB.BIN sha256 c4c0957c8f036b2bd38b6f2e32488f6a451523ee269f1cc3e8762a04e2f7d43e is at line 20 of 2026-08-28-E16b-qat-eval.md
+
+== 4. Falcon-E-1B under auto (llama config, no convention flag) ==
+$ python3 aegis-forge/repack_ternary.py <FALCON> <OUT>/falcon --source-packing hf1bitllm
+weight_scale convention: reciprocal (config is llama-family (Falcon-E / onebitllms convention))
+exit=0
+MATCH MODEL.SAF sha256 6ebdb9e0b2a099beb2befb71dd4b58deac1f72a1a22aa604788e302f612c92ff is at line 8 of cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log
+MATCH EMBED.BIN sha256 8951f5725b709b9763f4f6eadfedf17629a3861fe71f192399dfb7b4e94bc0c6 is at line 9 of cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log
+MATCH VOCAB.BIN sha256 e8f860844bc1a0759bf412f15c206ac839333844e4f4eaf153b166ca59184989 is at line 10 of cis_falcon_e_1b_ppl_decode_receipt_i5-10210U_crosvm_2026-08-28.log
+mode=reciprocal source_scales=168 output_scales=168 mismatches=0 sample model.layers.0.mlp.down_proj.weight_scale: source=20.75 output=0.048192769289016724
+
+== 4b. tinybit under auto (llama config, no convention flag), against its on-disk gate artifacts; no hash published, so cmp only ==
+$ python3 aegis-forge/repack_ternary.py <TINYBIT>/export <OUT>/tinybit --max-seq 512
+weight_scale convention: reciprocal (config is llama-family (Falcon-E / onebitllms convention))
+exit=0
+cmp MODEL.SAF IDENTICAL
+cmp EMBED.BIN IDENTICAL
+cmp VOCAB.BIN IDENTICAL
+
+== 5. Microsoft BitNet-2B, full vocab, both conventions ==
+$ python3 aegis-forge/repack_ternary.py <MS> <OUT>/mscopy --scale-convention copy --source-packing hf1bitllm
+weight_scale convention: copy (explicit)
+exit=0
+mode=equal source_scales=210 output_scales=210 mismatches=0 sample model.layers.0.mlp.down_proj.weight_scale: source=2.15625 output=2.15625
+$ python3 aegis-forge/repack_ternary.py <MS> <OUT>/msrecip --scale-convention reciprocal --source-packing hf1bitllm
+weight_scale convention: reciprocal (explicit)
+exit=0
+mode=reciprocal source_scales=210 output_scales=210 mismatches=0 sample model.layers.0.mlp.down_proj.weight_scale: source=2.15625 output=0.4637681245803833
+
+== 6. the previous script (origin/main) on the same source: it always wrote the reciprocal and exited clean ==
+$ python3 <origin/main repack_ternary.py> <MS> <OUT>/msold --source-packing hf1bitllm
+exit=0
+mode=reciprocal source_scales=210 output_scales=210 mismatches=0 sample model.layers.0.mlp.down_proj.weight_scale: source=2.15625 output=0.4637681245803833
+cmp MODEL.SAF IDENTICAL to --scale-convention reciprocal
+cmp EMBED.BIN IDENTICAL to --scale-convention reciprocal
+cmp VOCAB.BIN IDENTICAL to --scale-convention reciprocal
+
+== 7. the pruned BitNet-2B anchor artifact carries Microsoft's scales unchanged ==
+53586af0856e141e8abb93fd434a9dc28932dfd77181eed44ec6ad3f0c689053  aegis_pruned_model.safetensors
+$ python3 scale_compare.py equal <MS>/model.safetensors <ANCHOR>
+mode=equal source_scales=210 output_scales=210 mismatches=0 sample model.layers.0.mlp.down_proj.weight_scale: source=2.15625 output=2.15625
+
+== scale_compare.py ==
+# usage: scale_compare.py equal|reciprocal SOURCE OUTPUT
+# Reads every *weight_scale tensor from two safetensors headers and compares them by name, exactly.
+# equal: output float32 == source value. reciprocal: output float32 == float32(1/source).
+import json, struct, sys
+def scales(path):
+    with open(path, "rb") as f:
+        n = struct.unpack("<Q", f.read(8))[0]; h = json.loads(f.read(n)); base = 8 + n; out = {}
+        for k, v in h.items():
+            if k == "__metadata__" or not k.endswith("weight_scale"): continue
+            assert v["dtype"] in ("BF16", "F32"), (k, v["dtype"])
+            a, b = v["data_offsets"]; f.seek(base + a); raw = f.read(b - a)
+            out[k] = struct.unpack("<f", raw if v["dtype"] == "F32" else b"\0\0" + raw)[0]
+    return out
+f32 = lambda x: struct.unpack("<f", struct.pack("<f", x))[0]
+mode, s, o = sys.argv[1], scales(sys.argv[2]), scales(sys.argv[3])
+want = (lambda x: x) if mode == "equal" else (lambda x: f32(1.0 / x))
+bad = [k for k in s if k not in o or o[k] != want(s[k])]
+k0 = sorted(s)[0]
+print(f"mode={mode} source_scales={len(s)} output_scales={len(o)} mismatches={len(bad)} sample {k0}: source={s[k0]} output={o.get(k0)}")

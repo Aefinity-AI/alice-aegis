@@ -234,6 +234,169 @@ with tempfile.TemporaryDirectory() as td:
             magic, n = struct.unpack("<II", f.read(8))
         check("VOCAB.BIN magic+count", magic == rt.MAGIC and n == VOCAB)
 
+
+# --- T3c: weight_scale convention (regression for the 2026-07-16 inversion) ---
+# A Microsoft BitNet-2B source is already in the engine's multiply convention
+# (the pruned 10.758 anchor is a raw copy of these scales); Falcon-E / onebitllms
+# / our own QAT exports store the division convention and need the reciprocal.
+# Always inverting turned all 210 scales of the full-vocab BitNet forge into
+# their reciprocals while every shape and ternary check still passed.
+# The scale values below are real: first four BF16 scales of the Microsoft
+# checkpoint, and Falcon-E-1B layer-0 scales.
+MS_SCALES = [2.15625, 1.55469, 1.82812, 3.625]
+FALCON_SCALES = [20.75, 24.125, 23.25, 9.8125]
+
+
+def bf16_bytes(x):
+    return struct.pack("<f", x)[2:]
+
+
+def f32_of_bf16(x):
+    return struct.unpack("<f", b"\x00\x00" + bf16_bytes(x))[0]
+
+
+def repack_scales(config_extra, source_scales, extra_args=()):
+    """Run the real CLI on a synthetic checkpoint with the given BF16 scales;
+    returns (returncode, stderr+stdout, [(src_scale, out_scale), ...]). After a
+    refusal the third item instead lists what was left in the output directory."""
+    h, heads, kvh, ffn, layers, vocab = 8, 2, 1, 16, 2, 6
+    kv = (h // heads) * kvh
+    with tempfile.TemporaryDirectory() as td:
+        ck, op = os.path.join(td, "ck"), os.path.join(td, "out")
+        os.makedirs(ck)
+        cfg = {"num_hidden_layers": layers, "hidden_size": h, "num_attention_heads": heads,
+               "num_key_value_heads": kvh, "intermediate_size": ffn, "vocab_size": vocab,
+               "max_position_embeddings": 2048, "hidden_act": "silu", "rope_theta": 10000.0,
+               "rms_norm_eps": 1e-6, "tie_word_embeddings": False}
+        cfg.update(config_extra)
+        with open(os.path.join(ck, "config.json"), "w") as f:
+            json.dump(cfg, f)
+        vm = {f"t{i}": i for i in range(vocab - 1)}
+        vm["t1t2"] = 3
+        del vm["t3"]
+        with open(os.path.join(ck, "tokenizer.json"), "w") as f:
+            json.dump({"model": {"vocab": vm, "merges": ["t1 t2"]},
+                       "added_tokens": [{"id": vocab - 1, "content": "<|end|>"}]}, f)
+        ones = struct.pack(f"<{h}f", *([1.0] * h))
+        tl, order, n = [], [], 0
+        for i in range(layers):
+            p = f"model.layers.{i}"
+            tl.append((f"{p}.input_layernorm.weight", "F32", [h], ones))
+            tl.append((f"{p}.post_attention_layernorm.weight", "F32", [h], ones))
+            for proj, do, di in [("self_attn.q_proj", h, h), ("self_attn.k_proj", kv, h),
+                                 ("self_attn.v_proj", kv, h), ("self_attn.o_proj", h, h),
+                                 ("mlp.gate_proj", ffn, h), ("mlp.up_proj", ffn, h),
+                                 ("mlp.down_proj", h, ffn)]:
+                raw = bytes(((j % 3) - 1) % 256 for j in range(do * di))
+                tl.append((f"{p}.{proj}.weight", "I8", [do, di], raw))
+                s = source_scales[n % len(source_scales)]
+                n += 1
+                tl.append((f"{p}.{proj}.weight_scale", "BF16", [1], bf16_bytes(s)))
+                order.append((f"{p}.{proj}.weight_scale", s))
+        tl.append(("model.norm.weight", "F32", [h], ones))
+        tl.append(("model.embed_tokens.weight", "F32", [vocab, h],
+                   struct.pack(f"<{vocab * h}f", *[0.01 * k for k in range(vocab * h)])))
+        tl.append(("lm_head.weight", "F16", [vocab, h],
+                   struct.pack(f"<{vocab * h}e", *[0.02 * k for k in range(vocab * h)])))
+        rt.write_safetensors(os.path.join(ck, "model.safetensors"), tl)
+        pr = subprocess.run([sys.executable, os.path.join(HERE, "repack_ternary.py"), ck, op,
+                             "--source-packing", "unpacked", *extra_args],
+                            capture_output=True, text=True, check=False)
+        if pr.returncode != 0:
+            return pr.returncode, pr.stdout + pr.stderr, (
+                os.listdir(op) if os.path.isdir(op) else [])
+        with open(os.path.join(op, "MODEL.SAF"), "rb") as f:
+            hl = struct.unpack("<Q", f.read(8))[0]
+            hd = json.loads(f.read(hl))
+            data = f.read()
+        pairs = []
+        for name, s in order:
+            a, b = hd[name]["data_offsets"]
+            assert hd[name]["dtype"] == "F32" and b - a == 4
+            pairs.append((f32_of_bf16(s), struct.unpack("<f", data[a:b])[0]))
+        return 0, pr.stdout + pr.stderr, pairs
+
+
+MS_CFG = {"model_type": "bitnet", "architectures": ["BitNetForCausalLM"]}
+FALCON_CFG = {"model_type": "llama", "architectures": ["LlamaForCausalLM"]}
+
+# A QAT export fine-tuned from the Microsoft checkpoint keeps its bitnet config
+# but stores 1/mean|w| (E16). Same config, opposite convention, so auto refuses.
+QAT_SCALES = [1.0 / s for s in MS_SCALES]
+
+for label, scales in (("MS-style", MS_SCALES), ("QAT-export-style", QAT_SCALES)):
+    rc, log, left = repack_scales(MS_CFG, scales)
+    check(f"{label} source: bitnet config refused without an explicit flag", rc != 0, log[-300:])
+    check(f"{label} source: refusal names the flag and both choices",
+          "--scale-convention copy" in log and "--scale-convention reciprocal" in log, log[-300:])
+    check(f"{label} source: refusal leaves no partial output", left == [], str(left))
+
+rc, log, pairs = repack_scales(MS_CFG, MS_SCALES, ["--scale-convention", "copy"])
+check("MS-style (multiply convention) scales are copied, not inverted",
+      rc == 0 and len(pairs) == 14 and all(o == s for s, o in pairs),
+      f"src/out first pairs: {pairs[:4]} {log[-300:]}")
+
+rc, log, pairs = repack_scales(MS_CFG, QAT_SCALES, ["--scale-convention", "reciprocal"])
+check("QAT-export-style (bitnet config, division convention) scales are reciprocated",
+      rc == 0 and len(pairs) == 14
+      and all(abs(o * s - 1.0) < 1e-6 for s, o in pairs),
+      f"src/out first pairs: {pairs[:4]} {log[-300:]}")
+
+# every spelling of a bitnet config reaches the refusal, not the reciprocal default
+for cfg in ({"model_type": "bitnet"}, {"model_type": "BitNet"},
+            {"architectures": ["BitNetForCausalLM"]}, {"architectures": "BitNetForCausalLM"},
+            {"architectures": ["bitnetforcausallm"]},
+            {"model_type": "llama", "architectures": ["BitNetForCausalLM"]}):
+    try:
+        got = rt.resolve_scale_convention("auto", cfg)
+        check(f"auto refuses {cfg}", False, str(got))
+    except SystemExit:
+        check(f"auto refuses {cfg}", True)
+
+rc, log, pairs = repack_scales(FALCON_CFG, FALCON_SCALES)
+check("Falcon-style source repack exits 0", rc == 0, log[-300:])
+check("Falcon-style (division convention) scales are reciprocated",
+      rc == 0 and len(pairs) == 14
+      and all(abs(o * s - 1.0) < 1e-6 for s, o in pairs),
+      f"src/out first pairs: {pairs[:4]}")
+
+# unclassifiable config: stays on the documented reciprocal default, but loudly
+rc, log, pairs = repack_scales({}, FALCON_SCALES)
+check("unknown config falls back to reciprocal",
+      rc == 0 and all(abs(o * s - 1.0) < 1e-6 for s, o in pairs))
+check("unknown config warns that the convention was not recognized",
+      rc == 0 and "scale convention" in log and "WARNING" in log, log[-300:])
+
+# explicit flag wins over auto-detection on a config auto would accept
+rc, log, pairs = repack_scales(FALCON_CFG, MS_SCALES, ["--scale-convention", "copy"])
+check("--scale-convention copy overrides a llama config",
+      rc == 0 and all(o == s for s, o in pairs), log[-300:])
+
+# function-level: no default, the caller must choose; nonpositive refused both ways
+class _Src:
+    def __init__(self, v):
+        self.v = v
+
+    def get(self, name):
+        return struct.pack("<f", self.v), "F32", [1]
+
+
+check("copy mode keeps the value", rt.scalar_f32_scale(_Src(2.15625), "w", "copy")
+      == struct.pack("<f", 2.15625))
+check("reciprocal mode inverts (0.25 -> 4.0)", rt.scalar_f32_scale(_Src(0.25), "w", "reciprocal")
+      == struct.pack("<f", 4.0))
+for mode in ("copy", "reciprocal"):
+    try:
+        rt.scalar_f32_scale(_Src(0.0), "w", mode)
+        check(f"{mode}: nonpositive scale refused", False)
+    except ValueError:
+        check(f"{mode}: nonpositive scale refused", True)
+try:
+    rt.scalar_f32_scale(_Src(1.0), "w", "bogus")
+    check("unknown convention refused", False)
+except ValueError:
+    check("unknown convention refused", True)
+
 print()
 if failures:
     print(f"{len(failures)} FAILURES: {failures}")

@@ -52,8 +52,9 @@ end-to-end and larger runs can be trusted.
 ### The scale convention (has caused two prior bugs — get it right)
 
 The engine **multiplies** the ternary dot by a stored per-tensor scale.
-`repack_ternary.py` writes the **reciprocal** of the `weight_scale` it reads. So
-`export_hf.py` stores `weight_scale = 1/gamma` (divide convention); the repacker
+`repack_ternary.py` writes the **reciprocal** of the `weight_scale` it reads for
+this llama-family export (a source already in the multiply convention needs
+`--scale-convention copy`). So `export_hf.py` stores `weight_scale = 1/gamma` (divide convention); the repacker
 writes `1/(1/gamma) = gamma`; the engine multiplies by `gamma`. Effective weight
 `= w_q · gamma`, identical to the QAT forward. `export_hf.py` asserts the
 round-trip `1/stored_scale ≈ mean(|w|)`.

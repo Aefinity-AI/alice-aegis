@@ -14,7 +14,7 @@ file (never overwriting the input) that is byte-identical except for the
 safetensors header.
 
 Schema written (must match aegis-forge/repack_ternary.py's `aegis_config`
-dict literal at repack_ternary.py:561-574 exactly — key set and types):
+dict literal at repack_ternary.py:627-640 exactly — key set and types):
     num_hidden_layers      int
     hidden_size            int
     num_attention_heads    int
@@ -69,7 +69,7 @@ aegis-core/src/inference.rs:97-160):
     - chat_template:
         sniffed from the checkpoint's tokenizer_config.json jinja, using the
         exact same rule as repack_ternary.py's sniff_chat_template
-        (repack_ternary.py:445-463): "<|im_start|>" -> chatml,
+        (repack_ternary.py:512-534): "<|im_start|>" -> chatml,
         "<|start_header_id|>" -> llama3, else -> none (with a warning)
 
 Usage:
@@ -196,7 +196,7 @@ def derive_from_shapes(hdr):
 
 def sniff_chat_template(tokenizer_config_path):
     """Exact port of repack_ternary.py's sniff_chat_template (auto branch),
-    repack_ternary.py:445-463."""
+    repack_ternary.py:512-534."""
     try:
         with open(tokenizer_config_path) as f:
             jinja = json.load(f).get("chat_template") or ""

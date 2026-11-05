@@ -33,7 +33,7 @@ Source packings supported (--source-packing):
 Usage:
     python3 repack_ternary.py CKPT_DIR OUT_DIR \
         [--source-packing unpacked|hf1bitllm] [--llama3-prune] \
-        [--max-seq 2048]
+        [--scale-convention auto|copy|reciprocal] [--max-seq 2048]
 
 --llama3-prune reproduces regen_vocab_embed.py's id space (base ids
 < 50000 unchanged; the 256 added specials remapped 128000+k -> 50000+k)
@@ -423,22 +423,77 @@ def ternary_weight_bytes(src, name, packing, dim_out, dim_in):
     return pack_ternary(ints)
 
 
-def scalar_f32_scale(src, name):
-    """Per-tensor weight_scale, converted to the ENGINE's convention.
+SCALE_CONVENTIONS = ("copy", "reciprocal")
 
-    Source checkpoints served by transformers' BitLinear (Falcon-E via
-    onebitllms, HF1BitLLM) store the QUANTIZATION scale and dequantize by
-    DIVISION: out = (x_q @ w_q) / (act_scale * weight_scale), i.e.
-    effective weights = w_q / weight_scale (onebitllms _weight_quant:
-    scale = 1/mean|w|, so stored values are ~10-60).
 
-    The engine MULTIPLIES: out[row] = dot * scale (ops.rs), the convention
-    of the Microsoft BitNet-2B artifact chain (empirically pinned by the
-    10.348 eval anchor and the 'Paris' generation). So the repack must
-    write the RECIPROCAL of the source scale. Found the hard way: copying
-    the raw scalar made every Falcon-E linear ~450x too large and produced
-    confident token-salad while all shape/ternary checks passed.
+def resolve_scale_convention(choice, cfg):
+    """Pick how weight_scale is carried into the engine's multiply convention.
+
+    The engine MULTIPLIES (ops.rs: out[row] = dot * scale). Two source
+    families exist, and they differ:
+
+      copy        The source already stores the engine's multiply-convention
+                  scale. Microsoft BitNet-2B is this family: correct_transmute.py
+                  copies its scales raw and that artifact pins the 10.348/10.758
+                  anchor.
+      reciprocal  The source stores the QUANTIZATION scale 1/mean|w| and
+                  dequantizes by division (transformers BitLinear via
+                  onebitllms: Falcon-E, our own QAT/tinybit exports).
+
+    --scale-convention auto decides from config.json only where the config
+    settles it:
+
+      llama-family  -> reciprocal (checked on Falcon-E and tinybit).
+      bitnet        -> refused. Both families carry this config: Microsoft's
+                       checkpoint, and QAT exports fine-tuned from it (E16).
+      anything else -> reciprocal, with a warning.
+
+    A wrong choice inverts every scale and still passes all shape and ternary
+    checks, which is why a bitnet config needs the explicit flag.
+    Returns (convention, how_it_was_chosen).
     """
+    if choice in SCALE_CONVENTIONS:
+        return choice, "explicit"
+    if choice != "auto":
+        raise ValueError(f"unknown scale convention {choice!r}")
+    mt = str(cfg.get("model_type") or "").lower()
+    archs = cfg.get("architectures") or []
+    if isinstance(archs, str):
+        archs = [archs]
+    archs = [str(a).lower() for a in archs]
+    if mt == "bitnet" or "bitnetforcausallm" in archs:
+        raise SystemExit(
+            "weight_scale convention is not settled by a bitnet config: pass "
+            "--scale-convention copy for Microsoft BitNet-2B (source stores the "
+            "engine's multiply scale) or --scale-convention reciprocal for a QAT "
+            "export fine-tuned from it (source stores 1/mean|w|). A wrong choice "
+            "inverts every scale and still passes all shape and ternary checks; "
+            "refusing to guess.")
+    if mt == "llama" or any(a.startswith("llama") for a in archs):
+        return "reciprocal", "config is llama-family (Falcon-E / onebitllms convention)"
+    print("WARNING: scale convention not recognized from config.json "
+          f"(model_type={cfg.get('model_type')!r}); assuming reciprocal. "
+          "Pass --scale-convention copy|reciprocal. Wrong choice inverts every "
+          "scale and passes all shape/ternary checks.")
+    return "reciprocal", "unrecognized config, default"
+
+
+def scalar_f32_scale(src, name, convention):
+    """Per-tensor weight_scale, converted to the ENGINE's multiply convention.
+
+    `convention` is required (no default: the 2026-07-16 version always took
+    the reciprocal, which inverted all 210 scales of a Microsoft BitNet-2B
+    forge, because that checkpoint is already in the engine's convention).
+    See resolve_scale_convention for the two families.
+
+    "reciprocal": source stores 1/mean|w| and dequantizes by division (e.g.
+    Falcon-E-1B L0 mlp 20.75/24.125/23.25); write 1/source. Copying the raw scalar
+    made every Falcon-E linear ~450x too large (token-salad, all shape and
+    ternary checks green).
+    "copy": source scale is already engine convention; write it as F32.
+    """
+    if convention not in SCALE_CONVENTIONS:
+        raise ValueError(f"unknown scale convention {convention!r}")
     raw, dtype, shape = src.get(name)
     n = 1
     for d in shape:
@@ -449,6 +504,8 @@ def scalar_f32_scale(src, name):
     source_scale = to_f32_list(raw, dtype)[0]
     if source_scale <= 0.0:
         raise ValueError(f"{name}: nonpositive weight_scale {source_scale}")
+    if convention == "copy":
+        return struct.pack("<f", source_scale)
     return struct.pack("<f", 1.0 / source_scale)
 
 
@@ -486,6 +543,11 @@ def main():
     ap.add_argument("--max-seq", type=int, default=2048,
                     help="engine KV/arena window; the arena is sized by this, so a 32k "
                          "source context would exhaust a 2GB-class target")
+    ap.add_argument("--scale-convention", choices=["auto", *SCALE_CONVENTIONS], default="auto",
+                    help="weight_scale handling: copy (source already engine/multiply "
+                         "convention, Microsoft BitNet) | reciprocal (source stores 1/mean|w|, "
+                         "Falcon-E/onebitllms/QAT exports) | auto = decide from config.json; "
+                         "a bitnet config is refused because it fits both, so pass one")
     ap.add_argument("--chat-template", choices=["auto", "llama3", "chatml", "none"],
                     default="auto",
                     help="prompt convention stored in aegis_config; auto sniffs "
@@ -502,6 +564,10 @@ def main():
     if cfg.get("rope_scaling"):
         print(f"WARNING: source uses rope_scaling={cfg['rope_scaling']}; the engine has none. "
               f"Within a {args.max_seq}-token window this is usually moot — measure G4a before trusting it.")
+
+    # Before anything is written, so a refused config leaves no partial output.
+    scale_conv, why = resolve_scale_convention(args.scale_convention, cfg)
+    print(f"weight_scale convention: {scale_conv} ({why})")
 
     tie = bool(cfg.get("tie_word_embeddings", True))
     hidden = cfg["hidden_size"]
@@ -546,7 +612,7 @@ def main():
             dim_out, dim_in = dims[dk_out], dims[dk_in]
             packed = ternary_weight_bytes(src, w, args.source_packing, dim_out, dim_in)
             out_tensors.append((w, "U8", [dim_out, dim_in // 4], packed))
-            out_tensors.append((f"{w}_scale", "F32", [1], scalar_f32_scale(src, f"{w}_scale")))
+            out_tensors.append((f"{w}_scale", "F32", [1], scalar_f32_scale(src, f"{w}_scale", scale_conv)))
         print(f"layer {i}: repacked")
 
     raw, dtype, _ = src.get("model.norm.weight")
