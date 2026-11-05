@@ -31,8 +31,10 @@ It is deliberately short; everything it points to carries the detail.
   w4-perchannel 36.435 (SmolLM2 slice). Reproduce the anchor before and after
   touching anything in the measurement path.
 - **Weight-scale convention**: engine MULTIPLIES by scale; transformers
-  BitLinear DIVIDES. Repacker writes the reciprocal. Symptom of getting it
-  wrong: confident token-salad while every shape check passes.
+  BitLinear DIVIDES. Repacker writes the reciprocal for sources that divide
+  (Falcon-E, QAT exports) and copies sources already in the multiply convention
+  (Microsoft BitNet-2B); a bitnet config must pass `--scale-convention`. Symptom
+  of getting it wrong: confident token-salad while every shape check passes.
 
 ## Shutdown sequence (last 10 minutes of any session)
 
